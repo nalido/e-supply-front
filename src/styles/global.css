@@ -9,4 +9,14 @@ body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSyste
 .ant-statistic .ant-statistic-content { font-weight: 600; }
 .ant-card { box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
 
+/* 快速入口悬停效果 */
+.quick-action-item:hover {
+  background-color: #f8f9fa;
+}
+
+.quick-action-item:hover .quick-action-icon {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
 
