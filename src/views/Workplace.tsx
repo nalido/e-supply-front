@@ -2,120 +2,139 @@ import {
   Card, 
   Col, 
   Row, 
-  Statistic, 
-  Table, 
   Typography, 
   Empty, 
-  Image,
+  Table,
   Space,
   Button,
-  List
+  Avatar,
 } from 'antd';
-import {
-  AppstoreOutlined,
-  FileTextOutlined,
-  ShoppingOutlined,
-  DollarOutlined,
-  CreditCardOutlined,
-  TeamOutlined,
-  UserAddOutlined,
-  NotificationOutlined
-} from '@ant-design/icons';
+import { NotificationOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
-import api from '../api/mock';
+import { useState, useEffect } from 'react';
+import '../styles/workplace.css';
 
-type DeliveryRow = {
-  id: string;
-  orderNo: string;
-  styleName: string;
-  org: string;
-  date: string;
-  qty: number;
-  type?: string;
-  image?: string;
-};
+// 引入类型定义
+import type { 
+  DeliveryItem, 
+  WorkplaceStats, 
+  Announcement 
+} from '../types/workplace';
 
-type QuickActionItem = {
-  key: string;
-  title: string;
-  icon: React.ReactNode;
-  count?: number;
-};
+// 引入模拟数据
+import { 
+  quickActions, 
+  generateWorkplaceStats,
+  fetchPaginatedData,
+  generateCustomerDeliveryList,
+  generateFactoryDeliveryList,
+  generateAnnouncements
+} from '../mock/workplace';
 
-const columnsFactory = (withType: boolean, withImage: boolean = false): ColumnsType<DeliveryRow> => {
-  const base: ColumnsType<DeliveryRow> = [];
-  
-  if (withImage) {
-    base.push({
+
+/**
+ * 创建表格列配置
+ */
+const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
+  const columns: ColumnsType<DeliveryItem> = [
+    {
       title: '图片',
       dataIndex: 'image',
       width: 80,
-      render: () => (
-        <div style={{ width: 40, height: 40, backgroundColor: '#f5f5f5', border: '1px solid #d9d9d9', borderRadius: '4px' }} />
+      render: (image) => (
+        <Avatar src={image} size={40} shape="square" />
       ),
+    },
+    { 
+      title: '工厂订单', 
+      dataIndex: 'orderNo', 
+      width: 120, 
+      ellipsis: true 
+    },
+    { 
+      title: '款式资料', 
+      dataIndex: 'styleName', 
+      width: 150, 
+      ellipsis: true 
+    },
+    { 
+      title: withType ? '加工厂' : '客户', 
+      dataIndex: 'org', 
+      width: 80 
+    },
+    { 
+      title: '交货日期', 
+      dataIndex: 'date', 
+      width: 100 
+    },
+    { 
+      title: '数量', 
+      dataIndex: 'qty', 
+      width: 80 
+    },
+  ];
+  
+  if (withType) {
+    columns.push({ 
+      title: '加工类型', 
+      dataIndex: 'type', 
+      width: 100, 
+      ellipsis: true 
     });
   }
   
-  base.push(
-    { title: '工厂订单', dataIndex: 'orderNo', width: 120, ellipsis: true },
-    { title: '款式资料', dataIndex: 'styleName', width: 150, ellipsis: true },
-    { title: withType ? '加工厂' : '客户', dataIndex: 'org', width: 80 },
-    { title: '交货日期', dataIndex: 'date', width: 100 },
-    { title: '数量', dataIndex: 'qty', width: 80 }
-  );
-  
-  if (withType) {
-    base.push({ title: '加工类型', dataIndex: 'type', width: 100, ellipsis: true });
-  }
-  
-  return base;
+  return columns;
 };
 
-const dataFactory = (n: number, withType: boolean, withImage: boolean = false): DeliveryRow[] => {
-  const orderPrefixes = ['202502170', 'ET0032-02-', 'ET0036-02-', '永春', 'ET0297-03-'];
-  const styleNames = [
-    '儿童度假风套装ET0264',
-    '儿童网眼布拼接织带开角套装ET0228', 
-    '儿童华夫格纯色圆领短袖套ET0220',
-    '华夫格短裤ET0302',
-    '迷彩口袋拼接T恤套装AC011',
-    '儿童拉毛卫裤X106',
-    '儿童羊羔毛拉链卫衣ET0032',
-    '儿童拼接拉链连帽卫衣套装ET0036',
-    '男童白棕色块拼接休闲短袖上衣+短裤ET0297'
-  ];
-  const orgs = ['本厂', '睿宗李总', '刘国华', '石狮'];
-  const types = ['车缝', '打扣', '激光开袋', '线稿图', '包装', '面料到货时间'];
-  
-  return Array.from({ length: n }).map((_, i) => ({
-    id: `${i}`,
-    orderNo: `${orderPrefixes[i % orderPrefixes.length]}${String(i + 1).padStart(3, '0')}`,
-    styleName: styleNames[i % styleNames.length],
-    org: orgs[i % orgs.length],
-    date: dayjs().add(i % 20 - 5, 'day').format('YYYY-MM-DD'),
-    qty: [60, 75, 100, 150, 270, 280, 375, 624, 1620, 1740, 1848][i % 11],
-    type: withType ? types[i % types.length] : undefined,
-    image: withImage ? `/api/placeholder/40/40?text=${i + 1}` : undefined,
-  }));
-};
 
-// 快速入口配置
-const quickActions: QuickActionItem[] = [
-  { key: 'style', title: '款式', icon: <AppstoreOutlined /> },
-  { key: 'sample', title: '样板单', icon: <FileTextOutlined /> },
-  { key: 'order', title: '工厂订单', icon: <ShoppingOutlined /> },
-  { key: 'receivable', title: '客户收款', icon: <DollarOutlined /> },
-  { key: 'payable-factory', title: '加工厂付款', icon: <CreditCardOutlined /> },
-  { key: 'payable-supplier', title: '供应商付款', icon: <CreditCardOutlined /> },
-  { key: 'users', title: '用户管理', icon: <TeamOutlined /> },
-  { key: 'recruitment', title: '入职申请', icon: <UserAddOutlined /> },
-];
-
+/**
+ * 工作台页面组件
+ */
 const Workplace = () => {
-  // 生成模拟数据
-  const factoryData = dataFactory(15, true, true);
-  const customerData = dataFactory(0, false, true); // 空数据
+  // 状态管理
+  const [stats, setStats] = useState<WorkplaceStats>({
+    newOrders: 0,
+    sampleCount: 0,
+    inProduction: 0,
+    shipped: 0
+  });
+  const [customerDeliveries, setCustomerDeliveries] = useState<DeliveryItem[]>([]);
+  const [factoryDeliveries, setFactoryDeliveries] = useState<DeliveryItem[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState({
+    stats: true,
+    customerData: true,
+    factoryData: true,
+    announcements: true
+  });
+
+  // 加载数据
+  useEffect(() => {
+    // 获取统计数据
+    setStats(generateWorkplaceStats());
+    setLoading(prev => ({ ...prev, stats: false }));
+
+    // 获取客户交货数据
+    fetchPaginatedData(() => generateCustomerDeliveryList(15), 1, 5)
+      .then(response => {
+        setCustomerDeliveries(response.list);
+        setLoading(prev => ({ ...prev, customerData: false }));
+      });
+
+    // 获取工厂交货数据
+    fetchPaginatedData(() => generateFactoryDeliveryList(15), 1, 5)
+      .then(response => {
+        setFactoryDeliveries(response.list);
+        setLoading(prev => ({ ...prev, factoryData: false }));
+      });
+
+    // 获取公告数据
+    fetchPaginatedData(() => generateAnnouncements(5), 1, 5)
+      .then(response => {
+        setAnnouncements(response.list);
+        setLoading(prev => ({ ...prev, announcements: false }));
+      });
+  }, []);
 
   return (
     <div style={{ padding: '0 24px 24px' }}>
@@ -131,7 +150,7 @@ const Workplace = () => {
           <Col xs={12} sm={6}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                332010
+                {stats.newOrders.toLocaleString()}
                 <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
               </div>
               <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
@@ -143,7 +162,7 @@ const Workplace = () => {
           <Col xs={12} sm={6}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                379
+                {stats.sampleCount.toLocaleString()}
                 <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>款</span>
               </div>
               <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
@@ -155,7 +174,7 @@ const Workplace = () => {
           <Col xs={12} sm={6}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                820233
+                {stats.inProduction.toLocaleString()}
                 <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
               </div>
               <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
@@ -167,7 +186,7 @@ const Workplace = () => {
           <Col xs={12} sm={6}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                591501
+                {stats.shipped.toLocaleString()}
                 <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
               </div>
               <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
@@ -188,7 +207,7 @@ const Workplace = () => {
         boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
       }}>
         <Row gutter={[0, 16]}>
-          {quickActions.map((action) => (
+          {quickActions.map((action, index) => (
             <Col xs={6} sm={6} md={3} lg={3} key={action.key}>
               <div 
                 style={{ 
@@ -196,7 +215,7 @@ const Workplace = () => {
                   padding: '20px 16px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  borderRight: quickActions.indexOf(action) % 4 !== 3 ? '1px solid #f0f0f0' : 'none'
+                  borderRight: index % 4 !== 3 ? '1px solid #f0f0f0' : 'none'
                 }}
                 className="quick-action-item"
               >
@@ -220,6 +239,11 @@ const Workplace = () => {
                 </div>
                 <div style={{ fontSize: '14px', color: '#333', lineHeight: '20px' }}>
                   {action.title}
+                  {action.count && (
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {action.count}
+                    </div>
+                  )}
                 </div>
               </div>
             </Col>
@@ -238,11 +262,12 @@ const Workplace = () => {
               </Typography.Title>
             }
             style={{ height: '100%' }}
+            loading={loading.customerData}
           >
             <Table
               rowKey="id"
-              columns={columnsFactory(false, true)}
-              dataSource={customerData}
+              columns={createColumns(false)}
+              dataSource={customerDeliveries}
               pagination={{ 
                 pageSize: 5,
                 showTotal: (total) => `共 ${total} 条`,
@@ -265,11 +290,12 @@ const Workplace = () => {
               </Typography.Title>
             }
             style={{ height: '100%' }}
+            loading={loading.factoryData}
           >
             <Table 
               rowKey="id" 
-              columns={columnsFactory(true, true)} 
-              dataSource={factoryData} 
+              columns={createColumns(true)} 
+              dataSource={factoryDeliveries} 
               pagination={{ 
                 pageSize: 5,
                 showTotal: (total) => `共 ${total} 条`,
@@ -296,10 +322,38 @@ const Workplace = () => {
               </Space>
             }
             style={{ height: '100%' }}
+            loading={loading.announcements}
           >
-            <div style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Empty description="暂无公告" />
-            </div>
+            {announcements.length > 0 ? (
+              <div style={{ minHeight: '300px' }}>
+                {announcements.map(item => (
+                  <div 
+                    key={item.id} 
+                    style={{ 
+                      padding: '12px 0',
+                      borderBottom: '1px solid #f0f0f0'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <Typography.Text strong>{item.title}</Typography.Text>
+                      <Typography.Text type="secondary">{item.createTime}</Typography.Text>
+                    </div>
+                    <Typography.Paragraph ellipsis={{ rows: 2 }} type="secondary">
+                      {item.content}
+                    </Typography.Paragraph>
+                    <div style={{ textAlign: 'right' }}>
+                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                        {item.author}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Empty description="暂无公告" />
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
