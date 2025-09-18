@@ -51,6 +51,26 @@
   margin: 0 -12px;
 }
 
+/* 公告内容区域滚动条样式 */
+.announcement-content-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.announcement-content-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.announcement-content-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.announcement-content-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .quick-action-item {

@@ -8,6 +8,7 @@ import {
   Space,
   Button,
   Avatar,
+  Pagination,
 } from 'antd';
 import { NotificationOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -41,6 +42,7 @@ const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
       title: '图片',
       dataIndex: 'image',
       width: 80,
+      fixed: 'left',
       render: (image) => (
         <Avatar src={image} size={40} shape="square" />
       ),
@@ -49,6 +51,7 @@ const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
       title: '工厂订单', 
       dataIndex: 'orderNo', 
       width: 120, 
+      fixed: 'left',
       ellipsis: true 
     },
     { 
@@ -60,7 +63,8 @@ const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
     { 
       title: withType ? '加工厂' : '客户', 
       dataIndex: 'org', 
-      width: 80 
+      width: 120,
+      ellipsis: true 
     },
     { 
       title: '交货日期', 
@@ -70,7 +74,53 @@ const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
     { 
       title: '数量', 
       dataIndex: 'qty', 
-      width: 80 
+      width: 80,
+      render: (value) => (
+        <span>{value?.toLocaleString()}</span>
+      )
+    },
+    {
+      title: '单价',
+      dataIndex: 'price',
+      width: 100,
+      render: () => (
+        <span>¥{(Math.random() * 50 + 10).toFixed(2)}</span>
+      )
+    },
+    {
+      title: '金额',
+      dataIndex: 'amount',
+      width: 120,
+      render: (_, record) => (
+        <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
+          ¥{(record.qty * (Math.random() * 50 + 10)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        </span>
+      )
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: () => {
+        const statuses = ['待生产', '生产中', '待交货', '已完成'];
+        const colors = ['orange', 'blue', 'gold', 'green'];
+        const randomIndex = Math.floor(Math.random() * statuses.length);
+        return (
+          <span style={{ color: colors[randomIndex] }}>
+            {statuses[randomIndex]}
+          </span>
+        );
+      }
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      width: 200,
+      ellipsis: true,
+      render: () => {
+        const remarks = ['紧急订单', '优质客户', '特殊工艺', '无特殊要求', '需要加急'];
+        return remarks[Math.floor(Math.random() * remarks.length)];
+      }
     },
   ];
   
@@ -98,9 +148,27 @@ const Workplace = () => {
     inProduction: 0,
     shipped: 0
   });
+  const [allCustomerDeliveries, setAllCustomerDeliveries] = useState<DeliveryItem[]>([]);
+  const [allFactoryDeliveries, setAllFactoryDeliveries] = useState<DeliveryItem[]>([]);
+  const [allAnnouncements, setAllAnnouncements] = useState<Announcement[]>([]);
   const [customerDeliveries, setCustomerDeliveries] = useState<DeliveryItem[]>([]);
   const [factoryDeliveries, setFactoryDeliveries] = useState<DeliveryItem[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [customerPagination, setCustomerPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0
+  });
+  const [factoryPagination, setFactoryPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0
+  });
+  const [announcementPagination, setAnnouncementPagination] = useState({
+    current: 1,
+    pageSize: 12,
+    total: 0
+  });
   const [loading, setLoading] = useState({
     stats: true,
     customerData: true,
@@ -115,26 +183,83 @@ const Workplace = () => {
     setLoading(prev => ({ ...prev, stats: false }));
 
     // 获取客户交货数据
-    fetchPaginatedData(() => generateCustomerDeliveryList(15), 1, 5)
-      .then(response => {
-        setCustomerDeliveries(response.list);
-        setLoading(prev => ({ ...prev, customerData: false }));
-      });
+    setTimeout(() => {
+      const allCustomerData = generateCustomerDeliveryList(100);
+      setAllCustomerDeliveries(allCustomerData);
+      setCustomerPagination(prev => ({ ...prev, total: allCustomerData.length }));
+      // 初始显示第一页数据
+      const initialPageSize = 20;
+      const initialPageData = allCustomerData.slice(0, initialPageSize);
+      setCustomerDeliveries(initialPageData);
+      setLoading(prev => ({ ...prev, customerData: false }));
+    }, 100);
 
     // 获取工厂交货数据
-    fetchPaginatedData(() => generateFactoryDeliveryList(15), 1, 5)
-      .then(response => {
-        setFactoryDeliveries(response.list);
-        setLoading(prev => ({ ...prev, factoryData: false }));
-      });
+    setTimeout(() => {
+      const allFactoryData = generateFactoryDeliveryList(100);
+      setAllFactoryDeliveries(allFactoryData);
+      setFactoryPagination(prev => ({ ...prev, total: allFactoryData.length }));
+      // 初始显示第一页数据
+      const initialPageSize = 20;
+      const initialPageData = allFactoryData.slice(0, initialPageSize);
+      setFactoryDeliveries(initialPageData);
+      setLoading(prev => ({ ...prev, factoryData: false }));
+    }, 200);
 
     // 获取公告数据
-    fetchPaginatedData(() => generateAnnouncements(5), 1, 5)
-      .then(response => {
-        setAnnouncements(response.list);
-        setLoading(prev => ({ ...prev, announcements: false }));
-      });
+    setTimeout(() => {
+      const allAnnouncementData = generateAnnouncements(50);
+      setAllAnnouncements(allAnnouncementData);
+      setAnnouncementPagination(prev => ({ ...prev, total: allAnnouncementData.length }));
+      // 初始显示第一页数据
+      const initialPageSize = 12;
+      const initialPageData = allAnnouncementData.slice(0, initialPageSize);
+      setAnnouncements(initialPageData);
+      setLoading(prev => ({ ...prev, announcements: false }));
+    }, 150);
   }, []);
+
+  // 客户表格分页处理
+  const handleCustomerPaginationChange = (page: number, pageSize: number) => {
+    const total = allCustomerDeliveries.length;
+    const maxPage = Math.max(1, Math.ceil(total / pageSize));
+    const adjustedPage = Math.min(page, maxPage);
+    
+    const newPagination = { current: adjustedPage, pageSize, total };
+    setCustomerPagination(newPagination);
+    
+    const startIndex = (adjustedPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setCustomerDeliveries(allCustomerDeliveries.slice(startIndex, endIndex));
+  };
+
+  // 工厂表格分页处理
+  const handleFactoryPaginationChange = (page: number, pageSize: number) => {
+    const total = allFactoryDeliveries.length;
+    const maxPage = Math.max(1, Math.ceil(total / pageSize));
+    const adjustedPage = Math.min(page, maxPage);
+    
+    const newPagination = { current: adjustedPage, pageSize, total };
+    setFactoryPagination(newPagination);
+    
+    const startIndex = (adjustedPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setFactoryDeliveries(allFactoryDeliveries.slice(startIndex, endIndex));
+  };
+
+  // 公告列表分页处理
+  const handleAnnouncementPaginationChange = (page: number, pageSize: number) => {
+    const total = allAnnouncements.length;
+    const maxPage = Math.max(1, Math.ceil(total / pageSize));
+    const adjustedPage = Math.min(page, maxPage);
+    
+    const newPagination = { current: adjustedPage, pageSize, total };
+    setAnnouncementPagination(newPagination);
+    
+    const startIndex = (adjustedPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setAnnouncements(allAnnouncements.slice(startIndex, endIndex));
+  };
 
   return (
     <div style={{ padding: '0 24px 24px' }}>
@@ -261,22 +386,29 @@ const Workplace = () => {
                 7天待交货列表（客户）
               </Typography.Title>
             }
-            style={{ height: '100%' }}
+            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, padding: '16px' }}
             loading={loading.customerData}
           >
             <Table
               rowKey="id"
               columns={createColumns(false)}
               dataSource={customerDeliveries}
-              pagination={{ 
-                pageSize: 5,
-                showTotal: (total) => `共 ${total} 条`,
+              pagination={{
+                current: customerPagination.current,
+                pageSize: customerPagination.pageSize,
+                total: customerPagination.total,
+                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
                 size: 'small',
-                simple: true
+                simple: false,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                onChange: handleCustomerPaginationChange,
+                onShowSizeChange: handleCustomerPaginationChange
               }}
               locale={{ emptyText: <Empty description="无数据" /> }}
               size="small"
-              scroll={{ x: true }}
+              scroll={{ x: 1200, y: 350 }}
             />
           </Card>
         </Col>
@@ -289,21 +421,28 @@ const Workplace = () => {
                 7天待交货列表（加工厂）
               </Typography.Title>
             }
-            style={{ height: '100%' }}
+            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, padding: '16px' }}
             loading={loading.factoryData}
           >
             <Table 
               rowKey="id" 
               columns={createColumns(true)} 
               dataSource={factoryDeliveries} 
-              pagination={{ 
-                pageSize: 5,
-                showTotal: (total) => `共 ${total} 条`,
+              pagination={{
+                current: factoryPagination.current,
+                pageSize: factoryPagination.pageSize,
+                total: factoryPagination.total,
+                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
                 size: 'small',
-                simple: true
+                simple: false,
+                showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                onChange: handleFactoryPaginationChange,
+                onShowSizeChange: handleFactoryPaginationChange
               }}
               size="small"
-              scroll={{ x: true }}
+              scroll={{ x: 1300, y: 350 }}
             />
           </Card>
         </Col>
@@ -321,39 +460,80 @@ const Workplace = () => {
                 </Button>
               </Space>
             }
-            style={{ height: '100%' }}
+            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
+            bodyStyle={{ flex: 1, padding: '16px' }}
             loading={loading.announcements}
           >
-            {announcements.length > 0 ? (
-              <div style={{ minHeight: '300px' }}>
-                {announcements.map(item => (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              {announcements.length > 0 ? (
+                <>
                   <div 
-                    key={item.id} 
                     style={{ 
-                      padding: '12px 0',
-                      borderBottom: '1px solid #f0f0f0'
+                      flex: 1,
+                      maxHeight: '360px',
+                      minHeight: '200px',
+                      marginBottom: '16px',
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      paddingRight: '4px'
                     }}
+                    className="announcement-content-container"
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <Typography.Text strong>{item.title}</Typography.Text>
-                      <Typography.Text type="secondary">{item.createTime}</Typography.Text>
-                    </div>
-                    <Typography.Paragraph ellipsis={{ rows: 2 }} type="secondary">
-                      {item.content}
-                    </Typography.Paragraph>
-                    <div style={{ textAlign: 'right' }}>
-                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                        {item.author}
-                      </Typography.Text>
-                    </div>
+                    {announcements.map(item => (
+                      <div 
+                        key={item.id} 
+                        style={{ 
+                          padding: '12px 0',
+                          borderBottom: '1px solid #f0f0f0',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.2s'
+                        }}
+                        className="announcement-item"
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <Typography.Text strong ellipsis style={{ maxWidth: '70%' }}>
+                            {item.title}
+                          </Typography.Text>
+                          <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                            {item.createTime}
+                          </Typography.Text>
+                        </div>
+                        <Typography.Paragraph 
+                          ellipsis={{ rows: 2, tooltip: item.content }} 
+                          type="secondary"
+                          style={{ marginBottom: '8px' }}
+                        >
+                          {item.content}
+                        </Typography.Paragraph>
+                        <div style={{ textAlign: 'right' }}>
+                          <Typography.Text type="secondary" style={{ fontSize: '11px' }}>
+                            {item.author}
+                          </Typography.Text>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Empty description="暂无公告" />
-              </div>
-            )}
+                  <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
+                    <Pagination
+                      current={announcementPagination.current}
+                      pageSize={announcementPagination.pageSize}
+                      total={announcementPagination.total}
+                      showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`}
+                      size="small"
+                      simple={false}
+                      showSizeChanger={true}
+                      pageSizeOptions={['8', '12', '16', '20']}
+                      onChange={handleAnnouncementPaginationChange}
+                      onShowSizeChange={handleAnnouncementPaginationChange}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '360px' }}>
+                  <Empty description="暂无公告" />
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
       </Row>
