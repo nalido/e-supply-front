@@ -1,17 +1,4 @@
-import { 
-  Card, 
-  Col, 
-  Row, 
-  Typography, 
-  Empty, 
-  Table,
-  Space,
-  Button,
-  Avatar,
-  Pagination,
-} from 'antd';
-import { NotificationOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import { Col, Row } from 'antd';
 import { useState, useEffect } from 'react';
 import '../styles/workplace.css';
 
@@ -26,115 +13,18 @@ import type {
 import { 
   quickActions, 
   generateWorkplaceStats,
-  fetchPaginatedData,
   generateCustomerDeliveryList,
   generateFactoryDeliveryList,
   generateAnnouncements
 } from '../mock/workplace';
 
-
-/**
- * 创建表格列配置
- */
-const createColumns = (withType: boolean): ColumnsType<DeliveryItem> => {
-  const columns: ColumnsType<DeliveryItem> = [
-    {
-      title: '图片',
-      dataIndex: 'image',
-      width: 80,
-      fixed: 'left',
-      render: (image) => (
-        <Avatar src={image} size={40} shape="square" />
-      ),
-    },
-    { 
-      title: '工厂订单', 
-      dataIndex: 'orderNo', 
-      width: 120, 
-      fixed: 'left',
-      ellipsis: true 
-    },
-    { 
-      title: '款式资料', 
-      dataIndex: 'styleName', 
-      width: 150, 
-      ellipsis: true 
-    },
-    { 
-      title: withType ? '加工厂' : '客户', 
-      dataIndex: 'org', 
-      width: 120,
-      ellipsis: true 
-    },
-    { 
-      title: '交货日期', 
-      dataIndex: 'date', 
-      width: 100 
-    },
-    { 
-      title: '数量', 
-      dataIndex: 'qty', 
-      width: 80,
-      render: (value) => (
-        <span>{value?.toLocaleString()}</span>
-      )
-    },
-    {
-      title: '单价',
-      dataIndex: 'price',
-      width: 100,
-      render: () => (
-        <span>¥{(Math.random() * 50 + 10).toFixed(2)}</span>
-      )
-    },
-    {
-      title: '金额',
-      dataIndex: 'amount',
-      width: 120,
-      render: (_, record) => (
-        <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
-          ¥{(record.qty * (Math.random() * 50 + 10)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-        </span>
-      )
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: () => {
-        const statuses = ['待生产', '生产中', '待交货', '已完成'];
-        const colors = ['orange', 'blue', 'gold', 'green'];
-        const randomIndex = Math.floor(Math.random() * statuses.length);
-        return (
-          <span style={{ color: colors[randomIndex] }}>
-            {statuses[randomIndex]}
-          </span>
-        );
-      }
-    },
-    {
-      title: '备注',
-      dataIndex: 'remark',
-      width: 200,
-      ellipsis: true,
-      render: () => {
-        const remarks = ['紧急订单', '优质客户', '特殊工艺', '无特殊要求', '需要加急'];
-        return remarks[Math.floor(Math.random() * remarks.length)];
-      }
-    },
-  ];
-  
-  if (withType) {
-    columns.push({ 
-      title: '加工类型', 
-      dataIndex: 'type', 
-      width: 100, 
-      ellipsis: true 
-    });
-  }
-  
-  return columns;
-};
+// 引入模块化组件
+import {
+  StatisticsSection,
+  QuickActionsSection,
+  DeliveryTableCard,
+  AnnouncementCard
+} from '../components/workplace';
 
 
 /**
@@ -261,280 +151,54 @@ const Workplace = () => {
     setAnnouncements(allAnnouncements.slice(startIndex, endIndex));
   };
 
+  // 发布公告按钮处理
+  const handlePublishClick = () => {
+    console.log('发布公告');
+  };
+
   return (
     <div style={{ padding: '0 24px 24px' }}>
       {/* 顶部统计显示 */}
-      <div style={{ 
-        background: '#fff', 
-        padding: '20px', 
-        marginBottom: '24px', 
-        borderRadius: '6px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-      }}>
-        <Row gutter={[48, 0]}>
-          <Col xs={12} sm={6}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                {stats.newOrders.toLocaleString()}
-                <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
-              </div>
-              <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                新单
-                <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>年</span>
-              </div>
-            </div>
-          </Col>
-          <Col xs={12} sm={6}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                {stats.sampleCount.toLocaleString()}
-                <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>款</span>
-              </div>
-              <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                打板
-                <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>年</span>
-              </div>
-            </div>
-          </Col>
-          <Col xs={12} sm={6}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                {stats.inProduction.toLocaleString()}
-                <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
-              </div>
-              <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                生产进行
-                <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>年</span>
-              </div>
-            </div>
-          </Col>
-          <Col xs={12} sm={6}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333', lineHeight: '32px' }}>
-                {stats.shipped.toLocaleString()}
-                <span style={{ fontSize: '14px', color: '#999', marginLeft: '4px' }}>件</span>
-              </div>
-              <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                已出货
-                <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>年</span>
-              </div>
-            </div>
-          </Col>
-        </Row>
-      </div>
+      <StatisticsSection stats={stats} loading={loading.stats} />
 
       {/* 快速入口 */}
-      <div style={{ 
-        background: '#fff', 
-        padding: '20px 0', 
-        marginBottom: '24px', 
-        borderRadius: '6px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-      }}>
-        <Row gutter={[0, 16]}>
-          {quickActions.map((action, index) => (
-            <Col xs={6} sm={6} md={3} lg={3} key={action.key}>
-              <div 
-                style={{ 
-                  textAlign: 'center', 
-                  padding: '20px 16px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderRight: index % 4 !== 3 ? '1px solid #f0f0f0' : 'none'
-                }}
-                className="quick-action-item"
-              >
-                <div 
-                  className="quick-action-icon"
-                  style={{ 
-                    width: '40px', 
-                    height: '40px', 
-                    backgroundColor: '#f5f5f5',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 8px',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <div style={{ fontSize: '20px', color: '#666', transition: 'color 0.2s' }}>
-                    {action.icon}
-                  </div>
-                </div>
-                <div style={{ fontSize: '14px', color: '#333', lineHeight: '20px' }}>
-                  {action.title}
-                  {action.count && (
-                    <div style={{ fontSize: '12px', color: '#999' }}>
-                      {action.count}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Col>
-          ))}
-        </Row>
-      </div>
+      <QuickActionsSection quickActions={quickActions} />
 
       {/* 三个表格区域横向排列 */}
       <Row gutter={[24, 24]}>
         {/* 7天待交货列表（客户） */}
         <Col xs={24} lg={8}>
-          <Card 
-            title={
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                7天待交货列表（客户）
-              </Typography.Title>
-            }
-            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
-            bodyStyle={{ flex: 1, padding: '16px' }}
+          <DeliveryTableCard
+            title="7天待交货列表（客户）"
+            dataSource={customerDeliveries}
             loading={loading.customerData}
-          >
-            <Table
-              rowKey="id"
-              columns={createColumns(false)}
-              dataSource={customerDeliveries}
-              pagination={{
-                current: customerPagination.current,
-                pageSize: customerPagination.pageSize,
-                total: customerPagination.total,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                size: 'small',
-                simple: false,
-                showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                onChange: handleCustomerPaginationChange,
-                onShowSizeChange: handleCustomerPaginationChange
-              }}
-              locale={{ emptyText: <Empty description="无数据" /> }}
-              size="small"
-              scroll={{ x: 1200, y: 350 }}
-            />
-          </Card>
+            pagination={customerPagination}
+            onPaginationChange={handleCustomerPaginationChange}
+            withType={false}
+          />
         </Col>
 
         {/* 7天待交货列表（加工厂） */}
         <Col xs={24} lg={8}>
-          <Card 
-            title={
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                7天待交货列表（加工厂）
-              </Typography.Title>
-            }
-            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
-            bodyStyle={{ flex: 1, padding: '16px' }}
+          <DeliveryTableCard
+            title="7天待交货列表（加工厂）"
+            dataSource={factoryDeliveries}
             loading={loading.factoryData}
-          >
-            <Table 
-              rowKey="id" 
-              columns={createColumns(true)} 
-              dataSource={factoryDeliveries} 
-              pagination={{
-                current: factoryPagination.current,
-                pageSize: factoryPagination.pageSize,
-                total: factoryPagination.total,
-                showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-                size: 'small',
-                simple: false,
-                showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                onChange: handleFactoryPaginationChange,
-                onShowSizeChange: handleFactoryPaginationChange
-              }}
-              size="small"
-              scroll={{ x: 1300, y: 350 }}
-            />
-          </Card>
+            pagination={factoryPagination}
+            onPaginationChange={handleFactoryPaginationChange}
+            withType={true}
+          />
         </Col>
 
         {/* 公告板块 */}
         <Col xs={24} lg={8}>
-          <Card 
-            title={
-              <Space>
-                <Typography.Title level={5} style={{ margin: 0 }}>
-                  <NotificationOutlined /> 公告
-                </Typography.Title>
-                <Button type="primary" size="small">
-                  发布
-                </Button>
-              </Space>
-            }
-            style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
-            bodyStyle={{ flex: 1, padding: '16px' }}
+          <AnnouncementCard
+            announcements={announcements}
             loading={loading.announcements}
-          >
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {announcements.length > 0 ? (
-                <>
-                  <div 
-                    style={{ 
-                      flex: 1,
-                      maxHeight: '360px',
-                      minHeight: '200px',
-                      marginBottom: '16px',
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      paddingRight: '4px'
-                    }}
-                    className="announcement-content-container"
-                  >
-                    {announcements.map(item => (
-                      <div 
-                        key={item.id} 
-                        style={{ 
-                          padding: '12px 0',
-                          borderBottom: '1px solid #f0f0f0',
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s'
-                        }}
-                        className="announcement-item"
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <Typography.Text strong ellipsis style={{ maxWidth: '70%' }}>
-                            {item.title}
-                          </Typography.Text>
-                          <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                            {item.createTime}
-                          </Typography.Text>
-                        </div>
-                        <Typography.Paragraph 
-                          ellipsis={{ rows: 2, tooltip: item.content }} 
-                          type="secondary"
-                          style={{ marginBottom: '8px' }}
-                        >
-                          {item.content}
-                        </Typography.Paragraph>
-                        <div style={{ textAlign: 'right' }}>
-                          <Typography.Text type="secondary" style={{ fontSize: '11px' }}>
-                            {item.author}
-                          </Typography.Text>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
-                    <Pagination
-                      current={announcementPagination.current}
-                      pageSize={announcementPagination.pageSize}
-                      total={announcementPagination.total}
-                      showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`}
-                      size="small"
-                      simple={false}
-                      showSizeChanger={true}
-                      pageSizeOptions={['8', '12', '16', '20']}
-                      onChange={handleAnnouncementPaginationChange}
-                      onShowSizeChange={handleAnnouncementPaginationChange}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '360px' }}>
-                  <Empty description="暂无公告" />
-                </div>
-              )}
-            </div>
-          </Card>
+            pagination={announcementPagination}
+            onPaginationChange={handleAnnouncementPaginationChange}
+            onPublishClick={handlePublishClick}
+          />
         </Col>
       </Row>
     </div>
