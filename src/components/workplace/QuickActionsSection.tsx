@@ -12,7 +12,8 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({ quickActions 
   return (
     <div style={{ 
       // background: '#fff', 
-      padding: '8px 0px', 
+      // padding: '8px 0px', 
+      margin: '16px 0px',
       // marginBottom: '24px', 
       // borderRadius: '8px',
       // boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
