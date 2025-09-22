@@ -1,4 +1,4 @@
-import { Layout, Menu, Breadcrumb, theme } from 'antd';
+import { Layout, Menu, Breadcrumb } from 'antd';
 import { Outlet, useLocation, Link } from 'react-router-dom';
 import { useMemo } from 'react';
 import { menuTree, toAntdMenuItems } from '../menu.config';
@@ -9,17 +9,17 @@ const MainLayout = () => {
   const location = useLocation();
   const breadcrumbItems = useMemo(() => {
     const pathSnippets = location.pathname.split('/').filter(Boolean);
-    const items = [{ title: <Link to="/">工作台</Link> }];
+    const items: Array<{ title: React.ReactNode }> = [{ title: <Link to="/">工作台</Link> }];
     if (pathSnippets.length >= 2) {
-      items.push({ title: pathSnippets[0] === 'dashboard' ? '工作台' : pathSnippets[0] });
-      items.push({ title: pathSnippets[1] });
+      items.push({ title: <span>{pathSnippets[0] === 'dashboard' ? '工作台' : pathSnippets[0]}</span> });
+      items.push({ title: <span>{pathSnippets[1]}</span> });
     }
     return items;
   }, [location.pathname]);
 
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
+  // const {
+  //   token: { colorBgContainer, borderRadiusLG },
+  // } = theme.useToken();
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

@@ -9,7 +9,9 @@ import {
   BuildOutlined,
   BookOutlined,
 } from '@ant-design/icons';
-import type { ItemType } from 'antd/es/menu/hooks/useItems';
+import type { MenuProps } from 'antd';
+
+type ItemType = NonNullable<MenuProps['items']>[number];
 import { Link } from 'react-router-dom';
 
 export type MenuNode = {

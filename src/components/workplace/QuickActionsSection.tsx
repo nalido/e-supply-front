@@ -18,7 +18,7 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({ quickActions 
       // boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
       <Row gutter={[16, 16]}>
-        {quickActions.map((action, index) => (
+        {quickActions.map((action) => (
           <Col xs={12} sm={6} md={6} lg={3} key={action.key}>
             <div 
               style={{ 
