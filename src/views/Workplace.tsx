@@ -157,7 +157,7 @@ const Workplace = () => {
   };
 
   return (
-    <div style={{ padding: '0 24px 24px' }}>
+    <div style={{ padding: '0px' }}>
       {/* 顶部统计显示 */}
       <StatisticsSection stats={stats} loading={loading.stats} />
 

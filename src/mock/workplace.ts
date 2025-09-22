@@ -1,11 +1,13 @@
 import React from 'react';
 import { 
-  FileDoneOutlined, 
-  FileSearchOutlined, 
-  FileTextOutlined, 
-  InboxOutlined, 
-  ShoppingCartOutlined,
-  ToolOutlined 
+  AppstoreOutlined,
+  FileTextOutlined,
+  ShopOutlined,
+  CreditCardOutlined,
+  MoneyCollectOutlined,
+  ShoppingOutlined,
+  UserOutlined,
+  IdcardOutlined
 } from '@ant-design/icons';
 import type { 
   DeliveryItem, 
@@ -16,44 +18,56 @@ import type {
 } from '../types/workplace';
 
 /**
- * 快速入口配置
+ * 快速入口配置 - 根据原网站设计
  */
 export const quickActions: QuickAction[] = [
   {
-    key: 'new-orders',
-    title: '新接订单',
-    icon: React.createElement(ShoppingCartOutlined),
-    count: 12,
+    key: 'styles',
+    title: '款式',
+    icon: React.createElement(AppstoreOutlined),
+    color: '#52C41A', // 主色绿
   },
   {
-    key: 'pending-samples',
-    title: '待确认打板',
+    key: 'sample-orders',
+    title: '样板单',
     icon: React.createElement(FileTextOutlined),
-    count: 8,
+    color: '#722ED1', // 紫色
   },
   {
-    key: 'in-production',
-    title: '生产中订单',
-    icon: React.createElement(ToolOutlined),
-    count: 35,
+    key: 'factory-orders',
+    title: '工厂订单',
+    icon: React.createElement(ShopOutlined),
+    color: '#52C41A', // 绿色
   },
   {
-    key: 'pending-delivery',
-    title: '待交货订单',
-    icon: React.createElement(InboxOutlined),
-    count: 18,
+    key: 'customer-payment',
+    title: '客户收款',
+    icon: React.createElement(CreditCardOutlined),
+    color: '#FA8C16', // 橙色
   },
   {
-    key: 'quality-check',
-    title: '待质检',
-    icon: React.createElement(FileSearchOutlined),
-    count: 6,
+    key: 'factory-payment',
+    title: '加工厂付款',
+    icon: React.createElement(MoneyCollectOutlined),
+    color: '#1890FF', // 蓝色
   },
   {
-    key: 'completed',
-    title: '已完成订单',
-    icon: React.createElement(FileDoneOutlined),
-    count: 142,
+    key: 'supplier-payment',
+    title: '供应商付款',
+    icon: React.createElement(ShoppingOutlined),
+    color: '#F5222D', // 红色
+  },
+  {
+    key: 'user-management',
+    title: '用户管理',
+    icon: React.createElement(UserOutlined),
+    color: '#FA8C16', // 橙色
+  },
+  {
+    key: 'job-applications',
+    title: '入职申请',
+    icon: React.createElement(IdcardOutlined),
+    color: '#13C2C2', // 青色
   },
 ];
 

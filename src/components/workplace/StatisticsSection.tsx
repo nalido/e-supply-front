@@ -69,7 +69,9 @@ const StatisticsSection: React.FC<StatisticsSectionProps> = ({ stats, loading = 
   }
 
   return (
-    <div style={{ marginBottom: '24px' }}>
+    <div style={{ 
+      // marginBottom: '24px' 
+      }}>
       <Row gutter={[16, 16]}>
         {STAT_CARDS.map((card) => {
           const value = stats[card.key as keyof WorkplaceStats] as number;

@@ -38,7 +38,11 @@ const MainLayout = () => {
           <Breadcrumb items={breadcrumbItems} />
         </Header>
         <Content style={{ margin: 16 }}>
-          <div style={{ padding: 12, background: colorBgContainer, borderRadius: borderRadiusLG }}>
+          <div style={{ 
+            // padding: 12, 
+            // background: colorBgContainer, 
+            // borderRadius: borderRadiusLG 
+            }}>
             <Outlet />
           </div>
         </Content>

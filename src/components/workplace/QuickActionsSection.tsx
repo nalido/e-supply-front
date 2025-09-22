@@ -11,47 +11,75 @@ interface QuickActionsSectionProps {
 const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({ quickActions }) => {
   return (
     <div style={{ 
-      background: '#fff', 
-      padding: '20px 0', 
-      marginBottom: '24px', 
-      borderRadius: '6px',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+      // background: '#fff', 
+      padding: '8px 0px', 
+      // marginBottom: '24px', 
+      // borderRadius: '8px',
+      // boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
-      <Row gutter={[0, 16]}>
+      <Row gutter={[16, 16]}>
         {quickActions.map((action, index) => (
-          <Col xs={6} sm={6} md={3} lg={3} key={action.key}>
+          <Col xs={12} sm={6} md={6} lg={3} key={action.key}>
             <div 
               style={{ 
-                textAlign: 'center', 
-                padding: '20px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
-                borderRight: index % 4 !== 3 ? '1px solid #f0f0f0' : 'none'
+                borderRadius: '8px',
+                transition: 'all 0.3s',
+                background: '#fff'
               }}
               className="quick-action-item"
+              onMouseEnter={(e) => {
+                const target = e.currentTarget;
+                target.style.transform = 'translateY(-2px)';
+                target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                const target = e.currentTarget;
+                target.style.transform = 'translateY(0)';
+                target.style.boxShadow = 'none';
+              }}
             >
               <div 
                 className="quick-action-icon"
                 style={{ 
-                  width: '40px', 
-                  height: '40px', 
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '6px',
+                  width: '32px', 
+                  height: '32px', 
+                  backgroundColor: `${action.color || '#f5f5f5'}20`,
+                  borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 8px',
-                  transition: 'all 0.2s'
+                  marginRight: '8px',
+                  transition: 'all 0.3s',
+                  flexShrink: 0
                 }}
               >
-                <div style={{ fontSize: '20px', color: '#666', transition: 'color 0.2s' }}>
+                <div style={{ 
+                  fontSize: '16px', 
+                  color: action.color || '#666', 
+                  transition: 'color 0.3s'
+                }}>
                   {action.icon}
                 </div>
               </div>
-              <div style={{ fontSize: '14px', color: '#333', lineHeight: '20px' }}>
+              <div style={{ 
+                fontSize: '14px', 
+                color: '#333', 
+                lineHeight: '20px',
+                fontWeight: 500,
+                textAlign: 'left'
+              }}>
                 {action.title}
                 {action.count && (
-                  <div style={{ fontSize: '12px', color: '#999' }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#999',
+                    marginTop: '2px'
+                  }}>
                     {action.count}
                   </div>
                 )}

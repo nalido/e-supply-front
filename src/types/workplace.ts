@@ -21,6 +21,7 @@ export interface QuickAction {
   key: string;
   title: string;
   icon: ReactNode;
+  color?: string;
   count?: number;
   onClick?: () => void;
 }
