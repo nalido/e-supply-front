@@ -1,0 +1,99 @@
+/* 拖拽表格样式 */
+.draggable-row {
+  transition: background-color 0.2s ease;
+}
+
+.draggable-row:hover {
+  background-color: #fafafa;
+}
+
+.draggable-row.dragging {
+  background-color: #f0f0f0;
+  opacity: 0.8;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  z-index: 9999;
+  position: relative;
+}
+
+/* 拖拽手柄样式 */
+.drag-handle {
+  cursor: grab;
+  color: #999;
+  font-size: 14px;
+  padding: 2px 4px;
+  margin-right: 4px;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  min-width: 20px;
+  height: 20px;
+}
+
+.drag-handle:hover {
+  color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.drag-handle:active,
+.drag-handle.dragging {
+  cursor: grabbing;
+  color: #1890ff;
+  background-color: rgba(24, 144, 255, 0.15);
+}
+
+/* 拖拽时的样式 */
+.sortable-ghost {
+  opacity: 0.4;
+}
+
+.sortable-drag {
+  z-index: 9999;
+  background-color: #fff;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+
+/* 表格拖拽区域样式 */
+.draggable-table {
+  user-select: none;
+}
+
+.draggable-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.draggable-table .ant-table-tbody > tr:last-child > td {
+  border-bottom: none;
+}
+
+/* 拖拽过程中的样式优化 */
+.draggable-row[style*="transform"] {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  background-color: #fff !important;
+  z-index: 1000 !important;
+  border-radius: 4px;
+}
+
+/* 拖拽目标位置的提示 */
+.draggable-table .ant-table-tbody > tr.draggable-row {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 防止表格内容被选中 */
+.draggable-table * {
+  user-select: none;
+}
+
+/* 改善表格整体外观 */
+.draggable-table .ant-table {
+  border: none;
+}
+
+.draggable-table .ant-table-thead > tr > th {
+  background-color: #fafafa;
+  border-bottom: 2px solid #f0f0f0;
+  font-weight: 600;
+}

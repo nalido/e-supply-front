@@ -90,6 +90,46 @@ export const products = {
   },
 };
 
+// 打板相关API
+export const sample = {
+  // 跟进模板
+  async followTemplates(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+    await delay(300);
+    const total = 10;
+    const templates = [
+      { id: 1, name: '赛乐', isDefault: false },
+      { id: 2, name: '标准模板', isDefault: true },
+      { id: 3, name: '快速跟进', isDefault: false },
+      { id: 4, name: '详细跟进', isDefault: false },
+      { id: 5, name: '客户专用', isDefault: false },
+    ];
+    
+    const startIndex = (params.page - 1) * params.pageSize;
+    const list = templates.slice(startIndex, startIndex + params.pageSize).map((template, index) => ({
+      ...template,
+      id: startIndex + index + 1,
+      sequenceNo: startIndex + index + 1,
+    }));
+    
+    return { list, total };
+  },
+  
+  async createFollowTemplate(data: { name: string; isDefault?: boolean }) {
+    await delay(300);
+    return { success: true, message: '创建成功' };
+  },
+  
+  async updateFollowTemplate(id: number, data: { name: string; isDefault?: boolean }) {
+    await delay(300);
+    return { success: true, message: '更新成功' };
+  },
+  
+  async deleteFollowTemplate(id: number) {
+    await delay(300);
+    return { success: true, message: '删除成功' };
+  },
+};
+
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
 
 export default {
@@ -97,6 +137,7 @@ export default {
   orders,
   materials,
   products,
+  sample,
 };
 
 

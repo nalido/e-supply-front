@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import Workplace from './views/Workplace';
 import SampleList from './views/SampleList';
+import FollowTemplate from './views/FollowTemplate';
 import { menuTree } from './menu.config';
 
 // Lazy placeholders for other menus
@@ -14,7 +15,7 @@ const flattenMenu = (nodes: any[]): any[] =>
   nodes.flatMap((n) => [n, ...(n.children ? flattenMenu(n.children) : [])]);
 
 const autoChildren = flattenMenu(menuTree)
-  .filter((n) => n.key && n.key !== '/dashboard/workplace' && n.key !== '/sample/list' && !n.children)
+  .filter((n) => n.key && n.key !== '/dashboard/workplace' && n.key !== '/sample/list' && n.key !== '/sample/follow-template' && !n.children)
   .map((n) => ({ path: n.key.replace(/^\//, ''), element: React.createElement(Placeholder(String((n.label?.props?.children || '页面')))) }));
 
 const router = createBrowserRouter([
@@ -25,6 +26,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard/workplace" replace /> },
       { path: 'dashboard/workplace', element: <Workplace /> },
       { path: 'sample/list', element: <SampleList /> },
+      { path: 'sample/follow-template', element: <FollowTemplate /> },
       ...autoChildren,
       { path: 'pattern', element: React.createElement(Placeholder("打板")) },
       { path: 'orders', element: React.createElement(Placeholder("订单生产")) },

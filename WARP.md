@@ -117,3 +117,8 @@ When backend services become available:
 - **TypeScript**: Strict typing enabled, focus on type safety for mock APIs
 - **ESLint**: Configured with React Hooks and TypeScript rules
 - **Less**: Supported for custom Ant Design theme customization
+
+## 本地开发和原始网站信息
+
+- 本地启动路径为：http://localhost:5173/， 我会在别的终端启动它，不需要你再启动。如果发现前端没有在启动，提醒我即可
+- 原始网站是：https://yxt.huaaosoft.com/， 我们当前的工作内容是复刻这个网站的内容。特别是排版，文字，样式
