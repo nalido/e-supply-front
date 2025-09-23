@@ -96,18 +96,367 @@ export const sample = {
   async followTemplates(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
     await delay(300);
     const total = 10;
+    
+    // 详细的模板数据，包含节点信息
     const templates = [
-      { id: 1, name: '赛乐', isDefault: false },
-      { id: 2, name: '标准模板', isDefault: true },
-      { id: 3, name: '快速跟进', isDefault: false },
-      { id: 4, name: '详细跟进', isDefault: false },
-      { id: 5, name: '客户专用', isDefault: false },
+      { 
+        id: 1, 
+        name: '赛乐', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 101,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '设计确认',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 102,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '样板制作',
+            fieldType: 'file',
+            duration: 8
+          },
+          {
+            id: 103,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '尺寸确认',
+            fieldType: 'number',
+            duration: 1
+          },
+          {
+            id: 104,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '工艺审核',
+            fieldType: 'select',
+            duration: 3
+          }
+        ]
+      },
+      { 
+        id: 2, 
+        name: '标准模板', 
+        isDefault: true,
+        nodes: [
+          {
+            id: 201,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '需求分析',
+            fieldType: 'text',
+            duration: 1
+          },
+          {
+            id: 202,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '设计草图',
+            fieldType: 'file',
+            duration: 4
+          },
+          {
+            id: 203,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '材料选择',
+            fieldType: 'checkbox',
+            duration: 2
+          },
+          {
+            id: 204,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '样品制作',
+            fieldType: 'text',
+            duration: 12
+          },
+          {
+            id: 205,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '质量检验',
+            fieldType: 'select',
+            duration: 2
+          },
+          {
+            id: 206,
+            sortOrder: 6,
+            sequenceNo: 6,
+            nodeName: '客户确认',
+            fieldType: 'date',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 3, 
+        name: '快速跟进', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 301,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '快速设计',
+            fieldType: 'text',
+            duration: 1
+          },
+          {
+            id: 302,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '简易样品',
+            fieldType: 'file',
+            duration: 4
+          },
+          {
+            id: 303,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '即时确认',
+            fieldType: 'select',
+            duration: 0.5
+          }
+        ]
+      },
+      { 
+        id: 4, 
+        name: '详细跟进', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 401,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '市场调研',
+            fieldType: 'text',
+            duration: 4
+          },
+          {
+            id: 402,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '概念设计',
+            fieldType: 'file',
+            duration: 8
+          },
+          {
+            id: 403,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '细节设计',
+            fieldType: 'text',
+            duration: 6
+          },
+          {
+            id: 404,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '材料测试',
+            fieldType: 'checkbox',
+            duration: 3
+          },
+          {
+            id: 405,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '工艺验证',
+            fieldType: 'select',
+            duration: 4
+          },
+          {
+            id: 406,
+            sortOrder: 6,
+            sequenceNo: 6,
+            nodeName: '样品制作',
+            fieldType: 'text',
+            duration: 16
+          },
+          {
+            id: 407,
+            sortOrder: 7,
+            sequenceNo: 7,
+            nodeName: '功能测试',
+            fieldType: 'number',
+            duration: 2
+          },
+          {
+            id: 408,
+            sortOrder: 8,
+            sequenceNo: 8,
+            nodeName: '外观检查',
+            fieldType: 'file',
+            duration: 1
+          },
+          {
+            id: 409,
+            sortOrder: 9,
+            sequenceNo: 9,
+            nodeName: '最终确认',
+            fieldType: 'date',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 5, 
+        name: '客户专用', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 501,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '客户需求确认',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 502,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '定制化设计',
+            fieldType: 'file',
+            duration: 6
+          },
+          {
+            id: 503,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '客户审核',
+            fieldType: 'select',
+            duration: 2
+          },
+          {
+            id: 504,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '样品寄送',
+            fieldType: 'date',
+            duration: 0.5
+          },
+          {
+            id: 505,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '客户反馈',
+            fieldType: 'text',
+            duration: 24
+          }
+        ]
+      },
+      { 
+        id: 6, 
+        name: '季节性模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 601,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '季节趋势分析',
+            fieldType: 'text',
+            duration: 3
+          },
+          {
+            id: 602,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '色彩搭配',
+            fieldType: 'checkbox',
+            duration: 2
+          },
+          {
+            id: 603,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '面料选择',
+            fieldType: 'select',
+            duration: 1.5
+          }
+        ]
+      },
+      { 
+        id: 7, 
+        name: '质量优先模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 701,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '质量标准制定',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 702,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '多轮质检',
+            fieldType: 'number',
+            duration: 6
+          },
+          {
+            id: 703,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '质量报告',
+            fieldType: 'file',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 8, 
+        name: '成本控制模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 801,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '成本预估',
+            fieldType: 'number',
+            duration: 1
+          },
+          {
+            id: 802,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '材料优化',
+            fieldType: 'select',
+            duration: 3
+          },
+          {
+            id: 803,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '工艺简化',
+            fieldType: 'text',
+            duration: 4
+          },
+          {
+            id: 804,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '成本确认',
+            fieldType: 'number',
+            duration: 0.5
+          }
+        ]
+      }
     ];
     
     const startIndex = (params.page - 1) * params.pageSize;
-    const list = templates.slice(startIndex, startIndex + params.pageSize).map((template, index) => ({
+    const endIndex = Math.min(startIndex + params.pageSize, templates.length);
+    const list = templates.slice(startIndex, endIndex).map((template, index) => ({
       ...template,
-      id: startIndex + index + 1,
       sequenceNo: startIndex + index + 1,
     }));
     
@@ -127,6 +476,375 @@ export const sample = {
   async deleteFollowTemplate(id: number) {
     await delay(300);
     return { success: true, message: '删除成功' };
+  },
+  
+  // 获取跟进模板详情
+  async getFollowTemplateById(id: number) {
+    await delay(300);
+    
+    // 返回对应的模板数据（从 followTemplates 中查找）
+    const templates = [
+      { 
+        id: 1, 
+        name: '赛乐', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 101,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '设计确认',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 102,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '样板制作',
+            fieldType: 'file',
+            duration: 8
+          },
+          {
+            id: 103,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '尺寸确认',
+            fieldType: 'number',
+            duration: 1
+          },
+          {
+            id: 104,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '工艺审核',
+            fieldType: 'select',
+            duration: 3
+          }
+        ]
+      },
+      { 
+        id: 2, 
+        name: '标准模板', 
+        isDefault: true,
+        nodes: [
+          {
+            id: 201,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '需求分析',
+            fieldType: 'text',
+            duration: 1
+          },
+          {
+            id: 202,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '设计草图',
+            fieldType: 'file',
+            duration: 4
+          },
+          {
+            id: 203,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '材料选择',
+            fieldType: 'checkbox',
+            duration: 2
+          },
+          {
+            id: 204,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '样品制作',
+            fieldType: 'text',
+            duration: 12
+          },
+          {
+            id: 205,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '质量检验',
+            fieldType: 'select',
+            duration: 2
+          },
+          {
+            id: 206,
+            sortOrder: 6,
+            sequenceNo: 6,
+            nodeName: '客户确认',
+            fieldType: 'date',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 3, 
+        name: '快速跟进', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 301,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '快速设计',
+            fieldType: 'text',
+            duration: 1
+          },
+          {
+            id: 302,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '简易样品',
+            fieldType: 'file',
+            duration: 4
+          },
+          {
+            id: 303,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '即时确认',
+            fieldType: 'select',
+            duration: 0.5
+          }
+        ]
+      },
+      { 
+        id: 4, 
+        name: '详细跟进', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 401,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '市场调研',
+            fieldType: 'text',
+            duration: 4
+          },
+          {
+            id: 402,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '概念设计',
+            fieldType: 'file',
+            duration: 8
+          },
+          {
+            id: 403,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '细节设计',
+            fieldType: 'text',
+            duration: 6
+          },
+          {
+            id: 404,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '材料测试',
+            fieldType: 'checkbox',
+            duration: 3
+          },
+          {
+            id: 405,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '工艺验证',
+            fieldType: 'select',
+            duration: 4
+          },
+          {
+            id: 406,
+            sortOrder: 6,
+            sequenceNo: 6,
+            nodeName: '样品制作',
+            fieldType: 'text',
+            duration: 16
+          },
+          {
+            id: 407,
+            sortOrder: 7,
+            sequenceNo: 7,
+            nodeName: '功能测试',
+            fieldType: 'number',
+            duration: 2
+          },
+          {
+            id: 408,
+            sortOrder: 8,
+            sequenceNo: 8,
+            nodeName: '外观检查',
+            fieldType: 'file',
+            duration: 1
+          },
+          {
+            id: 409,
+            sortOrder: 9,
+            sequenceNo: 9,
+            nodeName: '最终确认',
+            fieldType: 'date',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 5, 
+        name: '客户专用', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 501,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '客户需求确认',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 502,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '定制化设计',
+            fieldType: 'file',
+            duration: 6
+          },
+          {
+            id: 503,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '客户审核',
+            fieldType: 'select',
+            duration: 2
+          },
+          {
+            id: 504,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '样品寄送',
+            fieldType: 'date',
+            duration: 0.5
+          },
+          {
+            id: 505,
+            sortOrder: 5,
+            sequenceNo: 5,
+            nodeName: '客户反馈',
+            fieldType: 'text',
+            duration: 24
+          }
+        ]
+      },
+      { 
+        id: 6, 
+        name: '季节性模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 601,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '季节趋势分析',
+            fieldType: 'text',
+            duration: 3
+          },
+          {
+            id: 602,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '色彩搭配',
+            fieldType: 'checkbox',
+            duration: 2
+          },
+          {
+            id: 603,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '面料选择',
+            fieldType: 'select',
+            duration: 1.5
+          }
+        ]
+      },
+      { 
+        id: 7, 
+        name: '质量优先模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 701,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '质量标准制定',
+            fieldType: 'text',
+            duration: 2
+          },
+          {
+            id: 702,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '多轮质检',
+            fieldType: 'number',
+            duration: 6
+          },
+          {
+            id: 703,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '质量报告',
+            fieldType: 'file',
+            duration: 1
+          }
+        ]
+      },
+      { 
+        id: 8, 
+        name: '成本控制模板', 
+        isDefault: false,
+        nodes: [
+          {
+            id: 801,
+            sortOrder: 1,
+            sequenceNo: 1,
+            nodeName: '成本预估',
+            fieldType: 'number',
+            duration: 1
+          },
+          {
+            id: 802,
+            sortOrder: 2,
+            sequenceNo: 2,
+            nodeName: '材料优化',
+            fieldType: 'select',
+            duration: 3
+          },
+          {
+            id: 803,
+            sortOrder: 3,
+            sequenceNo: 3,
+            nodeName: '工艺简化',
+            fieldType: 'text',
+            duration: 4
+          },
+          {
+            id: 804,
+            sortOrder: 4,
+            sequenceNo: 4,
+            nodeName: '成本确认',
+            fieldType: 'number',
+            duration: 0.5
+          }
+        ]
+      }
+    ];
+    
+    const template = templates.find(t => t.id === id);
+    
+    if (!template) {
+      throw new Error('模板不存在');
+    }
+    
+    return template;
   },
 };
 
