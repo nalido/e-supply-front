@@ -846,6 +846,40 @@ export const sample = {
     
     return template;
   },
+  
+  // 样板类型
+  async sampleTypes(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+    await delay(300);
+    const types = [
+      { id: 1, name: '夏季' },
+      { id: 2, name: '返单' },
+      { id: 3, name: '春季' },
+      { id: 4, name: '秋季' },
+      { id: 5, name: '冬季' },
+      { id: 6, name: '特殊订制' },
+    ];
+    
+    const startIndex = (params.page - 1) * params.pageSize;
+    const endIndex = Math.min(startIndex + params.pageSize, types.length);
+    const list = types.slice(startIndex, endIndex);
+    
+    return { list, total: types.length };
+  },
+  
+  async createSampleType(data: { name: string }) {
+    await delay(300);
+    return { success: true, message: '创建成功' };
+  },
+  
+  async updateSampleType(id: number, data: { name: string }) {
+    await delay(300);
+    return { success: true, message: '更新成功' };
+  },
+  
+  async deleteSampleType(id: number) {
+    await delay(300);
+    return { success: true, message: '删除成功' };
+  },
 };
 
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
