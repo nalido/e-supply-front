@@ -463,17 +463,17 @@ export const sample = {
     return { list, total };
   },
   
-  async createFollowTemplate(data: { name: string; isDefault?: boolean }) {
+  async createFollowTemplate(_data: { name: string; isDefault?: boolean }) {
     await delay(300);
     return { success: true, message: '创建成功' };
   },
   
-  async updateFollowTemplate(id: number, data: { name: string; isDefault?: boolean }) {
+  async updateFollowTemplate(_id: number, _data: { name: string; isDefault?: boolean }) {
     await delay(300);
     return { success: true, message: '更新成功' };
   },
   
-  async deleteFollowTemplate(id: number) {
+  async deleteFollowTemplate(_id: number) {
     await delay(300);
     return { success: true, message: '删除成功' };
   },
@@ -866,17 +866,17 @@ export const sample = {
     return { list, total: types.length };
   },
   
-  async createSampleType(data: { name: string }) {
+  async createSampleType(_data: { name: string }) {
     await delay(300);
     return { success: true, message: '创建成功' };
   },
   
-  async updateSampleType(id: number, data: { name: string }) {
+  async updateSampleType(_id: number, _data: { name: string }) {
     await delay(300);
     return { success: true, message: '更新成功' };
   },
   
-  async deleteSampleType(id: number) {
+  async deleteSampleType(_id: number) {
     await delay(300);
     return { success: true, message: '删除成功' };
   },

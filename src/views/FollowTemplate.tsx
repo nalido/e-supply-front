@@ -9,8 +9,6 @@ import {
 } from 'antd';
 import {
   PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -40,7 +38,7 @@ const FollowTemplate: React.FC = () => {
     total: 0,
     showSizeChanger: true,
     showQuickJumper: true,
-    showTotal: (total: number, range: [number, number]) =>
+    showTotal: (total: number) =>
       `共 ${total} 条`,
   });
 
