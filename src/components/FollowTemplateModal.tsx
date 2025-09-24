@@ -161,7 +161,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
         onCancel={onCancel}
         confirmLoading={loading}
         width={800}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}
@@ -217,7 +217,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
         open={nodeModalVisible}
         onOk={handleNodeSubmit}
         onCancel={() => setNodeModalVisible(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={nodeForm}

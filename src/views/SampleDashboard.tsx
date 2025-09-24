@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, Row, Col, Table, Typography, Segmented } from 'antd';
-import { Line, Pie } from '@ant-design/plots';
+import { Line } from '@ant-design/plots';
 import { CalendarOutlined } from '@ant-design/icons';
 import { sampleService } from '../api/mock';
 import type { ColumnsType } from 'antd/es/table';
-import type { LineConfig, PieConfig } from '@ant-design/plots';
+import type { LineConfig } from '@ant-design/plots';
 import type {
   SampleDashboardStats,
   SampleChartPoint,
@@ -12,8 +12,14 @@ import type {
   SampleOverdueItem,
 } from '../types/sample';
 import type { ReactNode } from 'react';
+import DonutChart from '../components/charts/DonutChart';
 
 const { Text } = Typography;
+
+const PIE_STATUS_COLORS: Record<'已完成' | '未完成', [string, string]> = {
+  已完成: ['#8ed0ff', '#4ea8ff'],
+  未完成: ['#fce3d3', '#f6b98b'],
+};
 
 export default function SampleDashboard() {
   const [stats, setStats] = useState<SampleDashboardStats>({
@@ -52,6 +58,40 @@ export default function SampleDashboard() {
   useEffect(() => {
     void loadDashboardData();
   }, [loadDashboardData]);
+
+  const pieCategories = useMemo(
+    () => Array.from(new Set(pieData.map((item) => item.category))),
+    [pieData],
+  );
+
+  const filteredPieData = useMemo(
+    () => pieData.filter((item) => item.category === pieType),
+    [pieData, pieType],
+  );
+
+  const totalPieValue = useMemo(
+    () => filteredPieData.reduce((sum, item) => sum + item.value, 0),
+    [filteredPieData],
+  );
+
+  useEffect(() => {
+    if (pieCategories.length > 0 && !pieCategories.includes(pieType)) {
+      setPieType(pieCategories[0]);
+    }
+  }, [pieCategories, pieType]);
+
+  const pieSlices = useMemo(
+    () => filteredPieData.map((item) => {
+      const colorStops = PIE_STATUS_COLORS[item.name as keyof typeof PIE_STATUS_COLORS] ?? ['#1890ff', '#1463ff'];
+      return {
+        ...item,
+        percent: totalPieValue ? item.value / totalPieValue : 0,
+        colorStops,
+        swatchColor: colorStops[1],
+      };
+    }),
+    [filteredPieData, totalPieValue],
+  );
 
   const overdueColumns: ColumnsType<SampleOverdueItem> = [
     {
@@ -114,31 +154,6 @@ export default function SampleDashboard() {
         text: '',
       },
     },
-  };
-
-  const pieConfig: PieConfig = {
-    data: pieData.filter(item => item.category === pieType),
-    angleField: 'value',
-    colorField: 'name',
-    radius: 0.8,
-    innerRadius: 0.6,
-    label: {
-      type: 'spider' as const,
-      labelHeight: 28,
-      content: '{name}\n{percentage}',
-    },
-    statistic: {
-      title: false,
-      content: {
-        style: {
-          whiteSpace: 'pre-wrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        },
-        content: `合计样板\n2398`,
-      },
-    },
-    color: pieType === '纸样师' ? ['#52c41a', '#f5f5f5'] : ['#1890ff', '#f5f5f5'],
   };
 
   const StatCard = ({ title, value, unit, color, icon }: {
@@ -226,10 +241,11 @@ export default function SampleDashboard() {
             title="板类对比表（年）"
             loading={loading}
           >
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <Text type="secondary">板类 (个)</Text>
-            </div>
-            <Pie {...pieConfig} height={200} />
+            <DonutChart
+              data={pieSlices.map(({ name, value, colorStops }) => ({ name, value, colorStops }))}
+              total={totalPieValue}
+              height={240}
+            />
           </Card>
         </Col>
       </Row>
@@ -260,7 +276,7 @@ export default function SampleDashboard() {
             title="打板数量占比（年）"
             extra={
               <Segmented
-                options={['纸样师', '车板师']}
+                options={pieCategories}
                 value={pieType}
                 onChange={setPieType}
                 size="small"
@@ -268,7 +284,11 @@ export default function SampleDashboard() {
             }
             loading={loading}
           >
-            <Pie {...pieConfig} height={200} />
+            <DonutChart
+              data={pieSlices.map(({ name, value, colorStops }) => ({ name, value, colorStops }))}
+              total={totalPieValue}
+              height={240}
+            />
           </Card>
         </Col>
       </Row>

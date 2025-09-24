@@ -981,28 +981,16 @@ export const sample = {
   // 打板数量占比饼图数据（年）
   async getSamplePieData(): Promise<SamplePieDatum[]> {
     await delay(300);
-    return [
-      {
-        name: '已完成',
-        value: 2398,
-        category: '纸样师',
-      },
-      {
-        name: '未完成',
-        value: 0,
-        category: '纸样师',
-      },
-      {
-        name: '已完成',
-        value: 2398,
-        category: '车板师',
-      },
-      {
-        name: '未完成',
-        value: 0,
-        category: '车板师',
-      },
+    const summary = [
+      { category: '纸样师', completed: 2398, pending: 126 },
+      { category: '车板师', completed: 2140, pending: 208 },
+      { category: '裁床组', completed: 1856, pending: 342 },
     ];
+
+    return summary.flatMap(({ category, completed, pending }) => ([
+      { name: '已完成', value: completed, category },
+      { name: '未完成', value: pending, category },
+    ]));
   },
   
   // 样板超期列表

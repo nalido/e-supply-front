@@ -72,6 +72,9 @@ const SampleList: React.FC = () => {
       `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
   });
 
+  const currentPage = pagination.current ?? 1;
+  const currentPageSize = pagination.pageSize ?? 20;
+
   // 筛选状态
   const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
@@ -99,8 +102,8 @@ const SampleList: React.FC = () => {
     try {
       setLoading(true);
       const params = {
-        page: pagination.current,
-        pageSize: pagination.pageSize,
+        page: currentPage,
+        pageSize: currentPageSize,
         keyword: filters.keyword || undefined,
         status: filters.status,
         customer: filters.customer,
@@ -120,13 +123,16 @@ const SampleList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filters.customer, filters.dateRange, filters.keyword, filters.status, pagination]);
+  }, [currentPage, currentPageSize, filters.customer, filters.dateRange, filters.keyword, filters.status]);
 
   // 初始化数据
   useEffect(() => {
-    void loadData();
     void loadStats();
-  }, [loadData, loadStats]);
+  }, [loadStats]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   // 分页、排序、筛选变化时重新加载数据
   const handleTableChange = (newPagination: TablePaginationConfig) => {

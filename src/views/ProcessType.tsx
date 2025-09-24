@@ -572,7 +572,7 @@ const ProcessTypePage = () => {
         confirmLoading={formModal.submitting}
         onCancel={() => setFormModal({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmitForm}
-        destroyOnClose
+        destroyOnHidden
         width={520}
       >
         <Form form={form} layout="vertical">
