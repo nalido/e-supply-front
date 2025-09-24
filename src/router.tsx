@@ -9,14 +9,27 @@ import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
 import ProcessTypePage from './views/ProcessType';
 import { menuTree } from './menu.config';
+import type { MenuNode } from './menu.config';
+import type { ReactNode, ReactElement } from 'react';
 
-// Lazy placeholders for other menus
-const Placeholder = (name: string) => () => (
-  <div style={{ padding: 24 }}>即将实现：{name}</div>
-);
+const createPlaceholderElement = (name: string): ReactElement =>
+  React.createElement('div', { style: { padding: 24 } }, `即将实现：${name}`);
 
-const flattenMenu = (nodes: any[]): any[] =>
-  nodes.flatMap((n) => [n, ...(n.children ? flattenMenu(n.children) : [])]);
+const flattenMenu = (nodes: MenuNode[]): MenuNode[] =>
+  nodes.flatMap((node) => [node, ...(node.children ? flattenMenu(node.children) : [])]);
+
+const extractMenuLabel = (label: ReactNode): string => {
+  if (typeof label === 'string') {
+    return label;
+  }
+  if (React.isValidElement(label)) {
+    const { children } = label.props;
+    if (typeof children === 'string') {
+      return children;
+    }
+  }
+  return '页面';
+};
 
 const autoChildren = flattenMenu(menuTree)
   .filter((n) =>
@@ -30,33 +43,36 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/basic/process-type' &&
     !n.children,
   )
-  .map((n) => ({ path: n.key.replace(/^\//, ''), element: React.createElement(Placeholder(String((n.label?.props?.children || '页面')))) }));
+  .map((node) => ({
+    path: node.key.replace(/^\//, ''),
+    element: createPlaceholderElement(extractMenuLabel(node.label)),
+  }));
 
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <MainLayout />,
+    element: React.createElement(MainLayout),
     children: [
-      { index: true, element: <Navigate to="/dashboard/workplace" replace /> },
-      { path: 'dashboard/workplace', element: <Workplace /> },
-      { path: 'sample', element: <SampleDashboard /> },
-      { path: 'sample/list', element: <SampleList /> },
-      { path: 'sample/follow-template', element: <FollowTemplate /> },
-      { path: 'sample/type', element: <SampleType /> },
-      { path: 'orders/factory', element: <FactoryOrders /> },
-      { path: 'basic/process-type', element: <ProcessTypePage /> },
+      { index: true, element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
+      { path: 'dashboard/workplace', element: React.createElement(Workplace) },
+      { path: 'sample', element: React.createElement(SampleDashboard) },
+      { path: 'sample/list', element: React.createElement(SampleList) },
+      { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
+      { path: 'sample/type', element: React.createElement(SampleType) },
+      { path: 'orders/factory', element: React.createElement(FactoryOrders) },
+      { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       ...autoChildren,
-      { path: 'pattern', element: React.createElement(Placeholder("打板")) },
-      { path: 'orders', element: React.createElement(Placeholder("订单生产")) },
-      { path: 'material', element: React.createElement(Placeholder("物料进销存")) },
-      { path: 'product', element: React.createElement(Placeholder("成品进销存")) },
-      { path: 'piecework', element: React.createElement(Placeholder("车间计件")) },
-      { path: 'collab', element: React.createElement(Placeholder("协同中心")) },
-      { path: 'settlement', element: React.createElement(Placeholder("对账结算")) },
-      { path: 'appstore', element: React.createElement(Placeholder("应用商店")) },
-      { path: 'basic', element: React.createElement(Placeholder("基础资料")) },
-      { path: 'settings', element: React.createElement(Placeholder("系统设置")) },
-      { path: 'guide', element: React.createElement(Placeholder("操作指南")) },
+      { path: 'pattern', element: createPlaceholderElement('打板') },
+      { path: 'orders', element: createPlaceholderElement('订单生产') },
+      { path: 'material', element: createPlaceholderElement('物料进销存') },
+      { path: 'product', element: createPlaceholderElement('成品进销存') },
+      { path: 'piecework', element: createPlaceholderElement('车间计件') },
+      { path: 'collab', element: createPlaceholderElement('协同中心') },
+      { path: 'settlement', element: createPlaceholderElement('对账结算') },
+      { path: 'appstore', element: createPlaceholderElement('应用商店') },
+      { path: 'basic', element: createPlaceholderElement('基础资料') },
+      { path: 'settings', element: createPlaceholderElement('系统设置') },
+      { path: 'guide', element: createPlaceholderElement('操作指南') },
     ],
   },
 ]);

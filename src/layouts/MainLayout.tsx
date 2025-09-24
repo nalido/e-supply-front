@@ -22,6 +22,8 @@ const MainLayout = () => {
   const location = useLocation();
   const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname));
 
+  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), []);
+
   const selectedKey = useMemo(() => {
     if (location.pathname === '/sample') {
       return '/sample/overview';
@@ -57,7 +59,7 @@ const MainLayout = () => {
           selectedKeys={[selectedKey]}
           openKeys={openKeys}
           onOpenChange={handleOpenChange}
-          items={toAntdMenuItems(menuTree) as any}
+          items={menuItems}
         />
       </Sider>
       <Layout>

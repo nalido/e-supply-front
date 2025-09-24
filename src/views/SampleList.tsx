@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Table,
@@ -25,7 +25,7 @@ import {
   EyeOutlined,
   ExportOutlined,
 } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
 
 import type { SampleOrder, SampleStats, SampleStatus } from '../types/sample';
@@ -46,6 +46,14 @@ const { RangePicker } = DatePicker;
 /**
  * 样板单列表页面
  */
+type SampleListFilters = {
+  keyword: string;
+  status?: SampleStatus;
+  customer?: string;
+  priority?: SampleOrder['priority'];
+  dateRange?: [dayjs.Dayjs, dayjs.Dayjs];
+};
+
 const SampleList: React.FC = () => {
   // 数据状态
   const [loading, setLoading] = useState(false);
@@ -54,7 +62,7 @@ const SampleList: React.FC = () => {
   const [stats, setStats] = useState<SampleStats | null>(null);
   
   // 分页状态
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
     total: 0,
@@ -65,29 +73,29 @@ const SampleList: React.FC = () => {
   });
 
   // 筛选状态
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
-    status: undefined as SampleStatus | undefined,
-    customer: undefined as string | undefined,
-    priority: undefined as string | undefined,
-    dateRange: undefined as [dayjs.Dayjs, dayjs.Dayjs] | undefined,
+    status: undefined,
+    customer: undefined,
+    priority: undefined,
+    dateRange: undefined,
   });
 
   // 加载统计数据
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setStatsLoading(true);
       const result = await fetchSampleStats();
       setStats(result);
-    } catch (error) {
+    } catch {
       message.error('加载统计数据失败');
     } finally {
       setStatsLoading(false);
     }
-  };
+  }, []);
 
   // 加载列表数据
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const params = {
@@ -96,6 +104,8 @@ const SampleList: React.FC = () => {
         keyword: filters.keyword || undefined,
         status: filters.status,
         customer: filters.customer,
+        startDate: filters.dateRange ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
+        endDate: filters.dateRange ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
       };
       
       const result = await fetchSampleOrders(params);
@@ -105,41 +115,38 @@ const SampleList: React.FC = () => {
         total: result.total,
         current: result.page,
       }));
-    } catch (error) {
+    } catch {
       message.error('加载数据失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.customer, filters.dateRange, filters.keyword, filters.status, pagination]);
 
   // 初始化数据
   useEffect(() => {
-    loadData();
-    loadStats();
-  }, []);
+    void loadData();
+    void loadStats();
+  }, [loadData, loadStats]);
 
   // 分页、排序、筛选变化时重新加载数据
-  const handleTableChange = (newPagination: any) => {
+  const handleTableChange = (newPagination: TablePaginationConfig) => {
     setPagination(prev => ({
       ...prev,
       current: newPagination.current,
       pageSize: newPagination.pageSize,
     }));
-    setTimeout(loadData, 0);
   };
 
   // 搜索
   const handleSearch = (value: string) => {
     setFilters(prev => ({ ...prev, keyword: value }));
     setPagination(prev => ({ ...prev, current: 1 }));
-    setTimeout(loadData, 0);
   };
 
   // 筛选变化
-  const handleFilterChange = (key: string, value: any) => {
+  const handleFilterChange = <K extends keyof SampleListFilters>(key: K, value: SampleListFilters[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setPagination(prev => ({ ...prev, current: 1 }));
-    setTimeout(loadData, 0);
   };
 
   // 重置筛选
@@ -152,7 +159,6 @@ const SampleList: React.FC = () => {
       dateRange: undefined,
     });
     setPagination(prev => ({ ...prev, current: 1 }));
-    setTimeout(loadData, 0);
   };
 
   // 操作按钮
@@ -456,7 +462,13 @@ const SampleList: React.FC = () => {
                 <RangePicker
                   placeholder={['开始日期', '结束日期']}
                   value={filters.dateRange}
-                  onChange={(value) => handleFilterChange('dateRange', value)}
+                  onChange={(value) => {
+                    if (value && value[0] && value[1]) {
+                      handleFilterChange('dateRange', [value[0], value[1]]);
+                    } else {
+                      handleFilterChange('dateRange', undefined);
+                    }
+                  }}
                 />
                 <Button onClick={handleReset}>重置</Button>
               </Space>
@@ -478,7 +490,7 @@ const SampleList: React.FC = () => {
                 </Button>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={loadData}
+                  onClick={() => { void loadData(); }}
                   loading={loading}
                 >
                   刷新

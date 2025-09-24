@@ -67,3 +67,55 @@ export interface SampleStats {
   thisMonth: number; // 本月新增
   urgent: number; // 紧急
 }
+
+export interface SampleDashboardStats {
+  thisWeek: number;
+  thisMonth: number;
+  lastMonth: number;
+  thisYear: number;
+}
+
+export type TemplateFieldType = 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'file';
+
+export interface TemplateNode {
+  id: number;
+  sortOrder: number;
+  sequenceNo: number;
+  nodeName: string;
+  fieldType: TemplateFieldType;
+  duration: number;
+}
+
+export interface FollowTemplateSummary {
+  id: number;
+  sequenceNo: number;
+  name: string;
+  isDefault: boolean;
+  nodes?: TemplateNode[];
+}
+
+export interface SampleTypeItem {
+  id: number;
+  name: string;
+}
+
+export interface SampleChartPoint {
+  date: string;
+  count: number;
+  type: string;
+}
+
+export interface SamplePieDatum {
+  name: string;
+  value: number;
+  category: string;
+}
+
+export interface SampleOverdueItem {
+  image?: string;
+  sampleNo: string;
+  styleName: string;
+  sampleType: string;
+  expectedDate: string;
+  overdueDays: number;
+}

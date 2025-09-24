@@ -11,17 +11,11 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import type { TablePaginationConfig } from 'antd/es/table/interface';
 
 import { sample } from '../api/mock';
 import FollowTemplateModal, { type FollowTemplateData } from '../components/FollowTemplateModal';
-
-interface FollowTemplate {
-  id: number;
-  sequenceNo: number;
-  name: string;
-  isDefault: boolean;
-  nodes?: any[];
-}
+import type { FollowTemplateSummary } from '../types/sample';
 
 /**
  * 跟进模板页面
@@ -29,7 +23,7 @@ interface FollowTemplate {
 const FollowTemplate: React.FC = () => {
   // 数据状态
   const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<FollowTemplate[]>([]);
+  const [dataSource, setDataSource] = useState<FollowTemplateSummary[]>([]);
   
   // 分页状态
   const [pagination, setPagination] = useState({
@@ -44,7 +38,7 @@ const FollowTemplate: React.FC = () => {
 
   // 弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<FollowTemplate | null>(null);
+  const [editingRecord, setEditingRecord] = useState<FollowTemplateSummary | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
 
   // 加载数据
@@ -62,7 +56,7 @@ const FollowTemplate: React.FC = () => {
         ...prev,
         total: result.total,
       }));
-    } catch (error) {
+    } catch {
       message.error('加载数据失败');
     } finally {
       setLoading(false);
@@ -75,7 +69,7 @@ const FollowTemplate: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 分页变化
-  const handleTableChange = (newPagination: any) => {
+  const handleTableChange = (newPagination: TablePaginationConfig) => {
     setPagination(prev => ({
       ...prev,
       current: newPagination.current,
@@ -97,18 +91,18 @@ const FollowTemplate: React.FC = () => {
   };
 
   // 编辑模板
-  const handleEdit = (record: FollowTemplate) => {
+  const handleEdit = (record: FollowTemplateSummary) => {
     setEditingRecord(record);
     setModalVisible(true);
   };
 
   // 删除模板
-  const handleDelete = async (record: FollowTemplate) => {
+  const handleDelete = async (record: FollowTemplateSummary) => {
     try {
       await sample.deleteFollowTemplate(record.id);
       message.success('删除成功');
       loadData();
-    } catch (error) {
+    } catch {
       message.error('删除失败');
     }
   };
@@ -128,7 +122,7 @@ const FollowTemplate: React.FC = () => {
       
       setModalVisible(false);
       loadData();
-    } catch (error) {
+    } catch {
       message.error('操作失败');
     } finally {
       setModalLoading(false);
@@ -137,7 +131,7 @@ const FollowTemplate: React.FC = () => {
 
 
   // 模板表格列定义
-  const columns: ColumnsType<FollowTemplate> = [
+  const columns: ColumnsType<FollowTemplateSummary> = [
     {
       title: '序号',
       dataIndex: 'sequenceNo',
@@ -165,7 +159,7 @@ const FollowTemplate: React.FC = () => {
       title: '操作',
       key: 'actions',
       width: 150,
-      render: (_, record) => (
+      render: (_value, record) => (
         <Space size="small">
           <Button
             type="link"

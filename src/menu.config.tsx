@@ -200,6 +200,13 @@ export const menuTree: MenuNode[] = [
 ];
 
 export const toAntdMenuItems = (nodes: MenuNode[]): ItemType[] =>
-  nodes.map((n) => ({ key: n.key, label: n.label, icon: n.icon, children: n.children ? (toAntdMenuItems(n.children) as any) : undefined }));
-
+  nodes.map((node) => {
+    const children = node.children ? toAntdMenuItems(node.children) : undefined;
+    return {
+      key: node.key,
+      label: node.label,
+      icon: node.icon,
+      children,
+    } as ItemType;
+  });
 

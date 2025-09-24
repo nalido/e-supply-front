@@ -16,11 +16,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 
 import { sample } from '../api/mock';
-
-interface SampleType {
-  id: number;
-  name: string;
-}
+import type { SampleTypeItem } from '../types/sample';
 
 /**
  * 样板类型页面 - 复刻原网站设计
@@ -28,7 +24,7 @@ interface SampleType {
 const SampleType: React.FC = () => {
   // 数据状态
   const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<SampleType[]>([]);
+  const [dataSource, setDataSource] = useState<SampleTypeItem[]>([]);
   
   // 分页状态 (简化版，不显示分页器，与原网站一致)
   const [pagination] = useState({
@@ -39,7 +35,7 @@ const SampleType: React.FC = () => {
 
   // 弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<SampleType | null>(null);
+  const [editingRecord, setEditingRecord] = useState<SampleTypeItem | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [form] = Form.useForm();
 
@@ -54,7 +50,7 @@ const SampleType: React.FC = () => {
       
       const result = await sample.sampleTypes(params);
       setDataSource(result.list);
-    } catch (error) {
+    } catch {
       message.error('加载数据失败');
     } finally {
       setLoading(false);
@@ -74,19 +70,19 @@ const SampleType: React.FC = () => {
   };
 
   // 编辑类型
-  const handleEdit = (record: SampleType) => {
+  const handleEdit = (record: SampleTypeItem) => {
     setEditingRecord(record);
     form.setFieldsValue({ name: record.name });
     setModalVisible(true);
   };
 
   // 删除类型
-  const handleDelete = async (record: SampleType) => {
+  const handleDelete = async (record: SampleTypeItem) => {
     try {
       await sample.deleteSampleType(record.id);
       message.success('删除成功');
       loadData();
-    } catch (error) {
+    } catch {
       message.error('删除失败');
     }
   };
@@ -107,7 +103,7 @@ const SampleType: React.FC = () => {
       
       setModalVisible(false);
       loadData();
-    } catch (error) {
+    } catch {
       message.error('操作失败');
     } finally {
       setModalLoading(false);
@@ -115,7 +111,7 @@ const SampleType: React.FC = () => {
   };
 
   // 表格列定义 - 严格按照原网站设计
-  const columns: ColumnsType<SampleType> = [
+  const columns: ColumnsType<SampleTypeItem> = [
     {
       title: '序号',
       key: 'index',

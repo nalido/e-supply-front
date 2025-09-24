@@ -1,27 +1,37 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Table, Typography, Progress, Segmented } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Card, Row, Col, Table, Typography, Segmented } from 'antd';
 import { Line, Pie } from '@ant-design/plots';
-import { CalendarOutlined, TrophyOutlined } from '@ant-design/icons';
+import { CalendarOutlined } from '@ant-design/icons';
 import { sampleService } from '../api/mock';
+import type { ColumnsType } from 'antd/es/table';
+import type { LineConfig, PieConfig } from '@ant-design/plots';
+import type {
+  SampleDashboardStats,
+  SampleChartPoint,
+  SamplePieDatum,
+  SampleOverdueItem,
+} from '../types/sample';
+import type { ReactNode } from 'react';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export default function SampleDashboard() {
-  const [stats, setStats] = useState<any>({});
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [pieData, setPieData] = useState<any[]>([]);
-  const [overdueSamples, setOverdueSamples] = useState<any[]>([]);
+  const [stats, setStats] = useState<SampleDashboardStats>({
+    thisWeek: 0,
+    thisMonth: 0,
+    lastMonth: 0,
+    thisYear: 0,
+  });
+  const [chartData, setChartData] = useState<SampleChartPoint[]>([]);
+  const [pieData, setPieData] = useState<SamplePieDatum[]>([]);
+  const [overdueSamples, setOverdueSamples] = useState<SampleOverdueItem[]>([]);
   const [pieType, setPieType] = useState<string>('纸样师');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const [statsData, chartData, pieData, overdueData] = await Promise.all([
+      const [statsData, chartDataset, pieDataset, overdueData] = await Promise.all([
         sampleService.getSampleStats(),
         sampleService.getSampleChartData(),
         sampleService.getSamplePieData(),
@@ -29,17 +39,21 @@ export default function SampleDashboard() {
       ]);
       
       setStats(statsData);
-      setChartData(chartData);
-      setPieData(pieData);
+      setChartData(chartDataset);
+      setPieData(pieDataset);
       setOverdueSamples(overdueData.list);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const overdueColumns = [
+  useEffect(() => {
+    void loadDashboardData();
+  }, [loadDashboardData]);
+
+  const overdueColumns: ColumnsType<SampleOverdueItem> = [
     {
       title: '图片',
       dataIndex: 'image',
@@ -82,7 +96,7 @@ export default function SampleDashboard() {
     },
   ];
 
-  const lineConfig = {
+  const lineConfig: LineConfig = {
     data: chartData,
     xField: 'date',
     yField: 'count',
@@ -102,7 +116,7 @@ export default function SampleDashboard() {
     },
   };
 
-  const pieConfig = {
+  const pieConfig: PieConfig = {
     data: pieData.filter(item => item.category === pieType),
     angleField: 'value',
     colorField: 'name',
@@ -127,7 +141,13 @@ export default function SampleDashboard() {
     color: pieType === '纸样师' ? ['#52c41a', '#f5f5f5'] : ['#1890ff', '#f5f5f5'],
   };
 
-  const StatCard = ({ title, value, unit, color, icon }: any) => (
+  const StatCard = ({ title, value, unit, color, icon }: {
+    title: string;
+    value: number;
+    unit: string;
+    color: string;
+    icon: ReactNode;
+  }) => (
     <Card style={{ height: '100%', background: color }}>
       <div style={{ display: 'flex', alignItems: 'center', color: 'white' }}>
         <div style={{ flex: 1 }}>

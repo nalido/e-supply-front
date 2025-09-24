@@ -19,19 +19,12 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-export interface TemplateNode {
-  id: number;
-  sortOrder: number;
-  sequenceNo: number;
-  nodeName: string;
-  fieldType: string;
-  duration: number; // 时长(小时)
-}
+import type { DragEndEvent } from '@dnd-kit/core';
+import type { TemplateNode, TemplateFieldType } from '../types/sample';
 
 interface DraggableNodeTableProps {
   nodes: TemplateNode[];
-  fieldTypeOptions: { label: string; value: string }[];
+  fieldTypeOptions: { label: string; value: TemplateFieldType }[];
   onNodesChange: (nodes: TemplateNode[]) => void;
   onEditNode: (node: TemplateNode) => void;
   onDeleteNode: (nodeId: number) => void;
@@ -72,7 +65,7 @@ const DraggableRow: React.FC<DraggableRowProps> = (props) => {
   const processedChildren = React.Children.map(children, (child, index) => {
     if (index === 0 && React.isValidElement(child)) {
       // 在第一列添加拖拽手柄
-      const childElement = child as React.ReactElement<any>;
+      const childElement = child as React.ReactElement;
       return React.cloneElement(childElement, {
         ...childElement.props,
         children: (
@@ -134,7 +127,7 @@ const DraggableNodeTable: React.FC<DraggableNodeTableProps> = ({
     })
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     // 早期退出，避免不必要的处理
@@ -227,7 +220,7 @@ const DraggableNodeTable: React.FC<DraggableNodeTableProps> = ({
       title: '操作',
       key: 'actions',
       width: 120,
-      render: (_, record) => (
+      render: (_value, record) => (
         <Space size="small">
           <Button
             type="link"

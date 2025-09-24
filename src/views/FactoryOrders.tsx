@@ -253,7 +253,7 @@ const FactoryOrders = () => {
                             <div style={{ display: 'grid', gap: 6 }}>
                               <Progress
                                 percent={percent}
-                                status={progressStatusLabel[status] as any}
+                                status={progressStatusLabel[status]}
                                 showInfo={false}
                                 strokeColor={statusColorMap[status]}
                                 trailColor="#f0f0f0"

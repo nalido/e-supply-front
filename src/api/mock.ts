@@ -1,12 +1,57 @@
 // 统一 Mock API 层：所有页面的数据先走这里，后端完成后把对应接口指向真实服务即可
 // 结构：每个领域一个命名空间，方法返回 Promise，模拟网络延迟
 
+import type {
+  FollowTemplateSummary,
+  SampleChartPoint,
+  SampleDashboardStats,
+  SampleOverdueItem,
+  SamplePieDatum,
+  SampleTypeItem,
+  TemplateNode,
+} from '../types/sample';
+
 export type Paginated<T> = {
   list: T[];
   total: number;
 };
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type DashboardPendingFactoryItem = {
+  id: number;
+  orderNo: string;
+  styleName: string;
+  org: string;
+  date: string;
+  qty: number;
+  type: string;
+};
+
+type FactoryOrderSummary = {
+  id: number;
+  orderNo: string;
+  customer: string;
+  style: string;
+  qty: number;
+  dueDate: string;
+};
+
+type MaterialStockItem = {
+  id: number;
+  sku: string;
+  name: string;
+  qty: number;
+  warehouse: string;
+};
+
+type ProductInboundPendingItem = {
+  id: number;
+  orderNo: string;
+  style: string;
+  qty: number;
+  status: string;
+};
 
 export const dashboard = {
   async overview() {
@@ -18,11 +63,11 @@ export const dashboard = {
       shipped: 591501,
     };
   },
-  async pendingCustomer(): Promise<Paginated<any>> {
+  async pendingCustomer(): Promise<Paginated<Record<string, never>>> {
     await delay(300);
     return { list: [], total: 0 };
   },
-  async pendingFactory(): Promise<Paginated<any>> {
+  async pendingFactory(): Promise<Paginated<DashboardPendingFactoryItem>> {
     await delay(300);
     return {
       list: Array.from({ length: 12 }).map((_, i) => ({
@@ -40,7 +85,7 @@ export const dashboard = {
 };
 
 export const orders = {
-  async factory(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async factory(params: { page: number; pageSize: number }): Promise<Paginated<FactoryOrderSummary>> {
     await delay(300);
     const total = 35;
     const list = Array.from({ length: params.pageSize }).map((_, idx) => {
@@ -59,7 +104,7 @@ export const orders = {
 };
 
 export const materials = {
-  async stock(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async stock(params: { page: number; pageSize: number }): Promise<Paginated<MaterialStockItem>> {
     await delay(300);
     return {
       list: Array.from({ length: params.pageSize }).map((_, i) => ({
@@ -75,7 +120,7 @@ export const materials = {
 };
 
 export const products = {
-  async inboundPending(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async inboundPending(params: { page: number; pageSize: number }): Promise<Paginated<ProductInboundPendingItem>> {
     await delay(300);
     return {
       list: Array.from({ length: params.pageSize }).map((_, i) => ({
@@ -93,16 +138,17 @@ export const products = {
 // 打板相关API
 export const sample = {
   // 跟进模板
-  async followTemplates(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async followTemplates(params: { page: number; pageSize: number }): Promise<Paginated<FollowTemplateSummary>> {
     await delay(300);
     const total = 10;
     
     // 详细的模板数据，包含节点信息
-    const templates = [
+    const templates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = [
       { 
         id: 1, 
         name: '赛乐', 
         isDefault: false,
+        sequenceNo: 0,
         nodes: [
           {
             id: 101,
@@ -142,6 +188,7 @@ export const sample = {
         id: 2, 
         name: '标准模板', 
         isDefault: true,
+        sequenceNo: 0,
         nodes: [
           {
             id: 201,
@@ -197,6 +244,7 @@ export const sample = {
         id: 3, 
         name: '快速跟进', 
         isDefault: false,
+        sequenceNo: 0,
         nodes: [
           {
             id: 301,
@@ -463,31 +511,36 @@ export const sample = {
     return { list, total };
   },
   
-  async createFollowTemplate(_data: { name: string; isDefault?: boolean }) {
+  async createFollowTemplate(data: { name: string; isDefault?: boolean }) {
+    void data;
     await delay(300);
     return { success: true, message: '创建成功' };
   },
   
-  async updateFollowTemplate(_id: number, _data: { name: string; isDefault?: boolean }) {
+  async updateFollowTemplate(id: number, data: { name: string; isDefault?: boolean }) {
+    void id;
+    void data;
     await delay(300);
     return { success: true, message: '更新成功' };
   },
   
-  async deleteFollowTemplate(_id: number) {
+  async deleteFollowTemplate(id: number) {
+    void id;
     await delay(300);
     return { success: true, message: '删除成功' };
   },
   
   // 获取跟进模板详情
-  async getFollowTemplateById(id: number) {
+  async getFollowTemplateById(id: number): Promise<FollowTemplateSummary> {
     await delay(300);
     
     // 返回对应的模板数据（从 followTemplates 中查找）
-    const templates = [
+    const templates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = [
       { 
         id: 1, 
         name: '赛乐', 
         isDefault: false,
+        sequenceNo: 0,
         nodes: [
           {
             id: 101,
@@ -527,6 +580,7 @@ export const sample = {
         id: 2, 
         name: '标准模板', 
         isDefault: true,
+        sequenceNo: 0,
         nodes: [
           {
             id: 201,
@@ -582,6 +636,7 @@ export const sample = {
         id: 3, 
         name: '快速跟进', 
         isDefault: false,
+        sequenceNo: 0,
         nodes: [
           {
             id: 301,
@@ -848,7 +903,7 @@ export const sample = {
   },
   
   // 样板类型
-  async sampleTypes(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async sampleTypes(params: { page: number; pageSize: number }): Promise<Paginated<SampleTypeItem>> {
     await delay(300);
     const types = [
       { id: 1, name: '夏季' },
@@ -858,31 +913,35 @@ export const sample = {
       { id: 5, name: '冬季' },
       { id: 6, name: '特殊订制' },
     ];
-    
+
     const startIndex = (params.page - 1) * params.pageSize;
     const endIndex = Math.min(startIndex + params.pageSize, types.length);
     const list = types.slice(startIndex, endIndex);
-    
+
     return { list, total: types.length };
   },
   
-  async createSampleType(_data: { name: string }) {
+  async createSampleType(data: { name: string }) {
+    void data;
     await delay(300);
     return { success: true, message: '创建成功' };
   },
   
-  async updateSampleType(_id: number, _data: { name: string }) {
+  async updateSampleType(id: number, data: { name: string }) {
+    void id;
+    void data;
     await delay(300);
     return { success: true, message: '更新成功' };
   },
   
-  async deleteSampleType(_id: number) {
+  async deleteSampleType(id: number) {
+    void id;
     await delay(300);
     return { success: true, message: '删除成功' };
   },
   
   // 打板统计数据
-  async getSampleStats() {
+  async getSampleStats(): Promise<SampleDashboardStats> {
     await delay(300);
     return {
       thisWeek: 7,
@@ -893,9 +952,9 @@ export const sample = {
   },
   
   // 打板对照表图表数据（半年）
-  async getSampleChartData() {
+  async getSampleChartData(): Promise<SampleChartPoint[]> {
     await delay(300);
-    const data = [];
+    const data: SampleChartPoint[] = [];
     const now = new Date();
     
     // 生成半年的数据
@@ -920,7 +979,7 @@ export const sample = {
   },
   
   // 打板数量占比饼图数据（年）
-  async getSamplePieData() {
+  async getSamplePieData(): Promise<SamplePieDatum[]> {
     await delay(300);
     return [
       {
@@ -947,8 +1006,9 @@ export const sample = {
   },
   
   // 样板超期列表
-  async getOverdueSamples(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+  async getOverdueSamples(params: { page: number; pageSize: number }): Promise<Paginated<SampleOverdueItem>> {
     await delay(300);
+    void params;
     
     // 暂时返回空数据，表示没有超期样板
     return {
@@ -970,5 +1030,3 @@ export default {
   products,
   sample,
 };
-
-

@@ -12,7 +12,8 @@ import {
 import {
   PlusOutlined,
 } from '@ant-design/icons';
-import DraggableNodeTable, { type TemplateNode } from './DraggableNodeTable';
+import DraggableNodeTable from './DraggableNodeTable';
+import type { TemplateNode, TemplateFieldType } from '../types/sample';
 
 export interface FollowTemplateData {
   id?: number;
@@ -44,8 +45,10 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
   const [nodeModalVisible, setNodeModalVisible] = useState(false);
   const [editingNode, setEditingNode] = useState<TemplateNode | null>(null);
 
+  type TemplateNodeFormValues = Pick<TemplateNode, 'sortOrder' | 'nodeName' | 'fieldType' | 'duration'>;
+
   // 字段类型选项
-  const fieldTypeOptions = [
+  const fieldTypeOptions: { label: string; value: TemplateFieldType }[] = [
     { label: '文本', value: 'text' },
     { label: '数字', value: 'number' },
     { label: '日期', value: 'date' },
@@ -101,7 +104,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
 
   const handleNodeSubmit = async () => {
     try {
-      const values = await nodeForm.validateFields();
+      const values = await nodeForm.validateFields<TemplateNodeFormValues>();
       
       if (editingNode) {
         // 编辑节点
@@ -123,7 +126,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
       
       setNodeModalVisible(false);
       message.success(editingNode ? '更新节点成功' : '添加节点成功');
-    } catch (error) {
+    } catch {
       // 表单验证失败，不需要显示错误信息
     }
   };
@@ -142,7 +145,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
       }
       
       await onSubmit(templateData);
-    } catch (error) {
+    } catch {
       // 表单验证失败，不需要显示错误信息
     }
   };

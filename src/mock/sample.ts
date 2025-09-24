@@ -122,7 +122,7 @@ const generateSampleOrder = (index: number): SampleOrder => {
   const statuses = [
     'pending', 'confirmed', 'producing', 'completed', 'cancelled'
   ] as const;
-  const priorities = ['low', 'medium', 'high', 'urgent'];
+  const priorities = ['low', 'medium', 'high', 'urgent'] as const;
   
   const quantity = Math.floor(Math.random() * 50) + 1;
   const unitPrice = Math.floor(Math.random() * 200) + 50;
@@ -144,7 +144,7 @@ const generateSampleOrder = (index: number): SampleOrder => {
     unitPrice,
     totalAmount: quantity * unitPrice,
     status,
-    priority: priority as any,
+    priority,
     deadline: generateRandomDate(60),
     createTime: generateRandomDate(90),
     updateTime: generateRandomDate(30),
@@ -202,6 +202,8 @@ export const fetchSampleOrders = async (params: {
   keyword?: string;
   status?: SampleStatus;
   customer?: string;
+  startDate?: string;
+  endDate?: string;
 } = {}): Promise<{
   list: SampleOrder[];
   total: number;
@@ -233,6 +235,21 @@ export const fetchSampleOrders = async (params: {
   // 客户筛选
   if (params.customer) {
     filteredOrders = filteredOrders.filter(order => order.customer === params.customer);
+  }
+
+  if (params.startDate || params.endDate) {
+    const start = params.startDate ? new Date(params.startDate) : null;
+    const end = params.endDate ? new Date(params.endDate) : null;
+    filteredOrders = filteredOrders.filter(order => {
+      const createdAt = new Date(order.createTime);
+      if (start && createdAt < start) {
+        return false;
+      }
+      if (end && createdAt > end) {
+        return false;
+      }
+      return true;
+    });
   }
   
   // 分页
