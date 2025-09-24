@@ -880,9 +880,88 @@ export const sample = {
     await delay(300);
     return { success: true, message: '删除成功' };
   },
+  
+  // 打板统计数据
+  async getSampleStats() {
+    await delay(300);
+    return {
+      thisWeek: 7,
+      thisMonth: 89,
+      lastMonth: 156,
+      thisYear: 333,
+    };
+  },
+  
+  // 打板对照表图表数据（半年）
+  async getSampleChartData() {
+    await delay(300);
+    const data = [];
+    const now = new Date();
+    
+    // 生成半年的数据
+    for (let i = 180; i >= 0; i -= 15) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().slice(0, 10);
+      
+      data.push({
+        date: dateStr,
+        count: Math.floor(Math.random() * 50) + 20,
+        type: '打板数量',
+      });
+      
+      data.push({
+        date: dateStr,
+        count: Math.floor(Math.random() * 40) + 15,
+        type: '样板数量',
+      });
+    }
+    
+    return data;
+  },
+  
+  // 打板数量占比饼图数据（年）
+  async getSamplePieData() {
+    await delay(300);
+    return [
+      {
+        name: '已完成',
+        value: 2398,
+        category: '纸样师',
+      },
+      {
+        name: '未完成',
+        value: 0,
+        category: '纸样师',
+      },
+      {
+        name: '已完成',
+        value: 2398,
+        category: '车板师',
+      },
+      {
+        name: '未完成',
+        value: 0,
+        category: '车板师',
+      },
+    ];
+  },
+  
+  // 样板超期列表
+  async getOverdueSamples(params: { page: number; pageSize: number }): Promise<Paginated<any>> {
+    await delay(300);
+    
+    // 暂时返回空数据，表示没有超期样板
+    return {
+      list: [],
+      total: 0,
+    };
+  },
 };
 
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
+
+// 为了兼容组件中的命名，添加别名导出
+export const sampleService = sample;
 
 export default {
   dashboard,

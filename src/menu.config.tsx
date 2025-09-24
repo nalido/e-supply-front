@@ -28,6 +28,7 @@ export const menuTree: MenuNode[] = [
     icon: <BuildOutlined />,
     label: '打板',
     children: [
+      { key: '/sample/overview', label: <Link to="/sample">打板汇总</Link> },
       { key: '/sample/list', label: <Link to="/sample/list">样板单</Link> },
       { key: '/sample/follow', label: <Link to="/sample/follow">样板跟进</Link> },
       { key: '/sample/follow-template', label: <Link to="/sample/follow-template">跟进模板</Link> },
