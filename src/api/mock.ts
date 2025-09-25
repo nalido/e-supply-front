@@ -10,6 +10,7 @@ import type {
   SampleTypeItem,
   TemplateNode,
 } from '../types/sample';
+import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 
 export type Paginated<T> = {
   list: T[];
@@ -52,6 +53,289 @@ type ProductInboundPendingItem = {
   qty: number;
   status: string;
 };
+
+const baseStyleCatalog: StyleData[] = [
+  {
+    id: 'ET0110',
+    styleNo: 'ET0110',
+    styleName: '儿童羊羔毛拉链夹克套装',
+    image: '/assets/images/styles/ET0110.jpg',
+    colors: ['黑色-上衣', '黑色-裤子', '浅灰-上衣', '浅灰-裤子', '藏青-上衣', '藏青-裤子'],
+    sizes: ['110', '120', '130', '140', '150', '160'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2024-01-15T00:00:00.000Z',
+    updateTime: '2024-01-15T00:00:00.000Z',
+  },
+  {
+    id: 'ET0168',
+    styleNo: 'ET0168',
+    styleName: '儿童条纹工装卫裤',
+    image: '/assets/images/styles/ET0168.jpg',
+    colors: ['军绿', '藏青', '浅灰'],
+    sizes: ['100', '110', '120', '130', '140'],
+    category: '儿童裤装',
+    status: 'active',
+    createTime: '2024-02-01T00:00:00.000Z',
+    updateTime: '2024-02-06T00:00:00.000Z',
+  },
+  {
+    id: 'ET0362',
+    styleNo: 'ET0362',
+    styleName: '儿童黑色波浪拉链速干短裤',
+    image: '/assets/images/styles/ET0362.jpg',
+    colors: ['黑色'],
+    sizes: ['110', '120', '130', '140', '150'],
+    category: '儿童裤装',
+    status: 'active',
+    createTime: '2024-03-08T00:00:00.000Z',
+    updateTime: '2024-04-01T00:00:00.000Z',
+  },
+  {
+    id: 'ET0151',
+    styleNo: 'ET0151',
+    styleName: '儿童拉链连帽拼色套装',
+    image: '/assets/images/styles/ET0151.jpg',
+    colors: ['粉色', '藏青', '卡其'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2023-12-22T00:00:00.000Z',
+    updateTime: '2024-02-20T00:00:00.000Z',
+  },
+  {
+    id: 'ET0152',
+    styleNo: 'ET0152',
+    styleName: '儿童拼色棒球服套装',
+    image: '/assets/images/styles/ET0152.jpg',
+    colors: ['酒红', '藏青', '牛油果'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2023-12-01T00:00:00.000Z',
+    updateTime: '2024-01-10T00:00:00.000Z',
+  },
+  {
+    id: 'ET0193',
+    styleNo: 'ET0193',
+    styleName: '儿童书包卫衣',
+    image: '/assets/images/styles/ET0193.jpg',
+    colors: ['白色', '黑色', '浅灰'],
+    sizes: ['110', '120', '130', '140', '150', '160'],
+    category: '儿童卫衣',
+    status: 'active',
+    createTime: '2024-01-05T00:00:00.000Z',
+    updateTime: '2024-03-02T00:00:00.000Z',
+  },
+  {
+    id: 'ET5031',
+    styleNo: 'ET5031',
+    styleName: '儿童高领开衫撞色条纹套装',
+    image: '/assets/images/styles/ET5031.jpg',
+    colors: ['咖色', '墨绿', '藏青'],
+    sizes: ['110', '120', '130', '140', '150'],
+    category: '儿童套装',
+    status: 'inactive',
+    createTime: '2024-02-10T00:00:00.000Z',
+    updateTime: '2024-03-18T00:00:00.000Z',
+  },
+  {
+    id: 'ET5033',
+    styleNo: 'ET5033',
+    styleName: '儿童撞色条纹卫衣卫裤套装',
+    image: '/assets/images/styles/ET5033.jpg',
+    colors: ['橘色', '湖蓝', '黑色'],
+    sizes: ['90', '100', '110', '120', '130', '140'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2024-02-18T00:00:00.000Z',
+    updateTime: '2024-03-28T00:00:00.000Z',
+  },
+  {
+    id: 'ET0409',
+    styleNo: 'ET0409',
+    styleName: '儿童拼色连帽开衫套装',
+    image: '/assets/images/styles/ET0409.jpg',
+    colors: ['粉色', '藏青', '黑色'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2024-03-12T00:00:00.000Z',
+    updateTime: '2024-04-05T00:00:00.000Z',
+  },
+  {
+    id: 'CT0010',
+    styleNo: 'CT0010',
+    styleName: '华夫格长袖衬衫',
+    image: '/assets/images/styles/CT0010.jpg',
+    colors: ['白色', '浅蓝', '米黄'],
+    sizes: ['S', 'M', 'L', 'XL'],
+    category: '成人衬衫',
+    status: 'active',
+    createTime: '2023-11-12T00:00:00.000Z',
+    updateTime: '2024-02-01T00:00:00.000Z',
+  },
+  {
+    id: 'ET5300',
+    styleNo: 'ET5300',
+    styleName: '儿童飞行员羽绒服',
+    image: '/assets/images/styles/ET5300.jpg',
+    colors: ['军绿', '焦糖', '藏青'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童外套',
+    status: 'active',
+    createTime: '2023-12-28T00:00:00.000Z',
+    updateTime: '2024-02-27T00:00:00.000Z',
+  },
+  {
+    id: 'ET5401',
+    styleNo: 'ET5401',
+    styleName: '儿童摇粒绒半开襟卫衣',
+    image: '/assets/images/styles/ET5401.jpg',
+    colors: ['雾霾蓝', '浅卡其'],
+    sizes: ['90', '100', '110', '120', '130'],
+    category: '儿童卫衣',
+    status: 'inactive',
+    createTime: '2024-01-22T00:00:00.000Z',
+    updateTime: '2024-03-16T00:00:00.000Z',
+  },
+  {
+    id: 'ET5502',
+    styleNo: 'ET5502',
+    styleName: '儿童宽松束脚运动裤',
+    image: '/assets/images/styles/ET5502.jpg',
+    colors: ['灰蓝', '黑色'],
+    sizes: ['110', '120', '130', '140', '150', '160'],
+    category: '儿童裤装',
+    status: 'active',
+    createTime: '2024-01-30T00:00:00.000Z',
+    updateTime: '2024-03-14T00:00:00.000Z',
+  },
+  {
+    id: 'ET5605',
+    styleNo: 'ET5605',
+    styleName: '儿童撞色拼接风衣',
+    image: '/assets/images/styles/ET5605.jpg',
+    colors: ['驼色', '藏青'],
+    sizes: ['110', '120', '130', '140', '150'],
+    category: '儿童外套',
+    status: 'active',
+    createTime: '2024-02-12T00:00:00.000Z',
+    updateTime: '2024-03-22T00:00:00.000Z',
+  },
+  {
+    id: 'ET5201',
+    styleNo: 'ET5201',
+    styleName: '儿童轻薄羽绒马甲',
+    image: '/assets/images/styles/ET5201.jpg',
+    colors: ['藏青', '彩蓝', '暖黄'],
+    sizes: ['90', '100', '110', '120', '130'],
+    category: '儿童外套',
+    status: 'inactive',
+    createTime: '2023-10-18T00:00:00.000Z',
+    updateTime: '2024-01-08T00:00:00.000Z',
+  },
+  {
+    id: 'ET5109',
+    styleNo: 'ET5109',
+    styleName: '儿童灯芯绒双面穿外套',
+    image: '/assets/images/styles/ET5109.jpg',
+    colors: ['奶咖', '橘红'],
+    sizes: ['100', '110', '120', '130', '140'],
+    category: '儿童外套',
+    status: 'active',
+    createTime: '2023-11-30T00:00:00.000Z',
+    updateTime: '2024-02-18T00:00:00.000Z',
+  },
+  {
+    id: 'ET5212',
+    styleNo: 'ET5212',
+    styleName: '儿童棉服背心套装',
+    image: '/assets/images/styles/ET5212.jpg',
+    colors: ['黑色', '奶油白'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童套装',
+    status: 'active',
+    createTime: '2024-02-20T00:00:00.000Z',
+    updateTime: '2024-03-30T00:00:00.000Z',
+  },
+  {
+    id: 'ET5308',
+    styleNo: 'ET5308',
+    styleName: '儿童印花半高领卫衣',
+    image: '/assets/images/styles/ET5308.jpg',
+    colors: ['雾粉', '奶咖', '烟紫'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童卫衣',
+    status: 'active',
+    createTime: '2024-01-12T00:00:00.000Z',
+    updateTime: '2024-03-12T00:00:00.000Z',
+  },
+  {
+    id: 'ET5406',
+    styleNo: 'ET5406',
+    styleName: '儿童撞色排扣针织开衫',
+    image: '/assets/images/styles/ET5406.jpg',
+    colors: ['砖红', '墨绿', '藏青'],
+    sizes: ['90', '100', '110', '120', '130', '140'],
+    category: '儿童针织',
+    status: 'active',
+    createTime: '2024-02-05T00:00:00.000Z',
+    updateTime: '2024-03-25T00:00:00.000Z',
+  },
+  {
+    id: 'ET5410',
+    styleNo: 'ET5410',
+    styleName: '儿童圆领提花针织衫',
+    image: '/assets/images/styles/ET5410.jpg',
+    colors: ['雾霾蓝', '杏色'],
+    sizes: ['100', '110', '120', '130', '140', '150'],
+    category: '儿童针织',
+    status: 'inactive',
+    createTime: '2024-01-18T00:00:00.000Z',
+    updateTime: '2024-03-08T00:00:00.000Z',
+  },
+  {
+    id: 'ET5315',
+    styleNo: 'ET5315',
+    styleName: '儿童复古针织马甲',
+    image: '/assets/images/styles/ET5315.jpg',
+    colors: ['咖色', '墨绿'],
+    sizes: ['100', '110', '120', '130', '140'],
+    category: '儿童针织',
+    status: 'active',
+    createTime: '2024-02-25T00:00:00.000Z',
+    updateTime: '2024-04-04T00:00:00.000Z',
+  },
+  {
+    id: 'ET5320',
+    styleNo: 'ET5320',
+    styleName: '儿童印花连帽卫衣',
+    image: '/assets/images/styles/ET5320.jpg',
+    colors: ['白色', '藏青', '砖红'],
+    sizes: ['110', '120', '130', '140', '150'],
+    category: '儿童卫衣',
+    status: 'active',
+    createTime: '2023-11-05T00:00:00.000Z',
+    updateTime: '2024-02-05T00:00:00.000Z',
+  },
+];
+
+const styleCatalog: StyleData[] = [
+  ...baseStyleCatalog,
+  ...Array.from({ length: Math.max(130 - baseStyleCatalog.length, 0) }).map((_, index) => {
+    const style = baseStyleCatalog[index % baseStyleCatalog.length];
+    const suffix = index + 1;
+    const cloneStyleNo = `${style.styleNo}-${suffix}`;
+    return {
+      ...style,
+      id: `${style.id}-${suffix}`,
+      styleNo: cloneStyleNo,
+      styleName: `${style.styleName} ${suffix}`,
+      updateTime: new Date(new Date(style.updateTime).getTime() + suffix * 86400000).toISOString(),
+    };
+  }),
+];
 
 export const dashboard = {
   async overview() {
@@ -131,6 +415,33 @@ export const products = {
         status: '待收货',
       })),
       total: 80,
+    };
+  },
+};
+
+export const styles = {
+  async list(params: StyleListParams): Promise<PaginatedStyleData> {
+    await delay(360);
+    const { page, pageSize, keyword } = params;
+    const safePage = Math.max(page, 1);
+    const safeSize = Math.max(pageSize, 1);
+    const lowerKeyword = keyword?.trim().toLowerCase();
+
+    const filtered = lowerKeyword
+      ? styleCatalog.filter((item) => {
+          const candidates = [item.styleNo, item.styleName];
+          return candidates.some((value) => value.toLowerCase().includes(lowerKeyword));
+        })
+      : styleCatalog;
+
+    const start = (safePage - 1) * safeSize;
+    const list = filtered.slice(start, start + safeSize);
+
+    return {
+      list,
+      total: filtered.length,
+      page: safePage,
+      pageSize: safeSize,
     };
   },
 };

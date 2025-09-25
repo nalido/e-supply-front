@@ -8,6 +8,7 @@ import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
 import ProcessTypePage from './views/ProcessType';
+import StyleMaterials from './views/StyleMaterials';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -41,6 +42,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sample/type' &&
     n.key !== '/orders/factory' &&
     n.key !== '/basic/process-type' &&
+    n.key !== '/basic/styles' &&
     !n.children,
   )
   .map((node) => ({
@@ -61,6 +63,7 @@ const router = createBrowserRouter([
       { path: 'sample/type', element: React.createElement(SampleType) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
+      { path: 'basic/styles', element: React.createElement(StyleMaterials) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },

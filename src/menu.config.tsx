@@ -166,7 +166,7 @@ export const menuTree: MenuNode[] = [
     icon: <AppstoreOutlined />,
     label: '基础资料',
     children: [
-      { key: '/basic/style', label: <Link to="/basic/style">款式资料</Link> },
+      { key: '/basic/styles', label: <Link to="/basic/styles">款式资料</Link> },
       { key: '/basic/material', label: <Link to="/basic/material">物料档案</Link> },
       { key: '/basic/partners', label: <Link to="/basic/partners">往来单位</Link> },
       { key: '/basic/process-type', label: <Link to="/basic/process-type">加工类型</Link> },
@@ -209,4 +209,3 @@ export const toAntdMenuItems = (nodes: MenuNode[]): ItemType[] =>
       children,
     } as ItemType;
   });
-
