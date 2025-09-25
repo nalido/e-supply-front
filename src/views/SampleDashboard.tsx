@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, Row, Col, Table, Typography, Segmented } from 'antd';
-import { Line } from '@ant-design/plots';
 import { CalendarOutlined } from '@ant-design/icons';
 import { sampleService } from '../api/mock';
 import type { ColumnsType } from 'antd/es/table';
-import type { LineConfig } from '@ant-design/plots';
 import type {
   SampleDashboardStats,
   SampleChartPoint,
@@ -13,12 +11,24 @@ import type {
 } from '../types/sample';
 import type { ReactNode } from 'react';
 import DonutChart from '../components/charts/DonutChart';
+import dayjs from 'dayjs';
+import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 
 const { Text } = Typography;
 
 const PIE_STATUS_COLORS: Record<'已完成' | '未完成', [string, string]> = {
   已完成: ['#8ed0ff', '#4ea8ff'],
   未完成: ['#fce3d3', '#f6b98b'],
+};
+
+const LINE_COLORS: Record<'打板数量' | '样板数量', string> = {
+  打板数量: '#567ff8',
+  样板数量: '#3ec3a0',
+};
+
+const AREA_GRADIENTS: Record<'打板数量' | '样板数量', string> = {
+  打板数量: 'l(90) 0:rgba(86,127,248,1) 0.2:rgba(86,127,248,1) 1:rgba(255,255,255,1)',
+  样板数量: 'l(90) 0:rgba(62,195,160,1) 0.2:rgba(62,195,160,1) 1:rgba(255,255,255,1)',
 };
 
 export default function SampleDashboard() {
@@ -93,6 +103,24 @@ export default function SampleDashboard() {
     [filteredPieData, totalPieValue],
   );
 
+  const lineDataset = useMemo(
+    () => chartData.map((item) => ({
+      ...item,
+      month: dayjs(item.date).format('YYYY-MM'),
+    })),
+    [chartData],
+  );
+
+  const resolveLineColor = useCallback(
+    (type: string) => LINE_COLORS[type as keyof typeof LINE_COLORS] ?? '#567ff8',
+    [],
+  );
+
+  const resolveAreaGradient = useCallback(
+    (type: string) => AREA_GRADIENTS[type as keyof typeof AREA_GRADIENTS] ?? 'rgba(86,127,248,0.15)',
+    [],
+  );
+
   const overdueColumns: ColumnsType<SampleOverdueItem> = [
     {
       title: '图片',
@@ -136,25 +164,6 @@ export default function SampleDashboard() {
     },
   ];
 
-  const lineConfig: LineConfig = {
-    data: chartData,
-    xField: 'date',
-    yField: 'count',
-    seriesField: 'type',
-    smooth: true,
-    color: ['#1890ff', '#52c41a'],
-    legend: {
-      position: 'top-left' as const,
-    },
-    xAxis: {
-      type: 'time' as const,
-    },
-    yAxis: {
-      title: {
-        text: '',
-      },
-    },
-  };
 
   const StatCard = ({ title, value, unit, color, icon }: {
     title: string;
@@ -232,7 +241,12 @@ export default function SampleDashboard() {
             }
             loading={loading}
           >
-            <Line {...lineConfig} height={200} />
+            <MonthlyAreaChart
+              data={lineDataset}
+              height={200}
+              getColor={resolveLineColor}
+              getGradient={resolveAreaGradient}
+            />
           </Card>
         </Col>
         

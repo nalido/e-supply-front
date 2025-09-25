@@ -956,25 +956,31 @@ export const sample = {
     await delay(300);
     const data: SampleChartPoint[] = [];
     const now = new Date();
-    
-    // 生成半年的数据
-    for (let i = 180; i >= 0; i -= 15) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dateStr = date.toISOString().slice(0, 10);
-      
+
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const dateKey = date.toISOString().slice(0, 7);
+
+      const season = Math.sin((offset / 5) * Math.PI) * 25;
+      const variationA = Math.floor(Math.random() * 18) - 9;
+      const variationB = Math.floor(Math.random() * 22) - 11;
+
+      const patternCount = Math.max(25, Math.round(70 + season + variationA));
+      const sampleCount = Math.max(15, Math.round(55 - season + variationB));
+
       data.push({
-        date: dateStr,
-        count: Math.floor(Math.random() * 50) + 20,
+        date: `${dateKey}-01`,
+        count: patternCount,
         type: '打板数量',
       });
-      
+
       data.push({
-        date: dateStr,
-        count: Math.floor(Math.random() * 40) + 15,
+        date: `${dateKey}-01`,
+        count: sampleCount,
         type: '样板数量',
       });
     }
-    
+
     return data;
   },
   
