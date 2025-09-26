@@ -49,16 +49,22 @@ const StyleCard = ({ style, onSample, onProduction }: StyleCardProps) => {
         {statusTag}
       </div>
       <div className="style-card__meta">
-        <Text className="style-card__label">颜色</Text>
-        <Text className="style-card__value" ellipsis={{ tooltip: style.colors.join(' ') }}>
-          {style.colors.join(' ')}
-        </Text>
+        <div className="style-card__scroller" aria-label="颜色列表">
+          {style.colors.map((color, index) => (
+            <Tag key={`${style.id}-color-${index}`} className="style-card__tag" bordered={false}>
+              {color}
+            </Tag>
+          ))}
+        </div>
       </div>
       <div className="style-card__meta">
-        <Text className="style-card__label">尺码</Text>
-        <Text className="style-card__value" ellipsis={{ tooltip: style.sizes.join(' ') }}>
-          {style.sizes.join(' ')}
-        </Text>
+        <div className="style-card__scroller" aria-label="尺码列表">
+          {style.sizes.map((size, index) => (
+            <Tag key={`${style.id}-size-${index}`} className="style-card__tag style-card__tag--size" bordered={false}>
+              {size}
+            </Tag>
+          ))}
+        </div>
       </div>
       <Space className="style-card__actions">
         <Button block onClick={() => onSample(style.id)}>

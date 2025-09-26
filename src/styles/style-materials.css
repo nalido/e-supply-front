@@ -67,17 +67,30 @@
   margin-bottom: 8px;
 }
 
-.style-card__label {
-  display: block;
-  color: #8c8c8c;
-  font-size: 12px;
-  margin-bottom: 2px;
+.style-card__scroller {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
-.style-card__value {
-  display: block;
-  color: #262626;
+.style-card__scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.style-card__tag {
+  flex: 0 0 auto;
+  background: #f6ffed;
+  color: #1f1f1f;
   font-size: 12px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.style-card__tag--size {
+  background: #f5f7ff;
 }
 
 .style-card__actions {
