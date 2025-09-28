@@ -5,6 +5,7 @@ import StyleCard from '../components/StyleCard';
 import StyleMaterialsActionBar from '../components/StyleMaterialsActionBar';
 import { styles as stylesApi } from '../api/mock';
 import type { PaginatedStyleData, StyleData } from '../types/style';
+import { useNavigate } from 'react-router-dom';
 import '../styles/style-materials.css';
 
 type PageState = {
@@ -31,6 +32,7 @@ const defaultPageState: PageState = {
 };
 
 const StyleMaterials = () => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<StyleData[]>([]);
   const [pageState, setPageState] = useState<PageState>(defaultPageState);
   const [loading, setLoading] = useState(false);
@@ -77,8 +79,8 @@ const StyleMaterials = () => {
   }, []);
 
   const handleNew = useCallback(() => {
-    message.info('新建款式功能开发中');
-  }, []);
+    navigate('/foundation/product/detail');
+  }, [navigate]);
 
   const handleImport = useCallback(() => {
     message.info('导入功能开发中');

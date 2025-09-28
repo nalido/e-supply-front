@@ -25,3 +25,60 @@ export interface PaginatedStyleData {
   page: number;
   pageSize: number;
 }
+
+export interface StyleFormMeta {
+  units: string[];
+  designers: Array<{ id: string; name: string }>;
+  operationStages: string[];
+  processDepartments: string[];
+  partOptions: string[];
+  specificationOptions: string[];
+}
+
+export interface StyleImage {
+  id: string;
+  filename: string;
+  url: string;
+  associatedColor?: string;
+}
+
+export interface StyleOperation {
+  id: string;
+  sequence: number;
+  operationName: string;
+  stage?: string;
+  processDepartment?: string;
+  parts: string[];
+  specificationUnitPrice?: number;
+  specificationEnabled: boolean;
+  specificationNotes?: string;
+  isKeyProcess: boolean;
+  processUnitPrice?: number;
+}
+
+export interface StyleFormValues {
+  styleNumber: string;
+  styleName: string;
+  unit: string;
+  designer?: string;
+  designNumber?: string;
+  remarks?: string;
+  colors: string[];
+  sizes: string[];
+  colorImagesEnabled: boolean;
+}
+
+export type StyleColorImageMap = Record<string, StyleImage | undefined>;
+
+export interface StyleDraft {
+  form: StyleFormValues;
+  operations: StyleOperation[];
+  coverImage?: StyleImage;
+  colorImages: StyleColorImageMap;
+}
+
+export interface StyleOperationTemplate {
+  id: string;
+  name: string;
+  operations: StyleOperation[];
+}

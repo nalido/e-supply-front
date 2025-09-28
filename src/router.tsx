@@ -9,6 +9,7 @@ import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
+import StyleDetail from './views/StyleDetail';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -64,6 +65,7 @@ const router = createBrowserRouter([
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
+      { path: 'foundation/product/detail', element: React.createElement(StyleDetail) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
