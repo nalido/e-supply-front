@@ -561,22 +561,22 @@ const StyleDetail = () => {
         <Card title="基础信息" bordered={false} className="style-detail-card">
           <Form form={form} layout="vertical">
             <div className="style-detail-basic">
-              <div className="style-detail-cover">
-                <Text className="style-detail-cover-label">主图</Text>
-                <div className="style-detail-cover-upload">
-                  <Upload {...coverUploadProps}>
-                    {coverFileList.length >= 1 ? null : (
-                      <div className="style-detail-cover-trigger">
-                        <PlusOutlined />
-                        <div>上传主图</div>
-                      </div>
-                    )}
-                  </Upload>
+                <div className="style-detail-cover">
+                  <Text className="style-detail-cover-label">主图</Text>
+                  <div className="style-detail-cover-upload">
+                    <Upload {...coverUploadProps}>
+                      {coverFileList.length >= 1 ? null : (
+                        <div className="style-detail-cover-trigger">
+                          <PlusOutlined />
+                          <div>上传主图</div>
+                        </div>
+                      )}
+                    </Upload>
+                  </div>
+                  <Text type="secondary" className="style-detail-cover-tip">
+                    建议尺寸 1200×1800，支持 JPG/PNG，单张不超过 5MB
+                  </Text>
                 </div>
-                <Text type="secondary" className="style-detail-cover-tip">
-                  建议尺寸 1200×1800，支持 JPG/PNG，单张不超过 5MB
-                </Text>
-              </div>
               <div className="style-detail-basic-fields">
                 <Row gutter={24}>
                   <Col xs={24} md={12} lg={8}>
