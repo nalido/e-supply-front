@@ -10,6 +10,7 @@ import FactoryOrders from './views/FactoryOrders';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
+import MaterialArchive from './views/MaterialArchive';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -44,6 +45,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/orders/factory' &&
     n.key !== '/basic/process-type' &&
     n.key !== '/basic/styles' &&
+    n.key !== '/basic/material' &&
     !n.children,
   )
   .map((node) => ({
@@ -65,6 +67,7 @@ const router = createBrowserRouter([
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
+      { path: 'basic/material', element: React.createElement(MaterialArchive) },
       { path: 'foundation/product/detail', element: React.createElement(StyleDetail) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },

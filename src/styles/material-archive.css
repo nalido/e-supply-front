@@ -1,0 +1,50 @@
+.material-archive-page {
+  background: #fff;
+  padding: 16px 24px 24px;
+  min-height: calc(100vh - 120px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+}
+
+.material-tabs {
+  margin-bottom: 12px;
+}
+
+.material-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.material-action-bar__left {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.material-action-bar__search {
+  width: 260px;
+  min-width: 200px;
+}
+
+.material-table .ant-table-tbody > tr > td {
+  vertical-align: middle;
+}
+
+.material-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.material-name {
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.material-category-path {
+  font-size: 12px;
+  color: #8c8c8c;
+}
