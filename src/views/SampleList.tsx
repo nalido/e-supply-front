@@ -22,6 +22,7 @@ import {
   Select,
 } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { FilterValue, SorterResult } from 'antd/es/table/interface';
 import type { MenuProps } from 'antd';
 import {
   AppstoreOutlined,
@@ -66,6 +67,44 @@ const STATUS_TO_CARD: Record<SampleStatus, StatCardKey> = {
   [SampleStatusEnum.COMPLETED]: 'completed',
   [SampleStatusEnum.CANCELLED]: 'cancelled',
 };
+
+const PRIORITY_OPTIONS: SampleOrder['priority'][] = ['urgent', 'high', 'medium', 'low'];
+
+const PRIORITY_WEIGHT: Record<SampleOrder['priority'], number> = {
+  urgent: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+const STATUS_WEIGHT: Record<SampleStatus, number> = {
+  [SampleStatusEnum.PENDING]: 1,
+  [SampleStatusEnum.CONFIRMED]: 2,
+  [SampleStatusEnum.PRODUCING]: 3,
+  [SampleStatusEnum.COMPLETED]: 4,
+  [SampleStatusEnum.CANCELLED]: 5,
+};
+
+type SortOrderType = 'ascend' | 'descend';
+
+type SortableField = 'orderNo' | 'customer' | 'quantity' | 'unitPrice' | 'totalAmount' | 'deadline' | 'createTime' | 'priority' | 'status';
+
+type SortState = {
+  field: SortableField;
+  order: SortOrderType;
+} | null;
+
+const SORTABLE_FIELDS: SortableField[] = [
+  'orderNo',
+  'customer',
+  'quantity',
+  'unitPrice',
+  'totalAmount',
+  'deadline',
+  'createTime',
+  'priority',
+  'status',
+];
 
 type StatCardConfig = {
   key: StatCardKey;
@@ -228,9 +267,9 @@ const CARD_HEADER_STYLE: CSSProperties = {
 };
 
 const CARD_META_GRID_STYLE: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-  gap: 12,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
 };
 
 const CARD_FOOTER_STYLE: CSSProperties = {
@@ -293,7 +332,9 @@ const SampleList: React.FC = () => {
     dateRange: undefined,
   });
   const [activeCardKey, setActiveCardKey] = useState<StatCardKey | null>('total');
+  const [rawData, setRawData] = useState<SampleOrder[]>([]);
   const [dataSource, setDataSource] = useState<SampleOrder[]>([]);
+  const [sortState, setSortState] = useState<SortState>(null);
   const [stats, setStats] = useState<SampleStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -312,6 +353,56 @@ const SampleList: React.FC = () => {
   const currentPage = pagination.current ?? 1;
   const currentPageSize = pagination.pageSize ?? 12;
 
+  const applySorting = useCallback((records: SampleOrder[], state: SortState): SampleOrder[] => {
+    if (!records.length) {
+      return records.slice();
+    }
+    if (!state) {
+      return records.slice();
+    }
+
+    const sorted = [...records];
+    const direction = state.order === 'ascend' ? 1 : -1;
+
+    sorted.sort((a, b) => {
+      let compare = 0;
+      switch (state.field) {
+        case 'orderNo':
+          compare = a.orderNo.localeCompare(b.orderNo);
+          break;
+        case 'customer':
+          compare = a.customer.localeCompare(b.customer);
+          break;
+        case 'quantity':
+          compare = a.quantity - b.quantity;
+          break;
+        case 'unitPrice':
+          compare = a.unitPrice - b.unitPrice;
+          break;
+        case 'totalAmount':
+          compare = a.totalAmount - b.totalAmount;
+          break;
+        case 'deadline':
+          compare = dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf();
+          break;
+        case 'createTime':
+          compare = dayjs(a.createTime).valueOf() - dayjs(b.createTime).valueOf();
+          break;
+        case 'priority':
+          compare = PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority];
+          break;
+        case 'status':
+          compare = STATUS_WEIGHT[a.status] - STATUS_WEIGHT[b.status];
+          break;
+        default:
+          compare = 0;
+      }
+      return compare * direction;
+    });
+
+    return sorted;
+  }, []);
+
   const resolveActiveKey = useCallback((nextFilters: SampleListFilters): StatCardKey | null => {
     if (nextFilters.status) {
       return STATUS_TO_CARD[nextFilters.status];
@@ -324,6 +415,10 @@ const SampleList: React.FC = () => {
     }
     return 'total';
   }, []);
+
+  useEffect(() => {
+    setDataSource(applySorting(rawData, sortState));
+  }, [applySorting, rawData, sortState]);
 
   const buildQueryParams = useCallback((overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
     const base: SampleQueryParams = {
@@ -356,7 +451,7 @@ const SampleList: React.FC = () => {
         page: currentPage,
         pageSize: currentPageSize,
       }));
-      setDataSource(result.list);
+      setRawData(result.list);
       setPagination((prev) => ({
         ...prev,
         total: result.total,
@@ -414,6 +509,7 @@ const SampleList: React.FC = () => {
       dateRange: undefined,
     });
     setActiveCardKey('total');
+    setSortState(null);
     setPagination((prev) => ({ ...prev, current: 1 }));
   }, []);
 
@@ -442,12 +538,31 @@ const SampleList: React.FC = () => {
     }));
   }, []);
 
-  const handleTableChange = useCallback((pager: TablePaginationConfig) => {
+  const handleTableChange = useCallback((
+    pager: TablePaginationConfig,
+    _filters: Record<string, FilterValue | null>,
+    sorter: SorterResult<SampleOrder> | SorterResult<SampleOrder>[]
+  ) => {
     setPagination((prev) => ({
       ...prev,
       current: pager.current ?? 1,
       pageSize: pager.pageSize ?? prev.pageSize,
     }));
+
+    const actualSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (actualSorter && actualSorter.order && actualSorter.field) {
+      const field = actualSorter.field as SortableField;
+      if (SORTABLE_FIELDS.includes(field)) {
+        setSortState({
+          field,
+          order: actualSorter.order as SortOrderType,
+        });
+      } else {
+        setSortState(null);
+      }
+    } else {
+      setSortState(null);
+    }
   }, []);
 
   const handleCreate = useCallback(() => {
@@ -490,6 +605,9 @@ const SampleList: React.FC = () => {
       key: 'orderNo',
       fixed: 'left',
       width: 140,
+      sorter: true,
+      sortOrder: sortState?.field === 'orderNo' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (_value, record) => (
         <Button type="link" size="small" onClick={() => handleView(record)}>
           {record.orderNo}
@@ -547,6 +665,9 @@ const SampleList: React.FC = () => {
       dataIndex: 'customer',
       key: 'customer',
       width: 140,
+      sorter: true,
+      sortOrder: sortState?.field === 'customer' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
     },
     {
       title: '数量',
@@ -554,6 +675,9 @@ const SampleList: React.FC = () => {
       key: 'quantity',
       width: 90,
       align: 'right',
+      sorter: true,
+      sortOrder: sortState?.field === 'quantity' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (value: number) => `${value} 件`,
     },
     {
@@ -562,6 +686,9 @@ const SampleList: React.FC = () => {
       key: 'unitPrice',
       width: 100,
       align: 'right',
+      sorter: true,
+      sortOrder: sortState?.field === 'unitPrice' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (value: number) => `¥${value.toFixed(2)}`,
     },
     {
@@ -570,6 +697,9 @@ const SampleList: React.FC = () => {
       key: 'totalAmount',
       width: 110,
       align: 'right',
+      sorter: true,
+      sortOrder: sortState?.field === 'totalAmount' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (value: number) => (
         <span style={{ fontWeight: 500 }}>¥{value.toFixed(2)}</span>
       ),
@@ -579,6 +709,9 @@ const SampleList: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 110,
+      sorter: true,
+      sortOrder: sortState?.field === 'status' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (status: SampleStatus) => (
         <Tag color={sampleService.getStatusBadgeColor(status)}>
           {sampleService.getStatusLabel(status)}
@@ -590,6 +723,9 @@ const SampleList: React.FC = () => {
       dataIndex: 'priority',
       key: 'priority',
       width: 90,
+      sorter: true,
+      sortOrder: sortState?.field === 'priority' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (priority: SampleOrder['priority']) => (
         <Tag color={sampleService.getPriorityBadgeColor(priority)}>
           {sampleService.getPriorityLabel(priority)}
@@ -601,6 +737,9 @@ const SampleList: React.FC = () => {
       dataIndex: 'deadline',
       key: 'deadline',
       width: 120,
+      sorter: true,
+      sortOrder: sortState?.field === 'deadline' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (value: string) => {
         const due = dayjs(value);
         const overdue = due.isBefore(dayjs(), 'day');
@@ -623,6 +762,9 @@ const SampleList: React.FC = () => {
       dataIndex: 'createTime',
       key: 'createTime',
       width: 120,
+      sorter: true,
+      sortOrder: sortState?.field === 'createTime' ? sortState.order : undefined,
+      sortDirections: ['ascend', 'descend'],
       render: (value: string) => dayjs(value).format('YYYY-MM-DD'),
     },
     {
@@ -664,7 +806,7 @@ const SampleList: React.FC = () => {
         </Space>
       ),
     },
-  ], [handleDelete, handleEdit, handleView]);
+  ], [handleDelete, handleEdit, handleView, sortState]);
 
   const viewOptions = useMemo(() => [
     { label: <span><AppstoreOutlined /> 卡片</span>, value: 'card' },
@@ -738,7 +880,7 @@ const SampleList: React.FC = () => {
                   <span style={INFO_VALUE_STYLE}>{dayjs(order.createTime).format('YYYY-MM-DD')}</span>
                 </div>
                 <div style={{ ...INFO_ROW_STYLE, flexShrink: 0 }}>
-                  <span style={{ ...INFO_VALUE_STYLE, fontWeight: 600 }}>{order.quantity}</span>
+                  <span style={{ ...INFO_VALUE_STYLE, fontWeight: 600, flex: 'initial' }}>{order.quantity}</span>
                 </div>
               </div>
               <div style={INFO_ROW_STYLE}>
@@ -834,6 +976,19 @@ const SampleList: React.FC = () => {
               <Option value={SampleStatusEnum.PRODUCING}>生产中</Option>
               <Option value={SampleStatusEnum.COMPLETED}>已完成</Option>
               <Option value={SampleStatusEnum.CANCELLED}>已取消</Option>
+            </Select>
+            <Select
+              allowClear
+              placeholder="优先级"
+              value={filters.priority}
+              style={{ width: 120 }}
+              onChange={(value) => handleFilterChange('priority', (value || undefined) as SampleOrder['priority'] | undefined)}
+            >
+              {PRIORITY_OPTIONS.map((priority) => (
+                <Option key={priority} value={priority}>
+                  {sampleService.getPriorityLabel(priority)}
+                </Option>
+              ))}
             </Select>
             <Select
               allowClear

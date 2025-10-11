@@ -136,3 +136,6 @@ The application is organized around these business domains:
 - Use Conventional Commit prefixes (`feat:`, `fix:`, `chore:`) with imperative, scope-aware summaries.
 - PRs must state intent, local validation (lint/build/dev), and link to tracking issues or tasks.
 - Attach screenshots or GIFs for UI changes; call out new env vars or API interactions, even when mocked.
+
+### reminder
+- 调研原网站的页面时，需要详细调研页面排版、交互设计、显示内容。然后生成对应的详细专业的PRD文档，放在docs/prds目录下，用于后续的实现。
