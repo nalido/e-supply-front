@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout';
 import Workplace from './views/Workplace';
 import SampleDashboard from './views/SampleDashboard';
 import SampleList from './views/SampleList';
+import SampleDetail from './views/SampleDetail';
 import SampleFollow from './views/SampleFollow';
 import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
@@ -90,6 +91,7 @@ const router = createBrowserRouter([
       { path: 'dashboard/workplace', element: React.createElement(Workplace) },
       { path: 'sample', element: React.createElement(SampleDashboard) },
       { path: 'sample/list', element: React.createElement(SampleList) },
+      { path: 'sample/detail', element: React.createElement(SampleDetail) },
       { path: 'sample/follow', element: React.createElement(SampleFollow) },
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },

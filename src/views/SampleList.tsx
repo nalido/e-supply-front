@@ -43,6 +43,7 @@ import dayjs from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import { sampleService } from '../api/mock';
+import { useNavigate } from 'react-router-dom';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -323,6 +324,7 @@ const isCurrentMonthRange = (range?: [Dayjs, Dayjs]): boolean => {
 };
 
 const SampleList: React.FC = () => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('card');
   const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
@@ -579,12 +581,12 @@ const SampleList: React.FC = () => {
   }, [loadData, loadStats]);
 
   const handleView = useCallback((order: SampleOrder) => {
-    message.info(`查看样板单：${order.orderNo}`);
-  }, []);
+    navigate(`/sample/detail?id=${order.id}`);
+  }, [navigate]);
 
   const handleEdit = useCallback((order: SampleOrder) => {
-    message.info(`编辑样板单：${order.orderNo}`);
-  }, []);
+    navigate(`/sample/detail?id=${order.id}&mode=edit`);
+  }, [navigate]);
 
   const handleCopy = useCallback((order: SampleOrder) => {
     message.success(`已复制样板单 ${order.orderNo}`);
@@ -821,7 +823,8 @@ const SampleList: React.FC = () => {
         { key: 'edit', label: '编辑' },
         { key: 'delete', label: <span style={{ color: '#ff4d4f' }}>删除</span> },
       ],
-      onClick: ({ key }) => {
+      onClick: ({ key, domEvent }) => {
+        domEvent?.stopPropagation();
         if (key === 'view') {
           handleView(order);
         } else if (key === 'edit') {
@@ -833,7 +836,7 @@ const SampleList: React.FC = () => {
     };
 
     return (
-      <Card hoverable bodyStyle={{ padding: 16 }}>
+      <Card hoverable bodyStyle={{ padding: 16 }} onClick={() => handleView(order)}>
         <div style={CARD_LAYOUT_STYLE}>
           <div style={CARD_MEDIA_STYLE}>
             {order.images?.[0] ? (
@@ -897,20 +900,30 @@ const SampleList: React.FC = () => {
                   type="primary"
                   size="small"
                   icon={<ShoppingCartOutlined />}
-                  onClick={() => handleBulkOrder(order)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleBulkOrder(order);
+                  }}
                 >
                   下大货
                 </Button>
                 <Button
                   size="small"
                   icon={<CopyOutlined />}
-                  onClick={() => handleCopy(order)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleCopy(order);
+                  }}
                 >
                   复制
                 </Button>
               </Space>
               <Dropdown menu={menu} trigger={['click']} placement="bottomRight">
-                <Button size="small" icon={<EllipsisOutlined />} />
+                <Button
+                  size="small"
+                  icon={<EllipsisOutlined />}
+                  onClick={(event) => event.stopPropagation()}
+                />
               </Dropdown>
             </div>
           </div>

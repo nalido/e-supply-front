@@ -14,8 +14,10 @@ import type {
   SampleStats,
   SampleStatus,
 } from '../types/sample';
+import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import {
+  fetchSampleOrderDetail,
   fetchSampleOrders,
   fetchSampleStats,
   getPriorityColor,
@@ -463,6 +465,10 @@ export const styles = {
 export const sample = {
   async getSampleOrders(params: SampleQueryParams = {}): Promise<{ list: SampleOrder[]; total: number; page: number; pageSize: number; }> {
     return fetchSampleOrders(params);
+  },
+
+  async getSampleDetail(id: string): Promise<SampleOrderDetail> {
+    return fetchSampleOrderDetail(id);
   },
 
   async getSampleStats(params: SampleQueryParams = {}): Promise<SampleStats> {

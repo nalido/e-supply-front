@@ -1,4 +1,12 @@
 import type { SampleOrder, SampleStats, SampleStatus, SampleQueryParams } from '../types/sample';
+import type {
+  SampleAttachment,
+  SampleDevelopmentCostItem,
+  SampleMaterialItem,
+  SampleOrderDetail,
+  SampleOtherCostItem,
+  SampleProcessItem,
+} from '../types/sample-detail';
 
 /**
  * 样本数据
@@ -302,4 +310,244 @@ export const sampleOptions = {
   colors: sampleData.colors,
   sizes: sampleData.sizes,
   designers: sampleData.designers,
+};
+
+const buildQuantityMatrix = (colors: string[], sizes: string[]): Record<string, Record<string, number>> => {
+  const baseMatrix: number[][] = [
+    [2, 2, 1, 1, 0],
+    [1, 1, 2, 1, 1],
+    [0, 1, 1, 1, 1],
+  ];
+
+  return colors.reduce<Record<string, Record<string, number>>>((acc, color, colorIndex) => {
+    const matrixRow = baseMatrix[colorIndex % baseMatrix.length];
+    acc[color] = sizes.reduce<Record<string, number>>((rowAcc, size, sizeIndex) => {
+      rowAcc[size] = matrixRow[sizeIndex % matrixRow.length];
+      return rowAcc;
+    }, {} as Record<string, number>);
+    return acc;
+  }, {});
+};
+
+const sumMaterialCost = (items: SampleMaterialItem[], category?: SampleMaterialItem['category']): number => {
+  return items
+    .filter((item) => (category ? item.category === category : true))
+    .reduce((total, item) => total + item.cost, 0);
+};
+
+const buildSampleDetail = (order: SampleOrder): SampleOrderDetail => {
+  const colors = ['海蓝', '深灰', '咖啡'];
+  const sizes = ['90', '100', '110', '120', '130'];
+  const quantityMatrix = buildQuantityMatrix(colors, sizes);
+
+  const fabrics: SampleMaterialItem[] = [
+    {
+      id: 'fabric-1',
+      category: 'fabric',
+      name: '高密抓绒面料',
+      code: 'FAB-2301',
+      unit: '米',
+      consumption: 1.6,
+      unitPrice: 32,
+      cost: 51.2,
+      lossRate: 0.05,
+      supplier: '杭州华奥纺织',
+      image: 'https://dummyimage.com/80x80/4164d9/ffffff&text=FAB',
+      remark: '内层抓绒保暖，需预缩处理',
+    },
+    {
+      id: 'fabric-2',
+      category: 'fabric',
+      name: '色织罗纹',
+      code: 'FAB-1289',
+      unit: '米',
+      consumption: 0.45,
+      unitPrice: 18,
+      cost: 8.1,
+      lossRate: 0.03,
+      supplier: '宁波云锦针织',
+      image: 'https://dummyimage.com/80x80/4f6fec/ffffff&text=RIB',
+      remark: '下摆及袖口罗纹',
+    },
+  ];
+
+  const trims: SampleMaterialItem[] = [
+    {
+      id: 'trim-1',
+      category: 'trim',
+      name: '5 号树脂拉链',
+      code: 'TRM-5508',
+      unit: '条',
+      consumption: 1,
+      unitPrice: 3.8,
+      cost: 3.8,
+      supplier: '温州吉祥拉链',
+      image: 'https://dummyimage.com/80x80/1b4ed4/ffffff&text=ZIP',
+      remark: '定制 logo 拉头',
+    },
+    {
+      id: 'trim-2',
+      category: 'trim',
+      name: '安全反光条',
+      code: 'TRM-6221',
+      unit: '米',
+      consumption: 0.3,
+      unitPrice: 12,
+      cost: 3.6,
+      supplier: '苏州光启材料',
+      image: 'https://dummyimage.com/80x80/2a5fee/ffffff&text=RF',
+      remark: '帽沿装饰',
+    },
+    {
+      id: 'trim-3',
+      category: 'trim',
+      name: '定制吊牌',
+      code: 'PKG-1056',
+      unit: '个',
+      consumption: 1,
+      unitPrice: 1.3,
+      cost: 1.3,
+      supplier: '义乌森品印刷',
+      image: 'https://dummyimage.com/80x80/3155da/ffffff&text=TAG',
+      remark: '四色印刷',
+    },
+    {
+      id: 'pkg-1',
+      category: 'packaging',
+      name: '加厚自封袋',
+      code: 'PKG-2001',
+      unit: '个',
+      consumption: 1,
+      unitPrice: 0.8,
+      cost: 0.8,
+      supplier: '嘉兴清新包装',
+      image: 'https://dummyimage.com/80x80/4460e0/ffffff&text=BAG',
+      remark: '成品出货包装',
+    },
+    {
+      id: 'pkg-2',
+      category: 'packaging',
+      name: 'A3 纸箱',
+      code: 'PKG-3320',
+      unit: '个',
+      consumption: 0.2,
+      unitPrice: 12,
+      cost: 2.4,
+      supplier: '上海飞扬纸业',
+      image: 'https://dummyimage.com/80x80/5270f0/ffffff&text=BOX',
+      remark: '用于打板寄送',
+    },
+  ];
+
+  const processes: SampleProcessItem[] = [
+    { id: 'proc-1', sequence: 1, name: '版前裁剪', laborPrice: 21.5, standardTime: 1.2 },
+    { id: 'proc-2', sequence: 2, name: '车缝组合', laborPrice: 38.5, standardTime: 2.5 },
+    { id: 'proc-3', sequence: 3, name: '激光开袋', laborPrice: 16.4, standardTime: 0.8 },
+    { id: 'proc-4', sequence: 4, name: '后整检验', laborPrice: 12.8, standardTime: 0.6 },
+  ];
+
+  const otherCosts: SampleOtherCostItem[] = [
+    {
+      id: 'cost-1',
+      costType: '打板资料费',
+      developmentCost: 120,
+      quotedUnitCost: 8.5,
+      remark: '包含纸样打印与装订',
+    },
+    {
+      id: 'cost-2',
+      costType: '物流快递',
+      developmentCost: 45,
+      quotedUnitCost: 3.2,
+      remark: '寄板至客户，顺丰隔日达',
+    },
+  ];
+
+  const attachments: SampleAttachment[] = [
+    {
+      id: 'att-1',
+      name: '线稿图.pdf',
+      type: 'pdf',
+      size: '1.2MB',
+      url: 'https://example.com/files/sample-line-drawing.pdf',
+      updatedAt: '2025-08-13 10:20',
+    },
+    {
+      id: 'att-2',
+      name: '工序分解表.xlsx',
+      type: 'xlsx',
+      size: '680KB',
+      url: 'https://example.com/files/process-breakdown.xlsx',
+      updatedAt: '2025-08-13 10:32',
+    },
+    {
+      id: 'att-3',
+      name: '试穿反馈.docx',
+      type: 'docx',
+      size: '420KB',
+      url: 'https://example.com/files/fitting-feedback.docx',
+      updatedAt: '2025-08-14 09:05',
+    },
+  ];
+
+  const developmentFeeDetails: SampleDevelopmentCostItem[] = [
+    { id: 'dev-1', name: '纸样制作', amount: 120, remark: '含两轮修版' },
+    { id: 'dev-2', name: '试衣调整', amount: 95, remark: '安排模特试穿与反馈' },
+    { id: 'dev-3', name: '资料整理', amount: 50, remark: '档案整理与归档' },
+  ];
+
+  const fabricCost = sumMaterialCost(fabrics, 'fabric');
+  const trimCost = sumMaterialCost(trims, 'trim');
+  const packagingCost = sumMaterialCost(trims, 'packaging');
+  const processingCost = processes.reduce((sum, item) => sum + item.laborPrice, 0);
+  const developmentFee = developmentFeeDetails.reduce((sum, item) => sum + item.amount, 0);
+  const totalQuotedPrice = parseFloat((fabricCost + trimCost + packagingCost + processingCost).toFixed(2));
+
+  return {
+    id: order.id,
+    styleNo: order.styleCode,
+    sampleNo: order.orderNo,
+    merchandiser: '赵雨晴',
+    patternMaker: '陈纸样',
+    patternPrice: 0,
+    styleName: order.styleName,
+    patternType: '原板',
+    patternDate: order.createTime.slice(0, 10),
+    paperPatternNo: `PN-${order.styleCode.slice(-4)}`,
+    remarks: order.description ?? '首次客户打板，重点关注帽型立体度与袖肥调整。',
+    unit: '件',
+    customer: order.customer,
+    estimatedDeliveryDate: order.deadline,
+    sampleSewer: '李车板',
+    processingTypes: ['裁剪', '车缝', '激光开袋'],
+    lineArtImage: 'https://dummyimage.com/320x360/eff2ff/1f3b73&text=Line+Art',
+    colors,
+    sizes,
+    quantityMatrix,
+    bom: {
+      fabrics,
+      trims,
+    },
+    processes,
+    sizeChartImage: 'https://dummyimage.com/720x420/f7f9ff/4f6fbf&text=Size+Chart',
+    otherCosts,
+    attachments,
+    cost: {
+      totalQuotedPrice,
+      developmentFee,
+      breakdown: {
+        fabric: parseFloat(fabricCost.toFixed(2)),
+        trims: parseFloat(trimCost.toFixed(2)),
+        packaging: parseFloat(packagingCost.toFixed(2)),
+        processing: parseFloat(processingCost.toFixed(2)),
+      },
+      developmentFeeDetails,
+    },
+  };
+};
+
+export const fetchSampleOrderDetail = async (id: string): Promise<SampleOrderDetail> => {
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  const target = ensureSampleOrders().find((item) => item.id === id) ?? ensureSampleOrders()[0];
+  return buildSampleDetail(target);
 };
