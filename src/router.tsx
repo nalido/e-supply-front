@@ -11,6 +11,9 @@ import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
 import MaterialArchive from './views/MaterialArchive';
+import PartnersPage from './views/Partners';
+import OperationTemplatePage from './views/OperationTemplate';
+import WarehousePage from './views/Warehouse';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -46,6 +49,9 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/basic/process-type' &&
     n.key !== '/basic/styles' &&
     n.key !== '/basic/material' &&
+    n.key !== '/basic/partners' &&
+    n.key !== '/basic/operation-template' &&
+    n.key !== '/basic/warehouse' &&
     !n.children,
   )
   .map((node) => ({
@@ -68,6 +74,9 @@ const router = createBrowserRouter([
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
       { path: 'basic/material', element: React.createElement(MaterialArchive) },
+      { path: 'basic/partners', element: React.createElement(PartnersPage) },
+      { path: 'basic/operation-template', element: React.createElement(OperationTemplatePage) },
+      { path: 'basic/warehouse', element: React.createElement(WarehousePage) },
       { path: 'foundation/product/detail', element: React.createElement(StyleDetail) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
