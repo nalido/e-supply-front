@@ -315,6 +315,8 @@ const CARD_LIST_GRID = {
   xxl: 4,
 };
 
+const VIEW_MODE_STORAGE_KEY = 'sample-list-view-mode';
+
 const isCurrentMonthRange = (range?: [Dayjs, Dayjs]): boolean => {
   if (!range) {
     return false;
@@ -325,7 +327,15 @@ const isCurrentMonthRange = (range?: [Dayjs, Dayjs]): boolean => {
 
 const SampleList: React.FC = () => {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      if (stored === 'card' || stored === 'table') {
+        return stored;
+      }
+    }
+    return 'card';
+  });
   const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
     status: undefined,
@@ -518,6 +528,12 @@ const SampleList: React.FC = () => {
   const handleViewModeChange = useCallback((value: string | number) => {
     setViewMode(value as ViewMode);
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+    }
+  }, [viewMode]);
 
   const handleStatCardSelect = useCallback((key: StatCardKey) => {
     const card = STAT_CARD_MAP[key];

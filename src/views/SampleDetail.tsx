@@ -25,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   DownloadOutlined,
   EditOutlined,
+  LeftOutlined,
   FileOutlined,
   PrinterOutlined,
   ReloadOutlined,
@@ -40,7 +41,7 @@ import type {
 import { sampleService } from '../api/mock';
 import DonutChart from '../components/charts/DonutChart';
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 const SECTION_IDS = {
   base: 'sample-detail-base',
