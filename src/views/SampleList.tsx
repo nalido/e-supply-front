@@ -240,16 +240,29 @@ const CARD_FOOTER_STYLE: CSSProperties = {
   marginTop: 8,
 };
 
+const INFO_ROW_STYLE: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  minWidth: 0,
+};
+
 const INFO_LABEL_STYLE: CSSProperties = {
   color: '#8c8c8c',
   fontSize: 12,
-  marginRight: 4,
+  flexShrink: 0,
 };
 
 const INFO_VALUE_STYLE: CSSProperties = {
   fontSize: 13,
   color: '#1f1f1f',
   fontWeight: 500,
+  flex: 1,
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  display: 'block',
 };
 
 const CARD_LIST_GRID = {
@@ -711,47 +724,31 @@ const SampleList: React.FC = () => {
               </Space>
             </div>
             <div style={CARD_META_GRID_STYLE}>
-              <div>
+              <div style={INFO_ROW_STYLE}>
                 <span style={INFO_LABEL_STYLE}>样板单号</span>
                 <span style={INFO_VALUE_STYLE}>{order.orderNo}</span>
               </div>
-              <div>
+              <div style={INFO_ROW_STYLE}>
                 <span style={INFO_LABEL_STYLE}>客户</span>
                 <span style={INFO_VALUE_STYLE}>{order.customer}</span>
               </div>
-              <div>
-                <span style={INFO_LABEL_STYLE}>下单日期</span>
-                <span style={INFO_VALUE_STYLE}>{dayjs(order.createTime).format('YYYY-MM-DD')}</span>
+              <div style={{ ...INFO_ROW_STYLE, justifyContent: 'space-between' }}>
+                <div style={{ ...INFO_ROW_STYLE, flex: 1 }}>
+                  <span style={INFO_LABEL_STYLE}>下单日期</span>
+                  <span style={INFO_VALUE_STYLE}>{dayjs(order.createTime).format('YYYY-MM-DD')}</span>
+                </div>
+                <div style={{ ...INFO_ROW_STYLE, flexShrink: 0 }}>
+                  <span style={{ ...INFO_VALUE_STYLE, fontWeight: 600 }}>{order.quantity}</span>
+                </div>
               </div>
-              <div>
+              <div style={INFO_ROW_STYLE}>
                 <span style={INFO_LABEL_STYLE}>交期</span>
                 <span style={{ ...INFO_VALUE_STYLE, color: overdue ? '#f5222d' : INFO_VALUE_STYLE.color }}>
                   {dayjs(order.deadline).format('YYYY-MM-DD')}
                   {overdue && <Badge status="error" style={{ marginLeft: 4 }} />}
                 </span>
               </div>
-              <div>
-                <span style={INFO_LABEL_STYLE}>数量</span>
-                <span style={INFO_VALUE_STYLE}>{order.quantity} 件</span>
-              </div>
-              <div>
-                <span style={INFO_LABEL_STYLE}>单价</span>
-                <span style={INFO_VALUE_STYLE}>¥{order.unitPrice.toFixed(2)}</span>
-              </div>
-              <div>
-                <span style={INFO_LABEL_STYLE}>总金额</span>
-                <span style={INFO_VALUE_STYLE}>¥{order.totalAmount.toFixed(2)}</span>
-              </div>
-              <div>
-                <span style={INFO_LABEL_STYLE}>设计师</span>
-                <span style={INFO_VALUE_STYLE}>{order.designer}</span>
-              </div>
             </div>
-            {order.description && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {order.description}
-              </Text>
-            )}
             <div style={CARD_FOOTER_STYLE}>
               <Space>
                 <Button
