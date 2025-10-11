@@ -14,6 +14,17 @@ import MaterialArchive from './views/MaterialArchive';
 import PartnersPage from './views/Partners';
 import OperationTemplatePage from './views/OperationTemplate';
 import WarehousePage from './views/Warehouse';
+import {
+  ActionLogPage,
+  CompanySettings,
+  CredentialsPage,
+  JoinApplicationsPage,
+  OrganizationSettings,
+  PreferencesPage,
+  ProfileSettings,
+  RolesSettings,
+  UserListPage,
+} from './views/settings';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -52,6 +63,15 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/basic/partners' &&
     n.key !== '/basic/operation-template' &&
     n.key !== '/basic/warehouse' &&
+    n.key !== '/settings/profile' &&
+    n.key !== '/settings/company' &&
+    n.key !== '/settings/org' &&
+    n.key !== '/settings/roles' &&
+    n.key !== '/settings/audit' &&
+    n.key !== '/settings/preferences' &&
+    n.key !== '/settings/user/users' &&
+    n.key !== '/settings/user/onboarding' &&
+    n.key !== '/settings/user/keys' &&
     !n.children,
   )
   .map((node) => ({
@@ -78,6 +98,15 @@ const router = createBrowserRouter([
       { path: 'basic/operation-template', element: React.createElement(OperationTemplatePage) },
       { path: 'basic/warehouse', element: React.createElement(WarehousePage) },
       { path: 'foundation/product/detail', element: React.createElement(StyleDetail) },
+      { path: 'settings/profile', element: React.createElement(ProfileSettings) },
+      { path: 'settings/company', element: React.createElement(CompanySettings) },
+      { path: 'settings/org', element: React.createElement(OrganizationSettings) },
+      { path: 'settings/roles', element: React.createElement(RolesSettings) },
+      { path: 'settings/preferences', element: React.createElement(PreferencesPage) },
+      { path: 'settings/audit', element: React.createElement(ActionLogPage) },
+      { path: 'settings/user/users', element: React.createElement(UserListPage) },
+      { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
+      { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
@@ -88,7 +117,7 @@ const router = createBrowserRouter([
       { path: 'settlement', element: createPlaceholderElement('对账结算') },
       { path: 'appstore', element: createPlaceholderElement('应用商店') },
       { path: 'basic', element: createPlaceholderElement('基础资料') },
-      { path: 'settings', element: createPlaceholderElement('系统设置') },
+      { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
       { path: 'guide', element: createPlaceholderElement('操作指南') },
     ],
   },

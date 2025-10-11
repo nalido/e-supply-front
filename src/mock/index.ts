@@ -7,3 +7,4 @@ export * from './material';
 export * from './operation-template';
 export * from './partners';
 export * from './warehouse';
+export * from './settings';
