@@ -1,4 +1,4 @@
-import type { SampleOrder, SampleStats, SampleStatus } from '../types/sample';
+import type { SampleOrder, SampleStats, SampleStatus, SampleQueryParams } from '../types/sample';
 
 /**
  * 样本数据
@@ -161,6 +161,19 @@ export const generateSampleOrders = (count: number = 100): SampleOrder[] => {
   return Array.from({ length: count }, (_, index) => generateSampleOrder(index));
 };
 
+let cachedSampleOrders: SampleOrder[] | null = null;
+
+const ensureSampleOrders = (): SampleOrder[] => {
+  if (!cachedSampleOrders) {
+    cachedSampleOrders = generateSampleOrders(180);
+  }
+  return cachedSampleOrders;
+};
+
+export const resetSampleOrdersCache = (): void => {
+  cachedSampleOrders = generateSampleOrders(180);
+};
+
 /**
  * 生成样板单统计数据
  */
@@ -193,72 +206,76 @@ export const generateSampleStats = (orders: SampleOrder[] = []): SampleStats => 
   };
 };
 
+const applySampleFilters = (orders: SampleOrder[], params: SampleQueryParams = {}): SampleOrder[] => {
+  const keyword = params.keyword?.trim().toLowerCase();
+  const start = params.startDate ? new Date(params.startDate) : undefined;
+  const end = params.endDate ? new Date(params.endDate) : undefined;
+
+  return orders.filter((order) => {
+    if (keyword) {
+      const haystack = [order.orderNo, order.styleName, order.styleCode, order.customer]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(keyword)) {
+        return false;
+      }
+    }
+
+    if (params.status && order.status !== params.status) {
+      return false;
+    }
+
+    if (params.customer && order.customer !== params.customer) {
+      return false;
+    }
+
+    if (params.season && order.season !== params.season) {
+      return false;
+    }
+
+    if (params.category && order.category !== params.category) {
+      return false;
+    }
+
+    if (params.priority && order.priority !== params.priority) {
+      return false;
+    }
+
+    if (start) {
+      const createdAt = new Date(order.createTime);
+      if (createdAt < start) {
+        return false;
+      }
+    }
+
+    if (end) {
+      const createdAt = new Date(order.createTime);
+      if (createdAt > end) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+};
+
 /**
  * 模拟API：获取样板单列表
  */
-export const fetchSampleOrders = async (params: {
-  page?: number;
-  pageSize?: number;
-  keyword?: string;
-  status?: SampleStatus;
-  customer?: string;
-  startDate?: string;
-  endDate?: string;
-} = {}): Promise<{
+export const fetchSampleOrders = async (params: SampleQueryParams = {}): Promise<{
   list: SampleOrder[];
   total: number;
   page: number;
   pageSize: number;
 }> => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 800 + 200));
-  
-  const allOrders = generateSampleOrders(150);
-  let filteredOrders = allOrders;
-  
-  // 关键词搜索
-  if (params.keyword) {
-    const keyword = params.keyword.toLowerCase();
-    filteredOrders = filteredOrders.filter(order => 
-      order.orderNo.toLowerCase().includes(keyword) ||
-      order.styleName.toLowerCase().includes(keyword) ||
-      order.styleCode.toLowerCase().includes(keyword) ||
-      order.customer.toLowerCase().includes(keyword)
-    );
-  }
-  
-  // 状态筛选
-  if (params.status) {
-    filteredOrders = filteredOrders.filter(order => order.status === params.status);
-  }
-  
-  // 客户筛选
-  if (params.customer) {
-    filteredOrders = filteredOrders.filter(order => order.customer === params.customer);
-  }
+  await new Promise((resolve) => setTimeout(resolve, Math.random() * 800 + 200));
 
-  if (params.startDate || params.endDate) {
-    const start = params.startDate ? new Date(params.startDate) : null;
-    const end = params.endDate ? new Date(params.endDate) : null;
-    filteredOrders = filteredOrders.filter(order => {
-      const createdAt = new Date(order.createTime);
-      if (start && createdAt < start) {
-        return false;
-      }
-      if (end && createdAt > end) {
-        return false;
-      }
-      return true;
-    });
-  }
-  
-  // 分页
-  const page = params.page || 1;
-  const pageSize = params.pageSize || 20;
-  const startIndex = (page - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const pageData = filteredOrders.slice(startIndex, endIndex);
-  
+  const filteredOrders = applySampleFilters(ensureSampleOrders(), params);
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 20;
+  const startIndex = Math.max(0, (page - 1) * pageSize);
+  const pageData = filteredOrders.slice(startIndex, startIndex + pageSize);
+
   return {
     list: pageData,
     total: filteredOrders.length,
@@ -270,10 +287,10 @@ export const fetchSampleOrders = async (params: {
 /**
  * 模拟API：获取样板单统计
  */
-export const fetchSampleStats = async (): Promise<SampleStats> => {
-  await new Promise(resolve => setTimeout(resolve, 300));
-  const allOrders = generateSampleOrders(150);
-  return generateSampleStats(allOrders);
+export const fetchSampleStats = async (params: SampleQueryParams = {}): Promise<SampleStats> => {
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  const filteredOrders = applySampleFilters(ensureSampleOrders(), params);
+  return generateSampleStats(filteredOrders);
 };
 
 // 导出选项数据，用于筛选器

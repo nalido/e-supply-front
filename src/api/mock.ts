@@ -9,8 +9,21 @@ import type {
   SamplePieDatum,
   SampleTypeItem,
   TemplateNode,
+  SampleOrder,
+  SampleQueryParams,
+  SampleStats,
+  SampleStatus,
 } from '../types/sample';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
+import {
+  fetchSampleOrders,
+  fetchSampleStats,
+  getPriorityColor,
+  getPriorityText,
+  getStatusColor,
+  getStatusText,
+  sampleOptions,
+} from '../mock/sample';
 
 export type Paginated<T> = {
   list: T[];
@@ -448,6 +461,34 @@ export const styles = {
 
 // 打板相关API
 export const sample = {
+  async getSampleOrders(params: SampleQueryParams = {}): Promise<{ list: SampleOrder[]; total: number; page: number; pageSize: number; }> {
+    return fetchSampleOrders(params);
+  },
+
+  async getSampleStats(params: SampleQueryParams = {}): Promise<SampleStats> {
+    return fetchSampleStats(params);
+  },
+
+  getSampleFilterOptions() {
+    return sampleOptions;
+  },
+
+  getStatusLabel(status: SampleStatus) {
+    return getStatusText(status);
+  },
+
+  getStatusBadgeColor(status: SampleStatus) {
+    return getStatusColor(status);
+  },
+
+  getPriorityLabel(priority: SampleOrder['priority']) {
+    return getPriorityText(priority);
+  },
+
+  getPriorityBadgeColor(priority: SampleOrder['priority']) {
+    return getPriorityColor(priority);
+  },
+
   // 跟进模板
   async followTemplates(params: { page: number; pageSize: number }): Promise<Paginated<FollowTemplateSummary>> {
     await delay(300);

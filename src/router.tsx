@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout';
 import Workplace from './views/Workplace';
 import SampleDashboard from './views/SampleDashboard';
 import SampleList from './views/SampleList';
+import SampleFollow from './views/SampleFollow';
 import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
@@ -54,6 +55,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/dashboard/workplace' &&
     n.key !== '/sample' &&
     n.key !== '/sample/list' &&
+    n.key !== '/sample/follow' &&
     n.key !== '/sample/follow-template' &&
     n.key !== '/sample/type' &&
     n.key !== '/orders/factory' &&
@@ -88,6 +90,7 @@ const router = createBrowserRouter([
       { path: 'dashboard/workplace', element: React.createElement(Workplace) },
       { path: 'sample', element: React.createElement(SampleDashboard) },
       { path: 'sample/list', element: React.createElement(SampleList) },
+      { path: 'sample/follow', element: React.createElement(SampleFollow) },
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
