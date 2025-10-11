@@ -16,7 +16,9 @@ import type {
 } from '../types/sample';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
+import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
 import {
+  createSampleOrder,
   fetchSampleOrderDetail,
   fetchSampleOrders,
   fetchSampleStats,
@@ -26,6 +28,7 @@ import {
   getStatusText,
   sampleOptions,
 } from '../mock/sample';
+import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
   list: T[];
@@ -465,6 +468,19 @@ export const styles = {
 export const sample = {
   async getSampleOrders(params: SampleQueryParams = {}): Promise<{ list: SampleOrder[]; total: number; page: number; pageSize: number; }> {
     return fetchSampleOrders(params);
+  },
+
+  async getCreationMeta(): Promise<SampleCreationMeta> {
+    await delay(200);
+    return getSampleCreationMeta();
+  },
+
+  async createSampleOrder(data: SampleCreationPayload): Promise<{ success: boolean; message: string; order: SampleOrder; }> {
+    return createSampleOrder(data);
+  },
+
+  async searchStyles(params: StyleListParams): Promise<PaginatedStyleData> {
+    return styles.list(params);
   },
 
   async getSampleDetail(id: string): Promise<SampleOrderDetail> {

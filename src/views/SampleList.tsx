@@ -44,6 +44,8 @@ import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import { sampleService } from '../api/mock';
 import { useNavigate } from 'react-router-dom';
+import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
+
 
 const { Search } = Input;
 const { Option } = Select;
@@ -583,8 +585,21 @@ const SampleList: React.FC = () => {
     }
   }, []);
 
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
   const handleCreate = useCallback(() => {
-    message.info('新建样板单');
+    setIsModalVisible(true);
+  }, []);
+
+  const handleModalOk = useCallback((order: SampleOrder) => {
+    message.success(`样板单 ${order.orderNo} 创建成功`);
+    setIsModalVisible(false);
+    void loadData();
+    void loadStats();
+  }, [loadData, loadStats]);
+
+  const handleModalCancel = useCallback(() => {
+    setIsModalVisible(false);
   }, []);
 
   const handleExport = useCallback(() => {
@@ -1091,6 +1106,12 @@ const SampleList: React.FC = () => {
           )}
         </div>
       </Card>
+
+      <SampleOrderFormModal
+        visible={isModalVisible}
+        onOk={handleModalOk}
+        onCancel={handleModalCancel}
+      />
     </div>
   );
 };

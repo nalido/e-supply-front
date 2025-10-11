@@ -35,3 +35,6 @@
 - PRs must state intent, local validation (lint/build/dev), and link to tracking issues or tasks.
 - Attach screenshots or GIFs for UI changes; call out new env vars or API interactions, even when mocked.
 - Request review only after local checks pass and lingering TODOs are captured in issues instead of code comments.
+
+## 代码质量要求
+- 当用户要求阅读docs/prds下面的prd文档，实现相关功能的时候，注意要符合最佳实践和项目的现有设计，mock数据注意分离和复用，合理设计前端需要调用的api。

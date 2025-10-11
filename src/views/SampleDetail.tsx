@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Affix,
-  Breadcrumb,
   Button,
   Card,
   Col,
@@ -21,11 +20,10 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   DownloadOutlined,
   EditOutlined,
-  LeftOutlined,
   FileOutlined,
   PrinterOutlined,
   ReloadOutlined,
@@ -59,7 +57,6 @@ type SectionKey = keyof typeof SECTION_IDS;
 const formatCurrency = (value: number): string => `¥${value.toFixed(2)}`;
 
 const SampleDetail = () => {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [detail, setDetail] = useState<SampleOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,14 +104,6 @@ const SampleDetail = () => {
   const handleEdit = useCallback(() => {
     message.info('编辑功能即将开放');
   }, []);
-
-  const handleBack = useCallback(() => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/sample/list');
-    }
-  }, [navigate]);
 
   const handleRefreshCost = useCallback(() => {
     setCostRefreshing(true);

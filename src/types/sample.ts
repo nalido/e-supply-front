@@ -11,6 +11,22 @@ export const SampleStatus = {
 
 export type SampleStatus = typeof SampleStatus[keyof typeof SampleStatus];
 
+export interface SampleProcessOption {
+  id: string;
+  name: string;
+  description?: string;
+  defaultDuration?: number;
+  department?: string;
+  tags?: string[];
+}
+
+export interface SampleProcessStep extends SampleProcessOption {
+  order: number;
+  custom?: boolean;
+}
+
+export type SampleQuantityMatrix = Record<string, Record<string, number>>;
+
 /**
  * 样板单数据项
  */
@@ -19,6 +35,7 @@ export interface SampleOrder {
   orderNo: string; // 样板单号
   styleName: string; // 款式名称
   styleCode: string; // 款式编号
+  unit?: string; // 单位
   customer: string; // 客户
   season: string; // 季节
   category: string; // 品类
@@ -30,12 +47,24 @@ export interface SampleOrder {
   totalAmount: number; // 总金额
   status: SampleStatus; // 状态
   priority: 'low' | 'medium' | 'high' | 'urgent'; // 优先级
+  sampleType?: string; // 板类
+  merchandiser?: string; // 跟单员
+  merchandiserId?: string;
+  patternMaker?: string; // 纸样师
+  patternMakerId?: string;
+  patternNo?: string; // 纸样号
+  sampleSewer?: string; // 车板师
+  sampleSewerId?: string;
   deadline: string; // 交期
   createTime: string; // 创建时间
   updateTime: string; // 更新时间
   designer: string; // 设计师
   description?: string; // 备注
   images?: string[]; // 图片
+  remarks?: string; // 备注扩展
+  processes?: SampleProcessStep[]; // 加工流程
+  skuMatrix?: SampleQuantityMatrix; // SKU 数量矩阵
+  colorImages?: Record<string, string | undefined>; // 颜色图片映射
 }
 
 /**

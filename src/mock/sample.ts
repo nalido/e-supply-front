@@ -1,4 +1,10 @@
-import type { SampleOrder, SampleStats, SampleStatus, SampleQueryParams } from '../types/sample';
+import type {
+  SampleOrder,
+  SampleStats,
+  SampleStatus,
+  SampleQueryParams,
+  SampleQuantityMatrix,
+} from '../types/sample';
 import type {
   SampleAttachment,
   SampleDevelopmentCostItem,
@@ -7,6 +13,7 @@ import type {
   SampleOtherCostItem,
   SampleProcessItem,
 } from '../types/sample-detail';
+import type { SampleCreationPayload } from '../types/sample-create';
 
 /**
  * 样本数据
@@ -265,6 +272,96 @@ const applySampleFilters = (orders: SampleOrder[], params: SampleQueryParams = {
 
     return true;
   });
+};
+
+const sumMatrixQuantity = (matrix?: SampleQuantityMatrix): number | undefined => {
+  if (!matrix) {
+    return undefined;
+  }
+
+  return Object.values(matrix).reduce((total, sizeRow) => {
+    const rowTotal = Object.values(sizeRow).reduce((sum, value) => sum + Number(value || 0), 0);
+    return total + rowTotal;
+  }, 0);
+};
+
+export const createSampleOrder = async (
+  data: SampleCreationPayload,
+): Promise<{ success: boolean; message: string; order: SampleOrder; }> => {
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  const orders = ensureSampleOrders();
+  const newId = `sample_${orders.length + 1}`;
+  const newOrderNo = generateOrderNo(orders.length);
+
+  const matrixQuantity = sumMatrixQuantity(data.quantityMatrix);
+  const quantity = data.quantity ?? matrixQuantity ?? 1;
+  const unitPrice = data.unitPrice ?? data.patternPrice ?? 0;
+  const colors = data.colors && data.colors.length > 0 ? data.colors : [data.color || sampleData.colors[0]];
+  const sizes = data.sizes && data.sizes.length > 0 ? data.sizes : [data.size || sampleData.sizes[0]];
+  const primaryColor = colors[0];
+  const primarySize = sizes[0];
+
+  const attachments = data.attachments ?? [];
+  const sortedAttachments = [...attachments].sort((a, b) => {
+    if (a.isMain && !b.isMain) {
+      return -1;
+    }
+    if (!a.isMain && b.isMain) {
+      return 1;
+    }
+    return 0;
+  });
+  const imageList = sortedAttachments.map((item) => item.url).filter(Boolean) as string[];
+
+  const deliveryDate = data.deliveryDate ?? data.deadline ?? generateRandomDate(30);
+  const orderDate = data.orderDate ?? new Date().toISOString();
+  const customerName = data.customer || data.customerName || sampleData.customers[0];
+
+  const quantityMatrix = data.quantityMatrix && Object.keys(data.quantityMatrix).length > 0
+    ? data.quantityMatrix
+    : undefined;
+
+  const newOrder: SampleOrder = {
+    id: newId,
+    orderNo: data.orderNo || newOrderNo,
+    styleName: data.styleName || '未命名款式',
+    styleCode: data.styleCode || generateStyleCode(),
+    unit: data.unit,
+    customer: customerName,
+    season: data.season || sampleData.seasons[0],
+    category: data.category || sampleData.categories[0],
+    fabric: data.fabric || sampleData.fabrics[0],
+    color: primaryColor,
+    size: primarySize,
+    quantity,
+    unitPrice,
+    totalAmount: quantity * unitPrice,
+    status: 'pending',
+    priority: data.priority || 'medium',
+    deadline: deliveryDate,
+    createTime: orderDate,
+    updateTime: new Date().toISOString(),
+    designer: data.designer || sampleData.designers[0],
+    description: data.description,
+    images: imageList.length > 0 ? imageList : data.images,
+    sampleType: data.sampleType,
+    merchandiser: data.merchandiser,
+    merchandiserId: data.merchandiserId,
+    patternMaker: data.patternMaker,
+    patternMakerId: data.patternMakerId,
+    patternNo: data.patternNo,
+    sampleSewer: data.sampleSewer,
+    sampleSewerId: data.sampleSewerId,
+    remarks: data.remarks,
+    processes: data.processes,
+    skuMatrix: quantityMatrix,
+    colorImages: data.colorImageMap,
+  };
+
+  orders.unshift(newOrder);
+
+  return { success: true, message: '创建成功', order: newOrder };
 };
 
 /**
