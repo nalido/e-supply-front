@@ -9,6 +9,7 @@ import SampleFollow from './views/SampleFollow';
 import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
+import CuttingPendingPage from './views/CuttingPending';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
@@ -75,6 +76,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/user/users' &&
     n.key !== '/settings/user/onboarding' &&
     n.key !== '/settings/user/keys' &&
+    n.key !== '/piecework/cutting/pending' &&
     !n.children,
   )
   .map((node) => ({
@@ -112,6 +114,7 @@ const router = createBrowserRouter([
       { path: 'settings/user/users', element: React.createElement(UserListPage) },
       { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
       { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
+      { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
