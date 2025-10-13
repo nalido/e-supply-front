@@ -26,9 +26,9 @@ export const menuTree: MenuNode[] = [
   {
     key: '/sample',
     icon: <BuildOutlined />,
-    label: '打板',
+    label: <Link to="/sample">打板</Link>,
     children: [
-      { key: '/sample/overview', label: <Link to="/sample">打板汇总</Link> },
+      // { key: '/sample/overview', label: <Link to="/sample">打板汇总</Link> },
       { key: '/sample/list', label: <Link to="/sample/list">样板单</Link> },
       { key: '/sample/follow', label: <Link to="/sample/follow">样板跟进</Link> },
       { key: '/sample/follow-template', label: <Link to="/sample/follow-template">跟进模板</Link> },
@@ -111,7 +111,7 @@ export const menuTree: MenuNode[] = [
   {
     key: '/piecework',
     icon: <DeploymentUnitOutlined />,
-    label: '车间计件',
+    label: <Link to="/piecework">车间计件</Link>,
     children: [
       { key: '/piecework/orders', label: <Link to="/piecework/orders">工厂订单</Link> },
       {

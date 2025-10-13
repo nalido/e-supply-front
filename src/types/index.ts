@@ -9,3 +9,5 @@ export * from './partners';
 export * from './warehouse';
 export * from './settings';
 export * from './cutting';
+export * from './workshop-progress';
+export * from './piecework-dashboard';

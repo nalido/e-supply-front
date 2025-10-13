@@ -1,0 +1,238 @@
+.workshop-progress-page {
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workshop-progress-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.workshop-summary-card {
+  background-color: #fff;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 10px;
+  padding: 14px 18px;
+  min-width: 180px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+
+.workshop-summary-card.warning {
+  border-color: #ffa940;
+  background: linear-gradient(135deg, rgba(255, 251, 230, 0.8), #fff7e6);
+}
+
+.workshop-summary-card.success {
+  border-color: #95de64;
+  background: linear-gradient(135deg, rgba(246, 255, 237, 0.9), #f6ffed);
+}
+
+.workshop-summary-label {
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.workshop-summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+}
+
+.workshop-summary-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
+}
+
+.workshop-progress-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.workshop-progress-legend {
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  top: 1px;
+}
+
+.legend-dot.default {
+  background-color: #d9d9d9;
+}
+
+.legend-dot.processing {
+  background-color: #1677ff;
+}
+
+.legend-dot.warning {
+  background-color: #fa8c16;
+}
+
+.legend-dot.success {
+  background-color: #52c41a;
+}
+
+.workshop-progress-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 320px;
+}
+
+.workshop-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workshop-order-card {
+  background-color: #fff;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.workshop-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workshop-order-main {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.workshop-order-thumbnail {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.workshop-order-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workshop-order-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.85));
+}
+
+.workshop-order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
+.workshop-order-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.workshop-order-quantity {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.quantity-label {
+  font-size: 12px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
+.quantity-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+}
+
+.workshop-order-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.workshop-stage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workshop-stage-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
+.workshop-stage-label {
+  font-weight: 500;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.75));
+}
+
+.workshop-stage-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.workshop-order-remark {
+  font-size: 13px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.6));
+}
+
+.workshop-progress-pagination {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.workshop-progress-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workshop-progress-modal-info {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+  .workshop-order-main {
+    align-items: flex-start;
+  }
+
+  .workshop-order-stages {
+    grid-template-columns: 1fr;
+  }
+}

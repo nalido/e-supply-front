@@ -1,0 +1,64 @@
+.piecework-dashboard-page {
+  padding: 0 24px 24px;
+}
+
+.piecework-dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.piecework-kpi-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  min-height: 148px;
+}
+
+.piecework-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.piecework-kpi-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.piecework-kpi-primary {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+}
+
+.piecework-kpi-description {
+  font-size: 12px;
+}
+
+.piecework-chart-card {
+  background: #fff;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.piecework-table-card {
+  background: #fff;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.piecework-overdue-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 768px) {
+  .piecework-kpi-card {
+    min-height: 0;
+  }
+}

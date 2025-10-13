@@ -17,6 +17,8 @@ import MaterialArchive from './views/MaterialArchive';
 import PartnersPage from './views/Partners';
 import OperationTemplatePage from './views/OperationTemplate';
 import WarehousePage from './views/Warehouse';
+import WorkshopProgress from './views/WorkshopProgress';
+import PieceworkDashboard from './views/PieceworkDashboard';
 import {
   ActionLogPage,
   CompanySettings,
@@ -77,6 +79,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/user/onboarding' &&
     n.key !== '/settings/user/keys' &&
     n.key !== '/piecework/cutting/pending' &&
+    n.key !== '/piecework/progress' &&
     !n.children,
   )
   .map((node) => ({
@@ -115,12 +118,13 @@ const router = createBrowserRouter([
       { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
       { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
+      { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
+      { path: 'piecework', element: React.createElement(PieceworkDashboard) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
       { path: 'material', element: createPlaceholderElement('物料进销存') },
       { path: 'product', element: createPlaceholderElement('成品进销存') },
-      { path: 'piecework', element: createPlaceholderElement('车间计件') },
       { path: 'collab', element: createPlaceholderElement('协同中心') },
       { path: 'settlement', element: createPlaceholderElement('对账结算') },
       { path: 'appstore', element: createPlaceholderElement('应用商店') },
