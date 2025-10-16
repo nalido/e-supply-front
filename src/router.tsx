@@ -19,6 +19,8 @@ import OperationTemplatePage from './views/OperationTemplate';
 import WarehousePage from './views/Warehouse';
 import WorkshopProgress from './views/WorkshopProgress';
 import PieceworkDashboard from './views/PieceworkDashboard';
+import IncomingOrders from './views/IncomingOrders';
+import OutsourceOrders from './views/OutsourceOrders';
 import {
   ActionLogPage,
   CompanySettings,
@@ -80,6 +82,8 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/user/keys' &&
     n.key !== '/piecework/cutting/pending' &&
     n.key !== '/piecework/progress' &&
+    n.key !== '/collab/send-out' &&
+    n.key !== '/collab/receive-in' &&
     !n.children,
   )
   .map((node) => ({
@@ -120,6 +124,8 @@ const router = createBrowserRouter([
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
+      { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },
+      { path: 'collab/receive-in', element: React.createElement(IncomingOrders) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
