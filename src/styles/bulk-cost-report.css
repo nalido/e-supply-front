@@ -1,0 +1,194 @@
+.bulk-cost-report-page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: #f6f8fb;
+  min-height: 100%;
+}
+
+.bulk-cost-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.bulk-cost-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-cost-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bulk-cost-trend-chart {
+  width: 100%;
+  height: 260px;
+}
+
+.bulk-cost-donut-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.bulk-cost-donut-chart {
+  width: 100%;
+}
+
+.bulk-cost-donut-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bulk-cost-donut-total {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.bulk-cost-donut-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.bulk-cost-order-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e8ecf3;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 20px 24px;
+}
+
+.bulk-cost-card-header {
+  display: flex;
+  gap: 20px;
+}
+
+.bulk-cost-card-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+}
+
+.bulk-cost-card-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bulk-cost-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-cost-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  color: #334155;
+}
+
+.bulk-cost-card-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bulk-cost-metric-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.bulk-cost-metric-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bulk-cost-card-body {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.bulk-cost-cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.bulk-cost-cost-table th,
+.bulk-cost-cost-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid #eef1f6;
+  font-size: 14px;
+}
+
+.bulk-cost-cost-table th:first-child,
+.bulk-cost-cost-table td:first-child {
+  text-align: left;
+}
+
+.bulk-cost-row-total td {
+  border-bottom: none;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0));
+}
+
+.bulk-cost-row-unit td {
+  font-weight: 600;
+  background: #f8fafc;
+}
+
+.bulk-cost-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .bulk-cost-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bulk-cost-card-image {
+    width: 100%;
+    height: auto;
+  }
+
+  .bulk-cost-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bulk-cost-filter-group {
+    width: 100%;
+  }
+
+  .bulk-cost-filter-group > * {
+    width: 100%!important;
+  }
+
+}

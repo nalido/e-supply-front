@@ -12,18 +12,45 @@ type MonthlyAreaChartProps = {
   height?: number;
   getColor: (seriesType: string) => string;
   getGradient: (seriesType: string) => string;
+  valueFormatter?: (value: number) => string;
+  tooltipValueFormatter?: (value: number) => string;
+  seriesLabelFormatter?: (seriesType: string) => string;
+  xLabelFormatter?: (label: string) => string;
 };
 
 const DEFAULT_HEIGHT = 200;
+const defaultValueFormatter = (value: number): string => `${value}`;
+const defaultSeriesLabelFormatter = (seriesType: string): string => seriesType;
+const defaultXAxisFormatter = (label: string): string => label;
 
 export default function MonthlyAreaChart({
   data,
   height = DEFAULT_HEIGHT,
   getColor,
   getGradient,
+  valueFormatter,
+  tooltipValueFormatter,
+  seriesLabelFormatter,
+  xLabelFormatter,
 }: MonthlyAreaChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<Area | null>(null);
+  const resolveAxisValue = useMemo(
+    () => valueFormatter ?? defaultValueFormatter,
+    [valueFormatter],
+  );
+  const resolveTooltipValue = useMemo(
+    () => tooltipValueFormatter ?? valueFormatter ?? defaultValueFormatter,
+    [tooltipValueFormatter, valueFormatter],
+  );
+  const resolveSeriesLabel = useMemo(
+    () => seriesLabelFormatter ?? defaultSeriesLabelFormatter,
+    [seriesLabelFormatter],
+  );
+  const resolveXAxisLabel = useMemo(
+    () => xLabelFormatter ?? defaultXAxisFormatter,
+    [xLabelFormatter],
+  );
 
   const config = useMemo<AreaOptions>(() => ({
     data,
@@ -77,8 +104,8 @@ export default function MonthlyAreaChart({
       shared: true,
       showMarkers: true,
       formatter: (datum) => ({
-        name: datum.type,
-        value: `${datum.count}`,
+        name: resolveSeriesLabel(String(datum.type)),
+        value: resolveTooltipValue(Number(datum.count)),
       }),
       domStyles: {
         'g2-tooltip': {
@@ -101,7 +128,7 @@ export default function MonthlyAreaChart({
         autoHide: false,
         autoRotate: false,
         rotate: 0,
-        formatter: (value: string) => value,
+        formatter: (value: string) => resolveXAxisLabel(value),
         style: {
           fill: '#6b7280',
           fontSize: 12,
@@ -130,6 +157,10 @@ export default function MonthlyAreaChart({
           fill: '#6b7280',
           fontSize: 12,
         },
+        formatter: (value: string) => {
+          const numeric = Number(value);
+          return resolveAxisValue(Number.isFinite(numeric) ? numeric : 0);
+        },
       },
       grid: {
         line: {
@@ -152,7 +183,7 @@ export default function MonthlyAreaChart({
       { type: 'element-active' },
     ],
     animation: false,
-  }), [data, getColor, getGradient, height]);
+  }), [data, getColor, getGradient, height, resolveAxisValue, resolveTooltipValue, resolveSeriesLabel, resolveXAxisLabel]);
 
   const initialConfigRef = useRef<AreaOptions>(config);
 

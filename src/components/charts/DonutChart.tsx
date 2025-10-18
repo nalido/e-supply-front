@@ -14,6 +14,10 @@ interface DonutChartProps {
   innerRadiusRatio?: number;
   connectorLength?: number;
   showLabels?: boolean;
+  centerTitle?: string;
+  totalFormatter?: (value: number) => string;
+  valueFormatter?: (slice: DonutSlice) => string;
+  labelDistance?: number;
 }
 
 interface ChartPoint {
@@ -27,7 +31,7 @@ interface DonutSliceGeometry {
   path: string;
   connector: {
     start: ChartPoint;
-    mid: ChartPoint;
+    radial: ChartPoint;
     end: ChartPoint;
     isRightSide: boolean;
   };
@@ -37,13 +41,23 @@ interface DonutSliceGeometry {
     anchor: 'start' | 'end';
     lines: string[];
   };
+  horizontalLength: number;
+  labelWidth: number;
   midAngle: number;
+  baseRadialLength: number;
 }
 
 const DEFAULT_WIDTH = 260;
 const DEFAULT_HEIGHT = 220;
 const DEFAULT_INNER_RATIO = 0.58;
 const DEFAULT_CONNECTOR = 22;
+const LABEL_LINE_HEIGHT = 16;
+const LABEL_TEXT_PADDING = 4;
+const LABEL_BASELINE_OFFSET = 12;
+const LABEL_MIN_GAP = 8;
+const LABEL_HORIZONTAL_PADDING = 12;
+const LABEL_CHAR_ESTIMATE = 7.2;
+const LABEL_MIN_HORIZONTAL = 16;
 
 function polarToCartesian(
   cx: number,
@@ -65,6 +79,10 @@ export default function DonutChart({
   innerRadiusRatio = DEFAULT_INNER_RATIO,
   connectorLength = DEFAULT_CONNECTOR,
   showLabels = true,
+  centerTitle = '合计数量',
+  totalFormatter,
+  valueFormatter,
+  labelDistance,
 }: DonutChartProps) {
   const sanitizedTotal = total > 0 ? total : 1;
   const centerX = width / 2;
@@ -73,8 +91,31 @@ export default function DonutChart({
   const outerRadius = Math.min(width, height) / 2 - padding;
   const innerRadius = outerRadius * innerRadiusRatio;
 
+  const renderTotalValue = totalFormatter ?? ((value: number) => `${value}`);
+  const resolveValueLine = useMemo(
+    () => valueFormatter ?? ((slice: DonutSlice) => `${slice.value} 款`),
+    [valueFormatter],
+  );
+
+  const horizontalDistance = labelDistance ?? (connectorLength + 8);
+
   const slices = useMemo((): DonutSliceGeometry[] => {
     let startAngle = 0;
+
+    const estimateHorizontalLength = (isRightSide: boolean, radialX: number, labelWidth: number): number => {
+      const baseSpacing = horizontalDistance + Math.max(0, (labelWidth - 64) * 0.25);
+      const availableSpace = isRightSide
+        ? width - padding - labelWidth - LABEL_HORIZONTAL_PADDING - radialX
+        : radialX - padding - labelWidth - LABEL_HORIZONTAL_PADDING;
+
+      if (availableSpace <= 0) {
+        return LABEL_MIN_HORIZONTAL;
+      }
+
+      const minFeasible = Math.min(availableSpace, LABEL_MIN_HORIZONTAL);
+      const candidate = Math.min(baseSpacing, availableSpace);
+      return candidate < minFeasible ? minFeasible : candidate;
+    };
 
     const baseSlices: DonutSliceGeometry[] = data
       .filter((slice) => slice.value >= 0)
@@ -90,19 +131,22 @@ export default function DonutChart({
         const endInner = polarToCartesian(centerX, centerY, innerRadius, startAngle);
         const sweepFlag = 1;
         const connectorStart = polarToCartesian(centerX, centerY, outerRadius, midAngle);
-        const connectorMidBase = polarToCartesian(centerX, centerY, outerRadius + connectorLength, midAngle);
-        const isRightSide = connectorMidBase.x >= centerX;
-        const horizontalOffset = isRightSide ? 16 : -16;
-        const connectorMid = { ...connectorMidBase };
+        const baseRadialLength = outerRadius + connectorLength;
+        const connectorRadial = polarToCartesian(centerX, centerY, baseRadialLength, midAngle);
+        const isRightSide = connectorRadial.x >= centerX;
+        const percent = sanitizedTotal ? ((fraction * 100) || 0) : 0;
+        const labelLines = [
+          `${slice.name} ${percent.toFixed(0)}%`,
+          resolveValueLine(slice),
+        ];
+        const longestLine = labelLines.reduce((max, line) => Math.max(max, line.length), 0);
+        const estimatedLabelWidth = longestLine * LABEL_CHAR_ESTIMATE;
+        const horizontalLength = estimateHorizontalLength(isRightSide, connectorRadial.x, estimatedLabelWidth);
         const connectorEnd = {
-          x: connectorMidBase.x + horizontalOffset,
-          y: connectorMidBase.y,
+          x: connectorRadial.x + (isRightSide ? horizontalLength : -horizontalLength),
+          y: connectorRadial.y,
         };
         const labelAnchor: 'start' | 'end' = isRightSide ? 'start' : 'end';
-        const textPadding = 4;
-        const labelX = connectorEnd.x + (isRightSide ? 4 : -4);
-        const labelY = connectorEnd.y - textPadding;
-        const percent = sanitizedTotal ? ((fraction * 100) || 0) : 0;
         const gradientId = `donut-gradient-${index}`;
 
         startAngle = endAngle;
@@ -119,65 +163,114 @@ export default function DonutChart({
           ].join(' '),
           connector: {
             start: connectorStart,
-            mid: connectorMid,
+            radial: connectorRadial,
             end: connectorEnd,
             isRightSide,
           },
           label: {
-            x: labelX,
-            y: labelY,
+            x: connectorEnd.x + (isRightSide ? LABEL_HORIZONTAL_PADDING : -LABEL_HORIZONTAL_PADDING),
+            y: connectorEnd.y - LABEL_TEXT_PADDING,
             anchor: labelAnchor,
-            lines: [
-              `${slice.name} ${(percent).toFixed(0)}%`,
-              `${slice.value} 款`,
-            ],
+            lines: labelLines,
           },
+          horizontalLength,
+          labelWidth: estimatedLabelWidth,
           midAngle,
+          baseRadialLength,
         };
       });
 
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
     const topBoundary = padding;
     const bottomBoundary = height - padding;
-    const textPadding = 4;
-    const labelLineHeight = 16;
-    const minLabelY = topBoundary + textPadding;
 
-    const adjustLabels = (items: DonutSliceGeometry[]) => {
-      if (items.length === 0) return;
+    const layoutSide = (items: DonutSliceGeometry[], isRightSide: boolean) => {
+      if (!items.length) return;
 
-      const sorted = [...items].sort((a, b) => a.midAngle - b.midAngle);
-      const availableHeight = bottomBoundary - topBoundary;
-      const step = items.length > 1 ? availableHeight / (items.length + 1) : 0;
+      const boxes = items
+        .map((item) => {
+          const linesCount = item.label.lines.length;
+          const contentHeight = Math.max(linesCount, 1) * LABEL_LINE_HEIGHT;
+          const halfHeight = contentHeight / 2 + LABEL_TEXT_PADDING;
+          const minCenter = topBoundary + halfHeight;
+          const maxCenter = bottomBoundary - halfHeight;
+          const target = clamp(item.connector.radial.y, minCenter, maxCenter);
 
-      sorted.forEach((item, index) => {
-        const linesCount = item.label.lines.length;
-        const maxLabelY = bottomBoundary - (linesCount - 1) * labelLineHeight - textPadding;
-        const targetY = items.length > 1
-          ? topBoundary + step * (index + 1)
-          : topBoundary + availableHeight / 2;
-        const labelY = Math.max(minLabelY, Math.min(targetY, maxLabelY));
-        const connectorY = labelY + textPadding;
-        const offsetX = item.label.anchor === 'start' ? 4 : -4;
+          return {
+            item,
+            halfHeight,
+            minCenter,
+            maxCenter,
+            target,
+            center: target,
+          };
+        })
+        .sort((a, b) => a.target - b.target);
 
-        item.connector = {
-          ...item.connector,
-          mid: { ...item.connector.mid, y: connectorY },
-          end: { ...item.connector.end, y: connectorY },
+      let currentTop = topBoundary;
+      boxes.forEach((box) => {
+        const minCenter = box.minCenter;
+        const desired = Math.max(box.target, minCenter, currentTop + box.halfHeight + LABEL_MIN_GAP);
+        box.center = desired;
+        currentTop = box.center + box.halfHeight;
+      });
+
+      let currentBottom = bottomBoundary;
+      for (let index = boxes.length - 1; index >= 0; index -= 1) {
+        const box = boxes[index];
+        const maxCenter = box.maxCenter;
+        const desired = Math.min(box.center, maxCenter, currentBottom - box.halfHeight - LABEL_MIN_GAP);
+        box.center = desired;
+        currentBottom = box.center - box.halfHeight;
+      }
+
+      boxes.forEach((box) => {
+        const desiredCenter = clamp(box.center, box.minCenter, box.maxCenter);
+        const sinValue = Math.sin(box.item.midAngle);
+        const cosValue = Math.cos(box.item.midAngle);
+        let radialLength = box.item.baseRadialLength;
+
+        if (Math.abs(sinValue) > 1e-3) {
+          const projectedLength = (desiredCenter - centerY) / sinValue;
+          if (projectedLength > 0) {
+            radialLength = Math.max(box.item.baseRadialLength, Math.abs(projectedLength));
+          }
+        }
+
+        const radialPoint = {
+          x: centerX + radialLength * cosValue,
+          y: centerY + radialLength * sinValue,
         };
 
-        item.label = {
-          ...item.label,
-          x: item.connector.end.x + offsetX,
-          y: labelY,
+        const horizontalLength = estimateHorizontalLength(isRightSide, radialPoint.x, box.item.labelWidth);
+        const endPoint = {
+          x: radialPoint.x + (isRightSide ? horizontalLength : -horizontalLength),
+          y: radialPoint.y,
+        };
+
+        box.item.connector = {
+          ...box.item.connector,
+          radial: radialPoint,
+          end: endPoint,
+        };
+        box.item.horizontalLength = horizontalLength;
+
+        const labelHeight = (box.item.label.lines.length || 1) * LABEL_LINE_HEIGHT;
+        const labelTop = endPoint.y - labelHeight / 2;
+        const labelXOffset = isRightSide ? LABEL_HORIZONTAL_PADDING : -LABEL_HORIZONTAL_PADDING;
+        box.item.label = {
+          ...box.item.label,
+          x: endPoint.x + labelXOffset,
+          y: labelTop + LABEL_BASELINE_OFFSET,
         };
       });
     };
 
-    adjustLabels(baseSlices.filter((item) => item.connector.isRightSide));
-    adjustLabels(baseSlices.filter((item) => !item.connector.isRightSide));
+    layoutSide(baseSlices.filter((item) => item.connector.isRightSide), true);
+    layoutSide(baseSlices.filter((item) => !item.connector.isRightSide), false);
 
     return baseSlices;
-  }, [centerX, centerY, connectorLength, data, height, innerRadius, outerRadius, sanitizedTotal, padding]);
+  }, [centerX, centerY, connectorLength, data, height, horizontalDistance, innerRadius, outerRadius, resolveValueLine, sanitizedTotal, padding, width]);
 
   if (data.length === 0) {
     return (
@@ -224,7 +317,7 @@ export default function DonutChart({
       {showLabels && slices.map(({ connector, label }, index) => (
         <g key={`label-${index}`}>
           <path
-            d={`M ${connector.start.x} ${connector.start.y} L ${connector.mid.x} ${connector.mid.y} L ${connector.end.x} ${connector.end.y}`}
+            d={`M ${connector.start.x} ${connector.start.y} L ${connector.radial.x} ${connector.radial.y} L ${connector.end.x} ${connector.end.y}`}
             stroke="#ccd5e0"
             strokeWidth={1}
             fill="none"
@@ -251,7 +344,7 @@ export default function DonutChart({
         fontSize={14}
         fill="#9ca3af"
       >
-        合计数量
+        {centerTitle}
       </text>
       <text
         x={centerX}
@@ -261,7 +354,7 @@ export default function DonutChart({
         fontWeight={600}
         fill="#1f2933"
       >
-        {total}
+        {renderTotalValue(total)}
       </text>
     </svg>
   );

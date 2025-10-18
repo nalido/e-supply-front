@@ -14,6 +14,11 @@ import type {
   SampleStats,
   SampleStatus,
 } from '../types/sample';
+import type {
+  BulkCostAggregation,
+  BulkCostListParams,
+  BulkCostListResponse,
+} from '../types/bulk-cost-report';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -28,6 +33,7 @@ import {
   getStatusText,
   sampleOptions,
 } from '../mock/sample';
+import { fetchBulkCostAggregation, fetchBulkCostList } from '../mock/orders-report';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1386,10 +1392,21 @@ export const sample = {
   },
 };
 
+const bulkCostReport = {
+  async getAggregation(): Promise<BulkCostAggregation> {
+    return fetchBulkCostAggregation();
+  },
+
+  async getList(params: BulkCostListParams): Promise<BulkCostListResponse> {
+    return fetchBulkCostList(params);
+  },
+};
+
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
 
 // 为了兼容组件中的命名，添加别名导出
 export const sampleService = sample;
+export const bulkCostReportService = bulkCostReport;
 
 export default {
   dashboard,
@@ -1397,4 +1414,5 @@ export default {
   materials,
   products,
   sample,
+  bulkCostReport,
 };

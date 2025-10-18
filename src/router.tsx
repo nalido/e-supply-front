@@ -21,6 +21,7 @@ import WorkshopProgress from './views/WorkshopProgress';
 import PieceworkDashboard from './views/PieceworkDashboard';
 import IncomingOrders from './views/IncomingOrders';
 import OutsourceOrders from './views/OutsourceOrders';
+import BulkCostReport from './views/BulkCostReport';
 import {
   ActionLogPage,
   CompanySettings,
@@ -82,6 +83,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/user/keys' &&
     n.key !== '/piecework/cutting/pending' &&
     n.key !== '/piecework/progress' &&
+    n.key !== '/orders/report/cost' &&
     n.key !== '/collab/send-out' &&
     n.key !== '/collab/receive-in' &&
     !n.children,
@@ -105,6 +107,7 @@ const router = createBrowserRouter([
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
+      { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
       { path: 'basic/material', element: React.createElement(MaterialArchive) },
