@@ -1,8 +1,26 @@
-import type { FactoryOrderDataset, FactoryOrderItem, FactoryOrderMetric, FactoryOrderProgress } from '../types';
+import type {
+  FactoryOrderDataset,
+  FactoryOrderItem,
+  FactoryOrderMetric,
+  FactoryOrderProgress,
+  FactoryOrderStatusSummary,
+  FactoryOrderTableRow,
+} from '../types';
 
-type PartialOrder = Pick<FactoryOrderItem, 'id' | 'code' | 'name' | 'customer' | 'expectedDelivery' | 'quantityLabel' | 'quantityValue'> & {
-  materialStatus?: string;
-  tags?: string[];
+type PartialOrder = Pick<FactoryOrderItem,
+  'id' |
+  'code' |
+  'name' |
+  'customer' |
+  'expectedDelivery' |
+  'quantityLabel' |
+  'quantityValue' |
+  'materialStatus' |
+  'tags' |
+  'orderDate' |
+  'statusKey' |
+  'isCompleted'
+> & {
   actions?: Array<{ key: string; label: string }>;
   progress: FactoryOrderProgress[];
 };
@@ -22,9 +40,11 @@ const baseOrders: PartialOrder[] = [
     customer: '本厂',
     expectedDelivery: '2025-09-28',
     materialStatus: '物料已入仓',
+    orderDate: '2025-09-17',
     quantityLabel: '下单',
     quantityValue: '960 件',
     tags: ['查看颜色图', '物料清单'],
+    statusKey: 'pending',
     progress: [
       { key: 'order', label: '下单', value: '960', date: '2025-09-17', status: 'success' },
       { key: 'material', label: '物料', value: '采购完成', percent: 100, status: 'success' },
@@ -40,9 +60,11 @@ const baseOrders: PartialOrder[] = [
     customer: '睿宗李总',
     expectedDelivery: '2025-09-30',
     materialStatus: '物料未采购',
+    orderDate: '2025-09-22',
     quantityLabel: '下单',
     quantityValue: '200 件',
     tags: ['物料清单'],
+    statusKey: 'pending',
     progress: [
       { key: 'order', label: '下单', value: '200', date: '2025-09-22', status: 'success' },
       { key: 'material', label: '物料', value: '采购中', percent: 12, status: 'warning' },
@@ -58,9 +80,11 @@ const baseOrders: PartialOrder[] = [
     customer: '本厂',
     expectedDelivery: '2025-09-18',
     materialStatus: '物料已入仓',
+    orderDate: '2025-09-04',
     quantityLabel: '下单',
     quantityValue: '740 件',
     tags: ['查看颜色图', '物料清单'],
+    statusKey: 'pending',
     progress: [
       { key: 'order', label: '下单', value: '740', date: '2025-09-04', status: 'success' },
       { key: 'material', label: '物料', value: '齐备', percent: 100, status: 'success' },
@@ -76,9 +100,12 @@ const baseOrders: PartialOrder[] = [
     customer: '石狮',
     expectedDelivery: '2025-09-12',
     materialStatus: '物料已入仓',
+    orderDate: '2025-08-22',
     quantityLabel: '下单',
     quantityValue: '580 件',
     tags: ['查看颜色图', '物料清单'],
+    statusKey: 'completed',
+    isCompleted: true,
     progress: [
       { key: 'order', label: '下单', value: '580', date: '2025-08-22', status: 'success' },
       { key: 'material', label: '物料', value: '已入仓', percent: 96, status: 'success' },
@@ -94,9 +121,11 @@ const baseOrders: PartialOrder[] = [
     customer: '鸿铭服饰',
     expectedDelivery: '2025-09-18',
     materialStatus: '物料已入仓',
+    orderDate: '2025-08-22',
     quantityLabel: '下单',
     quantityValue: '1,900 件',
     tags: ['查看颜色图', '物料清单'],
+    statusKey: 'overdue',
     progress: [
       { key: 'order', label: '下单', value: '1,900', date: '2025-08-22', status: 'success' },
       { key: 'material', label: '物料', value: '齐备', percent: 100, status: 'success' },
@@ -112,9 +141,11 @@ const baseOrders: PartialOrder[] = [
     customer: '石狮',
     expectedDelivery: '2025-09-25',
     materialStatus: '物料未采购',
+    orderDate: '2025-09-11',
     quantityLabel: '下单',
     quantityValue: '225 件',
     tags: ['物料清单'],
+    statusKey: 'pending',
     progress: [
       { key: 'order', label: '下单', value: '225', date: '2025-09-11', status: 'success' },
       { key: 'material', label: '物料', value: '采购中', percent: 8, status: 'warning' },
@@ -130,9 +161,11 @@ const baseOrders: PartialOrder[] = [
     customer: '鸿铭服饰',
     expectedDelivery: '2025-09-29',
     materialStatus: '物料已入仓',
+    orderDate: '2025-09-22',
     quantityLabel: '下单',
     quantityValue: '250 件',
     tags: ['物料清单'],
+    statusKey: 'pending',
     progress: [
       { key: 'order', label: '下单', value: '250', date: '2025-09-22', status: 'success' },
       { key: 'material', label: '物料', value: '已齐备', percent: 96, status: 'success' },
@@ -148,9 +181,12 @@ const baseOrders: PartialOrder[] = [
     customer: '总部大货',
     expectedDelivery: '2025-09-15',
     materialStatus: '物料已入仓',
+    orderDate: '2025-08-09',
     quantityLabel: '下单',
     quantityValue: '1,240 件',
     tags: ['查看颜色图', '物料清单'],
+    statusKey: 'completed',
+    isCompleted: true,
     progress: [
       { key: 'order', label: '下单', value: '1,240', date: '2025-08-09', status: 'success' },
       { key: 'material', label: '物料', value: '已齐备', percent: 100, status: 'success' },
@@ -172,9 +208,43 @@ const metrics: FactoryOrderMetric[] = [
   { key: 'overdue', label: '已超期', primaryValue: '0 款', secondaryValue: '0 单 / 0 件', tone: 'warning' },
 ];
 
+const statusTabs: FactoryOrderStatusSummary[] = [
+  { key: 'pending', label: '待出库', styles: 32, orders: 48, quantity: 112430 },
+  { key: 'all', label: '全部', styles: 58, orders: 84, quantity: 219345 },
+  { key: 'overdue', label: '已超期', styles: 6, orders: 8, quantity: 12480 },
+];
+
+const tableRows: FactoryOrderTableRow[] = assignThumbnails(baseOrders).map((order, index) => ({
+  id: order.id,
+  orderCode: order.code,
+  customer: order.customer ?? '-',
+  styleCode: order.code.split('-')[0],
+  styleName: order.name,
+  orderQuantity: parseInt(order.quantityValue.replace(/[^\d]/g, ''), 10) || 0,
+  materialStatus: order.materialStatus ?? '待确认',
+  productionStage: (() => {
+    const stage = order.progress.find((item) => item.key === 'sew') ?? order.progress[order.progress.length - 1];
+    return stage.value;
+  })(),
+  productionPercent: (() => {
+    const sewStage = order.progress.find((item) => item.key === 'sew');
+    if (typeof sewStage?.percent === 'number') {
+      return Math.max(0, Math.min(Math.round(sewStage.percent), 100));
+    }
+    return 0;
+  })(),
+  expectedDelivery: order.expectedDelivery ?? '--',
+  merchandiser: ['张敏', '李丹', '王凯', '赵一', '周成', '刘颖', '陈凡', '宋佳'][index % 8],
+  statusKey: order.statusKey,
+  isCompleted: order.isCompleted,
+  orderDate: order.orderDate,
+}));
+
 const dataset: FactoryOrderDataset = {
   metrics,
   orders: assignThumbnails(baseOrders),
+  table: tableRows,
+  statusTabs,
 };
 
 export const getFactoryOrdersDataset = (): FactoryOrderDataset => dataset;

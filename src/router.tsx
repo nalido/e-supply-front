@@ -10,6 +10,8 @@ import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
 import FactoryOrders from './views/FactoryOrders';
 import CuttingPendingPage from './views/CuttingPending';
+import CuttingCompletedPage from './views/CuttingCompleted';
+import CuttingReportPage from './views/CuttingReport';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
@@ -82,6 +84,8 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/user/onboarding' &&
     n.key !== '/settings/user/keys' &&
     n.key !== '/piecework/cutting/pending' &&
+    n.key !== '/piecework/cutting/done' &&
+    n.key !== '/piecework/cutting/report' &&
     n.key !== '/piecework/progress' &&
     n.key !== '/orders/report/cost' &&
     n.key !== '/collab/send-out' &&
@@ -125,6 +129,8 @@ const router = createBrowserRouter([
       { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
       { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
+      { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
+      { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
       { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },

@@ -37,7 +37,7 @@
 - Request review only after local checks pass and lingering TODOs are captured in issues instead of code comments.
 
 ## 代码质量要求
-- 当用户要求阅读docs/prds下面的prd文档，实现相关功能的时候，注意要符合最佳实践和项目的现有设计，mock数据注意分离和复用，合理设计前端需要调用的api。
+- 当用户要求阅读docs/prds下面的prd文档，实现相关功能的时候，注意要符合最佳实践和项目的现有设计，使用sub-agent调研现有代码的实现风格和可复用的组件或者api，mock数据注意分离和复用，合理设计前端需要调用的api。
 - 时刻记得组件的复用，不要做重复的工作。
 - 时刻记得风格统一，统计页面的各种组件风格要保持一致。 实现之前需要调研下已有类似组件的风格。
 - 某个PRD的功能都实现完成后，将该文件名加个"[DONE]"的前缀作为已完成标记。 当用户没有指定PRD文件的时候，不重复实现被标记为完成的PRD。

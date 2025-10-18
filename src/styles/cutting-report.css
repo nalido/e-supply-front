@@ -1,0 +1,57 @@
+.cutting-report-page {
+  padding: 0 24px 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.cutting-report-filters {
+  background-color: #fff;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.cutting-report-fields {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.cutting-report-field {
+  display: grid;
+  gap: 6px;
+}
+
+.cutting-report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cutting-report-thumbnail {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  background-color: #f0f5ff;
+}
+
+.cutting-report-table .ant-table {
+  border-radius: 12px;
+}
+
+.cutting-report-table .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, #f7faff, #ffffff);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .cutting-report-fields {
+    grid-template-columns: 1fr;
+  }
+}
