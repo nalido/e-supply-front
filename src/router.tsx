@@ -27,6 +27,7 @@ import BulkCostReport from './views/BulkCostReport';
 import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
 import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
 import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
+import FinishedGoodsPendingReceipt from './views/FinishedGoodsPendingReceipt';
 import {
   ActionLogPage,
   CompanySettings,
@@ -93,6 +94,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/orders/report/cost' &&
     n.key !== '/product/report/overview' &&
     n.key !== '/product/inbound-other' &&
+    n.key !== '/product/inbound/pending' &&
     n.key !== '/product/outbound' &&
     n.key !== '/collab/send-out' &&
     n.key !== '/collab/receive-in' &&
@@ -121,6 +123,7 @@ const router = createBrowserRouter([
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
       { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
       { path: 'product/report/overview', element: React.createElement(FinishedGoodsInventoryReport) },
+      { path: 'product/inbound/pending', element: React.createElement(FinishedGoodsPendingReceipt) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
       { path: 'basic/material', element: React.createElement(MaterialArchive) },

@@ -36,6 +36,12 @@ import type {
   FinishedGoodsOutboundListResponse,
   FinishedGoodsOutboundMeta,
 } from '../types/finished-goods-outbound';
+import type {
+  FinishedGoodsPendingReceiptListParams,
+  FinishedGoodsPendingReceiptListResponse,
+  FinishedGoodsPendingReceiptMeta,
+  FinishedGoodsPendingReceiptReceivePayload,
+} from '../types/finished-goods-pending-receipt';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -66,6 +72,11 @@ import {
   fetchFinishedGoodsOutboundList,
   fetchFinishedGoodsOutboundMeta,
 } from '../mock/product-outbound';
+import {
+  fetchFinishedGoodsPendingReceiptList,
+  fetchFinishedGoodsPendingReceiptMeta,
+  submitFinishedGoodsReceipt,
+} from '../mock/product-inbound-pending';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1474,6 +1485,24 @@ const finishedGoodsOutbound = {
   },
 };
 
+const finishedGoodsPendingReceipt = {
+  async getMeta(): Promise<FinishedGoodsPendingReceiptMeta> {
+    return fetchFinishedGoodsPendingReceiptMeta();
+  },
+
+  async getList(
+    params: FinishedGoodsPendingReceiptListParams,
+  ): Promise<FinishedGoodsPendingReceiptListResponse> {
+    return fetchFinishedGoodsPendingReceiptList(params);
+  },
+
+  async receive(
+    payload: FinishedGoodsPendingReceiptReceivePayload,
+  ): Promise<{ success: boolean }> {
+    return submitFinishedGoodsReceipt(payload);
+  },
+};
+
 const bulkCostReport = {
   async getAggregation(): Promise<BulkCostAggregation> {
     return fetchBulkCostAggregation();
@@ -1491,6 +1520,7 @@ export const sampleService = sample;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const finishedGoodsOutboundService = finishedGoodsOutbound;
+export const finishedGoodsPendingReceiptService = finishedGoodsPendingReceipt;
 export const bulkCostReportService = bulkCostReport;
 
 export default {
@@ -1502,5 +1532,6 @@ export default {
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,
   finishedGoodsOutbound,
+  finishedGoodsPendingReceipt,
   bulkCostReport,
 };
