@@ -19,6 +19,18 @@ import type {
   BulkCostListParams,
   BulkCostListResponse,
 } from '../types/bulk-cost-report';
+import type {
+  FinishedGoodsInventoryAggregation,
+  FinishedGoodsInventoryListParams,
+  FinishedGoodsInventoryListResponse,
+  FinishedGoodsInventoryQueryParams,
+} from '../types/finished-goods-inventory';
+import type {
+  FinishedGoodsOtherInboundFormPayload,
+  FinishedGoodsOtherInboundListParams,
+  FinishedGoodsOtherInboundListResponse,
+  FinishedGoodsOtherInboundMeta,
+} from '../types/finished-goods-other-inbound';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -34,6 +46,17 @@ import {
   sampleOptions,
 } from '../mock/sample';
 import { fetchBulkCostAggregation, fetchBulkCostList } from '../mock/orders-report';
+import {
+  fetchFinishedGoodsInventoryAggregation,
+  fetchFinishedGoodsInventoryList,
+} from '../mock/product-report';
+import {
+  createFinishedGoodsOtherInbound,
+  fetchFinishedGoodsOtherInboundList,
+  fetchFinishedGoodsOtherInboundMeta,
+  removeFinishedGoodsOtherInbound,
+  updateFinishedGoodsOtherInbound,
+} from '../mock/product-other-inbound';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1392,6 +1415,44 @@ export const sample = {
   },
 };
 
+const finishedGoodsOtherInbound = {
+  async getMeta(): Promise<FinishedGoodsOtherInboundMeta> {
+    return fetchFinishedGoodsOtherInboundMeta();
+  },
+
+  async getList(
+    params: FinishedGoodsOtherInboundListParams,
+  ): Promise<FinishedGoodsOtherInboundListResponse> {
+    return fetchFinishedGoodsOtherInboundList(params);
+  },
+
+  async create(payload: FinishedGoodsOtherInboundFormPayload) {
+    return createFinishedGoodsOtherInbound(payload);
+  },
+
+  async update(id: string, payload: FinishedGoodsOtherInboundFormPayload) {
+    return updateFinishedGoodsOtherInbound(id, payload);
+  },
+
+  async remove(ids: string[]) {
+    return removeFinishedGoodsOtherInbound(ids);
+  },
+};
+
+const finishedGoodsInventoryReport = {
+  async getOverview(
+    params: FinishedGoodsInventoryQueryParams = {},
+  ): Promise<FinishedGoodsInventoryAggregation> {
+    return fetchFinishedGoodsInventoryAggregation(params);
+  },
+
+  async getList(
+    params: FinishedGoodsInventoryListParams,
+  ): Promise<FinishedGoodsInventoryListResponse> {
+    return fetchFinishedGoodsInventoryList(params);
+  },
+};
+
 const bulkCostReport = {
   async getAggregation(): Promise<BulkCostAggregation> {
     return fetchBulkCostAggregation();
@@ -1406,6 +1467,8 @@ const bulkCostReport = {
 
 // 为了兼容组件中的命名，添加别名导出
 export const sampleService = sample;
+export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
+export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const bulkCostReportService = bulkCostReport;
 
 export default {
@@ -1414,5 +1477,7 @@ export default {
   materials,
   products,
   sample,
+  finishedGoodsOtherInbound,
+  finishedGoodsInventoryReport,
   bulkCostReport,
 };
