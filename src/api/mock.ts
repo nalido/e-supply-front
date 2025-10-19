@@ -42,6 +42,13 @@ import type {
   FinishedGoodsPendingReceiptMeta,
   FinishedGoodsPendingReceiptReceivePayload,
 } from '../types/finished-goods-pending-receipt';
+import type {
+  FinishedGoodsReceivedListParams,
+  FinishedGoodsReceivedListResponse,
+  FinishedGoodsReceivedMeta,
+  FinishedGoodsReceivedRecord,
+  FinishedGoodsReceivedUpdatePayload,
+} from '../types/finished-goods-received';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -77,6 +84,13 @@ import {
   fetchFinishedGoodsPendingReceiptMeta,
   submitFinishedGoodsReceipt,
 } from '../mock/product-inbound-pending';
+import {
+  exportFinishedGoodsReceived,
+  fetchFinishedGoodsReceivedList,
+  fetchFinishedGoodsReceivedMeta,
+  removeFinishedGoodsReceivedRecords,
+  updateFinishedGoodsReceivedRecord,
+} from '../mock/product-inbound-received';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1503,6 +1517,35 @@ const finishedGoodsPendingReceipt = {
   },
 };
 
+const finishedGoodsReceived = {
+  async getMeta(): Promise<FinishedGoodsReceivedMeta> {
+    return fetchFinishedGoodsReceivedMeta();
+  },
+
+  async getList(
+    params: FinishedGoodsReceivedListParams,
+  ): Promise<FinishedGoodsReceivedListResponse> {
+    return fetchFinishedGoodsReceivedList(params);
+  },
+
+  async update(
+    id: string,
+    payload: FinishedGoodsReceivedUpdatePayload,
+  ): Promise<FinishedGoodsReceivedRecord> {
+    return updateFinishedGoodsReceivedRecord(id, payload);
+  },
+
+  async remove(ids: string[]): Promise<{ success: boolean }> {
+    return removeFinishedGoodsReceivedRecords(ids);
+  },
+
+  async export(
+    params: FinishedGoodsReceivedListParams,
+  ): Promise<{ url: string }> {
+    return exportFinishedGoodsReceived(params);
+  },
+};
+
 const bulkCostReport = {
   async getAggregation(): Promise<BulkCostAggregation> {
     return fetchBulkCostAggregation();
@@ -1521,6 +1564,7 @@ export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const finishedGoodsOutboundService = finishedGoodsOutbound;
 export const finishedGoodsPendingReceiptService = finishedGoodsPendingReceipt;
+export const finishedGoodsReceivedService = finishedGoodsReceived;
 export const bulkCostReportService = bulkCostReport;
 
 export default {
@@ -1533,5 +1577,6 @@ export default {
   finishedGoodsInventoryReport,
   finishedGoodsOutbound,
   finishedGoodsPendingReceipt,
+  finishedGoodsReceived,
   bulkCostReport,
 };

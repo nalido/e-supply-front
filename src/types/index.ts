@@ -13,3 +13,8 @@ export * from './workshop-progress';
 export * from './piecework-dashboard';
 export * from './collaboration';
 export * from './bulk-cost-report';
+export * from './finished-goods-inventory';
+export * from './finished-goods-other-inbound';
+export * from './finished-goods-outbound';
+export * from './finished-goods-pending-receipt';
+export * from './finished-goods-received';
