@@ -31,6 +31,11 @@ import type {
   FinishedGoodsOtherInboundListResponse,
   FinishedGoodsOtherInboundMeta,
 } from '../types/finished-goods-other-inbound';
+import type {
+  FinishedGoodsOutboundListParams,
+  FinishedGoodsOutboundListResponse,
+  FinishedGoodsOutboundMeta,
+} from '../types/finished-goods-outbound';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -57,6 +62,10 @@ import {
   removeFinishedGoodsOtherInbound,
   updateFinishedGoodsOtherInbound,
 } from '../mock/product-other-inbound';
+import {
+  fetchFinishedGoodsOutboundList,
+  fetchFinishedGoodsOutboundMeta,
+} from '../mock/product-outbound';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1453,6 +1462,18 @@ const finishedGoodsInventoryReport = {
   },
 };
 
+const finishedGoodsOutbound = {
+  async getMeta(): Promise<FinishedGoodsOutboundMeta> {
+    return fetchFinishedGoodsOutboundMeta();
+  },
+
+  async getList(
+    params: FinishedGoodsOutboundListParams,
+  ): Promise<FinishedGoodsOutboundListResponse> {
+    return fetchFinishedGoodsOutboundList(params);
+  },
+};
+
 const bulkCostReport = {
   async getAggregation(): Promise<BulkCostAggregation> {
     return fetchBulkCostAggregation();
@@ -1469,6 +1490,7 @@ const bulkCostReport = {
 export const sampleService = sample;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
+export const finishedGoodsOutboundService = finishedGoodsOutbound;
 export const bulkCostReportService = bulkCostReport;
 
 export default {
@@ -1479,5 +1501,6 @@ export default {
   sample,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,
+  finishedGoodsOutbound,
   bulkCostReport,
 };

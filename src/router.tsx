@@ -26,6 +26,7 @@ import OutsourceOrders from './views/OutsourceOrders';
 import BulkCostReport from './views/BulkCostReport';
 import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
 import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
+import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
 import {
   ActionLogPage,
   CompanySettings,
@@ -92,6 +93,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/orders/report/cost' &&
     n.key !== '/product/report/overview' &&
     n.key !== '/product/inbound-other' &&
+    n.key !== '/product/outbound' &&
     n.key !== '/collab/send-out' &&
     n.key !== '/collab/receive-in' &&
     !n.children,
@@ -117,6 +119,7 @@ const router = createBrowserRouter([
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
+      { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
       { path: 'product/report/overview', element: React.createElement(FinishedGoodsInventoryReport) },
       { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
       { path: 'basic/styles', element: React.createElement(StyleMaterials) },
