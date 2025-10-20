@@ -13,6 +13,7 @@ export * from './workshop-progress';
 export * from './piecework-dashboard';
 export * from './collaboration';
 export * from './orders-report';
+export * from './orders-operational-efficiency';
 export * from './product-report';
 export * from './product-other-inbound';
 export * from './product-outbound';

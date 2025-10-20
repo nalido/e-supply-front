@@ -18,3 +18,4 @@ export * from './finished-goods-other-inbound';
 export * from './finished-goods-outbound';
 export * from './finished-goods-pending-receipt';
 export * from './finished-goods-received';
+export * from './operational-efficiency';

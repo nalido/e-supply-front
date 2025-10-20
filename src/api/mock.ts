@@ -55,6 +55,13 @@ import type {
   FinishedGoodsReceivedRecord,
   FinishedGoodsReceivedUpdatePayload,
 } from '../types/finished-goods-received';
+import type {
+  OperationalEfficiencyListItem,
+  OperationalEfficiencyListParams,
+  OperationalEfficiencyListResponse,
+  OperationalEfficiencyMeta,
+  OperationalEfficiencyTemplatePayload,
+} from '../types/operational-efficiency';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -70,6 +77,14 @@ import {
   sampleOptions,
 } from '../mock/sample';
 import { fetchBulkCostAggregation, fetchBulkCostList } from '../mock/orders-report';
+import {
+  createOperationalEfficiencyTemplate,
+  fetchOperationalEfficiencyList,
+  fetchOperationalEfficiencyMeta,
+  removeOperationalEfficiencyTemplate,
+  setOperationalEfficiencyDefault,
+  updateOperationalEfficiencyTemplate,
+} from '../mock/orders-operational-efficiency';
 import {
   fetchFinishedGoodsInventoryAggregation,
   fetchFinishedGoodsInventoryList,
@@ -1459,6 +1474,39 @@ export const sample = {
   },
 };
 
+const operationalEfficiency = {
+  async getMeta(): Promise<OperationalEfficiencyMeta> {
+    return fetchOperationalEfficiencyMeta();
+  },
+
+  async getList(
+    params: OperationalEfficiencyListParams,
+  ): Promise<OperationalEfficiencyListResponse> {
+    return fetchOperationalEfficiencyList(params);
+  },
+
+  async create(
+    payload: OperationalEfficiencyTemplatePayload,
+  ): Promise<OperationalEfficiencyListItem> {
+    return createOperationalEfficiencyTemplate(payload);
+  },
+
+  async update(
+    id: string,
+    payload: OperationalEfficiencyTemplatePayload,
+  ): Promise<OperationalEfficiencyListItem> {
+    return updateOperationalEfficiencyTemplate(id, payload);
+  },
+
+  async remove(id: string): Promise<{ success: boolean }> {
+    return removeOperationalEfficiencyTemplate(id);
+  },
+
+  async setDefault(id: string): Promise<{ success: boolean }> {
+    return setOperationalEfficiencyDefault(id);
+  },
+};
+
 const finishedGoodsOtherInbound = {
   async getMeta(): Promise<FinishedGoodsOtherInboundMeta> {
     return fetchFinishedGoodsOtherInboundMeta();
@@ -1584,6 +1632,7 @@ const bulkCostReport = {
 
 // 为了兼容组件中的命名，添加别名导出
 export const sampleService = sample;
+export const operationalEfficiencyService = operationalEfficiency;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const finishedGoodsOutboundService = finishedGoodsOutbound;
@@ -1598,6 +1647,7 @@ export default {
   materials,
   products,
   sample,
+  operationalEfficiency,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,
   materialInventoryReport,

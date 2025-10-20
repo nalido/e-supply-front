@@ -21,6 +21,7 @@ import OperationTemplatePage from './views/OperationTemplate';
 import WarehousePage from './views/Warehouse';
 import WorkshopProgress from './views/WorkshopProgress';
 import PieceworkDashboard from './views/PieceworkDashboard';
+import OperationalEfficiency from './views/OperationalEfficiency';
 import IncomingOrders from './views/IncomingOrders';
 import OutsourceOrders from './views/OutsourceOrders';
 import BulkCostReport from './views/BulkCostReport';
@@ -74,6 +75,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sample/follow-template' &&
     n.key !== '/sample/type' &&
     n.key !== '/orders/factory' &&
+    n.key !== '/orders/efficiency' &&
     n.key !== '/basic/process-type' &&
     n.key !== '/basic/styles' &&
     n.key !== '/basic/material' &&
@@ -123,6 +125,7 @@ const router = createBrowserRouter([
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
+      { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
       { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
