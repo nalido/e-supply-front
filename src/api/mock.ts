@@ -62,6 +62,16 @@ import type {
   OperationalEfficiencyMeta,
   OperationalEfficiencyTemplatePayload,
 } from '../types/operational-efficiency';
+import type {
+  MaterialStockListParams,
+  MaterialStockListResponse,
+  MaterialStockMeta,
+} from '../types/material-stock';
+import type {
+  MaterialPurchaseReportListParams,
+  MaterialPurchaseReportListResponse,
+  MaterialPurchaseReportMeta,
+} from '../types/material-purchase-report';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -93,6 +103,18 @@ import {
   fetchMaterialInventoryAggregation,
   fetchMaterialInventoryList,
 } from '../mock/material-report';
+import {
+  fetchMaterialStockList,
+  fetchMaterialStockMeta,
+} from '../mock/material-stock';
+import {
+  fetchMaterialPurchaseReportList,
+  fetchMaterialPurchaseReportMeta,
+} from '../mock/material-purchase-report';
+import {
+  fetchMaterialIssueList,
+  fetchMaterialIssueMeta,
+} from '../mock/material-issue';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1507,6 +1529,42 @@ const operationalEfficiency = {
   },
 };
 
+const materialStock = {
+  async getMeta(): Promise<MaterialStockMeta> {
+    return fetchMaterialStockMeta();
+  },
+
+  async getList(
+    params: MaterialStockListParams,
+  ): Promise<MaterialStockListResponse> {
+    return fetchMaterialStockList(params);
+  },
+};
+
+const materialPurchaseReport = {
+  async getMeta(): Promise<MaterialPurchaseReportMeta> {
+    return fetchMaterialPurchaseReportMeta();
+  },
+
+  async getList(
+    params: MaterialPurchaseReportListParams,
+  ): Promise<MaterialPurchaseReportListResponse> {
+    return fetchMaterialPurchaseReportList(params);
+  },
+};
+
+const materialIssue = {
+  async getMeta(): Promise<MaterialIssueMeta> {
+    return fetchMaterialIssueMeta();
+  },
+
+  async getList(
+    params: MaterialIssueListParams,
+  ): Promise<MaterialIssueListResponse> {
+    return fetchMaterialIssueList(params);
+  },
+};
+
 const finishedGoodsOtherInbound = {
   async getMeta(): Promise<FinishedGoodsOtherInboundMeta> {
     return fetchFinishedGoodsOtherInboundMeta();
@@ -1633,6 +1691,9 @@ const bulkCostReport = {
 // 为了兼容组件中的命名，添加别名导出
 export const sampleService = sample;
 export const operationalEfficiencyService = operationalEfficiency;
+export const materialStockService = materialStock;
+export const materialPurchaseReportService = materialPurchaseReport;
+export const materialIssueService = materialIssue;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const finishedGoodsOutboundService = finishedGoodsOutbound;
@@ -1648,6 +1709,9 @@ export default {
   products,
   sample,
   operationalEfficiency,
+  materialStock,
+  materialPurchaseReport,
+  materialIssue,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,
   materialInventoryReport,
