@@ -262,7 +262,6 @@ const FinishedGoodsOtherInbound = () => {
     { title: '仓库', dataIndex: 'warehouseName', width: 140 },
     { title: '加工厂', dataIndex: 'processorName', width: 180 },
     { title: '款号', dataIndex: 'styleNo', width: 120 },
-    { title: '款名', dataIndex: 'styleName', width: 200, ellipsis: true },
     {
       title: 'SKU',
       dataIndex: 'sku',
@@ -270,12 +269,18 @@ const FinishedGoodsOtherInbound = () => {
       ellipsis: true,
     },
     {
-      title: '入库数量',
+      title: '数量',
       dataIndex: 'inboundQty',
       width: 120,
       align: 'right',
       render: (value: number) => `${formatQuantity(value)} 件`,
     },
+    {
+      title: '收货时间',
+      dataIndex: 'receiptAt',
+      width: 180,
+    },
+    { title: '款名', dataIndex: 'styleName', width: 200, ellipsis: true },
     {
       title: '单价',
       dataIndex: 'unitPrice',
@@ -289,11 +294,6 @@ const FinishedGoodsOtherInbound = () => {
       width: 140,
       align: 'right',
       render: (value: number) => formatCurrency(value),
-    },
-    {
-      title: '收货时间',
-      dataIndex: 'receiptAt',
-      width: 180,
     },
     {
       title: '入库类型',

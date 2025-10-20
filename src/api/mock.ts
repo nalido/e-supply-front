@@ -26,6 +26,12 @@ import type {
   FinishedGoodsInventoryQueryParams,
 } from '../types/finished-goods-inventory';
 import type {
+  MaterialInventoryAggregation,
+  MaterialInventoryListParams,
+  MaterialInventoryListResponse,
+  MaterialInventoryQueryParams,
+} from '../types/material-inventory';
+import type {
   FinishedGoodsOtherInboundFormPayload,
   FinishedGoodsOtherInboundListParams,
   FinishedGoodsOtherInboundListResponse,
@@ -68,6 +74,10 @@ import {
   fetchFinishedGoodsInventoryAggregation,
   fetchFinishedGoodsInventoryList,
 } from '../mock/product-report';
+import {
+  fetchMaterialInventoryAggregation,
+  fetchMaterialInventoryList,
+} from '../mock/material-report';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1487,6 +1497,20 @@ const finishedGoodsInventoryReport = {
   },
 };
 
+const materialInventoryReport = {
+  async getOverview(
+    params: MaterialInventoryQueryParams = {},
+  ): Promise<MaterialInventoryAggregation> {
+    return fetchMaterialInventoryAggregation(params);
+  },
+
+  async getList(
+    params: MaterialInventoryListParams,
+  ): Promise<MaterialInventoryListResponse> {
+    return fetchMaterialInventoryList(params);
+  },
+};
+
 const finishedGoodsOutbound = {
   async getMeta(): Promise<FinishedGoodsOutboundMeta> {
     return fetchFinishedGoodsOutboundMeta();
@@ -1566,6 +1590,7 @@ export const finishedGoodsOutboundService = finishedGoodsOutbound;
 export const finishedGoodsPendingReceiptService = finishedGoodsPendingReceipt;
 export const finishedGoodsReceivedService = finishedGoodsReceived;
 export const bulkCostReportService = bulkCostReport;
+export const materialInventoryReportService = materialInventoryReport;
 
 export default {
   dashboard,
@@ -1575,6 +1600,7 @@ export default {
   sample,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,
+  materialInventoryReport,
   finishedGoodsOutbound,
   finishedGoodsPendingReceipt,
   finishedGoodsReceived,
