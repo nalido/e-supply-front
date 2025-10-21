@@ -22,3 +22,4 @@ export * from './product-other-inbound';
 export * from './product-outbound';
 export * from './product-inbound-pending';
 export * from './product-inbound-received';
+export * from './product-stock';

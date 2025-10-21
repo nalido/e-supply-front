@@ -30,6 +30,7 @@ import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
 import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
 import FinishedGoodsPendingReceipt from './views/FinishedGoodsPendingReceipt';
 import FinishedGoodsReceived from './views/FinishedGoodsReceived';
+import FinishedGoodsStock from './views/FinishedGoodsStock';
 import MaterialInventoryReport from './views/MaterialInventoryReport';
 import MaterialPurchaseReport from './views/MaterialPurchaseReport';
 import MaterialIssueDetails from './views/MaterialIssueDetails';
@@ -101,6 +102,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/orders/report/cost' &&
     n.key !== '/product/report/overview' &&
     n.key !== '/product/inbound-other' &&
+    n.key !== '/product/stock' &&
     n.key !== '/product/inbound/pending' &&
     n.key !== '/product/inbound/received' &&
     n.key !== '/product/outbound' &&
@@ -134,6 +136,7 @@ const router = createBrowserRouter([
       { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
+      { path: 'product/stock', element: React.createElement(FinishedGoodsStock) },
       { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
       { path: 'product/report/overview', element: React.createElement(FinishedGoodsInventoryReport) },
       { path: 'product/inbound/pending', element: React.createElement(FinishedGoodsPendingReceipt) },

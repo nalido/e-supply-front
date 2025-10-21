@@ -56,6 +56,11 @@ import type {
   FinishedGoodsReceivedUpdatePayload,
 } from '../types/finished-goods-received';
 import type {
+  FinishedGoodsStockListParams,
+  FinishedGoodsStockListResponse,
+  FinishedGoodsStockMeta,
+} from '../types/finished-goods-stock';
+import type {
   OperationalEfficiencyListItem,
   OperationalEfficiencyListParams,
   OperationalEfficiencyListResponse,
@@ -138,6 +143,10 @@ import {
   removeFinishedGoodsReceivedRecords,
   updateFinishedGoodsReceivedRecord,
 } from '../mock/product-inbound-received';
+import {
+  fetchFinishedGoodsStockList,
+  fetchFinishedGoodsStockMeta,
+} from '../mock/product-stock';
 import { getSampleCreationMeta } from '../mock/sample-creation';
 
 export type Paginated<T> = {
@@ -1676,6 +1685,18 @@ const finishedGoodsReceived = {
   },
 };
 
+const finishedGoodsStock = {
+  async getMeta(): Promise<FinishedGoodsStockMeta> {
+    return fetchFinishedGoodsStockMeta();
+  },
+
+  async getList(
+    params: FinishedGoodsStockListParams,
+  ): Promise<FinishedGoodsStockListResponse> {
+    return fetchFinishedGoodsStockList(params);
+  },
+};
+
 const bulkCostReport = {
   async getAggregation(): Promise<BulkCostAggregation> {
     return fetchBulkCostAggregation();
@@ -1699,6 +1720,7 @@ export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
 export const finishedGoodsOutboundService = finishedGoodsOutbound;
 export const finishedGoodsPendingReceiptService = finishedGoodsPendingReceipt;
 export const finishedGoodsReceivedService = finishedGoodsReceived;
+export const finishedGoodsStockService = finishedGoodsStock;
 export const bulkCostReportService = bulkCostReport;
 export const materialInventoryReportService = materialInventoryReport;
 
@@ -1718,5 +1740,6 @@ export default {
   finishedGoodsOutbound,
   finishedGoodsPendingReceipt,
   finishedGoodsReceived,
+  finishedGoodsStock,
   bulkCostReport,
 };
