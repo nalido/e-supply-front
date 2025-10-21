@@ -89,6 +89,10 @@ import type {
   OrderMaterialRequirementListParams,
   OrderMaterialRequirementListResponse,
 } from '../types/order-material-requirement-report';
+import type {
+  OutsourcingCuttingDetailListParams,
+  OutsourcingCuttingDetailListResponse,
+} from '../types/order-outsourcing-cutting-detail-report';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -140,6 +144,7 @@ import {
   submitOrderPurchaseInboundReceive,
   updateOrderPurchaseInboundStatus,
 } from '../mock/order-purchase-inbound';
+import { fetchOutsourcingCuttingDetailList } from '../mock/order-outsourcing-cutting-detail-report';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1684,6 +1689,14 @@ const orderMaterialRequirementReport = {
   },
 };
 
+const outsourcingCuttingDetailReport = {
+  async getList(
+    params: OutsourcingCuttingDetailListParams,
+  ): Promise<OutsourcingCuttingDetailListResponse> {
+    return fetchOutsourcingCuttingDetailList(params);
+  },
+};
+
 const finishedGoodsOutbound = {
   async getMeta(): Promise<FinishedGoodsOutboundMeta> {
     return fetchFinishedGoodsOutboundMeta();
@@ -1783,6 +1796,7 @@ export const finishedGoodsStockService = finishedGoodsStock;
 export const bulkCostReportService = bulkCostReport;
 export const materialInventoryReportService = materialInventoryReport;
 export const orderMaterialRequirementReportService = orderMaterialRequirementReport;
+export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
 
 export default {
   dashboard,
@@ -1804,4 +1818,5 @@ export default {
   finishedGoodsStock,
   bulkCostReport,
   orderMaterialRequirementReport,
+  outsourcingCuttingDetailReport,
 };
