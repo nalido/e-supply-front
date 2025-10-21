@@ -7,6 +7,7 @@ import { materialStockService } from '../api/mock';
 import type {
   MaterialStockListItem,
   MaterialStockListParams,
+  MaterialStockListResponse,
   MaterialStockMeta,
   MaterialStockType,
 } from '../types/material-stock';
@@ -25,7 +26,13 @@ const formatQuantity = (value: number): string => value.toLocaleString('zh-CN');
 
 const MaterialStock = () => {
   const [meta, setMeta] = useState<MaterialStockMeta | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
   const [materials, setMaterials] = useState<MaterialStockListItem[]>([]);
+  const [summary, setSummary] = useState<MaterialStockListResponse['summary']>({
+    stockQtyTotal: 0,
+    availableQtyTotal: 0,
+    inTransitQtyTotal: 0,
+  });
   const [tableLoading, setTableLoading] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
   const [onlyInStock, setOnlyInStock] = useState(true);
@@ -41,6 +48,7 @@ const MaterialStock = () => {
 
   useEffect(() => {
     const loadMeta = async () => {
+      setMetaLoading(true);
       try {
         const response = await materialStockService.getMeta();
         setMeta(response);
@@ -50,10 +58,12 @@ const MaterialStock = () => {
       } catch (error) {
         console.error('failed to load material stock meta', error);
         message.error('加载物料库存配置失败');
+      } finally {
+        setMetaLoading(false);
       }
     };
 
-    loadMeta();
+    void loadMeta();
   }, []);
 
   useEffect(() => {
@@ -79,6 +89,7 @@ const MaterialStock = () => {
       const response = await materialStockService.getList(params);
       setMaterials(response.list);
       setTotal(response.total);
+      setSummary(response.summary);
       const validIds = new Set(response.list.map((item) => item.id));
       setSelectedRowKeys((prev) => prev.filter((key) => validIds.has(String(key))));
       setSelectedRows((prev) => prev.filter((item) => validIds.has(item.id)));
@@ -262,93 +273,104 @@ const MaterialStock = () => {
 
   const tabItems = useMemo(() => (meta?.materialTabs?.length ? meta.materialTabs : DEFAULT_TABS), [meta]);
 
+  const summaryItems = useMemo(
+    () => [
+      { label: '库存总数', value: `${formatQuantity(summary.stockQtyTotal)}` },
+      { label: '可用总数', value: `${formatQuantity(summary.availableQtyTotal)}` },
+      { label: '采购在途', value: `${formatQuantity(summary.inTransitQtyTotal)}` },
+    ],
+    [summary.availableQtyTotal, summary.inTransitQtyTotal, summary.stockQtyTotal],
+  );
+
+  const hasSelection = selectedRowKeys.length > 0;
+  const canShowDetails = selectedRows.length === 1;
+
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} bodyStyle={{ padding: 0 }}>
+    <Card title="物料库存" bordered={false} loading={metaLoading}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Tabs
           items={tabItems.map((tab) => ({ key: tab.value, label: tab.label }))}
           activeKey={materialType}
           onChange={handleTabChange}
         />
-        <div style={{ padding: '0 24px 24px' }}>
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col flex="auto">
-              <Space size={12} wrap>
-                <Button
-                  type="primary"
-                  icon={<ShoppingOutlined />}
-                  disabled={!selectedRowKeys.length}
-                  onClick={handleMaterialRequisition}
-                >
-                  领料出库
-                </Button>
-                <Button
-                  icon={<ProfileOutlined />}
-                  disabled={selectedRows.length !== 1}
-                  onClick={handleShowDetails}
-                >
-                  显示进出明细
-                </Button>
-                <Button icon={<DownloadOutlined />} onClick={handleExport}>
-                  导出Excel
-                </Button>
-                <Space size={8} align="center">
-                  <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
-                  <Text>仅显示有库存</Text>
-                </Space>
-              </Space>
-            </Col>
-          </Row>
 
-          <Card bordered style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]} align="middle" wrap>
-              <Col xs={24} sm={12} md={6}>
-                <Input
-                  allowClear
-                  placeholder="备注"
-                  value={remarkKeyword}
-                  onChange={(event) => setRemarkKeyword(event.target.value)}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <Input
-                  allowClear
-                  placeholder="订单/款式"
-                  value={orderKeyword}
-                  onChange={(event) => setOrderKeyword(event.target.value)}
-                />
-              </Col>
-              <Col xs={24} sm={24} md={12}>
-                <Space size={12} wrap>
-                  <Button type="primary" onClick={handleSearch}>
-                    搜索
-                  </Button>
-                  <Button onClick={handleReset}>重置</Button>
-                </Space>
-              </Col>
-            </Row>
-          </Card>
-
-          <Table<MaterialStockListItem>
-            rowKey="id"
-            loading={tableLoading}
-            dataSource={materials}
-            columns={columns}
-            rowSelection={selection}
-            pagination={{
-              current: page,
-              pageSize,
-              total,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-              onChange: handleTableChange,
-              showTotal: (value) => `共 ${value} 条`,
-            }}
-            scroll={{ x: 1200 }}
-          />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
+          <Space size={12} wrap>
+            <Button
+              type="primary"
+              icon={<ShoppingOutlined />}
+              disabled={!hasSelection}
+              onClick={handleMaterialRequisition}
+            >
+              领料出库
+            </Button>
+            <Button icon={<ProfileOutlined />} disabled={!canShowDetails} onClick={handleShowDetails}>
+              显示进出明细
+            </Button>
+            <Space size={8} align="center">
+              <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
+              <Text>仅显示有库存</Text>
+            </Space>
+          </Space>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>
+            导出Excel
+          </Button>
         </div>
-      </Card>
-    </Space>
+
+        <Row gutter={[16, 16]} wrap>
+          <Col xs={24} sm={12} md={6}>
+            <Input
+              allowClear
+              placeholder="备注关键词"
+              value={remarkKeyword}
+              onChange={(event) => setRemarkKeyword(event.target.value)}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Input
+              allowClear
+              placeholder="订单/款式"
+              value={orderKeyword}
+              onChange={(event) => setOrderKeyword(event.target.value)}
+            />
+          </Col>
+          <Col xs={24} sm={24} md={12}>
+            <Space size={12} wrap>
+              <Button type="primary" onClick={handleSearch}>
+                搜索
+              </Button>
+              <Button onClick={handleReset}>重置</Button>
+            </Space>
+          </Col>
+        </Row>
+
+        <Space size={24} wrap>
+          {summaryItems.map((item) => (
+            <Text key={item.label} type="secondary">
+              {item.label}：<Text strong>{item.value}</Text>
+            </Text>
+          ))}
+        </Space>
+
+        <Table<MaterialStockListItem>
+          rowKey="id"
+          loading={tableLoading}
+          dataSource={materials}
+          columns={columns}
+          rowSelection={selection}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            onChange: handleTableChange,
+            showTotal: (value) => `共 ${value} 条`,
+          }}
+          scroll={{ x: 'max-content' }}
+        />
+      </Space>
+    </Card>
   );
 };
 

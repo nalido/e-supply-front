@@ -77,6 +77,14 @@ import type {
   MaterialPurchaseReportListResponse,
   MaterialPurchaseReportMeta,
 } from '../types/material-purchase-report';
+import type {
+  OrderPurchaseInboundExportParams,
+  OrderPurchaseInboundListParams,
+  OrderPurchaseInboundListResponse,
+  OrderPurchaseInboundMeta,
+  OrderPurchaseInboundReceivePayload,
+  OrderPurchaseInboundStatusPayload,
+} from '../types/order-purchase-inbound';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -120,6 +128,13 @@ import {
   fetchMaterialIssueList,
   fetchMaterialIssueMeta,
 } from '../mock/material-issue';
+import {
+  exportOrderPurchaseInbound,
+  fetchOrderPurchaseInboundList,
+  fetchOrderPurchaseInboundMeta,
+  submitOrderPurchaseInboundReceive,
+  updateOrderPurchaseInboundStatus,
+} from '../mock/order-purchase-inbound';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1562,6 +1577,36 @@ const materialPurchaseReport = {
   },
 };
 
+const orderPurchaseInbound = {
+  async getMeta(): Promise<OrderPurchaseInboundMeta> {
+    return fetchOrderPurchaseInboundMeta();
+  },
+
+  async getList(
+    params: OrderPurchaseInboundListParams,
+  ): Promise<OrderPurchaseInboundListResponse> {
+    return fetchOrderPurchaseInboundList(params);
+  },
+
+  async batchReceive(
+    payload: OrderPurchaseInboundReceivePayload,
+  ): Promise<{ success: boolean }> {
+    return submitOrderPurchaseInboundReceive(payload);
+  },
+
+  async updateStatus(
+    payload: OrderPurchaseInboundStatusPayload,
+  ): Promise<{ success: boolean }> {
+    return updateOrderPurchaseInboundStatus(payload);
+  },
+
+  async export(
+    params: OrderPurchaseInboundExportParams,
+  ): Promise<{ url: string }> {
+    return exportOrderPurchaseInbound(params);
+  },
+};
+
 const materialIssue = {
   async getMeta(): Promise<MaterialIssueMeta> {
     return fetchMaterialIssueMeta();
@@ -1714,6 +1759,7 @@ export const sampleService = sample;
 export const operationalEfficiencyService = operationalEfficiency;
 export const materialStockService = materialStock;
 export const materialPurchaseReportService = materialPurchaseReport;
+export const orderPurchaseInboundService = orderPurchaseInbound;
 export const materialIssueService = materialIssue;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
@@ -1733,6 +1779,7 @@ export default {
   operationalEfficiency,
   materialStock,
   materialPurchaseReport,
+  orderPurchaseInbound,
   materialIssue,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,

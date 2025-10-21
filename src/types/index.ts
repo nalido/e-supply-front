@@ -23,3 +23,4 @@ export * from './operational-efficiency';
 export * from './material-stock';
 export * from './material-purchase-report';
 export * from './material-issue';
+export * from './order-purchase-inbound';
