@@ -1,0 +1,571 @@
+import type {
+  OrderMaterialRequirementListItem,
+  OrderMaterialRequirementListParams,
+  OrderMaterialRequirementListResponse,
+  OrderMaterialRequirementType,
+} from '../types/order-material-requirement-report';
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type RequirementSeed = {
+  id: string;
+  imageUrl: string;
+  name: string;
+  supplier: string;
+  materialCategory: string;
+  color: string;
+  width?: string;
+  grammage?: string;
+  allowance?: string;
+  supplierModel: string;
+  supplierColor: string;
+  stockPurchaseQty: number;
+  stockInventoryQty: number;
+  stockInTransitQty: number;
+  totalRequiredQty: number;
+};
+
+const fabricSeeds: RequirementSeed[] = [
+  {
+    id: 'fabric-001',
+    imageUrl: '/assets/images/styles/ET0110.jpg',
+    name: '260g纯棉拉毛布',
+    supplier: '绍兴纺织',
+    materialCategory: '针织布',
+    color: '黑色',
+    width: '180cm',
+    grammage: '260g',
+    allowance: '3%',
+    supplierModel: 'M260',
+    supplierColor: '#000000',
+    stockPurchaseQty: 500,
+    stockInventoryQty: 200,
+    stockInTransitQty: 300,
+    totalRequiredQty: 1050,
+  },
+  {
+    id: 'fabric-002',
+    imageUrl: '/assets/images/styles/ET0151.jpg',
+    name: '280g新疆长绒棉汗布',
+    supplier: '江苏源彩',
+    materialCategory: '针织布',
+    color: '深蓝',
+    width: '175cm',
+    grammage: '280g',
+    allowance: '2%',
+    supplierModel: 'SC280',
+    supplierColor: 'Navy-01',
+    stockPurchaseQty: 420,
+    stockInventoryQty: 240,
+    stockInTransitQty: 120,
+    totalRequiredQty: 600,
+  },
+  {
+    id: 'fabric-003',
+    imageUrl: '/assets/images/styles/ET0152.jpg',
+    name: '40s全棉府绸',
+    supplier: '安庆安纺',
+    materialCategory: '梭织布',
+    color: '象牙白',
+    width: '150cm',
+    grammage: '135g',
+    allowance: '2%',
+    supplierModel: 'AF40S',
+    supplierColor: 'IV-02',
+    stockPurchaseQty: 380,
+    stockInventoryQty: 260,
+    stockInTransitQty: 96,
+    totalRequiredQty: 320,
+  },
+  {
+    id: 'fabric-004',
+    imageUrl: '/assets/images/styles/ET0168.jpg',
+    name: '330g涤棉双面摇粒绒',
+    supplier: '常熟恒基',
+    materialCategory: '摇粒绒',
+    color: '雾霾灰',
+    width: '190cm',
+    grammage: '330g',
+    allowance: '4%',
+    supplierModel: 'HJ330',
+    supplierColor: 'GY-07',
+    stockPurchaseQty: 520,
+    stockInventoryQty: 180,
+    stockInTransitQty: 240,
+    totalRequiredQty: 850,
+  },
+  {
+    id: 'fabric-005',
+    imageUrl: '/assets/images/styles/ET0193.jpg',
+    name: '118g锦纶四面弹',
+    supplier: '东莞华源',
+    materialCategory: '功能面料',
+    color: '石墨灰',
+    width: '145cm',
+    grammage: '118g',
+    allowance: '3%',
+    supplierModel: 'HY118',
+    supplierColor: 'GY-21',
+    stockPurchaseQty: 260,
+    stockInventoryQty: 150,
+    stockInTransitQty: 90,
+    totalRequiredQty: 540,
+  },
+  {
+    id: 'fabric-006',
+    imageUrl: '/assets/images/styles/ET5031.jpg',
+    name: '300g全棉罗纹布',
+    supplier: '嘉兴锦润',
+    materialCategory: '罗纹布',
+    color: '暖白',
+    width: '110cm',
+    grammage: '300g',
+    allowance: '2%',
+    supplierModel: 'JR300',
+    supplierColor: 'W-01',
+    stockPurchaseQty: 180,
+    stockInventoryQty: 120,
+    stockInTransitQty: 30,
+    totalRequiredQty: 260,
+  },
+  {
+    id: 'fabric-007',
+    imageUrl: '/assets/images/styles/ET5201.jpg',
+    name: '80%羊毛精纺呢料',
+    supplier: '宁波恒源祥',
+    materialCategory: '毛呢',
+    color: '烟灰蓝',
+    width: '155cm',
+    grammage: '420g',
+    allowance: '5%',
+    supplierModel: 'HYW420',
+    supplierColor: 'Blue-05',
+    stockPurchaseQty: 320,
+    stockInventoryQty: 140,
+    stockInTransitQty: 60,
+    totalRequiredQty: 420,
+  },
+  {
+    id: 'fabric-008',
+    imageUrl: '/assets/images/styles/ET5315.jpg',
+    name: 'T400动态弹斜纹布',
+    supplier: '盛泽联欣',
+    materialCategory: '梭织布',
+    color: '深绿',
+    width: '148cm',
+    grammage: '210g',
+    allowance: '3%',
+    supplierModel: 'LX210',
+    supplierColor: 'Forest-03',
+    stockPurchaseQty: 400,
+    stockInventoryQty: 180,
+    stockInTransitQty: 140,
+    totalRequiredQty: 520,
+  },
+  {
+    id: 'fabric-009',
+    imageUrl: '/assets/images/styles/ET5406.jpg',
+    name: '提花双层空气层',
+    supplier: '杭州博雅',
+    materialCategory: '空气层',
+    color: '奶油黄',
+    width: '160cm',
+    grammage: '280g',
+    allowance: '3%',
+    supplierModel: 'BY280',
+    supplierColor: 'Cream-02',
+    stockPurchaseQty: 340,
+    stockInventoryQty: 110,
+    stockInTransitQty: 160,
+    totalRequiredQty: 540,
+  },
+  {
+    id: 'fabric-010',
+    imageUrl: '/assets/images/styles/ET5401.jpg',
+    name: '21支涤粘三防布',
+    supplier: '泉州宏达',
+    materialCategory: '功能面料',
+    color: '军绿',
+    width: '152cm',
+    grammage: '230g',
+    allowance: '4%',
+    supplierModel: 'HD230',
+    supplierColor: 'Army-01',
+    stockPurchaseQty: 360,
+    stockInventoryQty: 240,
+    stockInTransitQty: 80,
+    totalRequiredQty: 420,
+  },
+  {
+    id: 'fabric-011',
+    imageUrl: '/assets/images/styles/ET5410.jpg',
+    name: '丝光棉珠地布',
+    supplier: '广东锦瑞',
+    materialCategory: '珠地布',
+    color: '深紫',
+    width: '170cm',
+    grammage: '240g',
+    allowance: '2%',
+    supplierModel: 'JR240',
+    supplierColor: 'Purple-06',
+    stockPurchaseQty: 280,
+    stockInventoryQty: 180,
+    stockInTransitQty: 40,
+    totalRequiredQty: 360,
+  },
+  {
+    id: 'fabric-012',
+    imageUrl: '/assets/images/styles/ET5502.jpg',
+    name: '棉涤牛津纺',
+    supplier: '无锡德润',
+    materialCategory: '梭织布',
+    color: '天空蓝',
+    width: '148cm',
+    grammage: '190g',
+    allowance: '3%',
+    supplierModel: 'DR190',
+    supplierColor: 'Sky-02',
+    stockPurchaseQty: 300,
+    stockInventoryQty: 220,
+    stockInTransitQty: 60,
+    totalRequiredQty: 280,
+  },
+];
+
+const accessorySeeds: RequirementSeed[] = [
+  {
+    id: 'accessory-001',
+    imageUrl: '/assets/images/styles/ET5033.jpg',
+    name: '5#树脂闭口拉链',
+    supplier: '广州市亿拉',
+    materialCategory: '拉链',
+    color: '黑色',
+    allowance: '2%',
+    supplierModel: 'YL-5A',
+    supplierColor: 'Black',
+    stockPurchaseQty: 2600,
+    stockInventoryQty: 1200,
+    stockInTransitQty: 800,
+    totalRequiredQty: 3200,
+  },
+  {
+    id: 'accessory-002',
+    imageUrl: '/assets/images/styles/ET5315.jpg',
+    name: '品牌织唛-主唛',
+    supplier: '义乌华艺',
+    materialCategory: '织唛',
+    color: '多色',
+    allowance: '1%',
+    supplierModel: 'HY-Main',
+    supplierColor: 'Full',
+    stockPurchaseQty: 5000,
+    stockInventoryQty: 2800,
+    stockInTransitQty: 1100,
+    totalRequiredQty: 4600,
+  },
+  {
+    id: 'accessory-003',
+    imageUrl: '/assets/images/styles/ET5406.jpg',
+    name: '金属四合扣-枪黑',
+    supplier: '东莞伟利',
+    materialCategory: '辅料五金',
+    color: '枪黑',
+    allowance: '3%',
+    supplierModel: 'WL-SN04',
+    supplierColor: 'Gun-Black',
+    stockPurchaseQty: 8400,
+    stockInventoryQty: 3600,
+    stockInTransitQty: 2200,
+    totalRequiredQty: 9200,
+  },
+  {
+    id: 'accessory-004',
+    imageUrl: '/assets/images/styles/ET5201.jpg',
+    name: '特多龙烫画',
+    supplier: '温州彩固',
+    materialCategory: '烫画',
+    color: '多色',
+    allowance: '2%',
+    supplierModel: 'CG-TH01',
+    supplierColor: 'Full',
+    stockPurchaseQty: 3200,
+    stockInventoryQty: 1400,
+    stockInTransitQty: 900,
+    totalRequiredQty: 3800,
+  },
+  {
+    id: 'accessory-005',
+    imageUrl: '/assets/images/styles/ET5109.jpg',
+    name: '平纹罗纹松紧带',
+    supplier: '深圳宏鑫',
+    materialCategory: '松紧带',
+    color: '白色',
+    allowance: '2%',
+    supplierModel: 'HX-Elastic',
+    supplierColor: 'White',
+    stockPurchaseQty: 2600,
+    stockInventoryQty: 900,
+    stockInTransitQty: 600,
+    totalRequiredQty: 3100,
+  },
+  {
+    id: 'accessory-006',
+    imageUrl: '/assets/images/styles/ET5031.jpg',
+    name: '1.2cm树脂纽扣',
+    supplier: '宁波纽新',
+    materialCategory: '纽扣',
+    color: '米白',
+    allowance: '2%',
+    supplierModel: 'NX-Button12',
+    supplierColor: 'Ivory',
+    stockPurchaseQty: 4800,
+    stockInventoryQty: 2600,
+    stockInTransitQty: 1200,
+    totalRequiredQty: 5200,
+  },
+  {
+    id: 'accessory-007',
+    imageUrl: '/assets/images/styles/ET5401.jpg',
+    name: '品牌吊牌组',
+    supplier: '杭州茂源',
+    materialCategory: '纸制辅料',
+    color: '多色',
+    allowance: '1%',
+    supplierModel: 'MY-Tag',
+    supplierColor: 'Full',
+    stockPurchaseQty: 4200,
+    stockInventoryQty: 1800,
+    stockInTransitQty: 900,
+    totalRequiredQty: 4500,
+  },
+  {
+    id: 'accessory-008',
+    imageUrl: '/assets/images/styles/ET0152.jpg',
+    name: '平织包边带',
+    supplier: '嘉兴润通',
+    materialCategory: '缝制辅料',
+    color: '深灰',
+    allowance: '2%',
+    supplierModel: 'RT-Binding',
+    supplierColor: 'Dark-Gray',
+    stockPurchaseQty: 2600,
+    stockInventoryQty: 1500,
+    stockInTransitQty: 600,
+    totalRequiredQty: 2600,
+  },
+  {
+    id: 'accessory-009',
+    imageUrl: '/assets/images/styles/CT0010.jpg',
+    name: '涤纶包缝线 40/2',
+    supplier: '温州东星',
+    materialCategory: '缝纫线',
+    color: '藏青',
+    allowance: '3%',
+    supplierModel: 'DX-402',
+    supplierColor: 'Navy',
+    stockPurchaseQty: 6200,
+    stockInventoryQty: 3800,
+    stockInTransitQty: 1200,
+    totalRequiredQty: 5600,
+  },
+  {
+    id: 'accessory-010',
+    imageUrl: '/assets/images/styles/ET5315.jpg',
+    name: '定制硅胶章',
+    supplier: '东莞塑艺',
+    materialCategory: '装饰辅料',
+    color: '黑橙拼',
+    allowance: '2%',
+    supplierModel: 'SY-Sil-01',
+    supplierColor: 'Black/Orange',
+    stockPurchaseQty: 2800,
+    stockInventoryQty: 900,
+    stockInTransitQty: 700,
+    totalRequiredQty: 3400,
+  },
+];
+
+const packagingSeeds: RequirementSeed[] = [
+  {
+    id: 'packaging-001',
+    imageUrl: '/assets/images/styles/ET5201.jpg',
+    name: 'PP自封袋 35*45cm',
+    supplier: '义乌恒信',
+    materialCategory: '内包装',
+    color: '透明',
+    allowance: '3%',
+    supplierModel: 'HX-PP3545',
+    supplierColor: 'Clear',
+    stockPurchaseQty: 3800,
+    stockInventoryQty: 1600,
+    stockInTransitQty: 1200,
+    totalRequiredQty: 4200,
+  },
+  {
+    id: 'packaging-002',
+    imageUrl: '/assets/images/styles/ET5406.jpg',
+    name: '品牌外箱 60*40*45cm',
+    supplier: '上海展诚',
+    materialCategory: '外箱',
+    color: '牛皮',
+    allowance: '5%',
+    supplierModel: 'ZC-604045',
+    supplierColor: 'Kraft',
+    stockPurchaseQty: 1200,
+    stockInventoryQty: 420,
+    stockInTransitQty: 360,
+    totalRequiredQty: 1500,
+  },
+  {
+    id: 'packaging-003',
+    imageUrl: '/assets/images/styles/ET5031.jpg',
+    name: '定制手提礼袋',
+    supplier: '苏州派格',
+    materialCategory: '礼品包装',
+    color: '白+银',
+    allowance: '4%',
+    supplierModel: 'PG-Gift',
+    supplierColor: 'White/Silver',
+    stockPurchaseQty: 800,
+    stockInventoryQty: 220,
+    stockInTransitQty: 240,
+    totalRequiredQty: 1200,
+  },
+  {
+    id: 'packaging-004',
+    imageUrl: '/assets/images/styles/ET5401.jpg',
+    name: '吸塑衣架 32cm',
+    supplier: '常熟晨光',
+    materialCategory: '衣架',
+    color: '透明',
+    allowance: '2%',
+    supplierModel: 'CG-Hanger32',
+    supplierColor: 'Clear',
+    stockPurchaseQty: 2600,
+    stockInventoryQty: 1100,
+    stockInTransitQty: 700,
+    totalRequiredQty: 2800,
+  },
+  {
+    id: 'packaging-005',
+    imageUrl: '/assets/images/styles/ET5605.jpg',
+    name: '定制彩卡',
+    supplier: '东莞米兰',
+    materialCategory: '纸卡',
+    color: '四色',
+    allowance: '2%',
+    supplierModel: 'ML-Card',
+    supplierColor: 'CMYK',
+    stockPurchaseQty: 3200,
+    stockInventoryQty: 1800,
+    stockInTransitQty: 900,
+    totalRequiredQty: 3500,
+  },
+  {
+    id: 'packaging-006',
+    imageUrl: '/assets/images/styles/ET5033.jpg',
+    name: 'PE贴骨袋 28*38cm',
+    supplier: '慈溪富美',
+    materialCategory: '内包装',
+    color: '透明',
+    allowance: '3%',
+    supplierModel: 'FM-PE2838',
+    supplierColor: 'Clear',
+    stockPurchaseQty: 5400,
+    stockInventoryQty: 2100,
+    stockInTransitQty: 1800,
+    totalRequiredQty: 5800,
+  },
+  {
+    id: 'packaging-007',
+    imageUrl: '/assets/images/styles/ET5410.jpg',
+    name: '品牌封箱胶带',
+    supplier: '廊坊鑫胶',
+    materialCategory: '封箱辅料',
+    color: '橙/白',
+    allowance: '2%',
+    supplierModel: 'XJ-Tape',
+    supplierColor: 'Orange/White',
+    stockPurchaseQty: 1500,
+    stockInventoryQty: 620,
+    stockInTransitQty: 480,
+    totalRequiredQty: 1600,
+  },
+];
+
+const seedMap: Record<OrderMaterialRequirementType, RequirementSeed[]> = {
+  fabric: fabricSeeds,
+  accessory: accessorySeeds,
+  packaging: packagingSeeds,
+};
+
+const createItem = (
+  seed: RequirementSeed,
+): OrderMaterialRequirementListItem => {
+  const restockQty = Math.max(seed.totalRequiredQty - (seed.stockInventoryQty + seed.stockInTransitQty), 0);
+  return {
+    id: seed.id,
+    imageUrl: seed.imageUrl,
+    name: seed.name,
+    supplier: seed.supplier,
+    materialCategory: seed.materialCategory,
+    color: seed.color,
+    width: seed.width,
+    grammage: seed.grammage,
+    allowance: seed.allowance,
+    supplierModel: seed.supplierModel,
+    supplierColor: seed.supplierColor,
+    stockPurchaseQty: seed.stockPurchaseQty,
+    stockInventoryQty: seed.stockInventoryQty,
+    stockInTransitQty: seed.stockInTransitQty,
+    restockQty,
+    totalRequiredQty: seed.totalRequiredQty,
+  };
+};
+
+const normalizeKeyword = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || undefined;
+};
+
+const filterSeeds = (
+  type: OrderMaterialRequirementType,
+  params: OrderMaterialRequirementListParams,
+): OrderMaterialRequirementListItem[] => {
+  const seeds = seedMap[type] ?? [];
+  const keyword = normalizeKeyword(params.name);
+  const items = seeds.map(createItem);
+  return items
+    .filter((item) => {
+      if (params.restockNeeded && item.restockQty <= 0) {
+        return false;
+      }
+      if (keyword) {
+        return item.name.toLowerCase().includes(keyword);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (b.restockQty !== a.restockQty) {
+        return b.restockQty - a.restockQty;
+      }
+      return b.totalRequiredQty - a.totalRequiredQty;
+    });
+};
+
+export const fetchOrderMaterialRequirementList = async (
+  params: OrderMaterialRequirementListParams,
+  latency = 260,
+): Promise<OrderMaterialRequirementListResponse> => {
+  await delay(latency);
+  const page = Math.max(params.page, 1);
+  const pageSize = Math.max(params.pageSize, 1);
+  const filtered = filterSeeds(params.materialType, params);
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const list = filtered.slice(start, start + pageSize);
+  return { list, total };
+};

@@ -85,6 +85,10 @@ import type {
   OrderPurchaseInboundReceivePayload,
   OrderPurchaseInboundStatusPayload,
 } from '../types/order-purchase-inbound';
+import type {
+  OrderMaterialRequirementListParams,
+  OrderMaterialRequirementListResponse,
+} from '../types/order-material-requirement-report';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -120,6 +124,7 @@ import {
   fetchMaterialStockList,
   fetchMaterialStockMeta,
 } from '../mock/material-stock';
+import { fetchOrderMaterialRequirementList } from '../mock/order-material-requirement-report';
 import {
   fetchMaterialPurchaseReportList,
   fetchMaterialPurchaseReportMeta,
@@ -1671,6 +1676,14 @@ const materialInventoryReport = {
   },
 };
 
+const orderMaterialRequirementReport = {
+  async getList(
+    params: OrderMaterialRequirementListParams,
+  ): Promise<OrderMaterialRequirementListResponse> {
+    return fetchOrderMaterialRequirementList(params);
+  },
+};
+
 const finishedGoodsOutbound = {
   async getMeta(): Promise<FinishedGoodsOutboundMeta> {
     return fetchFinishedGoodsOutboundMeta();
@@ -1769,6 +1782,7 @@ export const finishedGoodsReceivedService = finishedGoodsReceived;
 export const finishedGoodsStockService = finishedGoodsStock;
 export const bulkCostReportService = bulkCostReport;
 export const materialInventoryReportService = materialInventoryReport;
+export const orderMaterialRequirementReportService = orderMaterialRequirementReport;
 
 export default {
   dashboard,
@@ -1789,4 +1803,5 @@ export default {
   finishedGoodsReceived,
   finishedGoodsStock,
   bulkCostReport,
+  orderMaterialRequirementReport,
 };

@@ -25,6 +25,7 @@ import OperationalEfficiency from './views/OperationalEfficiency';
 import IncomingOrders from './views/IncomingOrders';
 import OutsourceOrders from './views/OutsourceOrders';
 import BulkCostReport from './views/BulkCostReport';
+import OrderMaterialRequirementReport from './views/OrderMaterialRequirementReport';
 import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
 import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
 import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
@@ -101,6 +102,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/piecework/cutting/report' &&
     n.key !== '/piecework/progress' &&
     n.key !== '/orders/report/cost' &&
+    n.key !== '/orders/report/material-need' &&
     n.key !== '/product/report/overview' &&
     n.key !== '/product/inbound-other' &&
     n.key !== '/product/stock' &&
@@ -137,6 +139,7 @@ const router = createBrowserRouter([
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
+      { path: 'orders/report/material-need', element: React.createElement(OrderMaterialRequirementReport) },
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
       { path: 'product/stock', element: React.createElement(FinishedGoodsStock) },
       { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
