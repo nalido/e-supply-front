@@ -103,6 +103,17 @@ import type {
   OutsourcingCuttingDetailListResponse,
 } from '../types/order-outsourcing-cutting-detail-report';
 import type {
+  OutsourcingManagementListParams,
+  OutsourcingManagementListResponse,
+  OutsourcingManagementMeta,
+} from '../types/outsourcing-management';
+import type {
+  OutsourcingProductionReportListParams,
+  OutsourcingProductionReportListResponse,
+  OutsourcingProductionReportMeta,
+  OutsourcingSubcontractorStat,
+} from '../types/outsourcing-production-report';
+import type {
   OrderTicketLotListParams,
   OrderTicketLotListResponse,
   OrderTicketRecordListParams,
@@ -198,6 +209,18 @@ import {
   fetchFinishedGoodsPendingReceiptMeta,
   submitFinishedGoodsReceipt,
 } from '../mock/product-inbound-pending';
+import {
+  exportOutsourcingManagement,
+  fetchOutsourcingManagementList,
+  fetchOutsourcingManagementMeta,
+} from '../mock/outsourcing-management';
+import {
+  exportOutsourcingProductionReport,
+  fetchOutsourcingProductionReportList,
+  fetchOutsourcingProductionReportMeta,
+  fetchOutsourcingSubcontractorStats,
+  submitOutsourcingReportPrintTask,
+} from '../mock/outsourcing-production-report';
 import {
   exportFinishedGoodsReceived,
   fetchFinishedGoodsReceivedList,
@@ -1881,6 +1904,50 @@ const orderShipmentProfitReport = {
   },
 };
 
+const outsourcingManagement = {
+  async getMeta(): Promise<OutsourcingManagementMeta> {
+    return fetchOutsourcingManagementMeta();
+  },
+
+  async getList(
+    params: OutsourcingManagementListParams,
+  ): Promise<OutsourcingManagementListResponse> {
+    return fetchOutsourcingManagementList(params);
+  },
+
+  async export(
+    params: OutsourcingManagementListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportOutsourcingManagement(params);
+  },
+};
+
+const outsourcingProductionReport = {
+  async getMeta(): Promise<OutsourcingProductionReportMeta> {
+    return fetchOutsourcingProductionReportMeta();
+  },
+
+  async getSubcontractorStats(): Promise<OutsourcingSubcontractorStat[]> {
+    return fetchOutsourcingSubcontractorStats();
+  },
+
+  async getList(
+    params: OutsourcingProductionReportListParams,
+  ): Promise<OutsourcingProductionReportListResponse> {
+    return fetchOutsourcingProductionReportList(params);
+  },
+
+  async export(
+    params: OutsourcingProductionReportListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportOutsourcingProductionReport(params);
+  },
+
+  async print(ids: string[]): Promise<{ success: boolean }> {
+    return submitOutsourcingReportPrintTask(ids);
+  },
+};
+
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
 
 // 为了兼容组件中的命名，添加别名导出
@@ -1904,6 +1971,8 @@ export const productionComparisonService = productionComparison;
 export const orderProgressDetailsReportService = orderProgressDetailsReport;
 export const orderTicketDetailsReportService = orderTicketDetailsReport;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
+export const outsourcingManagementService = outsourcingManagement;
+export const outsourcingProductionReportService = outsourcingProductionReport;
 
 export default {
   dashboard,
@@ -1930,4 +1999,6 @@ export default {
   orderTicketDetailsReport,
   productionComparison,
   outsourcingCuttingDetailReport,
+  outsourcingManagement,
+  outsourcingProductionReport,
 };

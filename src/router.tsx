@@ -24,6 +24,8 @@ import PieceworkDashboard from './views/PieceworkDashboard';
 import OperationalEfficiency from './views/OperationalEfficiency';
 import IncomingOrders from './views/IncomingOrders';
 import OutsourceOrders from './views/OutsourceOrders';
+import OutsourcingManagement from './views/OutsourcingManagement';
+import OutsourcingProductionReport from './views/OutsourcingProductionReport';
 import BulkCostReport from './views/BulkCostReport';
 import OrderMaterialRequirementReport from './views/OrderMaterialRequirementReport';
 import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
@@ -106,10 +108,12 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/piecework/cutting/report' &&
     n.key !== '/piecework/progress' &&
     n.key !== '/piecework/report' &&
+    n.key !== '/piecework/outsource' &&
     n.key !== '/orders/report/profit' &&
     n.key !== '/orders/report/cost' &&
     n.key !== '/orders/report/material-need' &&
     n.key !== '/orders/report/cut-outsource' &&
+    n.key !== '/orders/outsource' &&
     n.key !== '/orders/compare' &&
     n.key !== '/product/report/overview' &&
     n.key !== '/product/inbound-other' &&
@@ -150,6 +154,7 @@ const router = createBrowserRouter([
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
       { path: 'orders/report/material-need', element: React.createElement(OrderMaterialRequirementReport) },
       { path: 'orders/report/cut-outsource', element: React.createElement(OrderOutsourcingCuttingDetailReport) },
+      { path: 'orders/outsource', element: React.createElement(OutsourcingProductionReport) },
       { path: 'orders/compare', element: React.createElement(OrderProductionComparison) },
       { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
       { path: 'product/stock', element: React.createElement(FinishedGoodsStock) },
@@ -183,6 +188,7 @@ const router = createBrowserRouter([
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework/report', element: React.createElement(OrderReportAggregation) },
+      { path: 'piecework/outsource', element: React.createElement(OutsourcingManagement) },
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
       { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },
       { path: 'collab/receive-in', element: React.createElement(IncomingOrders) },
