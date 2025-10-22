@@ -90,6 +90,11 @@ import type {
   OrderMaterialRequirementListResponse,
 } from '../types/order-material-requirement-report';
 import type {
+  OrderShipmentProfitAggregation,
+  OrderShipmentProfitListParams,
+  OrderShipmentProfitListResponse,
+} from '../types/order-shipment-profit-report';
+import type {
   ProductionComparisonListParams,
   ProductionComparisonListResponse,
 } from '../types/order-production-comparison';
@@ -97,6 +102,16 @@ import type {
   OutsourcingCuttingDetailListParams,
   OutsourcingCuttingDetailListResponse,
 } from '../types/order-outsourcing-cutting-detail-report';
+import type {
+  OrderTicketLotListParams,
+  OrderTicketLotListResponse,
+  OrderTicketRecordListParams,
+  OrderTicketRecordListResponse,
+} from '../types/order-ticket-details-report';
+import type {
+  OrderProgressDetailsListParams,
+  OrderProgressDetailsListResponse,
+} from '../types/order-progress-details-report';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -153,6 +168,20 @@ import {
   exportProductionComparison,
   fetchProductionComparisonList,
 } from '../mock/order-production-comparison';
+import {
+  exportOrderProgressDetails,
+  fetchOrderProgressDetailsList,
+} from '../mock/order-progress-details-report';
+import {
+  exportOrderTicketDetails,
+  fetchOrderTicketLots,
+  fetchOrderTicketRecords,
+} from '../mock/order-ticket-details-report';
+import {
+  exportOrderShipmentProfit,
+  fetchOrderShipmentProfitAggregation,
+  fetchOrderShipmentProfitList,
+} from '../mock/order-shipment-profit-report';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1711,6 +1740,40 @@ const productionComparison = {
   },
 };
 
+const orderProgressDetailsReport = {
+  async getList(
+    params: OrderProgressDetailsListParams,
+  ): Promise<OrderProgressDetailsListResponse> {
+    return fetchOrderProgressDetailsList(params);
+  },
+
+  async export(
+    params: OrderProgressDetailsListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportOrderProgressDetails(params);
+  },
+};
+
+const orderTicketDetailsReport = {
+  async getLots(
+    params: OrderTicketLotListParams,
+  ): Promise<OrderTicketLotListResponse> {
+    return fetchOrderTicketLots(params);
+  },
+
+  async getRecords(
+    params: OrderTicketRecordListParams,
+  ): Promise<OrderTicketRecordListResponse> {
+    return fetchOrderTicketRecords(params);
+  },
+
+  async export(
+    params: OrderTicketRecordListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportOrderTicketDetails(params);
+  },
+};
+
 const outsourcingCuttingDetailReport = {
   async getList(
     params: OutsourcingCuttingDetailListParams,
@@ -1800,6 +1863,24 @@ const bulkCostReport = {
   },
 };
 
+const orderShipmentProfitReport = {
+  async getAggregation(): Promise<OrderShipmentProfitAggregation> {
+    return fetchOrderShipmentProfitAggregation();
+  },
+
+  async getList(
+    params: OrderShipmentProfitListParams,
+  ): Promise<OrderShipmentProfitListResponse> {
+    return fetchOrderShipmentProfitList(params);
+  },
+
+  async export(
+    params: OrderShipmentProfitListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportOrderShipmentProfit(params);
+  },
+};
+
 // 车间计件、协同中心、对账结算、基础资料、系统设置可按需逐步补充
 
 // 为了兼容组件中的命名，添加别名导出
@@ -1816,9 +1897,12 @@ export const finishedGoodsPendingReceiptService = finishedGoodsPendingReceipt;
 export const finishedGoodsReceivedService = finishedGoodsReceived;
 export const finishedGoodsStockService = finishedGoodsStock;
 export const bulkCostReportService = bulkCostReport;
+export const orderShipmentProfitReportService = orderShipmentProfitReport;
 export const materialInventoryReportService = materialInventoryReport;
 export const orderMaterialRequirementReportService = orderMaterialRequirementReport;
 export const productionComparisonService = productionComparison;
+export const orderProgressDetailsReportService = orderProgressDetailsReport;
+export const orderTicketDetailsReportService = orderTicketDetailsReport;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
 
 export default {
@@ -1840,7 +1924,10 @@ export default {
   finishedGoodsReceived,
   finishedGoodsStock,
   bulkCostReport,
+  orderShipmentProfitReport,
   orderMaterialRequirementReport,
+  orderProgressDetailsReport,
+  orderTicketDetailsReport,
   productionComparison,
   outsourcingCuttingDetailReport,
 };
