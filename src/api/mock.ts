@@ -90,6 +90,10 @@ import type {
   OrderMaterialRequirementListResponse,
 } from '../types/order-material-requirement-report';
 import type {
+  ProductionComparisonListParams,
+  ProductionComparisonListResponse,
+} from '../types/order-production-comparison';
+import type {
   OutsourcingCuttingDetailListParams,
   OutsourcingCuttingDetailListResponse,
 } from '../types/order-outsourcing-cutting-detail-report';
@@ -145,6 +149,10 @@ import {
   updateOrderPurchaseInboundStatus,
 } from '../mock/order-purchase-inbound';
 import { fetchOutsourcingCuttingDetailList } from '../mock/order-outsourcing-cutting-detail-report';
+import {
+  exportProductionComparison,
+  fetchProductionComparisonList,
+} from '../mock/order-production-comparison';
 import {
   createFinishedGoodsOtherInbound,
   fetchFinishedGoodsOtherInboundList,
@@ -1689,6 +1697,20 @@ const orderMaterialRequirementReport = {
   },
 };
 
+const productionComparison = {
+  async getList(
+    params: ProductionComparisonListParams,
+  ): Promise<ProductionComparisonListResponse> {
+    return fetchProductionComparisonList(params);
+  },
+
+  async export(
+    params: ProductionComparisonListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportProductionComparison(params);
+  },
+};
+
 const outsourcingCuttingDetailReport = {
   async getList(
     params: OutsourcingCuttingDetailListParams,
@@ -1796,6 +1818,7 @@ export const finishedGoodsStockService = finishedGoodsStock;
 export const bulkCostReportService = bulkCostReport;
 export const materialInventoryReportService = materialInventoryReport;
 export const orderMaterialRequirementReportService = orderMaterialRequirementReport;
+export const productionComparisonService = productionComparison;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
 
 export default {
@@ -1818,5 +1841,6 @@ export default {
   finishedGoodsStock,
   bulkCostReport,
   orderMaterialRequirementReport,
+  productionComparison,
   outsourcingCuttingDetailReport,
 };
