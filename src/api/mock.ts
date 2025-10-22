@@ -233,6 +233,55 @@ import {
   fetchFinishedGoodsStockMeta,
 } from '../mock/product-stock';
 import { getSampleCreationMeta } from '../mock/sample-creation';
+import {
+  createCashierAccount,
+  fetchCashierAccountMeta,
+  fetchCashierAccounts,
+  removeCashierAccount,
+  updateCashierAccount,
+} from '../mock/settlement-accounts';
+import {
+  createCustomerReceipt,
+  exportCustomerReceiptReport,
+  fetchCustomerReceiptList,
+  fetchCustomerReceiptMeta,
+} from '../mock/settlement-customer-receipts';
+import {
+  createFactoryPayment,
+  exportFactoryPaymentReport,
+  fetchFactoryPaymentList,
+  fetchFactoryPaymentMeta,
+} from '../mock/settlement-factory-payments';
+import {
+  createSupplierPayment,
+  exportSupplierPaymentReport,
+  fetchSupplierPaymentList,
+  fetchSupplierPaymentMeta,
+} from '../mock/settlement-supplier-payments';
+import {
+  exportCustomerBusinessDetailReport,
+  fetchCustomerBusinessDetailList,
+  fetchCustomerBusinessDetailMeta,
+  fetchCustomerBusinessDetailOverview,
+} from '../mock/settlement-report-customer-details';
+import {
+  exportFactoryBusinessDetailReport,
+  fetchFactoryBusinessDetailList,
+  fetchFactoryBusinessDetailMeta,
+  fetchFactoryBusinessDetailOverview,
+} from '../mock/settlement-report-factory-details';
+import {
+  exportSupplierBusinessDetailReport,
+  fetchSupplierBusinessDetailList,
+  fetchSupplierBusinessDetailMeta,
+  fetchSupplierBusinessDetailOverview,
+} from '../mock/settlement-report-supplier-details';
+import {
+  cancelReconciliation,
+  exportReconciliationDetailsReport,
+  fetchReconciliationDetailsList,
+  fetchReconciliationDetailsMeta,
+} from '../mock/settlement-report-reconciliation-details';
 
 export type Paginated<T> = {
   list: T[];
@@ -1973,6 +2022,55 @@ export const orderTicketDetailsReportService = orderTicketDetailsReport;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
 export const outsourcingManagementService = outsourcingManagement;
 export const outsourcingProductionReportService = outsourcingProductionReport;
+export const cashierAccountService = {
+  getMeta: fetchCashierAccountMeta,
+  getList: fetchCashierAccounts,
+  create: createCashierAccount,
+  update: updateCashierAccount,
+  remove: removeCashierAccount,
+};
+export const customerReceiptService = {
+  getMeta: fetchCustomerReceiptMeta,
+  getList: fetchCustomerReceiptList,
+  create: createCustomerReceipt,
+  export: exportCustomerReceiptReport,
+};
+export const factoryPaymentService = {
+  getMeta: fetchFactoryPaymentMeta,
+  getList: fetchFactoryPaymentList,
+  create: createFactoryPayment,
+  export: exportFactoryPaymentReport,
+};
+export const supplierPaymentService = {
+  getMeta: fetchSupplierPaymentMeta,
+  getList: fetchSupplierPaymentList,
+  create: createSupplierPayment,
+  export: exportSupplierPaymentReport,
+};
+export const customerBusinessDetailReportService = {
+  getMeta: fetchCustomerBusinessDetailMeta,
+  getOverview: fetchCustomerBusinessDetailOverview,
+  getList: fetchCustomerBusinessDetailList,
+  export: exportCustomerBusinessDetailReport,
+};
+export const factoryBusinessDetailReportService = {
+  getMeta: fetchFactoryBusinessDetailMeta,
+  getOverview: fetchFactoryBusinessDetailOverview,
+  getList: fetchFactoryBusinessDetailList,
+  export: exportFactoryBusinessDetailReport,
+};
+export const supplierBusinessDetailReportService = {
+  getMeta: fetchSupplierBusinessDetailMeta,
+  getOverview: fetchSupplierBusinessDetailOverview,
+  getList: fetchSupplierBusinessDetailList,
+  export: exportSupplierBusinessDetailReport,
+};
+export const reconciliationDetailsReportService = {
+  getMeta: fetchReconciliationDetailsMeta,
+  getList: fetchReconciliationDetailsList,
+  cancel: cancelReconciliation,
+  export: exportReconciliationDetailsReport,
+};
 
 export default {
   dashboard,

@@ -43,6 +43,14 @@ import MaterialIssueDetails from './views/MaterialIssueDetails';
 import MaterialStock from './views/MaterialStock';
 import OrderPurchaseInbound from './views/OrderPurchaseInbound';
 import OrderOutsourcingCuttingDetailReport from './views/OrderOutsourcingCuttingDetailReport';
+import SettlementCustomerReceipts from './views/SettlementCustomerReceipts';
+import SettlementFactoryPayments from './views/SettlementFactoryPayments';
+import SettlementSupplierPayments from './views/SettlementSupplierPayments';
+import SettlementCashierAccounts from './views/SettlementCashierAccounts';
+import SettlementReportCustomerDetails from './views/SettlementReportCustomerDetails';
+import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetails';
+import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
+import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
 import {
   ActionLogPage,
   CompanySettings,
@@ -128,6 +136,14 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/material/issue' &&
     n.key !== '/collab/send-out' &&
     n.key !== '/collab/receive-in' &&
+    n.key !== '/settlement/receivable' &&
+    n.key !== '/settlement/payable-factory' &&
+    n.key !== '/settlement/payable-supplier' &&
+    n.key !== '/settlement/cashier' &&
+    n.key !== '/settlement/report/customer-detail' &&
+    n.key !== '/settlement/report/factory-detail' &&
+    n.key !== '/settlement/report/supplier-detail' &&
+    n.key !== '/settlement/report/statement-detail' &&
     !n.children,
   )
   .map((node) => ({
@@ -192,6 +208,14 @@ const router = createBrowserRouter([
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
       { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },
       { path: 'collab/receive-in', element: React.createElement(IncomingOrders) },
+      { path: 'settlement/receivable', element: React.createElement(SettlementCustomerReceipts) },
+      { path: 'settlement/payable-factory', element: React.createElement(SettlementFactoryPayments) },
+      { path: 'settlement/payable-supplier', element: React.createElement(SettlementSupplierPayments) },
+      { path: 'settlement/cashier', element: React.createElement(SettlementCashierAccounts) },
+      { path: 'settlement/report/customer-detail', element: React.createElement(SettlementReportCustomerDetails) },
+      { path: 'settlement/report/factory-detail', element: React.createElement(SettlementReportFactoryDetails) },
+      { path: 'settlement/report/supplier-detail', element: React.createElement(SettlementReportSupplierDetails) },
+      { path: 'settlement/report/statement-detail', element: React.createElement(SettlementReportReconciliationDetails) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
