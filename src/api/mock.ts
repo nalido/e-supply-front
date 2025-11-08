@@ -123,6 +123,43 @@ import type {
   OrderProgressDetailsListParams,
   OrderProgressDetailsListResponse,
 } from '../types/order-progress-details-report';
+import type {
+  ProcessProductionDetailParams,
+  ProcessProductionDetailResponse,
+  ProcessProductionExportParams,
+  ProcessProductionLotListParams,
+  ProcessProductionLotListResponse,
+} from '../types/process-production-comparison-report';
+import type {
+  QualityControlExportParams,
+  QualityControlListParams,
+  QualityControlListResponse,
+  QualityControlMeta,
+} from '../types/quality-control-management';
+import type {
+  SalaryListParams,
+  SalaryListResponse,
+  SalaryMeta,
+  SalarySettlePayload,
+} from '../types/salary-management';
+import type {
+  SampleCostAggregation,
+  SampleCostListParams,
+  SampleCostListResponse,
+} from '../types/sample-costing-report';
+import type {
+  SampleOrderAggregation,
+  SampleOrderComparisonParams,
+  SampleOrderComparisonResponse,
+} from '../types/sample-order-comparison-report';
+import type {
+  StockingBatchReceivePayload,
+  StockingPurchaseExportParams,
+  StockingPurchaseListParams,
+  StockingPurchaseListResponse,
+  StockingPurchaseMeta,
+  StockingStatusUpdatePayload,
+} from '../types/stocking-purchase-inbound';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
@@ -183,6 +220,38 @@ import {
   exportOrderProgressDetails,
   fetchOrderProgressDetailsList,
 } from '../mock/order-progress-details-report';
+import {
+  exportProcessProductionMatrix,
+  fetchProcessProductionDetails,
+  fetchProcessProductionLots,
+} from '../mock/order-process-production-comparison-report';
+import {
+  exportQualityControlRecords,
+  fetchQualityControlList,
+  fetchQualityControlMeta,
+} from '../mock/quality-control-management';
+import {
+  fetchSalaryList,
+  fetchSalaryMeta,
+  settleSalary,
+} from '../mock/salary-management';
+import {
+  exportSampleCostList,
+  fetchSampleCostAggregation,
+  fetchSampleCostList,
+} from '../mock/sample-costing-report';
+import {
+  exportSampleOrderComparison,
+  fetchSampleOrderAggregation,
+  fetchSampleOrderComparisonList,
+} from '../mock/sample-order-comparison-report';
+import {
+  exportStockingPurchaseList,
+  fetchStockingPurchaseList,
+  fetchStockingPurchaseMeta,
+  submitStockingBatchReceive,
+  updateStockingPurchaseStatus,
+} from '../mock/stocking-purchase-inbound';
 import {
   exportOrderTicketDetails,
   fetchOrderTicketLots,
@@ -1812,6 +1881,128 @@ const productionComparison = {
   },
 };
 
+const processProductionComparisonReport = {
+  async getLots(
+    params: ProcessProductionLotListParams,
+  ): Promise<ProcessProductionLotListResponse> {
+    return fetchProcessProductionLots(params);
+  },
+
+  async getDetails(
+    params: ProcessProductionDetailParams,
+  ): Promise<ProcessProductionDetailResponse> {
+    return fetchProcessProductionDetails(params);
+  },
+
+  async export(
+    params: ProcessProductionExportParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportProcessProductionMatrix(params);
+  },
+};
+
+const qualityControlManagement = {
+  async getMeta(): Promise<QualityControlMeta> {
+    return fetchQualityControlMeta();
+  },
+
+  async getList(
+    params: QualityControlListParams,
+  ): Promise<QualityControlListResponse> {
+    return fetchQualityControlList(params);
+  },
+
+  async export(
+    params: QualityControlExportParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportQualityControlRecords(params);
+  },
+};
+
+const salaryManagement = {
+  async getMeta(): Promise<SalaryMeta> {
+    return fetchSalaryMeta();
+  },
+
+  async getList(
+    params: SalaryListParams,
+  ): Promise<SalaryListResponse> {
+    return fetchSalaryList(params);
+  },
+
+  async settle(
+    payload: SalarySettlePayload,
+  ): Promise<{ success: boolean }> {
+    return settleSalary(payload);
+  },
+};
+
+const sampleCostingReport = {
+  async getAggregation(): Promise<SampleCostAggregation> {
+    return fetchSampleCostAggregation();
+  },
+
+  async getList(
+    params: SampleCostListParams,
+  ): Promise<SampleCostListResponse> {
+    return fetchSampleCostList(params);
+  },
+
+  async export(
+    params: SampleCostListParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportSampleCostList(params);
+  },
+};
+
+const sampleOrderComparisonReport = {
+  async getAggregation(): Promise<SampleOrderAggregation> {
+    return fetchSampleOrderAggregation();
+  },
+
+  async getList(
+    params: SampleOrderComparisonParams,
+  ): Promise<SampleOrderComparisonResponse> {
+    return fetchSampleOrderComparisonList(params);
+  },
+
+  async export(
+    params: SampleOrderComparisonParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportSampleOrderComparison(params);
+  },
+};
+
+const stockingPurchaseInbound = {
+  async getMeta(): Promise<StockingPurchaseMeta> {
+    return fetchStockingPurchaseMeta();
+  },
+
+  async getList(
+    params: StockingPurchaseListParams,
+  ): Promise<StockingPurchaseListResponse> {
+    return fetchStockingPurchaseList(params);
+  },
+
+  async batchReceive(
+    payload: StockingBatchReceivePayload,
+  ): Promise<{ success: boolean }> {
+    return submitStockingBatchReceive(payload);
+  },
+
+  async setStatus(
+    payload: StockingStatusUpdatePayload,
+  ): Promise<{ success: boolean }> {
+    return updateStockingPurchaseStatus(payload);
+  },
+
+  async export(
+    params: StockingPurchaseExportParams,
+  ): Promise<{ fileUrl: string }> {
+    return exportStockingPurchaseList(params);
+  },
+};
+
 const orderProgressDetailsReport = {
   async getList(
     params: OrderProgressDetailsListParams,
@@ -2017,6 +2208,12 @@ export const orderShipmentProfitReportService = orderShipmentProfitReport;
 export const materialInventoryReportService = materialInventoryReport;
 export const orderMaterialRequirementReportService = orderMaterialRequirementReport;
 export const productionComparisonService = productionComparison;
+export const processProductionComparisonReportService = processProductionComparisonReport;
+export const qualityControlManagementService = qualityControlManagement;
+export const salaryManagementService = salaryManagement;
+export const sampleCostingReportService = sampleCostingReport;
+export const sampleOrderComparisonReportService = sampleOrderComparisonReport;
+export const stockingPurchaseInboundService = stockingPurchaseInbound;
 export const orderProgressDetailsReportService = orderProgressDetailsReport;
 export const orderTicketDetailsReportService = orderTicketDetailsReport;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;

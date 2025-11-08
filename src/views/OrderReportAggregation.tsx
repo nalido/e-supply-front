@@ -3,6 +3,7 @@ import { Card, Skeleton, Tabs } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import OrderProgressDetailsSection from './order-report/OrderProgressDetailsSection';
 import OrderTicketDetailsSection from './order-report/OrderTicketDetailsSection';
+import ProcessProductionComparisonSection from './order-report/ProcessProductionComparisonSection';
 
 const TAB_KEYS = {
   process: 'process-comparison',
@@ -45,7 +46,7 @@ const OrderReportAggregation = () => {
       case TAB_KEYS.ticket:
         return <OrderTicketDetailsSection />;
       case TAB_KEYS.process:
-        return <PlaceholderCard title="工序生产对照表" />;
+        return <ProcessProductionComparisonSection />;
       case TAB_KEYS.sequential:
         return <PlaceholderCard title="按序生产工序表" />;
       default:

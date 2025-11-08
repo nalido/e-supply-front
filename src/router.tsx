@@ -8,6 +8,8 @@ import SampleDetail from './views/SampleDetail';
 import SampleFollow from './views/SampleFollow';
 import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
+import SampleCostingReport from './views/SampleCostingReport';
+import SampleOrderComparisonReport from './views/SampleOrderComparisonReport';
 import FactoryOrders from './views/FactoryOrders';
 import CuttingPendingPage from './views/CuttingPending';
 import CuttingCompletedPage from './views/CuttingCompleted';
@@ -28,12 +30,14 @@ import OutsourcingManagement from './views/OutsourcingManagement';
 import OutsourcingProductionReport from './views/OutsourcingProductionReport';
 import BulkCostReport from './views/BulkCostReport';
 import OrderMaterialRequirementReport from './views/OrderMaterialRequirementReport';
+import SalaryManagement from './views/SalaryManagement';
 import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
 import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
 import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
 import FinishedGoodsPendingReceipt from './views/FinishedGoodsPendingReceipt';
 import FinishedGoodsReceived from './views/FinishedGoodsReceived';
 import FinishedGoodsStock from './views/FinishedGoodsStock';
+import StockingPurchaseInbound from './views/StockingPurchaseInbound';
 import OrderProductionComparison from './views/OrderProductionComparison';
 import OrderReportAggregation from './views/OrderReportAggregation';
 import OrderShipmentProfitReport from './views/OrderShipmentProfitReport';
@@ -51,6 +55,7 @@ import SettlementReportCustomerDetails from './views/SettlementReportCustomerDet
 import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetails';
 import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
 import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
+import QualityControlManagement from './views/QualityControlManagement';
 import {
   ActionLogPage,
   CompanySettings,
@@ -164,6 +169,8 @@ const router = createBrowserRouter([
       { path: 'sample/follow', element: React.createElement(SampleFollow) },
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },
+      { path: 'sample/report/costing', element: React.createElement(SampleCostingReport) },
+      { path: 'sample/report/order-compare', element: React.createElement(SampleOrderComparisonReport) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
       { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
       { path: 'orders/report/profit', element: React.createElement(OrderShipmentProfitReport) },
@@ -180,6 +187,7 @@ const router = createBrowserRouter([
       { path: 'product/inbound/received', element: React.createElement(FinishedGoodsReceived) },
       { path: 'material/stock', element: React.createElement(MaterialStock) },
       { path: 'material/purchase-order', element: React.createElement(OrderPurchaseInbound) },
+      { path: 'material/purchase-prep', element: React.createElement(StockingPurchaseInbound) },
       { path: 'material/report/overview', element: React.createElement(MaterialInventoryReport) },
       { path: 'material/report/purchase-inbound-detail', element: React.createElement(MaterialPurchaseReport) },
       { path: 'material/issue', element: React.createElement(MaterialIssueDetails) },
@@ -203,7 +211,9 @@ const router = createBrowserRouter([
       { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
+      { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },
       { path: 'piecework/report', element: React.createElement(OrderReportAggregation) },
+      { path: 'piecework/quality', element: React.createElement(QualityControlManagement) },
       { path: 'piecework/outsource', element: React.createElement(OutsourcingManagement) },
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
       { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },
