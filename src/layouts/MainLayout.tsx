@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Layout, Menu, Breadcrumb } from 'antd';
+import { Layout, Menu, Breadcrumb, Space, Button } from 'antd';
 import type { MenuProps } from 'antd';
 import { Outlet, useLocation, Link } from 'react-router-dom';
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { menuTree, toAntdMenuItems } from '../menu.config';
 
 const { Header, Sider, Content } = Layout;
@@ -63,8 +64,30 @@ const MainLayout = () => {
         />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0' }}>
+        <Header
+          style={{
+            background: '#fff',
+            padding: '0 24px',
+            borderBottom: '1px solid #f0f0f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
           <Breadcrumb items={breadcrumbItems} />
+          <Space size={12}>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button type="primary" size="small" ghost>
+                  登录账号
+                </Button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+          </Space>
         </Header>
         <Content style={{ margin: 16 }}>
           <div>

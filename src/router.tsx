@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import MainLayout from './layouts/MainLayout';
+import ProtectedLayout from './layouts/ProtectedLayout';
 import Workplace from './views/Workplace';
 import SampleDashboard from './views/SampleDashboard';
 import SampleList from './views/SampleList';
@@ -159,7 +159,7 @@ const autoChildren = flattenMenu(menuTree)
 const router = createBrowserRouter([
   {
     path: '/',
-    element: React.createElement(MainLayout),
+    element: React.createElement(ProtectedLayout),
     children: [
       { index: true, element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
       { path: 'dashboard/workplace', element: React.createElement(Workplace) },
