@@ -29,6 +29,8 @@ import type {
 } from '../types/settings';
 import type { Paginated } from './mock';
 import http from './http';
+import { apiConfig } from './config';
+import { adaptCompanyOverviewResponse, type CompanyOverviewResponse } from './adapters/settings';
 import {
   approveJoinApplication,
   bulkAssignRole as mockBulkAssignRole,
@@ -60,7 +62,10 @@ import {
   updateUserAvatar as mockUpdateUserAvatar,
   updateUserPhone as mockUpdateUserPhone,
   exportUsers as mockExportUsers,
+  fetchCompanyOverview as mockFetchCompanyOverview,
 } from '../mock/settings';
+
+const useMock = apiConfig.useMock;
 
 export const settingsApi = {
   profile: {
@@ -71,8 +76,11 @@ export const settingsApi = {
   },
   company: {
     getOverview: async (): Promise<CompanyOverview> => {
-      const response = await http.get<CompanyOverview>('/api/v1/settings/company/overview');
-      return response.data;
+      if (useMock) {
+        return mockFetchCompanyOverview();
+      }
+      const response = await http.get<CompanyOverviewResponse>('/api/v1/settings/company/overview');
+      return adaptCompanyOverviewResponse(response.data);
     },
     invite: (payload: InviteMemberPayload): Promise<boolean> => mockInviteCompanyMember(payload),
     transfer: (payload: TransferTenantPayload): Promise<boolean> => mockTransferCompany(payload),

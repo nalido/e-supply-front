@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { message } from 'antd';
 import { tenantStore } from '../stores/tenant';
 
 type TokenResolver = () => Promise<string | null>;
@@ -36,7 +37,26 @@ http.interceptors.request.use(async (config) => {
     nextConfig.headers['X-Tenant-Id'] = tenantId;
   }
 
+  if (nextConfig.params && typeof nextConfig.params === 'object' && 'page' in nextConfig.params) {
+    const pageValue = Number(nextConfig.params.page);
+    if (!Number.isNaN(pageValue)) {
+      nextConfig.params.page = Math.max(pageValue - 1, 0);
+    }
+  }
+
   return nextConfig;
 });
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status !== 401) {
+      const backendMessage = error?.response?.data?.message;
+      const errMsg = backendMessage || error.message || '请求失败，请稍后再试';
+      message.error(errMsg);
+    }
+    return Promise.reject(error);
+  },
+);
 
 export default http;

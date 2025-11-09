@@ -65,9 +65,9 @@
 ## 分阶段实施路线
 
 ### Phase 0（基础设施 & 风险兜底）
-1. **HTTP 客户端建设**：新增 `src/api/http.ts`（axios/fetch），集中处理 baseURL、`tenantId` 注入、`Authorization` header、0-based 分页转换、错误提示。
-2. **类型映射层**：在每个领域 API 模块中新增 `adapter`，把后端响应（大写枚举、数值 ID）转换为现有 `src/types` 结构，便于页面平滑过渡。
-3. **渐进切换策略**：API 模块暴露 `useMock` feature flag（如 `import.meta.env.VITE_USE_MOCK`），支持逐页灰度验证。
+1. **HTTP 客户端建设**（✅ 已完成）：`src/api/http.ts` 已落地 axios 实例，除原先的 baseURL/鉴权/租户注入外，新增 page→0-based 转换与统一错误提示。
+2. **类型映射层**（🔄 进行中）：`src/api/adapters/settings.ts` 已提供 `CompanyOverview` 映射示例，下一步推广到其他领域类型。
+3. **渐进切换策略**（🔄 进行中）：新增 `src/api/config.ts` 读取 `VITE_USE_MOCK`，`settingsApi.company.getOverview` 支持按 flag 切换真实接口；剩余模块的灰度开关待补齐。
 
 ### Phase 1（接口 Ready/低改动模块）
 - **样衣核心**：`SampleList/Detail/Type/Follow`、`SampleDashboard`，先落地列表 + CRUD，统计卡缺字段时临时从列表聚合；需要的后端改动：补 style/customer 字段。预计 1 sprint。
