@@ -24,13 +24,13 @@ import settingsApi from '../../api/settings';
 import type {
   CompanyModule,
   CompanyModuleStatus,
-  CompanyOverview,
   InviteMemberPayload,
   RoleItem,
   TenantSummary,
   TransferTenantPayload,
   UserAccount,
 } from '../../types/settings';
+import { useTenant } from '../../contexts/tenant';
 
 const { Text } = Typography;
 
@@ -68,8 +68,7 @@ const renderModuleCard = (module: CompanyModule) => {
 };
 
 const CompanySettings = () => {
-  const [overview, setOverview] = useState<CompanyOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { overview, refresh } = useTenant();
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [inviteForm] = Form.useForm<InviteMemberPayload>();
@@ -80,10 +79,6 @@ const CompanySettings = () => {
   const [transferLoading, setTransferLoading] = useState(false);
 
   useEffect(() => {
-    settingsApi.company
-      .getOverview()
-      .then(setOverview)
-      .finally(() => setLoading(false));
     settingsApi.roles.list().then(setRoles);
     settingsApi.users.list({ pageSize: 50 }).then((res) => setUserOptions(res.list));
   }, []);
@@ -124,8 +119,8 @@ const CompanySettings = () => {
 
   const handleSwitchTenant = async (tenant: TenantSummary) => {
     try {
-      const data = await settingsApi.company.switchTenant(tenant.id);
-      setOverview(data);
+      await settingsApi.company.switchTenant(tenant.id);
+      await refresh();
       message.success(`已切换至 ${tenant.name}`);
     } catch (error) {
       console.error(error);
@@ -169,10 +164,6 @@ const CompanySettings = () => {
     },
   ];
 
-  if (!overview) {
-    return <Card loading={loading} />;
-  }
-
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
@@ -207,7 +198,7 @@ const CompanySettings = () => {
         </Space>
       </Card>
 
-      <Card title="功能模块" bordered={false} loading={loading}>
+      <Card title="功能模块" bordered={false}>
         <Row gutter={[16, 16]}>
           {overview.modules.map((item) => {
             const card = renderModuleCard(item);

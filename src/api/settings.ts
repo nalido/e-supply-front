@@ -28,6 +28,7 @@ import type {
   UserProfile,
 } from '../types/settings';
 import type { Paginated } from './mock';
+import http from './http';
 import {
   approveJoinApplication,
   bulkAssignRole as mockBulkAssignRole,
@@ -35,7 +36,6 @@ import {
   createOrgMember as mockCreateOrgMember,
   createRole as mockCreateRole,
   createUser as mockCreateUser,
-  fetchCompanyOverview as mockFetchCompanyOverview,
   fetchPermissionTree,
   fetchUserProfile as mockFetchUserProfile,
   inviteCompanyMember as mockInviteCompanyMember,
@@ -70,7 +70,10 @@ export const settingsApi = {
     resetPassword: (): Promise<boolean> => mockResetUserPassword(),
   },
   company: {
-    getOverview: (): Promise<CompanyOverview> => mockFetchCompanyOverview(),
+    getOverview: async (): Promise<CompanyOverview> => {
+      const response = await http.get<CompanyOverview>('/api/v1/settings/company/overview');
+      return response.data;
+    },
     invite: (payload: InviteMemberPayload): Promise<boolean> => mockInviteCompanyMember(payload),
     transfer: (payload: TransferTenantPayload): Promise<boolean> => mockTransferCompany(payload),
     switchTenant: (tenantId: TenantSummary['id']): Promise<CompanyOverview> => mockSwitchTenant(tenantId),
