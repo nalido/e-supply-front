@@ -76,22 +76,53 @@
 
 #### 前端依赖概览
 - 入口 `src/views/settings/Roles.tsx`，依赖 `settingsApi.roles.*`（`list/create/update/remove/permissions`）。
-- 期望的 `RoleItem` 字段：`{ id: string; name: string; description?: string; memberCount: number; updatedAt: string }`，其中 `memberCount` 用于表格 Tag，`updatedAt` 直接渲染字符串。
+- 期望的 `RoleItem` 字段：`{ id: string; name: string; description?: string; updatedAt: string }`。
 - 交互：搜索（前端过滤）、新建/编辑（名称 + 描述）、删除（`Modal.confirm`），以及“权限”抽屉需要一棵 `PermissionTreeNode[]`（`{ key; title; children? }`）。
 
 #### 后端接口调研（`/Users/jambin/codes/supply-and-sale/e-supply-back`）
+
 | 功能 | API & 契约 | 状态 | 备注 |
+
 | --- | --- | --- | --- |
-| 列表 | `GET /api/v1/settings/roles?tenantId={id}&keyword=` → `RoleResponse[]`，含 `id/tenantId/name/description/createdAt/updatedAt` | Ready（需适配） | 需在 axios 请求中自动注入 `tenantId`，`updatedAt` 转 ISO 字符串；响应无 `memberCount` 字段，前端需临时回退为 `0` 或基于用户列表本地聚合。|
-| 详情 | `GET /api/v1/settings/roles/{roleId}?tenantId={id}` | Ready | 前端当前未使用，可用于编辑弹窗回显 + 权限列表。|
-| 新建 | `POST /api/v1/settings/roles`，Body = `RoleRequest{ tenantId, name, description, permissionIds? }` | Ready（需灰度） | 允许 `permissionIds` 为空；需要从 `tenantStore` 注入租户。|
-| 更新 | `PUT /api/v1/settings/roles/{roleId}`，Body 同上 | Ready | 同上。|
-| 删除 | **缺失** | Blocked | 没有 `DELETE /roles/{id}`，无法支撑前端“删除”操作。需与后端确认是否允许软删或禁止删除。|
-| 权限树 | **缺失** | Blocked | 仅有角色绑定的 `permissionIds` 列表，无 `GET /permissions/tree` 等端点，前端 `Tree` 只能继续使用 mock。需要补权限枚举接口，最好包含 `moduleKey/moduleName/action[]`。|
+
+| 列表 | `GET /api/v1/settings/roles?tenantId={id}&keyword=` → `List<RoleResponse>`，含 `id/tenantId/name/description/createdAt/updatedAt/permissionIds` | Adjust | 需在 axios 请求中自动注入 `tenantId`。`updatedAt` 为 `LocalDateTime`，前端需处理格式。后端 `RoleResponse` 缺少 `memberCount` 字段，前端需临时填充 `0`。`keyword` 参数后端已支持。|
+
+| 详情 | `GET /api/v1/settings/roles/{roleId}?tenantId={id}` → `RoleResponse` | Ready | 前端当前未使用，可用于编辑弹窗回显 + 权限列表。|
+
+| 新建 | `POST /api/v1/settings/roles`，Body = `RoleRequest{ tenantId, name, description, permissionIds? }` | Adjust | 允许 `permissionIds` 为空数组；需要从 `tenantStore` 注入 `tenantId`。|
+
+| 更新 | `POST /api/v1/settings/roles/{roleId}/update`，Body = `RoleRequest{ tenantId, name, description, permissionIds? }` | Adjust | **HTTP 方法和 URL 与前端期望不符**。前端需将 `PUT /api/v1/settings/roles/{roleId}` 改为 `POST /api/v1/settings/roles/{roleId}/update`。需要从 `tenantStore` 注入 `tenantId`，并包含 `permissionIds`。|
+
+| 删除 | `POST /api/v1/settings/roles/{roleId}/delete?tenantId={id}` | Adjust | **HTTP 方法和 URL 与前端期望不符**。前端需将 `DELETE /api/v1/settings/roles/{roleId}` 改为 `POST /api/v1/settings/roles/{roleId}/delete`，并以 query 参数形式传递 `tenantId`。若角色下有成员，后端返回 409 Conflict。|
+
+| 权限树 | `GET /api/v1/settings/permissions` → `List<PermissionModuleDto>` | Adjust | **URL 和返回结构与前端期望不符**。后端返回 `List<PermissionModuleDto>`，其中 `PermissionModuleDto` 为 `{ module: String, permissions: List<PermissionDto> }`，`PermissionDto` 为 `{ id: Long, code: String, name: String, module: String }`。前端需要一个适配器将此结构转换为 `PermissionTreeNode[]`。`PermissionDto.id` 将作为实际的权限ID。|
+
+
 
 #### Phase 1 新任务（岗位管理）
-1. 在 `settingsApi.roles` 内接入真实接口：沿用 `http` 客户端 + `apiConfig.useMock` 灰度，新增 `adaptRoleResponse()` 将 `RoleResponse` → `RoleItem`，并临时填充 `memberCount`（`response.memberCount ?? 0`）。
+
+1. 在 `settingsApi.roles` 内接入真实接口：
+
+    - 沿用 `http` 客户端 + `apiConfig.useMock` 灰度。
+
+    - 新增 `adaptRoleResponse()` 将 `RoleResponse` → `RoleItem`，并临时填充 `memberCount`（`response.memberCount ?? 0`）。
+
+    - `list` 方法需注入 `tenantId`。
+
+    - `create` 方法需注入 `tenantId` 并发送 `permissionIds` 数组。
+
+    - `update` 方法需调整为 `POST /api/v1/settings/roles/{roleId}/update`，注入 `tenantId` 并发送 `permissionIds` 数组。
+
+    - `remove` 方法需调整为 `POST /api/v1/settings/roles/{roleId}/delete`，并以 query 参数形式传递 `tenantId`。
+
 2. `Roles.tsx` 中的 CRUD 调用切换至新的 API 层，确保 `fetchRoles` 根据 `VITE_USE_MOCK` 自动兜底；keyword 仍使用前端过滤，后续可透传为 query。
-3. 权限抽屉：在真实接口缺席前保持 mock 并在 UI 提示“权限树数据为演示”，同时记录对后端的接口需求（树形结构 + label/route 元信息）。
-4. 发起后端需求：补充 `DELETE /api/v1/settings/roles/{roleId}` 及 `GET /api/v1/settings/permissions/tree`，并评估角色被成员引用时的约束（返回 409 + 提示）。
-5. （可选）`memberCount` 如需真实值，需新增 `/settings/users/count-by-role` 或在角色列表响应中追加 `memberCount` 字段。该缺口在联调前同步给后端，便于一次性调整。
+
+3. 权限抽屉：
+
+    - 接入真实接口 `GET /api/v1/settings/permissions`。
+
+    - 新增 `adaptPermissionTree()` 适配器，将 `List<PermissionModuleDto>` 转换为 `PermissionTreeNode[]`，并根据返回的树形结构渲染权限选择器。
+
+    - 在 `create` 和 `update` 角色时，将选中的权限 `id` 列表作为 `permissionIds` 发送给后端。
+
+

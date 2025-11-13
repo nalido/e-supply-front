@@ -9,7 +9,6 @@ import {
   Modal,
   Space,
   Table,
-  Tag,
   Tree,
   message,
 } from 'antd';
@@ -26,13 +25,17 @@ const RolesSettings = () => {
   const [permissionDrawerOpen, setPermissionDrawerOpen] = useState(false);
   const [permissionRole, setPermissionRole] = useState<RoleItem | null>(null);
   const [permissionTree, setPermissionTree] = useState<PermissionTreeNode[]>([]);
+  const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<string[]>([]); // New state for selected permissions
   const [form] = Form.useForm<{ name: string; description?: string }>();
 
   const fetchRoles = () => {
     setLoading(true);
     settingsApi.roles
       .list()
-      .then(setRoles)
+      .then(data => {
+        console.log('Fetched roles:', data); // Debugging line
+        setRoles(data);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -52,23 +55,29 @@ const RolesSettings = () => {
   const openCreateModal = () => {
     setEditingRole(null);
     form.resetFields();
+    setSelectedPermissionKeys([]); // Clear selected permissions for new role
     setModalOpen(true);
   };
 
   const openEditModal = (role: RoleItem) => {
     setEditingRole(role);
     form.setFieldsValue({ name: role.name, description: role.description });
+    setSelectedPermissionKeys(role.permissionIds || []); // Pre-populate selected permissions for existing role
     setModalOpen(true);
   };
 
   const submit = async () => {
     try {
       const values = await form.validateFields();
+      const rolePayload = {
+        ...values,
+        permissionIds: selectedPermissionKeys,
+      };
       if (editingRole) {
-        await settingsApi.roles.update(editingRole.id, values);
+        await settingsApi.roles.update(editingRole.id, rolePayload);
         message.success('岗位已更新');
       } else {
-        await settingsApi.roles.create(values);
+        await settingsApi.roles.create(rolePayload);
         message.success('岗位已创建');
       }
       setModalOpen(false);
@@ -100,11 +109,7 @@ const RolesSettings = () => {
 
   const columns: ColumnsType<RoleItem> = [
     { title: '名称', dataIndex: 'name' },
-    {
-      title: '成员数',
-      dataIndex: 'memberCount',
-      render: (value: number) => <Tag color={value ? 'blue' : 'default'}>{value}</Tag>,
-    },
+
     { title: '更新时间', dataIndex: 'updatedAt' },
     {
       title: '描述',
@@ -195,7 +200,13 @@ const RolesSettings = () => {
         }}
         open={permissionDrawerOpen}
       >
-        <Tree treeData={permissionTree} checkable defaultExpandAll disabled />
+        <Tree
+          treeData={permissionTree}
+          checkable
+          defaultExpandAll
+          checkedKeys={selectedPermissionKeys}
+          onCheck={(checkedKeys) => setSelectedPermissionKeys(checkedKeys as string[])}
+        />
       </Drawer>
     </Card>
   );

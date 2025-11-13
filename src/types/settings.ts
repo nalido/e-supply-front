@@ -93,6 +93,37 @@ export type RoleItem = {
   description?: string;
   memberCount: number;
   updatedAt: string;
+  permissionIds?: string[]; // Add permissionIds to RoleItem
+};
+
+// Backend DTOs for Role Management
+export type BackendRoleResponse = {
+  id: string; // Backend uses Long, but frontend typically uses string for IDs
+  tenantId: string; // Backend uses Long
+  name: string;
+  description?: string;
+  createdAt: string; // LocalDateTime serialized to string
+  updatedAt: string; // LocalDateTime serialized to string
+  permissionIds: string[]; // Backend uses List<Long>
+};
+
+export type BackendRoleRequest = {
+  tenantId: string; // Backend uses Long
+  name: string;
+  description?: string;
+  permissionIds?: string[]; // Backend uses List<Long>, optional
+};
+
+export type BackendPermissionDto = {
+  id: string; // Backend uses Long
+  code: string;
+  name: string;
+  module: string;
+};
+
+export type BackendPermissionModuleDto = {
+  module: string; // Corresponds to module name
+  permissions: BackendPermissionDto[];
 };
 
 export type CreateRolePayload = {

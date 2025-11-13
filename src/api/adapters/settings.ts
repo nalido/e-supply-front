@@ -1,4 +1,4 @@
-import type { CompanyModuleStatus, CompanyOverview, TenantSummary } from '../../types/settings';
+import type { CompanyModuleStatus, CompanyOverview, TenantSummary, RoleItem, PermissionTreeNode, BackendRoleResponse, BackendPermissionModuleDto } from '../../types/settings';
 
 const moduleStatusOrder: CompanyModuleStatus[] = [
   'active',
@@ -69,3 +69,27 @@ export const adaptCompanyOverviewResponse = (payload: CompanyOverviewResponse): 
   })),
   tenants: (payload.tenants ?? []).map(adaptTenant),
 });
+
+export const adaptRoleResponse = (response: BackendRoleResponse): RoleItem => {
+  return {
+    id: response.id,
+    name: response.name,
+    description: response.description,
+    memberCount: 0, // Backend does not provide this, temporarily set to 0 as per plan
+    updatedAt: response.updatedAt, // Assuming backend sends ISO string, frontend can display directly
+  };
+};
+
+export const adaptPermissionTree = (modules: BackendPermissionModuleDto[]): PermissionTreeNode[] => {
+  return modules.map(moduleDto => {
+    const moduleNode: PermissionTreeNode = {
+      key: moduleDto.module, // Use module name as key for the module node
+      title: moduleDto.module, // Use module name as title
+      children: moduleDto.permissions.map(permissionDto => ({
+        key: permissionDto.id, // Use permission ID as key for individual permissions
+        title: permissionDto.name, // Use permission name as title
+      })),
+    };
+    return moduleNode;
+  });
+};

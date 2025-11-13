@@ -53,6 +53,7 @@ http.interceptors.response.use(
     if (error?.response?.status !== 401) {
       const backendMessage = error?.response?.data?.message;
       const errMsg = backendMessage || error.message || '请求失败，请稍后再试';
+      console.error('API Error:', error.response.status, errMsg); // Log status code
       message.error(errMsg);
     }
     return Promise.reject(error);

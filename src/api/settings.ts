@@ -26,11 +26,21 @@ import type {
   UserAccount,
   UserListQuery,
   UserProfile,
+  // New DTO types
+  BackendRoleResponse,
+  BackendRoleRequest,
+  BackendPermissionModuleDto,
 } from '../types/settings';
 import type { Paginated } from './mock';
 import http from './http';
 import { apiConfig } from './config';
-import { adaptCompanyOverviewResponse, type CompanyOverviewResponse } from './adapters/settings';
+import {
+  adaptCompanyOverviewResponse,
+  type CompanyOverviewResponse,
+  // New adapter functions
+  adaptRoleResponse,
+  adaptPermissionTree,
+} from './adapters/settings';
 import {
   approveJoinApplication,
   bulkAssignRole as mockBulkAssignRole,
@@ -64,6 +74,7 @@ import {
   exportUsers as mockExportUsers,
   fetchCompanyOverview as mockFetchCompanyOverview,
 } from '../mock/settings';
+import { tenantStore } from '../stores/tenant'; // Import tenantStore
 
 const useMock = apiConfig.useMock;
 
@@ -92,11 +103,73 @@ export const settingsApi = {
     remove: (memberId: string): Promise<boolean> => mockRemoveOrgMember(memberId),
   },
   roles: {
-    list: (): Promise<RoleItem[]> => mockListRoles(),
-    create: (payload: CreateRolePayload): Promise<RoleItem> => mockCreateRole(payload),
-    update: (id: string, payload: UpdateRolePayload): Promise<RoleItem | undefined> => mockUpdateRole(id, payload),
-    remove: (id: string): Promise<boolean> => mockRemoveRole(id),
-    permissions: (): Promise<PermissionTreeNode[]> => fetchPermissionTree(),
+    list: async (): Promise<RoleItem[]> => {
+      if (useMock) {
+        return mockListRoles();
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const response = await http.get<BackendRoleResponse[]>('/api/v1/settings/roles', {
+        params: { tenantId },
+      });
+      return response.data.map(adaptRoleResponse);
+    },
+    create: async (payload: CreateRolePayload & { permissionIds?: string[] }): Promise<RoleItem> => {
+      if (useMock) {
+        return mockCreateRole(payload);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const requestBody: BackendRoleRequest = {
+        tenantId,
+        name: payload.name,
+        description: payload.description,
+        permissionIds: payload.permissionIds,
+      };
+      const response = await http.post<BackendRoleResponse>('/api/v1/settings/roles', requestBody);
+      return adaptRoleResponse(response.data);
+    },
+    update: async (id: string, payload: UpdateRolePayload & { permissionIds?: string[] }): Promise<RoleItem | undefined> => {
+      if (useMock) {
+        return mockUpdateRole(id, payload);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const requestBody: BackendRoleRequest = {
+        tenantId,
+        name: payload.name,
+        description: payload.description,
+        permissionIds: payload.permissionIds,
+      };
+      const response = await http.post<BackendRoleResponse>(`/api/v1/settings/roles/${id}/update`, requestBody);
+      return adaptRoleResponse(response.data);
+    },
+    remove: async (id: string): Promise<boolean> => {
+      if (useMock) {
+        return mockRemoveRole(id);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      await http.post(`/api/v1/settings/roles/${id}/delete`, null, {
+        params: { tenantId },
+      });
+      return true;
+    },
+    permissions: async (): Promise<PermissionTreeNode[]> => {
+      if (useMock) {
+        return fetchPermissionTree();
+      }
+      const response = await http.get<BackendPermissionModuleDto[]>('/api/v1/settings/permissions');
+      return adaptPermissionTree(response.data);
+    },
   },
   audit: {
     list: (query?: ActionLogQuery): Promise<Paginated<ActionLogEntry>> => mockListActionLogs(query),
