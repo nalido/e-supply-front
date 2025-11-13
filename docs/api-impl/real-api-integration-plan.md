@@ -3,7 +3,8 @@
 ## 目标与方法
 - 复盘前端现有模块（`src/views` 與 `src/api`）及 Mock 契约，确认页面对数据的期望格式。
 - 解析后端 OpenAPI (`http://localhost:8080/v3/api-docs`)，按 tag/模块聚类接口，评估与前端契约的一致性。
-- 输出分模块适配度 + 分阶段落地路线，并标记缺口（字段、接口、交互约束）。
+- 后端源代码目录为`/Users/jambin/codes/supply-and-sale/e-supply-back`。
+- 按照页面进行渐进式替换真实接口的开发。每次用户提出对接某个页面时，首先你要列出前端岗位管理页面中用到的所有接口，然后查询后端接口文档和源代码调研后端现有接口是否支持和与前端契约一致。然后记录在这个文档中，以便于进度跟进。
 
 > 术语：下文的“阶段”按 mock → 真接口 的落地顺序划分；“适配度”分为：`Ready`（可直接替换，做少量字段映射即可）、`Adjust`（接口存在但需后端补字段/枚举/分页等）、`Blocked`（后端暂缺核心接口）。
 
@@ -67,85 +68,30 @@
 ### Phase 0（基础设施 & 风险兜底）
 1. **HTTP 客户端建设**（✅ 已完成）：`src/api/http.ts` 已落地 axios 实例，除原先的 baseURL/鉴权/租户注入外，新增 page→0-based 转换与统一错误提示。
 2. **类型映射层**（🔄 进行中）：`src/api/adapters/settings.ts` 已提供 `CompanyOverview` 映射示例，下一步推广到其他领域类型。
-3. **渐进切换策略**（🔄 进行中）：新增 `src/api/config.ts` 读取 `VITE_USE_MOCK`，`settingsApi.company.getOverview` 支持按 flag 切换真实接口；剩余模块的灰度开关待补齐。
+3. **渐进切换策略**（🔄 进行中）：新增 `src/api/config.ts` 读取 `VITE_USE_MOCK`，`settingsApi.company.getOverview` 支持按 flag 切换真实接口；剩余模块的灰度开关待对接真实接口时渐进替换。
 
-### Phase 1（接口 Ready/低改动模块）
-- **样衣核心**：`SampleList/Detail/Type/Follow`、`SampleDashboard`，先落地列表 + CRUD，统计卡缺字段时临时从列表聚合；需要的后端改动：补 style/customer 字段。预计 1 sprint。
-- **基础档案 & 设置**：`Partners`, `Warehouse`, `UserList`, `Roles`, `Preferences`, `ProcessCatalog`。集中改写 API 层，验证 tenant 鉴权链路。
-- **物料库存 & 成品仓储**：`MaterialStock`, `MaterialIssue`, `FinishedGoods*`（除 Received schema 缺陷外）。并行推动后端补 `FinishedGoodsReceivedListItem` 字段。
+## 页面任务追踪
 
-#### Phase 1 任务拆解（按模块）
+### 岗位管理（Settings → `/settings/roles`）
 
-##### 样衣核心
-1. **API 层接入**
-   - 新增 `src/api/sample-order.ts`，封装 `/api/v1/sample-orders`、`/dashboard`、`/{id}`、`/{id}/status`、`/sample-types` 等请求，接入 `http` 实例与 `apiConfig.useMock`。
-   - 引入 `src/api/adapters/sample-order.ts`（或共用枚举 util），完成 `SampleStatus`、`SamplePriority`、`SampleDashboardStats` 的大小写映射及字段补齐策略。
-2. **SampleList**
-   - 用真实接口替换 `sampleService.getSampleOrders`、`getSampleStats`；支持后端 0-based 分页，维持现有筛选参数；补充列表聚合逻辑以兜底 `styleName/customerName` 缺失。
-   - 接入批量操作（状态流转、导出）所需的真实 API 调用占位，先完成只读列表与统计卡。
-3. **SampleDetail**
-   - 替换详情、流程、SKU、跟踪日志的 mock；在详情页添加字段为空时的占位处理，并确保跟进/状态更新调用真实接口。
-4. **SampleFollow**
-   - 用真实接口驱动卡片统计 + 列表筛选；对状态/优先级标签统一复用 adapter；补写分页/keyword 查询参数对接。
-5. **SampleDashboard**
-   - 接入 `/api/v1/sample-orders/dashboard`，对缺失指标用前端计算备选方案；保留 mock 作为 `VITE_USE_MOCK` 兜底。
-6. **SampleType & Follow Template**
-   - 切换至 `/api/v1/sample-types`、`/api/v1/sample-follow-templates`；处理节点字段（`nodeName/nodeCode`）映射及 CRUD 表单校验。
+#### 前端依赖概览
+- 入口 `src/views/settings/Roles.tsx`，依赖 `settingsApi.roles.*`（`list/create/update/remove/permissions`）。
+- 期望的 `RoleItem` 字段：`{ id: string; name: string; description?: string; memberCount: number; updatedAt: string }`，其中 `memberCount` 用于表格 Tag，`updatedAt` 直接渲染字符串。
+- 交互：搜索（前端过滤）、新建/编辑（名称 + 描述）、删除（`Modal.confirm`），以及“权限”抽屉需要一棵 `PermissionTreeNode[]`（`{ key; title; children? }`）。
 
-##### 基础档案 & 设置
-1. **Partners**
-   - 新建 `src/api/partners.ts` 真接口（列表、创建、更新、删除、启停、邀请）；接入 tenant + 分页；处理状态大写转译。
-   - 在 `src/views/Partners`（及相关组件）替换 API 调用，补充 loading/error 反馈。
-2. **Warehouse**
-   - 对接 `/api/v1/warehouses` 列表/CRUD，映射 `type = MATERIAL/FINISHED/VIRTUAL`、`status` 字段；页面支持启用状态展示。
-3. **ProcessCatalog / OperationTemplate**
-   - 新建 process API 模块，连通 `/api/v1/process-catalog` & `/production/operational-efficiency`；梳理模板字段与 UI 结构的差异并在 adapter 中转换。
-4. **Settings（UserList/Roles/Preferences）**
-   - 在 `settingsApi` 中为 `users.list/create/update/remove/export`、`roles.*`、`preferences.*` 打通真实接口，并保留 mock 灰度。
-   - 更新对应视图（`UserList`, `Roles`, `Preferences`）的请求入口，验证分页/搜索参数与后端契约一致。
+#### 后端接口调研（`/Users/jambin/codes/supply-and-sale/e-supply-back`）
+| 功能 | API & 契约 | 状态 | 备注 |
+| --- | --- | --- | --- |
+| 列表 | `GET /api/v1/settings/roles?tenantId={id}&keyword=` → `RoleResponse[]`，含 `id/tenantId/name/description/createdAt/updatedAt` | Ready（需适配） | 需在 axios 请求中自动注入 `tenantId`，`updatedAt` 转 ISO 字符串；响应无 `memberCount` 字段，前端需临时回退为 `0` 或基于用户列表本地聚合。|
+| 详情 | `GET /api/v1/settings/roles/{roleId}?tenantId={id}` | Ready | 前端当前未使用，可用于编辑弹窗回显 + 权限列表。|
+| 新建 | `POST /api/v1/settings/roles`，Body = `RoleRequest{ tenantId, name, description, permissionIds? }` | Ready（需灰度） | 允许 `permissionIds` 为空；需要从 `tenantStore` 注入租户。|
+| 更新 | `PUT /api/v1/settings/roles/{roleId}`，Body 同上 | Ready | 同上。|
+| 删除 | **缺失** | Blocked | 没有 `DELETE /roles/{id}`，无法支撑前端“删除”操作。需与后端确认是否允许软删或禁止删除。|
+| 权限树 | **缺失** | Blocked | 仅有角色绑定的 `permissionIds` 列表，无 `GET /permissions/tree` 等端点，前端 `Tree` 只能继续使用 mock。需要补权限枚举接口，最好包含 `moduleKey/moduleName/action[]`。|
 
-##### 物料库存 & 成品仓储
-1. **MaterialStock**
-   - 新建 `src/api/material-inventory.ts`，封装 `/api/v1/inventory/materials` + `/materials/meta`；接入 `MaterialStock` 视图，确保 tabs/仓库下拉使用真实 meta。
-   - 处理 `materialType`、`warehouseId` 前后端大小写转换，保持仅在库筛选逻辑。
-2. **MaterialIssue**
-   - 对接 `/api/v1/material-issues`、`/material-issues/meta`；替换列表/统计卡的 mock 数据。
-3. **FinishedGoods 系列**
-   - 建立 `src/api/finished-goods.ts`（或拆分文件）承载 `/api/v1/inventory/finished-goods`、`/finished-goods-receipts`、`/dispatches` 等接口。
-   - 先切换库存、待收货、出库、其它入库等列表页到真实 API；`Received` 列表因 schema 缺陷保留 mock，并在页面提示“后端待补字段”。
-4. **共通事项**
-   - 每个视图集成真实接口后，补充失败兜底、空状态、`VITE_USE_MOCK` 灰度开关；同步记录对后端字段/接口的新增需求，便于联调追踪。
-
-> 上述任务将作为 Phase 1 迭代的进度清单，完成单个功能点后在 PR 描述与项目追踪中同步状态。
-
-### Phase 2（需配合后端补字段/契约的模块）
-- **采购入仓**：`OrderPurchaseInbound`, `StockingPurchaseInbound`。等待后端补 `imageUrl`/`documentType`、批量收货接口；前端完成请求体/分页适配。
-- **生产执行**：`OperationalEfficiency`, `ProductionOrders`, `WorkshopDashboard`, `OutsourcingManagement`。需要后端提供 status tabs、进度条、打印/导出任务字段。
-- **品质 & 薪酬**：后端补 `QualityInspectionResponse` 展示字段、`payroll-settlements` summary/department 过滤；前端再切换。
-
-### Phase 3（后端尚未提供接口的报表/结算模块）
-- **统计报表**：`BulkCostReport`, `OrderShipmentProfitReport`, `OrderMaterialRequirementReport`, `OrderProgressDetails`, `OrderTicketDetails`, `ProcessProductionComparison`, `SampleCostingReport`, `SampleOrderComparisonReport` 等。这些页面完全依赖 mock。需在 e-supply-back 中补 `/reports/*` API（聚合 + 导出），定义字段后再排期迁移。
-- **结算域**：`SettlementCashierAccounts`, `SettlementCustomerReceipts`, `SettlementFactoryPayments`, `SettlementSupplierPayments`, `SettlementReport*`。目前只有现金账户列表，其他功能需完整 CRUD + 汇总接口。
-- **裁剪 & 产能排程**：`CuttingPending/Completed/Report` 缺 GET 端点；需后端给出列表/进度 API，并约定和车间/订单模块的关联键。
-
----
-
-## 关键缺口 & 协作事项
-1. **统一租户 & 分页**：大多数接口要求 `tenantId` 且分页 0-based；需要后端允许 header 注入 tenant，或前端在请求层统一拼 query；对响应应回传 `page/pageSize` 以便校验。
-2. **枚举/字典对齐**：后端普遍使用大写（`PENDING`, `LOW`）；需提供字典 API 或在 swagger 中补 `enum` 描述，前端编写 `enumMap`。建议在 `components/schemas` 中新增 `SampleStatusEnum`, `PriorityEnum` 等并沿用。
-3. **字段缺失**：
-   - `SampleOrderResponse` 缺 `styleName`, `customerName`, `images`, `skuMatrix`。
-   - `FinishedGoodsReceivedListItem` schema 未定义；`FinishedGoodsInventoryListItem` 缺 `warehouseType`、`availableQty`。
-   - `QualityInspectionResponse` 仅返回 ID，需要补 `orderNo/styleName/processName/worker`。
-   - `PayrollSettlementResponse` 缺 `summary`、`departmentName`，难以驱动现有 UI 的统计卡。
-4. **批量动作 API**：前端大量场景（批量收货、批量完结、批量打印）需要 `/batch` 接口；目前 swagger 仅零散提供 `POST /{id}/receive`。建议在采购、成品、外协模块增加批量端点或允许 body 携带多条记录。
-5. **导出/统计**：几乎所有报表页都存在 `导出为 Excel` 按钮（见 `src/views/OrderShipmentProfitReport.tsx` 等），需后端提供对应流式下载接口或预签名 URL。
-6. **认证链路**：只有 `/api/v1/auth/login` 描述，缺少 refresh/logout；在 Phase 0 需明确 token 格式（JWT? session?）与失效处理，避免重复实现。
-
----
-
-## 建议后续步骤
-1. 与后端同步本计划，确认 Phase 1/2 需要补充的字段与接口，形成联调 issue 列表。
-2. 先在 `src/api` 新增真实服务模块（如 `src/api/sample-order.ts`）并通过 feature flag 切换，便于逐页验证。
-3. 建立 swagger → TypeScript 类型的自动生成（例如 `openapi-typescript`），减少手写接口带来的 drift。
-4. 对 Blocked 模块输出单独的 PRD/接口需求文档，确保 e-supply-back 团队能按优先级实现。
+#### Phase 1 新任务（岗位管理）
+1. 在 `settingsApi.roles` 内接入真实接口：沿用 `http` 客户端 + `apiConfig.useMock` 灰度，新增 `adaptRoleResponse()` 将 `RoleResponse` → `RoleItem`，并临时填充 `memberCount`（`response.memberCount ?? 0`）。
+2. `Roles.tsx` 中的 CRUD 调用切换至新的 API 层，确保 `fetchRoles` 根据 `VITE_USE_MOCK` 自动兜底；keyword 仍使用前端过滤，后续可透传为 query。
+3. 权限抽屉：在真实接口缺席前保持 mock 并在 UI 提示“权限树数据为演示”，同时记录对后端的接口需求（树形结构 + label/route 元信息）。
+4. 发起后端需求：补充 `DELETE /api/v1/settings/roles/{roleId}` 及 `GET /api/v1/settings/permissions/tree`，并评估角色被成员引用时的约束（返回 409 + 提示）。
+5. （可选）`memberCount` 如需真实值，需新增 `/settings/users/count-by-role` 或在角色列表响应中追加 `memberCount` 字段。该缺口在联调前同步给后端，便于一次性调整。

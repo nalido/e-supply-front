@@ -1,0 +1,758 @@
+[
+  {
+    "code": "dashboard-workplace:read-only",
+    "name": "工作台只读",
+    "description": "工作台的只读权限",
+    "module": "工作台"
+  },
+  {
+    "code": "dashboard-workplace:full-access",
+    "name": "工作台管理",
+    "description": "工作台的管理权限",
+    "module": "工作台"
+  },
+  {
+    "code": "sample-list:read-only",
+    "name": "样板单只读",
+    "description": "样板单的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-list:full-access",
+    "name": "样板单管理",
+    "description": "样板单的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-follow:read-only",
+    "name": "样板跟进只读",
+    "description": "样板跟进的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-follow:full-access",
+    "name": "样板跟进管理",
+    "description": "样板跟进的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-follow-template:read-only",
+    "name": "跟进模板只读",
+    "description": "跟进模板的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-follow-template:full-access",
+    "name": "跟进模板管理",
+    "description": "跟进模板的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-type:read-only",
+    "name": "样板类型只读",
+    "description": "样板类型的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-type:full-access",
+    "name": "样板类型管理",
+    "description": "样板类型的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-report-order-compare:read-only",
+    "name": "打板下单对照表只读",
+    "description": "打板下单对照表的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-report-order-compare:full-access",
+    "name": "打板下单对照表管理",
+    "description": "打板下单对照表的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-report-costing:read-only",
+    "name": "成本核价表只读",
+    "description": "成本核价表的只读权限",
+    "module": "打板"
+  },
+  {
+    "code": "sample-report-costing:full-access",
+    "name": "成本核价表管理",
+    "description": "成本核价表的管理权限",
+    "module": "打板"
+  },
+  {
+    "code": "orders-factory:read-only",
+    "name": "工厂订单只读",
+    "description": "工厂订单的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-factory:full-access",
+    "name": "工厂订单管理",
+    "description": "工厂订单的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-outsource:read-only",
+    "name": "委外生产表只读",
+    "description": "委外生产表的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-outsource:full-access",
+    "name": "委外生产表管理",
+    "description": "委外生产表的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-compare:read-only",
+    "name": "订单生产对照表只读",
+    "description": "订单生产对照表的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-compare:full-access",
+    "name": "订单生产对照表管理",
+    "description": "订单生产对照表的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-efficiency:read-only",
+    "name": "作业时效只读",
+    "description": "作业时效的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-efficiency:full-access",
+    "name": "作业时效管理",
+    "description": "作业时效的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-profit:read-only",
+    "name": "订单出货利润只读",
+    "description": "订单出货利润的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-profit:full-access",
+    "name": "订单出货利润管理",
+    "description": "订单出货利润的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-cost:read-only",
+    "name": "大货成本报表只读",
+    "description": "大货成本报表的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-cost:full-access",
+    "name": "大货成本报表管理",
+    "description": "大货成本报表的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-material-need:read-only",
+    "name": "订单物料需求报表只读",
+    "description": "订单物料需求报表的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-material-need:full-access",
+    "name": "订单物料需求报表管理",
+    "description": "订单物料需求报表的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-cut-outsource:read-only",
+    "name": "订单外发裁剪明细表只读",
+    "description": "订单外发裁剪明细表的只读权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "orders-report-cut-outsource:full-access",
+    "name": "订单外发裁剪明细表管理",
+    "description": "订单外发裁剪明细表的管理权限",
+    "module": "订单生产"
+  },
+  {
+    "code": "material-stock:read-only",
+    "name": "物料库存只读",
+    "description": "物料库存的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-stock:full-access",
+    "name": "物料库存管理",
+    "description": "物料库存的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-purchase-prep:read-only",
+    "name": "备料采购入库只读",
+    "description": "备料采购入库的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-purchase-prep:full-access",
+    "name": "备料采购入库管理",
+    "description": "备料采购入库的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-purchase-order:read-only",
+    "name": "按单采购入库只读",
+    "description": "按单采购入库的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-purchase-order:full-access",
+    "name": "按单采购入库管理",
+    "description": "按单采购入库的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-issue:read-only",
+    "name": "领料出库明细只读",
+    "description": "领料出库明细的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-issue:full-access",
+    "name": "领料出库明细管理",
+    "description": "领料出库明细的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-report-overview:read-only",
+    "name": "物料进销存报表只读",
+    "description": "物料进销存报表的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-report-overview:full-access",
+    "name": "物料进销存报表管理",
+    "description": "物料进销存报表的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-report-purchase-inbound-detail:read-only",
+    "name": "物料采购入库明细表只读",
+    "description": "物料采购入库明细表的只读权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "material-report-purchase-inbound-detail:full-access",
+    "name": "物料采购入库明细表管理",
+    "description": "物料采购入库明细表的管理权限",
+    "module": "物料进销存"
+  },
+  {
+    "code": "product-stock:read-only",
+    "name": "成品库存只读",
+    "description": "成品库存的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-stock:full-access",
+    "name": "成品库存管理",
+    "description": "成品库存的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-pending:read-only",
+    "name": "待收货只读",
+    "description": "待收货的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-pending:full-access",
+    "name": "待收货管理",
+    "description": "待收货的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-received:read-only",
+    "name": "已收货只读",
+    "description": "已收货的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-received:full-access",
+    "name": "已收货管理",
+    "description": "已收货的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-other:read-only",
+    "name": "其它入库只读",
+    "description": "其它入库的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-inbound-other:full-access",
+    "name": "其它入库管理",
+    "description": "其它入库的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-outbound:read-only",
+    "name": "出库明细只读",
+    "description": "出库明细的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-outbound:full-access",
+    "name": "出库明细管理",
+    "description": "出库明细的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-report-overview:read-only",
+    "name": "成品进销存报表只读",
+    "description": "成品进销存报表的只读权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "product-report-overview:full-access",
+    "name": "成品进销存报表管理",
+    "description": "成品进销存报表的管理权限",
+    "module": "成品进销存"
+  },
+  {
+    "code": "piecework-orders:read-only",
+    "name": "工厂订单只读",
+    "description": "工厂订单的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-orders:full-access",
+    "name": "工厂订单管理",
+    "description": "工厂订单的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-pending:read-only",
+    "name": "待裁只读",
+    "description": "待裁的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-pending:full-access",
+    "name": "待裁管理",
+    "description": "待裁的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-done:read-only",
+    "name": "已裁只读",
+    "description": "已裁的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-done:full-access",
+    "name": "已裁管理",
+    "description": "已裁的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-report:read-only",
+    "name": "裁床报表只读",
+    "description": "裁床报表的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-cutting-report:full-access",
+    "name": "裁床报表管理",
+    "description": "裁床报表的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-progress:read-only",
+    "name": "车间进度只读",
+    "description": "车间进度的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-progress:full-access",
+    "name": "车间进度管理",
+    "description": "车间进度的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-payroll:read-only",
+    "name": "薪资管理只读",
+    "description": "薪资管理的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-payroll:full-access",
+    "name": "薪资管理管理",
+    "description": "薪资管理的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-outsource:read-only",
+    "name": "外发管理只读",
+    "description": "外发管理的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-outsource:full-access",
+    "name": "外发管理管理",
+    "description": "外发管理的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-quality:read-only",
+    "name": "质检管理只读",
+    "description": "质检管理的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-quality:full-access",
+    "name": "质检管理管理",
+    "description": "质检管理的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-report:read-only",
+    "name": "报表中心只读",
+    "description": "报表中心的只读权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "piecework-report:full-access",
+    "name": "报表中心管理",
+    "description": "报表中心的管理权限",
+    "module": "车间计件"
+  },
+  {
+    "code": "collab-send-out:read-only",
+    "name": "外发订单只读",
+    "description": "外发订单的只读权限",
+    "module": "协同中心"
+  },
+  {
+    "code": "collab-send-out:full-access",
+    "name": "外发订单管理",
+    "description": "外发订单的管理权限",
+    "module": "协同中心"
+  },
+  {
+    "code": "collab-receive-in:read-only",
+    "name": "外接订单只读",
+    "description": "外接订单的只读权限",
+    "module": "协同中心"
+  },
+  {
+    "code": "collab-receive-in:full-access",
+    "name": "外接订单管理",
+    "description": "外接订单的管理权限",
+    "module": "协同中心"
+  },
+  {
+    "code": "settlement-receivable:read-only",
+    "name": "客户收款只读",
+    "description": "客户收款的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-receivable:full-access",
+    "name": "客户收款管理",
+    "description": "客户收款的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-payable-factory:read-only",
+    "name": "加工厂付款只读",
+    "description": "加工厂付款的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-payable-factory:full-access",
+    "name": "加工厂付款管理",
+    "description": "加工厂付款的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-payable-supplier:read-only",
+    "name": "供应商付款只读",
+    "description": "供应商付款的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-payable-supplier:full-access",
+    "name": "供应商付款管理",
+    "description": "供应商付款的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-cashier:read-only",
+    "name": "出纳账户只读",
+    "description": "出纳账户的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-cashier:full-access",
+    "name": "出纳账户管理",
+    "description": "出纳账户的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-customer-detail:read-only",
+    "name": "客户业务明细表只读",
+    "description": "客户业务明细表的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-customer-detail:full-access",
+    "name": "客户业务明细表管理",
+    "description": "客户业务明细表的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-factory-detail:read-only",
+    "name": "加工厂业务明细表只读",
+    "description": "加工厂业务明细表的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-factory-detail:full-access",
+    "name": "加工厂业务明细表管理",
+    "description": "加工厂业务明细表的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-supplier-detail:read-only",
+    "name": "供应商业务明细表只读",
+    "description": "供应商业务明细表的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-supplier-detail:full-access",
+    "name": "供应商业务明细表管理",
+    "description": "供应商业务明细表的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-statement-detail:read-only",
+    "name": "对账明细表只读",
+    "description": "对账明细表的只读权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "settlement-report-statement-detail:full-access",
+    "name": "对账明细表管理",
+    "description": "对账明细表的管理权限",
+    "module": "对账结算"
+  },
+  {
+    "code": "appstore:read-only",
+    "name": "应用商店只读",
+    "description": "应用商店的只读权限",
+    "module": "应用商店"
+  },
+  {
+    "code": "appstore:full-access",
+    "name": "应用商店管理",
+    "description": "应用商店的管理权限",
+    "module": "应用商店"
+  },
+  {
+    "code": "basic-styles:read-only",
+    "name": "款式资料只读",
+    "description": "款式资料的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-styles:full-access",
+    "name": "款式资料管理",
+    "description": "款式资料的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-material:read-only",
+    "name": "物料档案只读",
+    "description": "物料档案的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-material:full-access",
+    "name": "物料档案管理",
+    "description": "物料档案的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-partners:read-only",
+    "name": "往来单位只读",
+    "description": "往来单位的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-partners:full-access",
+    "name": "往来单位管理",
+    "description": "往来单位的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-process-type:read-only",
+    "name": "加工类型只读",
+    "description": "加工类型的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-process-type:full-access",
+    "name": "加工类型管理",
+    "description": "加工类型的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-operation-template:read-only",
+    "name": "工序模板只读",
+    "description": "工序模板的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-operation-template:full-access",
+    "name": "工序模板管理",
+    "description": "工序模板的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-warehouse:read-only",
+    "name": "仓库只读",
+    "description": "仓库的只读权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "basic-warehouse:full-access",
+    "name": "仓库管理",
+    "description": "仓库的管理权限",
+    "module": "基础资料"
+  },
+  {
+    "code": "settings-profile:read-only",
+    "name": "个人资料只读",
+    "description": "个人资料的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-profile:full-access",
+    "name": "个人资料管理",
+    "description": "个人资料的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-company:read-only",
+    "name": "我的企业只读",
+    "description": "我的企业的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-company:full-access",
+    "name": "我的企业管理",
+    "description": "我的企业的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-org:read-only",
+    "name": "组织架构只读",
+    "description": "组织架构的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-org:full-access",
+    "name": "组织架构管理",
+    "description": "组织架构的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-roles:read-only",
+    "name": "岗位管理只读",
+    "description": "岗位管理的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-roles:full-access",
+    "name": "岗位管理管理",
+    "description": "岗位管理的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-users:read-only",
+    "name": "用户管理只读",
+    "description": "用户管理的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-users:full-access",
+    "name": "用户管理管理",
+    "description": "用户管理的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-onboarding:read-only",
+    "name": "入职申请只读",
+    "description": "入职申请的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-onboarding:full-access",
+    "name": "入职申请管理",
+    "description": "入职申请的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-keys:read-only",
+    "name": "密钥管理只读",
+    "description": "密钥管理的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-user-keys:full-access",
+    "name": "密钥管理管理",
+    "description": "密钥管理的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-preferences:read-only",
+    "name": "偏好设置只读",
+    "description": "偏好设置的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-preferences:full-access",
+    "name": "偏好设置管理",
+    "description": "偏好设置的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-audit:read-only",
+    "name": "操作日志只读",
+    "description": "操作日志的只读权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "settings-audit:full-access",
+    "name": "操作日志管理",
+    "description": "操作日志的管理权限",
+    "module": "系统设置"
+  },
+  {
+    "code": "guide:read-only",
+    "name": "操作指南只读",
+    "description": "操作指南的只读权限",
+    "module": "操作指南"
+  },
+  {
+    "code": "guide:full-access",
+    "name": "操作指南管理",
+    "description": "操作指南的管理权限",
+    "module": "操作指南"
+  }
+]
