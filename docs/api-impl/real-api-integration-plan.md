@@ -74,6 +74,50 @@
 - **基础档案 & 设置**：`Partners`, `Warehouse`, `UserList`, `Roles`, `Preferences`, `ProcessCatalog`。集中改写 API 层，验证 tenant 鉴权链路。
 - **物料库存 & 成品仓储**：`MaterialStock`, `MaterialIssue`, `FinishedGoods*`（除 Received schema 缺陷外）。并行推动后端补 `FinishedGoodsReceivedListItem` 字段。
 
+#### Phase 1 任务拆解（按模块）
+
+##### 样衣核心
+1. **API 层接入**
+   - 新增 `src/api/sample-order.ts`，封装 `/api/v1/sample-orders`、`/dashboard`、`/{id}`、`/{id}/status`、`/sample-types` 等请求，接入 `http` 实例与 `apiConfig.useMock`。
+   - 引入 `src/api/adapters/sample-order.ts`（或共用枚举 util），完成 `SampleStatus`、`SamplePriority`、`SampleDashboardStats` 的大小写映射及字段补齐策略。
+2. **SampleList**
+   - 用真实接口替换 `sampleService.getSampleOrders`、`getSampleStats`；支持后端 0-based 分页，维持现有筛选参数；补充列表聚合逻辑以兜底 `styleName/customerName` 缺失。
+   - 接入批量操作（状态流转、导出）所需的真实 API 调用占位，先完成只读列表与统计卡。
+3. **SampleDetail**
+   - 替换详情、流程、SKU、跟踪日志的 mock；在详情页添加字段为空时的占位处理，并确保跟进/状态更新调用真实接口。
+4. **SampleFollow**
+   - 用真实接口驱动卡片统计 + 列表筛选；对状态/优先级标签统一复用 adapter；补写分页/keyword 查询参数对接。
+5. **SampleDashboard**
+   - 接入 `/api/v1/sample-orders/dashboard`，对缺失指标用前端计算备选方案；保留 mock 作为 `VITE_USE_MOCK` 兜底。
+6. **SampleType & Follow Template**
+   - 切换至 `/api/v1/sample-types`、`/api/v1/sample-follow-templates`；处理节点字段（`nodeName/nodeCode`）映射及 CRUD 表单校验。
+
+##### 基础档案 & 设置
+1. **Partners**
+   - 新建 `src/api/partners.ts` 真接口（列表、创建、更新、删除、启停、邀请）；接入 tenant + 分页；处理状态大写转译。
+   - 在 `src/views/Partners`（及相关组件）替换 API 调用，补充 loading/error 反馈。
+2. **Warehouse**
+   - 对接 `/api/v1/warehouses` 列表/CRUD，映射 `type = MATERIAL/FINISHED/VIRTUAL`、`status` 字段；页面支持启用状态展示。
+3. **ProcessCatalog / OperationTemplate**
+   - 新建 process API 模块，连通 `/api/v1/process-catalog` & `/production/operational-efficiency`；梳理模板字段与 UI 结构的差异并在 adapter 中转换。
+4. **Settings（UserList/Roles/Preferences）**
+   - 在 `settingsApi` 中为 `users.list/create/update/remove/export`、`roles.*`、`preferences.*` 打通真实接口，并保留 mock 灰度。
+   - 更新对应视图（`UserList`, `Roles`, `Preferences`）的请求入口，验证分页/搜索参数与后端契约一致。
+
+##### 物料库存 & 成品仓储
+1. **MaterialStock**
+   - 新建 `src/api/material-inventory.ts`，封装 `/api/v1/inventory/materials` + `/materials/meta`；接入 `MaterialStock` 视图，确保 tabs/仓库下拉使用真实 meta。
+   - 处理 `materialType`、`warehouseId` 前后端大小写转换，保持仅在库筛选逻辑。
+2. **MaterialIssue**
+   - 对接 `/api/v1/material-issues`、`/material-issues/meta`；替换列表/统计卡的 mock 数据。
+3. **FinishedGoods 系列**
+   - 建立 `src/api/finished-goods.ts`（或拆分文件）承载 `/api/v1/inventory/finished-goods`、`/finished-goods-receipts`、`/dispatches` 等接口。
+   - 先切换库存、待收货、出库、其它入库等列表页到真实 API；`Received` 列表因 schema 缺陷保留 mock，并在页面提示“后端待补字段”。
+4. **共通事项**
+   - 每个视图集成真实接口后，补充失败兜底、空状态、`VITE_USE_MOCK` 灰度开关；同步记录对后端字段/接口的新增需求，便于联调追踪。
+
+> 上述任务将作为 Phase 1 迭代的进度清单，完成单个功能点后在 PR 描述与项目追踪中同步状态。
+
 ### Phase 2（需配合后端补字段/契约的模块）
 - **采购入仓**：`OrderPurchaseInbound`, `StockingPurchaseInbound`。等待后端补 `imageUrl`/`documentType`、批量收货接口；前端完成请求体/分页适配。
 - **生产执行**：`OperationalEfficiency`, `ProductionOrders`, `WorkshopDashboard`, `OutsourcingManagement`。需要后端提供 status tabs、进度条、打印/导出任务字段。
