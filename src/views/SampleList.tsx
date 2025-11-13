@@ -43,6 +43,7 @@ import dayjs from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import { sampleService } from '../api/mock';
+import sampleOrderApi from '../api/sample-order';
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 
@@ -449,7 +450,7 @@ const SampleList: React.FC = () => {
   const loadStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const result = await sampleService.getSampleStats(buildQueryParams({ status: undefined }));
+      const result = await sampleOrderApi.getStats(buildQueryParams({ status: undefined }));
       setStats(result);
     } catch {
       message.error('加载统计数据失败');
@@ -461,7 +462,7 @@ const SampleList: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await sampleService.getSampleOrders(buildQueryParams({
+      const result = await sampleOrderApi.list(buildQueryParams({
         page: currentPage,
         pageSize: currentPageSize,
       }));
