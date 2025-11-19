@@ -131,6 +131,7 @@ const RolesSettings = () => {
             icon={<SafetyCertificateOutlined />}
             onClick={() => {
               setPermissionRole(record);
+              setSelectedPermissionKeys(record.permissionIds || []); // Set selected permissions for the current role
               setPermissionDrawerOpen(true);
             }}
           >
@@ -197,6 +198,7 @@ const RolesSettings = () => {
         onClose={() => {
           setPermissionDrawerOpen(false);
           setPermissionRole(null);
+          setSelectedPermissionKeys([]); // Clear selected permissions on close
         }}
         open={permissionDrawerOpen}
       >
