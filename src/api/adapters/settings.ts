@@ -77,6 +77,7 @@ export const adaptRoleResponse = (response: BackendRoleResponse): RoleItem => {
     description: response.description,
     memberCount: 0, // Backend does not provide this, temporarily set to 0 as per plan
     updatedAt: response.updatedAt, // Assuming backend sends ISO string, frontend can display directly
+    permissionIds: response.permissionIds ?? [],
   };
 };
 

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
+import type { TreeProps } from 'antd/es/tree';
 import {
   Button,
   Card,
@@ -11,6 +12,7 @@ import {
   Table,
   Tree,
   message,
+  Spin,
 } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SafetyCertificateOutlined, SearchOutlined } from '@ant-design/icons';
 import type { PermissionTreeNode, RoleItem } from '../../types/settings';
@@ -25,24 +27,70 @@ const RolesSettings = () => {
   const [permissionDrawerOpen, setPermissionDrawerOpen] = useState(false);
   const [permissionRole, setPermissionRole] = useState<RoleItem | null>(null);
   const [permissionTree, setPermissionTree] = useState<PermissionTreeNode[]>([]);
-  const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<string[]>([]); // New state for selected permissions
+  const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<string[]>([]); // Selected permission leaf nodes
+  const [permissionTreeLoading, setPermissionTreeLoading] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const permissionsLoadedRef = useRef(false);
+  const permissionLeafKeysRef = useRef<Set<string>>(new Set());
   const [form] = Form.useForm<{ name: string; description?: string }>();
 
-  const fetchRoles = () => {
+  const fetchRoles = useCallback(() => {
     setLoading(true);
     settingsApi.roles
       .list()
       .then(data => {
-        console.log('Fetched roles:', data); // Debugging line
         setRoles(data);
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
+
+  const pickLeafKeys = useCallback((keys: string[] = []) => {
+    if (!permissionLeafKeysRef.current.size) {
+      return keys;
+    }
+    return keys.filter((key) => permissionLeafKeysRef.current.has(key));
+  }, []);
+
+  const collectLeafKeys = useCallback((nodes: PermissionTreeNode[]): string[] => {
+    const result: string[] = [];
+    const traverse = (items: PermissionTreeNode[]) => {
+      items.forEach((node) => {
+        if (node.children && node.children.length > 0) {
+          traverse(node.children);
+        } else {
+          result.push(node.key);
+        }
+      });
+    };
+    traverse(nodes);
+    return result;
+  }, []);
+
+  const loadPermissions = useCallback(() => {
+    if (permissionsLoadedRef.current) {
+      return;
+    }
+    permissionsLoadedRef.current = true;
+    setPermissionTreeLoading(true);
+    settingsApi.roles
+      .permissions()
+      .then((tree) => {
+        setPermissionTree(tree);
+        permissionLeafKeysRef.current = new Set(collectLeafKeys(tree));
+        setSelectedPermissionKeys((prev) => pickLeafKeys(prev));
+      })
+      .catch((error) => {
+        console.error('Failed to load permissions', error);
+        permissionsLoadedRef.current = false;
+        message.error('权限列表拉取失败，请稍后重试');
+      })
+      .finally(() => setPermissionTreeLoading(false));
+  }, [collectLeafKeys, pickLeafKeys]);
 
   useEffect(() => {
     fetchRoles();
-    settingsApi.roles.permissions().then(setPermissionTree);
-  }, []);
+    loadPermissions();
+  }, [fetchRoles, loadPermissions]);
 
   const filteredRoles = useMemo(() => {
     if (!keyword) {
@@ -62,16 +110,30 @@ const RolesSettings = () => {
   const openEditModal = (role: RoleItem) => {
     setEditingRole(role);
     form.setFieldsValue({ name: role.name, description: role.description });
-    setSelectedPermissionKeys(role.permissionIds || []); // Pre-populate selected permissions for existing role
+    setSelectedPermissionKeys(pickLeafKeys(role.permissionIds || []));
     setModalOpen(true);
+  };
+
+  const openPermissionDrawer = (role: RoleItem) => {
+    setPermissionRole(role);
+    setSelectedPermissionKeys(pickLeafKeys(role.permissionIds || []));
+    setPermissionDrawerOpen(true);
+    loadPermissions();
+  };
+
+  const closePermissionDrawer = () => {
+    setPermissionDrawerOpen(false);
+    setPermissionRole(null);
+    setSelectedPermissionKeys([]);
   };
 
   const submit = async () => {
     try {
       const values = await form.validateFields();
+      const permissionIds = pickLeafKeys(selectedPermissionKeys);
       const rolePayload = {
         ...values,
-        permissionIds: selectedPermissionKeys,
+        permissionIds,
       };
       if (editingRole) {
         await settingsApi.roles.update(editingRole.id, rolePayload);
@@ -86,6 +148,44 @@ const RolesSettings = () => {
       if (error) {
         console.error(error);
       }
+    }
+  };
+
+  const handlePermissionCheck: TreeProps['onCheck'] = (checkedKeysValue) => {
+    const keys = Array.isArray(checkedKeysValue)
+      ? (checkedKeysValue as string[])
+      : ((checkedKeysValue.checked ?? []) as string[]);
+    setSelectedPermissionKeys(pickLeafKeys(keys));
+  };
+
+  const handleSavePermissions = async () => {
+    if (!permissionRole) {
+      return;
+    }
+    const leafKeys = pickLeafKeys(selectedPermissionKeys);
+    setSavingPermissions(true);
+    try {
+      const updatedRole = await settingsApi.roles.update(permissionRole.id, {
+        name: permissionRole.name,
+        description: permissionRole.description,
+        permissionIds: leafKeys,
+      });
+      const nextRoles = roles.map((role) =>
+        role.id === permissionRole.id
+          ? {
+              ...role,
+              permissionIds: updatedRole?.permissionIds ?? leafKeys,
+            }
+          : role,
+      );
+      setRoles(nextRoles);
+      message.success('权限设置已保存');
+      closePermissionDrawer();
+    } catch (error) {
+      console.error('Failed to save permissions', error);
+      message.error('保存权限失败，请稍后重试');
+    } finally {
+      setSavingPermissions(false);
     }
   };
 
@@ -129,11 +229,7 @@ const RolesSettings = () => {
           <Button
             type="link"
             icon={<SafetyCertificateOutlined />}
-            onClick={() => {
-              setPermissionRole(record);
-              setSelectedPermissionKeys(record.permissionIds || []); // Set selected permissions for the current role
-              setPermissionDrawerOpen(true);
-            }}
+            onClick={() => openPermissionDrawer(record)}
           >
             权限
           </Button>
@@ -195,20 +291,27 @@ const RolesSettings = () => {
         title={permissionRole ? `${permissionRole.name} 的权限` : '岗位权限'}
         placement="right"
         width={360}
-        onClose={() => {
-          setPermissionDrawerOpen(false);
-          setPermissionRole(null);
-          setSelectedPermissionKeys([]); // Clear selected permissions on close
-        }}
+        onClose={closePermissionDrawer}
         open={permissionDrawerOpen}
+        footer={
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button onClick={closePermissionDrawer}>取消</Button>
+            <Button type="primary" loading={savingPermissions} disabled={!permissionRole} onClick={handleSavePermissions}>
+              保存
+            </Button>
+          </Space>
+        }
       >
-        <Tree
-          treeData={permissionTree}
-          checkable
-          defaultExpandAll
-          checkedKeys={selectedPermissionKeys}
-          onCheck={(checkedKeys) => setSelectedPermissionKeys(checkedKeys as string[])}
-        />
+        <Spin spinning={permissionTreeLoading}>
+          <Tree
+            treeData={permissionTree}
+            checkable
+            defaultExpandAll
+            checkedKeys={selectedPermissionKeys}
+            onCheck={handlePermissionCheck}
+            disabled={!permissionTree.length}
+          />
+        </Spin>
       </Drawer>
     </Card>
   );

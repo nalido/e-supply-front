@@ -83,6 +83,19 @@ let rolesStore: RoleItem[] = [
     description: '拥有所有模块的管理权限',
     memberCount: 4,
     updatedAt: '2025-03-15 11:36',
+    permissionIds: [
+      'dashboard.overview',
+      'dashboard.todo',
+      'orders.create',
+      'orders.progress',
+      'orders.approval',
+      'material.stock',
+      'material.io',
+      'material.purchase',
+      'settings.role',
+      'settings.user',
+      'settings.preference',
+    ],
   },
   {
     id: 'role-002',
@@ -90,6 +103,7 @@ let rolesStore: RoleItem[] = [
     description: '负责生产排期与跟进',
     memberCount: 6,
     updatedAt: '2025-03-12 09:42',
+    permissionIds: ['orders.create', 'orders.progress', 'dashboard.todo'],
   },
   {
     id: 'role-003',
@@ -97,6 +111,7 @@ let rolesStore: RoleItem[] = [
     description: '物料采购与供应商协同',
     memberCount: 5,
     updatedAt: '2025-03-10 15:18',
+    permissionIds: ['material.purchase', 'material.stock'],
   },
   {
     id: 'role-004',
@@ -104,6 +119,7 @@ let rolesStore: RoleItem[] = [
     description: '负责质检流程与标准维护',
     memberCount: 3,
     updatedAt: '2025-03-08 17:06',
+    permissionIds: ['orders.progress', 'dashboard.overview'],
   },
   {
     id: 'role-005',
@@ -111,6 +127,7 @@ let rolesStore: RoleItem[] = [
     description: '负责车间计件与人员分配',
     memberCount: 8,
     updatedAt: '2025-03-06 13:58',
+    permissionIds: ['dashboard.todo', 'orders.progress'],
   },
 ];
 
