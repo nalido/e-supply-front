@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { ColumnsType } from 'antd/es/table';
 import {
   Button,
   Card,
@@ -79,11 +79,13 @@ const OrganizationSettings = () => {
     setActiveKeyword('');
   };
 
-  const handleTableChange = (paginationConfig: TablePaginationConfig) => {
-    const nextPage = paginationConfig.current ?? pagination.current;
-    const nextPageSize = paginationConfig.pageSize ?? pagination.pageSize;
-    fetchMembers(nextPage, nextPageSize);
-  };
+  const handlePaginationChange = useCallback(
+    (page: number, pageSize?: number) => {
+      const resolvedPageSize = pageSize ?? pagination.pageSize;
+      fetchMembers(page, resolvedPageSize);
+    },
+    [fetchMembers, pagination.pageSize],
+  );
 
   const handleRemove = useCallback(
     (member: OrgMember) => {
@@ -195,8 +197,9 @@ const OrganizationSettings = () => {
             total: pagination.total,
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 人`,
+            onChange: handlePaginationChange,
+            onShowSizeChange: handlePaginationChange,
           }}
-          onChange={handleTableChange}
         />
       </Space>
 

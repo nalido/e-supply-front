@@ -144,7 +144,7 @@ export const settingsApi = {
           params: {
             tenantId,
             keyword: query.keyword,
-            page: page - 1,
+            page,
             size: pageSize,
           },
         },
