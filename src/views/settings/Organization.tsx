@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   Modal,
+  Select,
   Space,
   Table,
   Tag,
@@ -14,7 +15,7 @@ import {
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import settingsApi from '../../api/settings';
 import { apiConfig } from '../../api/config';
-import type { CreateOrgMemberPayload, OrgMember } from '../../types/settings';
+import type { CreateOrgMemberPayload, OrgMember, RoleItem } from '../../types/settings';
 
 const OrganizationSettings = () => {
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -25,6 +26,7 @@ const OrganizationSettings = () => {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const latestPageSizeRef = useRef(pagination.pageSize);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
+  const [roleList, setRoleList] = useState<RoleItem[]>([]);
   const allowOrgRemoval = apiConfig.useMock;
   const [createForm] = Form.useForm<CreateOrgMemberPayload>();
 
@@ -47,11 +49,12 @@ const OrganizationSettings = () => {
   }, [pagination.pageSize]);
 
   useEffect(() => {
-    settingsApi.roles.list().then((roleList) => {
+    settingsApi.roles.list().then((list) => {
       const nextMap: Record<string, string> = {};
-      roleList.forEach((role) => {
+      list.forEach((role) => {
         nextMap[role.id] = role.name;
       });
+      setRoleList(list);
       setRolesMap(nextMap);
     });
   }, []);
@@ -166,6 +169,11 @@ const OrganizationSettings = () => {
     [allowOrgRemoval, handleRemove, rolesMap],
   );
 
+  const roleOptions = useMemo(
+    () => roleList.map((role) => ({ label: role.name, value: role.id })),
+    [roleList],
+  );
+
   return (
     <Card title="组织架构">
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
@@ -244,6 +252,19 @@ const OrganizationSettings = () => {
             ]}
           >
             <Input placeholder="请输入邮箱，如 user@example.com" />
+          </Form.Item>
+          <Form.Item
+            label="岗位"
+            name="roleIds"
+            rules={[{ required: true, message: '请选择岗位' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择岗位"
+              options={roleOptions}
+              optionFilterProp="label"
+              maxTagCount="responsive"
+            />
           </Form.Item>
           <Form.Item
             label="初始密码"
