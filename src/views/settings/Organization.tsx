@@ -88,7 +88,7 @@ const OrganizationSettings = () => {
   const handleRemove = useCallback(
     (member: OrgMember) => {
       if (!allowOrgRemoval) {
-        message.warning('请前往「用户管理」页面调整成员');
+        message.warning('当前环境暂不支持删除成员');
         return;
       }
       Modal.confirm({

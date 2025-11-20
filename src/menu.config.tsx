@@ -183,15 +183,6 @@ export const menuTree: MenuNode[] = [
       { key: '/settings/company', label: <Link to="/settings/company">我的企业</Link> },
       { key: '/settings/org', label: <Link to="/settings/org">组织架构</Link> },
       { key: '/settings/roles', label: <Link to="/settings/roles">岗位管理</Link> },
-      {
-        key: '/settings/user',
-        label: '用户管理',
-        children: [
-          { key: '/settings/user/users', label: <Link to="/settings/user/users">用户管理</Link> },
-          { key: '/settings/user/onboarding', label: <Link to="/settings/user/onboarding">入职申请</Link> },
-          { key: '/settings/user/keys', label: <Link to="/settings/user/keys">密钥管理</Link> },
-        ],
-      },
       { key: '/settings/preferences', label: <Link to="/settings/preferences">偏好设置</Link> },
       { key: '/settings/audit', label: <Link to="/settings/audit">操作日志</Link> },
     ],

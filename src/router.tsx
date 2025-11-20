@@ -65,7 +65,6 @@ import {
   PreferencesPage,
   ProfileSettings,
   RolesSettings,
-  UserListPage,
 } from './views/settings';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
@@ -204,7 +203,6 @@ const router = createBrowserRouter([
       { path: 'settings/roles', element: React.createElement(RolesSettings) },
       { path: 'settings/preferences', element: React.createElement(PreferencesPage) },
       { path: 'settings/audit', element: React.createElement(ActionLogPage) },
-      { path: 'settings/user/users', element: React.createElement(UserListPage) },
       { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
       { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
