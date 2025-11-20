@@ -71,20 +71,31 @@ export type OrgMember = {
   id: string;
   name: string;
   phone: string;
-  department: string;
+  username?: string;
+  email?: string;
+  department?: string;
   title?: string;
+  roleIds?: string[];
+  status?: UserStatus;
 };
 
 export type OrgMemberQuery = {
   keyword?: string;
-  includeChildren?: boolean;
+  page?: number;
+  pageSize?: number;
 };
 
 export type CreateOrgMemberPayload = {
   name: string;
+  username: string;
   phone: string;
-  department: string;
+  email: string;
+  password: string;
+  department?: string;
   title?: string;
+  avatarUrl?: string;
+  roleIds?: string[];
+  status?: UserStatus;
 };
 
 export type RoleItem = {
@@ -124,6 +135,41 @@ export type BackendPermissionDto = {
 export type BackendPermissionModuleDto = {
   module: string; // Corresponds to module name
   permissions: BackendPermissionDto[];
+};
+
+export type BackendUserAccountResponse = {
+  id: string;
+  tenantId: string;
+  tenantIds: string[];
+  username: string;
+  displayName: string;
+  phone?: string;
+  email?: string;
+  avatarUrl?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+  roleIds?: Array<string | number>;
+};
+
+export type BackendPageResponse<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+};
+
+export type BackendUserAccountCreateRequest = {
+  tenantId: string;
+  username: string;
+  displayName: string;
+  password: string;
+  status?: string;
+  phone?: string;
+  email: string;
+  avatarUrl?: string;
+  roleIds?: Array<string | number>;
 };
 
 export type CreateRolePayload = {

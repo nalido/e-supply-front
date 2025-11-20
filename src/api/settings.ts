@@ -24,12 +24,16 @@ import type {
   UpdateRolePayload,
   UpdateUserPayload,
   UserAccount,
+  UserStatus,
   UserListQuery,
   UserProfile,
   // New DTO types
   BackendRoleResponse,
   BackendRoleRequest,
   BackendPermissionModuleDto,
+  BackendPageResponse,
+  BackendUserAccountCreateRequest,
+  BackendUserAccountResponse,
 } from '../types/settings';
 import type { Paginated } from './mock';
 import http from './http';
@@ -78,6 +82,32 @@ import { tenantStore } from '../stores/tenant'; // Import tenantStore
 
 const useMock = apiConfig.useMock;
 
+const normalizeRoleIds = (values?: Array<string | number>): string[] =>
+  (values ?? [])
+    .map((value) => (value === undefined || value === null ? '' : value.toString()))
+    .filter((value): value is string => Boolean(value));
+
+const normalizeUserStatus = (status?: string): UserStatus | undefined => {
+  if (!status) {
+    return undefined;
+  }
+  const lowered = status.toLowerCase() as UserStatus;
+  if (lowered === 'active' || lowered === 'inactive' || lowered === 'pending') {
+    return lowered;
+  }
+  return undefined;
+};
+
+const adaptOrgMemberFromBackend = (item: BackendUserAccountResponse): OrgMember => ({
+  id: String(item.id),
+  name: item.displayName || item.username || '',
+  username: item.username,
+  phone: item.phone ?? '',
+  email: item.email,
+  roleIds: normalizeRoleIds(item.roleIds),
+  status: normalizeUserStatus(item.status),
+});
+
 export const settingsApi = {
   profile: {
     get: (): Promise<UserProfile> => mockFetchUserProfile(),
@@ -98,8 +128,57 @@ export const settingsApi = {
     switchTenant: (tenantId: TenantSummary['id']): Promise<CompanyOverview> => mockSwitchTenant(tenantId),
   },
   organization: {
-    list: (query?: OrgMemberQuery): Promise<OrgMember[]> => mockListOrgMembers(query),
-    create: (payload: CreateOrgMemberPayload): Promise<OrgMember> => mockCreateOrgMember(payload),
+    list: async (query: OrgMemberQuery = {}): Promise<Paginated<OrgMember>> => {
+      if (useMock) {
+        return mockListOrgMembers(query);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 10;
+      const response = await http.get<BackendPageResponse<BackendUserAccountResponse>>(
+        '/api/v1/settings/users',
+        {
+          params: {
+            tenantId,
+            keyword: query.keyword,
+            page: page - 1,
+            size: pageSize,
+          },
+        },
+      );
+      return {
+        list: (response.data.items ?? []).map(adaptOrgMemberFromBackend),
+        total: response.data.total ?? 0,
+      };
+    },
+    create: async (payload: CreateOrgMemberPayload): Promise<OrgMember> => {
+      if (useMock) {
+        return mockCreateOrgMember(payload);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const roleIds = (payload.roleIds ?? [])
+        .map((roleId) => Number(roleId))
+        .filter((roleId) => Number.isFinite(roleId) && roleId > 0);
+      const requestBody: BackendUserAccountCreateRequest = {
+        tenantId,
+        username: payload.username,
+        displayName: payload.name,
+        password: payload.password,
+        status: (payload.status ?? 'pending').toUpperCase(),
+        phone: payload.phone,
+        email: payload.email,
+        avatarUrl: payload.avatarUrl,
+        roleIds: roleIds.length ? roleIds : undefined,
+      };
+      const response = await http.post<BackendUserAccountResponse>('/api/v1/settings/users', requestBody);
+      return adaptOrgMemberFromBackend(response.data);
+    },
     remove: (memberId: string): Promise<boolean> => mockRemoveOrgMember(memberId),
   },
   roles: {

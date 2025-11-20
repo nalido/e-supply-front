@@ -450,25 +450,34 @@ export const switchTenant = async (tenantId: string): Promise<CompanyOverview> =
   return clone(companyOverviewStore);
 };
 
-export const listOrgMembers = async (query: OrgMemberQuery = {}): Promise<OrgMember[]> => {
+export const listOrgMembers = async (query: OrgMemberQuery = {}): Promise<Paginated<OrgMember>> => {
   await wait();
-  const { keyword } = query;
-  if (!keyword) {
-    return clone(orgMembersStore);
-  }
-  const lower = keyword.toLowerCase();
-  return clone(
-    orgMembersStore.filter(
+  const { keyword, page = 1, pageSize = 10 } = query;
+  let data = orgMembersStore;
+  if (keyword) {
+    const lower = keyword.toLowerCase();
+    data = data.filter(
       (member) => member.name.toLowerCase().includes(lower) || member.phone.includes(keyword),
-    ),
-  );
+    );
+  }
+  const total = data.length;
+  const start = (page - 1) * pageSize;
+  const list = data.slice(start, start + pageSize);
+  return { list: clone(list), total };
 };
 
 export const createOrgMember = async (payload: CreateOrgMemberPayload): Promise<OrgMember> => {
   await wait();
   const next: OrgMember = {
     id: `member-${Date.now()}`,
-    ...payload,
+    name: payload.name,
+    phone: payload.phone,
+    username: payload.username,
+    email: payload.email,
+    department: payload.department,
+    title: payload.title,
+    roleIds: payload.roleIds,
+    status: payload.status ?? 'active',
   };
   orgMembersStore = [next, ...orgMembersStore];
   return clone(next);
