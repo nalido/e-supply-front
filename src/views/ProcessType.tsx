@@ -1,13 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
-import type {
-  CreateProcessTypePayload,
-  ProcessType,
-  ProcessTypeDataset,
-  ProcessTypeStatus,
-} from '../types';
 import {
   Alert,
   Button,
@@ -36,14 +30,33 @@ import {
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
+import type {
+  CreateProcessTypePayload,
+  ProcessType,
+  ProcessTypeDataset,
+  ProcessTypeListParams,
+  ProcessTypeStatus,
+} from '../types';
 import processTypeApi from '../api/process-type';
 import '../styles/process-type.css';
 
 const { Text } = Typography;
 
-type ColumnKey = 'chargeMode' | 'defaultWage' | 'description' | 'steps' | 'status' | 'updatedAt';
+const modeOptions = [
+  { label: '计件', value: 'piecework' },
+  { label: '计时', value: 'hourly' },
+  { label: '阶段计费', value: 'stage' },
+];
 
-type ProcessTypeFormValues = Omit<CreateProcessTypePayload, 'status'> & {
+type ColumnKey = 'chargeMode' | 'defaultWage' | 'description' | 'status' | 'updatedAt';
+
+type ProcessTypeFormValues = {
+  name: string;
+  code: string;
+  chargeMode: ProcessType['chargeMode'];
+  defaultWage: number;
+  unit: string;
+  description?: string;
   statusBoolean: boolean;
 };
 
@@ -61,63 +74,95 @@ type ImportModalState = {
   error?: string;
 };
 
-const statusTag = (status: ProcessTypeStatus) => {
-  const color = status === 'active' ? 'success' : 'default';
-  const label = status === 'active' ? '启用' : '停用';
-  return (
-    <Tag color={color} className="process-type-status-tag">
-      {label}
-    </Tag>
-  );
+const statusTag = (status: ProcessTypeStatus) => (
+  <Tag color={status === 'active' ? 'success' : 'default'} className="process-type-status-tag">
+    {status === 'active' ? '启用' : '停用'}
+  </Tag>
+);
+
+const chargeModeLabel = (mode: ProcessType['chargeMode']) => {
+  const item = modeOptions.find((option) => option.value === mode);
+  return item?.label ?? mode;
+};
+
+const defaultFormValues: ProcessTypeFormValues = {
+  name: '',
+  code: '',
+  chargeMode: 'piecework',
+  defaultWage: 0,
+  unit: '',
+  description: '',
+  statusBoolean: true,
 };
 
 const ProcessTypePage = () => {
   const [dataset, setDataset] = useState<ProcessTypeDataset>({ list: [], total: 0 });
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [onlyActive, setOnlyActive] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(['chargeMode', 'defaultWage', 'steps', 'status', 'updatedAt']);
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>([
+    'chargeMode',
+    'defaultWage',
+    'description',
+    'status',
+    'updatedAt',
+  ]);
   const [columnModalOpen, setColumnModalOpen] = useState(false);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false });
-  const [importModal, setImportModal] = useState<ImportModalState>({ open: false, uploading: false, fileList: [], parsed: [] });
+  const [importModal, setImportModal] = useState<ImportModalState>({
+    open: false,
+    uploading: false,
+    fileList: [],
+    parsed: [],
+  });
   const [form] = Form.useForm<ProcessTypeFormValues>();
+  const filtersRef = useRef({ page: 1, pageSize: 10, keyword: '', onlyActive: false });
 
-  const loadData = useCallback(() => {
-    setLoading(true);
-    processTypeApi
-      .list()
-      .then((data) => {
-        setDataset(data);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const loadData = useCallback(
+    async (options: (Partial<ProcessTypeListParams> & { onlyActive?: boolean }) = {}) => {
+      const current = filtersRef.current;
+      const nextFilters = {
+        page: options.page ?? current.page,
+        pageSize: options.pageSize ?? current.pageSize,
+        keyword: options.keyword ?? current.keyword,
+        onlyActive: options.onlyActive ?? current.onlyActive,
+      };
+      filtersRef.current = nextFilters;
+      setLoading(true);
+      try {
+        const response = await processTypeApi.list({
+          page: nextFilters.page,
+          pageSize: nextFilters.pageSize,
+          keyword: nextFilters.keyword.trim() || undefined,
+          status: nextFilters.onlyActive ? 'active' : undefined,
+        });
+        setDataset(response);
+        setPage(nextFilters.page);
+        setPageSize(nextFilters.pageSize);
+        if (options.keyword !== undefined) {
+          setKeyword(options.keyword);
+        }
+        if (options.onlyActive !== undefined) {
+          setOnlyActive(options.onlyActive);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    loadData();
+    loadData({ page: 1 });
   }, [loadData]);
 
-  const filteredList = useMemo(() => {
-    const lower = keyword.trim().toLowerCase();
-    return dataset.list.filter((item) => {
-      if (onlyActive && item.status !== 'active') {
-        return false;
-      }
-      if (!lower) {
-        return true;
-      }
-      return [item.name, item.code, item.createdBy]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(lower));
-    });
-  }, [dataset.list, keyword, onlyActive]);
-
   const handleSearch = (value: string) => {
-    setKeyword(value.trim());
-  };
-
-  const handleResetSelection = () => {
-    setSelectedRowKeys([]);
+    const trimmed = value.trim();
+    setKeyword(trimmed);
+    loadData({ page: 1, keyword: trimmed });
   };
 
   const handleRefresh = () => {
@@ -125,52 +170,61 @@ const ProcessTypePage = () => {
     message.success('已更新最新的加工类型数据');
   };
 
-  const handleToggleStatus = useCallback(async (record: ProcessType, next: ProcessTypeStatus) => {
-    setLoading(true);
-    try {
-      await processTypeApi.toggleStatus(record.id, next);
-      await loadData();
-      message.success(`${next === 'active' ? '已启用' : '已停用'}「${record.name}」`);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadData]);
-
-  const handleRemove = useCallback(async (record: ProcessType) => {
-    setLoading(true);
-    try {
-      const removed = await processTypeApi.remove(record.id);
-      if (removed) {
+  const handleToggleStatus = useCallback(
+    async (record: ProcessType, next: ProcessTypeStatus) => {
+      setLoading(true);
+      try {
+        await processTypeApi.toggleStatus(record.id, next);
         await loadData();
-        setSelectedRowKeys((prev) => prev.filter((key) => key !== record.id));
-        message.success(`已删除「${record.name}」`);
+        message.success(`${next === 'active' ? '已启用' : '已停用'}「${record.name}」`);
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [loadData]);
+    },
+    [loadData],
+  );
 
-  const handleBatchStatus = useCallback(async (status: ProcessTypeStatus) => {
-    if (selectedRowKeys.length === 0) return;
-    setLoading(true);
-    try {
-      await processTypeApi.batchToggleStatus(selectedRowKeys.map(String), status);
-      await loadData();
-      message.success(`已批量${status === 'active' ? '启用' : '停用'} ${selectedRowKeys.length} 条记录`);
-      handleResetSelection();
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRowKeys, loadData]);
+  const handleRemove = useCallback(
+    async (record: ProcessType) => {
+      setLoading(true);
+      try {
+        const removed = await processTypeApi.remove(record.id);
+        if (removed) {
+          await loadData({ page: dataset.list.length === 1 && page > 1 ? page - 1 : page });
+          setSelectedRowKeys((prev) => prev.filter((key) => key !== record.id));
+          message.success(`已删除「${record.name}」`);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [dataset.list.length, loadData, page],
+  );
+
+  const handleBatchStatus = useCallback(
+    async (status: ProcessTypeStatus) => {
+      if (!selectedRowKeys.length) return;
+      setLoading(true);
+      try {
+        await processTypeApi.batchToggleStatus(selectedRowKeys.map(String), status);
+        await loadData();
+        message.success(`已批量${status === 'active' ? '启用' : '停用'} ${selectedRowKeys.length} 条记录`);
+        setSelectedRowKeys([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedRowKeys, loadData],
+  );
 
   const handleBatchRemove = useCallback(async () => {
-    if (selectedRowKeys.length === 0) return;
+    if (!selectedRowKeys.length) return;
     setLoading(true);
     try {
       await processTypeApi.batchRemove(selectedRowKeys.map(String));
-      await loadData();
+      await loadData({ page: 1 });
       message.success(`已批量删除 ${selectedRowKeys.length} 条记录`);
-      handleResetSelection();
+      setSelectedRowKeys([]);
     } finally {
       setLoading(false);
     }
@@ -178,39 +232,26 @@ const ProcessTypePage = () => {
 
   const openCreateModal = () => {
     form.resetFields();
-    form.setFieldsValue({
-      name: '',
-      code: '',
-      category: '自定义',
-      chargeMode: '计件',
-      defaultWage: 0,
-      unit: '件',
-      description: '',
-      createdBy: '系统管理员',
-      steps: [],
-      isDefault: false,
-      statusBoolean: true,
-    });
-    setFormModal({ open: true, submitting: false, editing: undefined });
+    form.setFieldsValue(defaultFormValues);
+    setFormModal({ open: true, submitting: false });
   };
 
-  const openEditModal = useCallback((record: ProcessType) => {
-    form.resetFields();
-    form.setFieldsValue({
-      name: record.name,
-      code: record.code,
-      category: record.category,
-      chargeMode: record.chargeMode,
-      defaultWage: record.defaultWage,
-      unit: record.unit,
-      description: record.description,
-      createdBy: record.createdBy,
-      steps: record.steps ?? [],
-      isDefault: record.isDefault,
-      statusBoolean: record.status === 'active',
-    });
-    setFormModal({ open: true, submitting: false, editing: record });
-  }, [form]);
+  const openEditModal = useCallback(
+    (record: ProcessType) => {
+      form.resetFields();
+      form.setFieldsValue({
+        name: record.name,
+        code: record.code,
+        chargeMode: record.chargeMode,
+        defaultWage: record.defaultWage,
+        unit: record.unit,
+        description: record.description,
+        statusBoolean: record.status === 'active',
+      });
+      setFormModal({ open: true, submitting: false, editing: record });
+    },
+    [form],
+  );
 
   const handleSubmitForm = async () => {
     try {
@@ -219,15 +260,11 @@ const ProcessTypePage = () => {
       const payload: CreateProcessTypePayload = {
         name: values.name,
         code: values.code,
-        category: values.category,
         chargeMode: values.chargeMode,
         defaultWage: values.defaultWage,
         unit: values.unit,
         description: values.description,
-        isDefault: values.isDefault,
         status: values.statusBoolean ? 'active' : 'inactive',
-        createdBy: values.createdBy,
-        steps: values.steps,
       };
       if (formModal.editing) {
         await processTypeApi.update(formModal.editing.id, payload);
@@ -237,7 +274,7 @@ const ProcessTypePage = () => {
         message.success('已新建加工类型');
       }
       setFormModal({ open: false, submitting: false, editing: undefined });
-      await loadData();
+      await loadData({ page: 1 });
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) {
         setFormModal((prev) => ({ ...prev, submitting: false }));
@@ -253,7 +290,7 @@ const ProcessTypePage = () => {
   const handleExport = async () => {
     const hide = message.loading('正在导出...');
     try {
-      const blob = await processTypeApi.export({ onlyActive });
+      const blob = await processTypeApi.export({ onlyActive, keyword });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -283,19 +320,25 @@ const ProcessTypePage = () => {
         if (!Array.isArray(data)) {
           throw new Error('文件格式错误，请使用 JSON 数组结构');
         }
-        const parsed: CreateProcessTypePayload[] = data.map((item) => ({
-          name: item.name,
-          code: item.code,
-          category: item.category,
-          chargeMode: item.chargeMode,
-          defaultWage: Number(item.defaultWage ?? 0),
-          unit: item.unit ?? '件',
-          description: item.description,
-          isDefault: item.isDefault,
-          status: item.status ?? 'active',
-          createdBy: item.createdBy ?? '文件导入',
-          steps: Array.isArray(item.steps) ? item.steps : [],
-        }));
+        const parsed: CreateProcessTypePayload[] = data.map((item) => {
+          const rawMode = String(item.chargeMode ?? 'piecework').toLowerCase();
+          const chargeMode: ProcessType['chargeMode'] = rawMode.includes('hour')
+            ? 'hourly'
+            : rawMode.includes('stage') || rawMode.includes('phase')
+              ? 'stage'
+              : 'piecework';
+          const normalizedStatus: ProcessTypeStatus =
+            String(item.status ?? 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+          return {
+            name: item.name,
+            code: item.code,
+            chargeMode,
+            defaultWage: Number(item.defaultWage ?? 0),
+            unit: item.unit ?? '件',
+            description: item.description,
+            status: normalizedStatus,
+          };
+        });
         setImportModal((prev) => ({
           ...prev,
           parsed,
@@ -312,7 +355,10 @@ const ProcessTypePage = () => {
         setImportModal((prev) => ({
           ...prev,
           parsed: [],
-          error: (error instanceof Error && error.message) ? error.message : '无法解析文件内容，请检查格式',
+          error:
+            error instanceof Error && error.message
+              ? error.message
+              : '无法解析文件内容，请检查格式',
           fileList: [],
         }));
       }
@@ -331,7 +377,7 @@ const ProcessTypePage = () => {
       await processTypeApi.import(importModal.parsed);
       message.success(`成功导入 ${importModal.parsed.length} 条加工类型数据`);
       setImportModal({ open: false, uploading: false, parsed: [], fileList: [] });
-      await loadData();
+      await loadData({ page: 1 });
     } catch (error) {
       if (error instanceof Error && error.message) {
         message.error(error.message);
@@ -346,7 +392,6 @@ const ProcessTypePage = () => {
     { label: '计费方式', value: 'chargeMode' },
     { label: '默认工资', value: 'defaultWage' },
     { label: '说明', value: 'description' },
-    { label: '工序步骤', value: 'steps' },
     { label: '状态', value: 'status' },
     { label: '最近更新时间', value: 'updatedAt' },
   ];
@@ -360,11 +405,7 @@ const ProcessTypePage = () => {
         fixed: 'left',
         render: (value: string, record) => (
           <Space direction="vertical" size={2}>
-            <Space size={6} wrap>
-              <Text strong>{value}</Text>
-              {record.isDefault ? <Tag color="blue">默认</Tag> : null}
-              <Tag bordered={false}>{record.category}</Tag>
-            </Space>
+            <Text strong>{value}</Text>
             <Text type="secondary">编码：{record.code}</Text>
           </Space>
         ),
@@ -373,8 +414,8 @@ const ProcessTypePage = () => {
         title: '计费方式',
         dataIndex: 'chargeMode',
         key: 'chargeMode',
-        render: (mode: ProcessType['chargeMode']) => mode,
         width: 120,
+        render: (mode: ProcessType['chargeMode']) => chargeModeLabel(mode),
       },
       {
         title: '默认工资',
@@ -389,20 +430,6 @@ const ProcessTypePage = () => {
         key: 'description',
         ellipsis: true,
         render: (text?: string) => text || '—',
-      },
-      {
-        title: '工序步骤',
-        dataIndex: 'steps',
-        key: 'steps',
-        render: (steps?: string[]) => (
-          <div className="process-type-tags">
-            {steps?.map((step) => (
-              <Tag bordered={false} key={step}>
-                {step}
-              </Tag>
-            ))}
-          </div>
-        ),
       },
       {
         title: '状态',
@@ -493,25 +520,31 @@ const ProcessTypePage = () => {
         <Input.Search
           allowClear
           prefix={<SearchOutlined />}
-          placeholder="请输入加工类型名称 / 编码 / 创建人"
+          placeholder="请输入加工类型名称 / 编码"
           style={{ maxWidth: 360 }}
           onSearch={handleSearch}
           onChange={(event) => setKeyword(event.target.value)}
           value={keyword}
         />
         <Space size={8} align="center">
-          <Switch checked={onlyActive} onChange={(checked) => setOnlyActive(checked)} />
+          <Switch
+            checked={onlyActive}
+            onChange={(checked) => {
+              setOnlyActive(checked);
+              loadData({ page: 1, onlyActive: checked });
+            }}
+          />
           <span>仅显示启用</span>
         </Space>
         <Checkbox
-          indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < filteredList.length}
-          checked={filteredList.length > 0 && selectedRowKeys.length === filteredList.length}
+          indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < dataset.list.length}
+          checked={dataset.list.length > 0 && selectedRowKeys.length === dataset.list.length}
           onChange={(event: CheckboxChangeEvent) => {
             const { checked } = event.target;
             if (checked) {
-              setSelectedRowKeys(filteredList.map((item) => item.id));
+              setSelectedRowKeys(dataset.list.map((item) => item.id));
             } else {
-              const visibleSet = new Set(filteredList.map((item) => item.id));
+              const visibleSet = new Set(dataset.list.map((item) => item.id));
               setSelectedRowKeys((prev) => prev.filter((key) => !visibleSet.has(String(key))));
             }
           }}
@@ -531,21 +564,15 @@ const ProcessTypePage = () => {
               批量停用
             </Button>
             <Popconfirm
-              title="确认删除所选加工类型？"
+              title={`确认删除选中的 ${selectedRowKeys.length} 条记录?`}
               okText="删除"
               cancelText="取消"
               onConfirm={handleBatchRemove}
-              disabled={selectedRowKeys.length === 0}
             >
-              <Button disabled={selectedRowKeys.length === 0} danger>
+              <Button danger disabled={selectedRowKeys.length === 0} icon={<DeleteOutlined />}>
                 批量删除
               </Button>
             </Popconfirm>
-            {selectedRowKeys.length > 0 ? (
-              <Button type="link" onClick={handleResetSelection}>
-                清空选择
-              </Button>
-            ) : null}
           </Space>
         </div>
 
@@ -553,16 +580,28 @@ const ProcessTypePage = () => {
           rowKey="id"
           loading={loading}
           columns={activeColumns}
-          dataSource={filteredList}
-          pagination={{ pageSize: 10, showTotal: (total, range) => `${range[0]}-${range[1]} / 共 ${total} 条` }}
+          dataSource={dataset.list}
+          pagination={{
+            current: page,
+            pageSize,
+            total: dataset.total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} / 共 ${total} 条`,
+          }}
+          onChange={(nextPagination) => {
+            const current = nextPagination.current ?? 1;
+            const size = nextPagination.pageSize ?? pageSize;
+            loadData({ page: current, pageSize: size });
+          }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
-          scroll={{ x: 1120 }}
+          scroll={{ x: 960 }}
         />
         <div className="process-type-footnote">
-          包含系统预置与自定义加工类型，可通过工具栏进行新建、导入、导出及列显示设置。
+          支持按页面筛选条件导出、导入与批量操作，加工类型数据来自主数据中心。
         </div>
       </div>
 
@@ -582,21 +621,12 @@ const ProcessTypePage = () => {
           <Form.Item name="code" label="编码" rules={[{ required: true, message: '请输入编码' }]}>
             <Input placeholder="例如：PROC-SEW" maxLength={40} />
           </Form.Item>
-          <Form.Item name="category" label="分类" rules={[{ required: true, message: '请选择分类' }]}> 
-            <Select options={[{ value: '系统', label: '系统' }, { value: '自定义', label: '自定义' }]} />
-          </Form.Item>
-          <Form.Item name="chargeMode" label="计费方式" rules={[{ required: true, message: '请选择计费方式' }]}> 
-            <Select
-              options={[
-                { value: '计件', label: '计件' },
-                { value: '计时', label: '计时' },
-                { value: '阶段计费', label: '阶段计费' },
-              ]}
-            />
+          <Form.Item name="chargeMode" label="计费方式" rules={[{ required: true, message: '请选择计费方式' }]}>
+            <Select options={modeOptions} />
           </Form.Item>
           <Form.Item label="默认工资">
             <Space.Compact style={{ width: '100%' }}>
-              <Form.Item name="defaultWage" noStyle rules={[{ required: true, message: '请输入默认工资' }]}> 
+              <Form.Item name="defaultWage" noStyle rules={[{ required: true, message: '请输入默认工资' }]}>
                 <InputNumber min={0} step={0.01} style={{ width: '70%' }} placeholder="数值" />
               </Form.Item>
               <Form.Item name="unit" noStyle rules={[{ required: true, message: '请输入单位' }]}>
@@ -607,17 +637,8 @@ const ProcessTypePage = () => {
           <Form.Item name="description" label="说明">
             <Input.TextArea placeholder="可填写计费说明、适用范围等" maxLength={120} rows={3} showCount />
           </Form.Item>
-          <Form.Item name="steps" label="工序步骤">
-            <Select mode="tags" placeholder="输入后回车添加步骤" tokenSeparators={[',', '，']} />
-          </Form.Item>
-          <Form.Item name="createdBy" label="创建人" rules={[{ required: true, message: '请输入创建人' }]}> 
-            <Input maxLength={20} />
-          </Form.Item>
           <Form.Item name="statusBoolean" label="状态" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="停用" />
-          </Form.Item>
-          <Form.Item name="isDefault" label="标记为默认" valuePropName="checked">
-            <Switch />
           </Form.Item>
         </Form>
       </Modal>
@@ -642,7 +663,7 @@ const ProcessTypePage = () => {
             <ImportOutlined />
           </p>
           <p className="ant-upload-text">点击或拖拽 JSON 文件到此区域完成导入</p>
-          <p className="ant-upload-hint">文件需为 JSON 数组结构，字段需与系统字段一致</p>
+          <p className="ant-upload-hint">字段需与加工类型接口一致（name/code/chargeMode/defaultWage/unit/description/status）</p>
         </Upload.Dragger>
         {importModal.error ? (
           <Alert style={{ marginTop: 16 }} type="error" message={importModal.error} showIcon />

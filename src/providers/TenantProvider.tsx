@@ -77,11 +77,7 @@ const TenantProvider = ({ children }: { children: ReactNode }) => {
   }, [loadOverview, overview]);
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <Spin size="large" tip="正在获取企业信息..." />
-      </div>
-    );
+    return <Spin size="large" tip="正在获取企业信息..." fullscreen />;
   }
 
   if (error || !contextValue) {

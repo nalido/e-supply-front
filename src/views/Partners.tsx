@@ -25,12 +25,14 @@ const partnerTypeOptions: Array<{ label: string; value: PartnerType }> = [
   { label: '客户', value: 'customer' },
   { label: '供应商', value: 'supplier' },
   { label: '加工厂', value: 'factory' },
+  { label: '外协/分包', value: 'subcontractor' },
 ];
 
 const partnerStatusMap: Record<Partner['status'], { text: string; color: string }> = {
   uninvited: { text: '未邀请', color: 'default' },
   invited: { text: '已邀请', color: 'processing' },
   bound: { text: '已绑定', color: 'success' },
+  disabled: { text: '已停用', color: 'default' },
 };
 
 type PartnerFilters = {
@@ -161,7 +163,7 @@ const PartnersPage = () => {
       address: record.address,
       tags: record.tags,
       remarks: record.remarks,
-      disabled: record.disabled,
+      disabled: record.status === 'disabled',
     });
     setModalState({ open: true, submitting: false, editing: record });
   };
@@ -171,14 +173,17 @@ const PartnersPage = () => {
       setModalState((prev) => ({ ...prev, submitting: true }));
       const values = await form.validateFields();
       const { disabled, ...payload } = values;
+      const previousStatus: Partner['status'] = modalState.editing?.status ?? 'uninvited';
+      const nextStatus: Partner['status'] = disabled
+        ? 'disabled'
+        : previousStatus === 'disabled'
+          ? 'uninvited'
+          : previousStatus;
       if (modalState.editing) {
-        await partnersApi.update(modalState.editing.id, { ...payload, disabled });
+        await partnersApi.update(modalState.editing.id, { ...payload, status: nextStatus });
         message.success('往来单位已更新');
       } else {
-        const created = await partnersApi.create(payload);
-        if (disabled) {
-          await partnersApi.toggleDisabled(created.id, true);
-        }
+        await partnersApi.create({ ...payload, status: nextStatus });
         message.success('已创建往来单位');
       }
       setModalState({ open: false, submitting: false, editing: undefined });
@@ -276,7 +281,7 @@ const PartnersPage = () => {
             type="link"
             size="small"
             icon={<MailOutlined />}
-            disabled={record.status === 'bound'}
+            disabled={record.status === 'bound' || record.status === 'disabled'}
             onClick={() => handleInvite(record)}
           >
             邀请

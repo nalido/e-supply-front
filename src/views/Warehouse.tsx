@@ -83,10 +83,13 @@ const WarehousePage = () => {
       setModalState((prev) => ({ ...prev, submitting: true }));
       const values = await form.validateFields();
       if (modalState.editing) {
-        await warehouseApi.update(modalState.editing.id, values);
+        await warehouseApi.update(modalState.editing.id, {
+          ...values,
+          status: modalState.editing.status,
+        });
         message.success('仓库信息已更新');
       } else {
-        await warehouseApi.create(values);
+        await warehouseApi.create({ ...values, status: 'active' });
         message.success('已创建仓库');
       }
       setModalState({ open: false, submitting: false, editing: undefined });

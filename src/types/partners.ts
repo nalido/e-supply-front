@@ -1,9 +1,10 @@
-export type PartnerStatus = 'uninvited' | 'invited' | 'bound';
+export type PartnerStatus = 'uninvited' | 'invited' | 'bound' | 'disabled';
 
-export type PartnerType = 'customer' | 'supplier' | 'factory';
+export type PartnerType = 'customer' | 'supplier' | 'factory' | 'subcontractor';
 
 export type Partner = {
   id: string;
+  tenantId?: string;
   name: string;
   type: PartnerType;
   status: PartnerStatus;
@@ -24,6 +25,7 @@ export type PartnerListParams = {
   keyword?: string;
   type?: PartnerType;
   onlyDisabled?: boolean;
+  status?: PartnerStatus;
 };
 
 export type PartnerDataset = {
@@ -39,10 +41,8 @@ export type SavePartnerPayload = {
   address?: string;
   tags?: string[];
   remarks?: string;
+  status?: PartnerStatus;
+  taxId?: string;
 };
 
-export type UpdatePartnerPayload = Partial<SavePartnerPayload> & {
-  disabled?: boolean;
-  status?: PartnerStatus;
-  boundEnterprise?: string;
-};
+export type UpdatePartnerPayload = SavePartnerPayload;

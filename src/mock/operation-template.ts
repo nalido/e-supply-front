@@ -8,141 +8,127 @@ import type {
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-const nowString = () => new Date().toISOString().replace('T', ' ').slice(0, 16);
-
-const initialTemplates: OperationTemplate[] = [
+const sampleTemplates: OperationTemplate[] = [
   {
-    id: 'opt-001',
-    name: '童装基础裁剪+缝制',
+    id: 'tpl-1',
+    name: '基础打样流程',
+    defaultTemplate: true,
     operations: [
-      { id: 'op-001', name: '裁剪', price: 1.6, remarks: '含铺布、裁片检验' },
-      { id: 'op-002', name: '锁边', price: 0.8 },
-      { id: 'op-003', name: '前片组合', price: 2.5 },
-      { id: 'op-004', name: '后片组合', price: 2.3 },
-      { id: 'op-005', name: '总拼', price: 4.2 },
-      { id: 'op-006', name: '检验+包装', price: 1.1 },
+      {
+        id: 'tpl-1-op-1',
+        sequence: 1,
+        unitPrice: 2.5,
+        processCatalog: {
+          id: '1',
+          code: 'CUT',
+          name: '裁剪',
+          chargeMode: 'piecework',
+          defaultWage: 2.5,
+          unit: '件',
+        },
+      },
+      {
+        id: 'tpl-1-op-2',
+        sequence: 2,
+        unitPrice: 8,
+        processCatalog: {
+          id: '2',
+          code: 'SEW',
+          name: '缝制',
+          chargeMode: 'piecework',
+          defaultWage: 8,
+          unit: '件',
+        },
+      },
     ],
-    createdAt: '2025-02-11 09:12',
-    updatedAt: '2025-03-02 15:40',
-  },
-  {
-    id: 'opt-002',
-    name: '羽绒外套标准工序',
-    operations: [
-      { id: 'op-011', name: '裁剪前预缩', price: 0.9 },
-      { id: 'op-012', name: '绗缝', price: 3.8, remarks: '按片计价' },
-      { id: 'op-013', name: '装袋', price: 6.2 },
-      { id: 'op-014', name: '合体', price: 4.5 },
-      { id: 'op-015', name: '锁口', price: 1.7 },
-      { id: 'op-016', name: '整烫', price: 1.4 },
-    ],
-    createdAt: '2024-12-03 10:08',
-    updatedAt: '2025-01-18 14:26',
-  },
-  {
-    id: 'opt-003',
-    name: '针织套装流水线',
-    operations: [
-      { id: 'op-021', name: '面片裁剪', price: 1.2 },
-      { id: 'op-022', name: '领口缝合', price: 1.1 },
-      { id: 'op-023', name: '袖口缝合', price: 1.0 },
-      { id: 'op-024', name: '下摆定型', price: 0.9 },
-      { id: 'op-025', name: '成衣检验', price: 0.7 },
-    ],
-    createdAt: '2025-01-15 13:50',
-    updatedAt: '2025-02-06 09:30',
+    createdAt: '2025-02-15 09:00',
+    updatedAt: '2025-02-20 11:12',
   },
 ];
 
-const store: OperationTemplate[] = clone(initialTemplates);
+const store: OperationTemplate[] = clone(sampleTemplates);
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const toDataset = (): OperationTemplateDataset => ({ list: clone(store), total: store.length });
 
-const paginate = <T>(list: T[], page: number, pageSize: number): T[] => {
-  const start = (page - 1) * pageSize;
-  return list.slice(start, start + pageSize);
-};
-
-export const listOperationTemplates = async (
-  params: OperationTemplateListParams,
-  latency = 220,
-): Promise<OperationTemplateDataset> => {
-  await delay(latency);
-  const keyword = params.keyword?.trim().toLowerCase();
-  const filtered = store.filter((item) => {
-    if (!keyword) {
-      return true;
-    }
-    if (item.name.toLowerCase().includes(keyword)) {
-      return true;
-    }
-    return item.operations.some((operation) => operation.name.toLowerCase().includes(keyword));
+const list = async (_params?: OperationTemplateListParams): Promise<OperationTemplateDataset> => {
+  void _params;
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(toDataset()), 120);
   });
-
-  return {
-    list: paginate(filtered, params.page, params.pageSize).map(clone),
-    total: filtered.length,
-  };
 };
+
+export const listOperationTemplates = list;
 
 export const createOperationTemplate = async (
   payload: SaveOperationTemplatePayload,
-  latency = 240,
-): Promise<OperationTemplate> => {
-  await delay(latency);
-  const id = `opt-${Date.now()}`;
-  const createdAt = nowString();
-  const next: OperationTemplate = {
-    id,
-    name: payload.name,
-    operations: payload.operations.map((op, index) => ({
-      id: `${id}-op-${index + 1}`,
-      name: op.name,
-      price: op.price,
-      remarks: op.remarks,
-    })),
-    createdAt,
-    updatedAt: createdAt,
-  };
-  store.unshift(next);
-  return clone(next);
-};
+): Promise<OperationTemplate> =>
+  new Promise((resolve) => {
+    setTimeout(() => {
+      const operations = payload.operations.map((operation, index) => ({
+        id: `op-${Date.now()}-${index}`,
+        sequence: operation.sequence ?? index + 1,
+        unitPrice: operation.unitPrice,
+        processCatalog: {
+          id: operation.processCatalogId,
+          code: `PROC-${operation.processCatalogId}`,
+          name: `工序-${operation.processCatalogId}`,
+        },
+      }));
+      const template: OperationTemplate = {
+        id: `tpl-${Date.now()}`,
+        name: payload.name,
+        defaultTemplate: Boolean(payload.defaultTemplate),
+        operations,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      store.unshift(template);
+      resolve(clone(template));
+    }, 120);
+  });
 
 export const updateOperationTemplate = async (
   id: string,
   payload: UpdateOperationTemplatePayload,
-  latency = 200,
-): Promise<OperationTemplate | undefined> => {
-  await delay(latency);
-  const target = store.find((item) => item.id === id);
-  if (!target) {
-    return undefined;
-  }
-  const updated: OperationTemplate = {
-    ...target,
-    name: payload.name,
-    operations: payload.operations.map((op, index) => ({
-      id: `${id}-op-${index + 1}`,
-      name: op.name,
-      price: op.price,
-      remarks: op.remarks,
-    })),
-    updatedAt: nowString(),
-  };
-  Object.assign(target, updated);
-  return clone(updated);
-};
+): Promise<OperationTemplate | undefined> =>
+  new Promise((resolve) => {
+    setTimeout(() => {
+      const index = store.findIndex((item) => item.id === id);
+      if (index === -1) {
+        resolve(undefined);
+        return;
+      }
+      const operations = payload.operations.map((operation, sequenceIndex) => ({
+        id: `op-${id}-${sequenceIndex}`,
+        sequence: operation.sequence ?? sequenceIndex + 1,
+        unitPrice: operation.unitPrice,
+        processCatalog: {
+          id: operation.processCatalogId,
+          code: `PROC-${operation.processCatalogId}`,
+          name: `工序-${operation.processCatalogId}`,
+        },
+      }));
+      const updated: OperationTemplate = {
+        ...store[index],
+        name: payload.name,
+        defaultTemplate: Boolean(payload.defaultTemplate),
+        operations,
+        updatedAt: new Date().toISOString(),
+      };
+      store[index] = updated;
+      resolve(clone(updated));
+    }, 120);
+  });
 
-export const removeOperationTemplate = async (id: string, latency = 180): Promise<boolean> => {
-  await delay(latency);
-  const index = store.findIndex((item) => item.id === id);
-  if (index === -1) {
-    return false;
-  }
-  store.splice(index, 1);
-  return true;
-};
-
-export const resetOperationTemplateStore = () => {
-  store.splice(0, store.length, ...clone(initialTemplates));
-};
+export const removeOperationTemplate = async (id: string): Promise<boolean> =>
+  new Promise((resolve) => {
+    setTimeout(() => {
+      const index = store.findIndex((item) => item.id === id);
+      if (index === -1) {
+        resolve(false);
+        return;
+      }
+      store.splice(index, 1);
+      resolve(true);
+    }, 120);
+  });

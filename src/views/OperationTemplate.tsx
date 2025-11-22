@@ -8,17 +8,23 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Select,
   Space,
+  Switch,
   Table,
+  Tag,
   message,
 } from 'antd';
 import { DeleteOutlined, EditOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import type {
   OperationTemplate,
-  OperationTemplateOperation,
   OperationTemplateDataset,
+  OperationTemplateListParams,
+  SaveOperationTemplatePayload,
 } from '../types';
 import operationTemplateApi from '../api/operation-template';
+import processTypeApi from '../api/process-type';
+import type { ProcessType } from '../types';
 
 const defaultPageSize = 10;
 
@@ -30,17 +36,26 @@ type ModalState = {
 
 type OperationTemplateFormValues = {
   name: string;
+  defaultTemplate: boolean;
   operations: Array<{
-    name: string;
-    price: number;
+    processCatalogId?: string;
+    unitPrice?: number;
     remarks?: string;
   }>;
 };
 
-const ensureOperations = (operations?: OperationTemplateOperation[]): OperationTemplateFormValues['operations'] =>
-  (operations && operations.length
-    ? operations.map((item) => ({ name: item.name, price: item.price, remarks: item.remarks }))
-    : [{ name: '', price: 0 }]);
+const ensureOperations = (template?: OperationTemplate): OperationTemplateFormValues['operations'] => {
+  if (!template || !template.operations?.length) {
+    return [{ processCatalogId: undefined, unitPrice: undefined, remarks: undefined }];
+  }
+  return template.operations.map((operation) => ({
+    processCatalogId: operation.processCatalog?.id,
+    unitPrice: operation.unitPrice,
+    remarks: operation.remarks,
+  }));
+};
+
+type ProcessOption = Pick<ProcessType, 'id' | 'name' | 'code'>;
 
 const OperationTemplatePage = () => {
   const [page, setPage] = useState(1);
@@ -50,50 +65,141 @@ const OperationTemplatePage = () => {
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalState, setModalState] = useState<ModalState>({ open: false, submitting: false });
+  const [processOptions, setProcessOptions] = useState<ProcessOption[]>([]);
+  const [processLoading, setProcessLoading] = useState(false);
   const [form] = Form.useForm<OperationTemplateFormValues>();
+  const [initialFormValues, setInitialFormValues] = useState<OperationTemplateFormValues>({
+    name: '',
+    defaultTemplate: false,
+    operations: ensureOperations(),
+  });
+
+  const mergeProcessOptions = useCallback((options: ProcessOption[]) => {
+    if (!options.length) {
+      return;
+    }
+    setProcessOptions((prev) => {
+      const map = new Map(prev.map((option) => [option.id, option]));
+      let changed = false;
+      options.forEach((option) => {
+        if (!option.id) {
+          return;
+        }
+        const existing = map.get(option.id);
+        if (!existing || existing.name !== option.name || existing.code !== option.code) {
+          map.set(option.id, option);
+          changed = true;
+        }
+      });
+      return changed ? Array.from(map.values()) : prev;
+    });
+  }, []);
+
+  const ensureCatalogOptionsFromOperations = useCallback(
+    (operations?: OperationTemplate['operations']) => {
+      if (!operations?.length) {
+        return;
+      }
+      const nextOptions: ProcessOption[] = operations
+        .map((operation) => operation.processCatalog)
+        .filter((catalog): catalog is NonNullable<typeof catalog> => Boolean(catalog))
+        .map((catalog) => ({
+          id: catalog.id,
+          name: catalog.name ?? '未命名工序',
+          code: catalog.code,
+        }));
+      mergeProcessOptions(nextOptions);
+    },
+    [mergeProcessOptions],
+  );
+
+  const ensureCatalogOptionsFromTemplates = useCallback(
+    (templates: OperationTemplate[]) => {
+      if (!templates.length) {
+        return;
+      }
+      const operations = templates.flatMap((template) => template.operations ?? []);
+      ensureCatalogOptionsFromOperations(operations);
+    },
+    [ensureCatalogOptionsFromOperations],
+  );
 
   const loadData = useCallback(
-    async (targetPage = page, targetPageSize = pageSize, search = keyword) => {
+    async (params?: Partial<OperationTemplateListParams>) => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const result = await operationTemplateApi.list({
-          page: targetPage,
-          pageSize: targetPageSize,
-          keyword: search || undefined,
+        const currentPage = params?.page ?? page;
+        const currentSize = params?.pageSize ?? pageSize;
+        const response = await operationTemplateApi.list({
+          page: currentPage,
+          pageSize: currentSize,
+          keyword: (params?.keyword ?? keyword.trim()) || undefined,
         });
-        setDataset(result.list);
-        setPage(targetPage);
-        setPageSize(targetPageSize);
-        setTotal(result.total);
+        setDataset(response.list);
+        ensureCatalogOptionsFromTemplates(response.list);
+        setTotal(response.total);
+        setPage(currentPage);
+        setPageSize(currentSize);
       } catch (error) {
-        void error;
+        console.error('Failed to load operation templates', error);
         message.error('加载工序模板失败，请稍后重试');
       } finally {
         setLoading(false);
       }
     },
-    [keyword, page, pageSize],
+    [keyword, page, pageSize, ensureCatalogOptionsFromTemplates],
   );
 
+  const loadProcessOptions = useCallback(async () => {
+    setProcessLoading(true);
+    try {
+      const response = await processTypeApi.hot();
+      mergeProcessOptions(response.map((item) => ({ id: item.id, name: item.name, code: item.code })));
+    } catch (error) {
+      console.error('Failed to load process catalog options', error);
+      message.error('获取加工类型选项失败');
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [mergeProcessOptions]);
+
   useEffect(() => {
-    void loadData();
+    loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadProcessOptions();
+  }, [loadProcessOptions]);
+
+  useEffect(() => {
+    if (!modalState.open) {
+      return;
+    }
+    form.setFieldsValue(initialFormValues);
+  }, [form, initialFormValues, modalState.open]);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
     setKeyword(trimmed);
-    void loadData(1, pageSize, trimmed);
+    void loadData({ page: 1, keyword: trimmed });
   };
 
   const handleCreate = () => {
-    form.resetFields();
-    form.setFieldsValue({ operations: ensureOperations(), name: '' });
+    setInitialFormValues({
+      name: '',
+      defaultTemplate: false,
+      operations: ensureOperations(),
+    });
     setModalState({ open: true, submitting: false });
   };
 
   const handleEdit = (record: OperationTemplate) => {
-    form.resetFields();
-    form.setFieldsValue({ name: record.name, operations: ensureOperations(record.operations) });
+    ensureCatalogOptionsFromOperations(record.operations);
+    setInitialFormValues({
+      name: record.name,
+      defaultTemplate: record.defaultTemplate,
+      operations: ensureOperations(record),
+    });
     setModalState({ open: true, submitting: false, editing: record });
   };
 
@@ -101,15 +207,32 @@ const OperationTemplatePage = () => {
     try {
       setModalState((prev) => ({ ...prev, submitting: true }));
       const values = await form.validateFields();
+      const payload: SaveOperationTemplatePayload = {
+        name: values.name,
+        defaultTemplate: values.defaultTemplate,
+        operations: (values.operations ?? [])
+          .filter((operation) => operation.processCatalogId)
+          .map((operation, index) => ({
+            processCatalogId: operation.processCatalogId!,
+            unitPrice: Number(operation.unitPrice ?? 0),
+            remarks: operation.remarks,
+            sequence: index + 1,
+          })),
+      };
+      if (!payload.operations.length) {
+        message.warning('请至少添加一个工序');
+        setModalState((prev) => ({ ...prev, submitting: false }));
+        return;
+      }
       if (modalState.editing) {
-        await operationTemplateApi.update(modalState.editing.id, values);
+        await operationTemplateApi.update(modalState.editing.id, payload);
         message.success('工序模板已更新');
       } else {
-        await operationTemplateApi.create(values);
+        await operationTemplateApi.create(payload);
         message.success('工序模板已创建');
       }
       setModalState({ open: false, submitting: false, editing: undefined });
-      void loadData();
+      loadData();
     } catch (error) {
       if ((error as { errorFields?: unknown })?.errorFields) {
         setModalState((prev) => ({ ...prev, submitting: false }));
@@ -122,11 +245,14 @@ const OperationTemplatePage = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await operationTemplateApi.remove(id);
+      const success = await operationTemplateApi.remove(id);
+      if (!success) {
+        message.warning('删除失败，请刷新后重试');
+        return;
+      }
       message.success('已删除工序模板');
-      const hasOnlyOneItem = dataset.length === 1;
-      const nextPage = hasOnlyOneItem && page > 1 ? page - 1 : page;
-      void loadData(nextPage);
+      const nextPage = dataset.length === 1 && page > 1 ? page - 1 : page;
+      loadData({ page: nextPage });
     } catch {
       message.error('删除失败，请稍后重试');
     }
@@ -138,28 +264,52 @@ const OperationTemplatePage = () => {
       dataIndex: 'index',
       width: 80,
       align: 'center',
-      render: (_, __, index) => (page - 1) * pageSize + index + 1,
+      render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
     },
     {
       title: '模板名称',
       dataIndex: 'name',
       width: 240,
+      render: (value: string, record) => (
+        <Space>
+          <span>{value}</span>
+          {record.defaultTemplate ? <Tag color="blue">默认</Tag> : null}
+        </Space>
+      ),
     },
     {
-      title: '工序预览',
+      title: '工序列表',
       dataIndex: 'operations',
       ellipsis: true,
-      render: (operations: OperationTemplateOperation[]) =>
-        operations
-          .map((item) => `${item.name}（¥${item.price.toFixed(2)}）${item.remarks ? ` - ${item.remarks}` : ''}`)
-          .join(' / '),
+      render: (operations: OperationTemplate['operations']) =>
+        operations?.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {operations.map((operation) => (
+              <div key={operation.id}>
+                <Tag color="processing" style={{ marginRight: 8 }}>
+                  {operation.processCatalog?.name ?? '未知工序'}
+                </Tag>
+                <span style={{ color: '#555' }}>¥{operation.unitPrice?.toFixed(2)}</span>
+                {operation.remarks ? <span style={{ marginLeft: 8, color: '#999' }}>{operation.remarks}</span> : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span>-</span>
+        ),
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updatedAt',
+      width: 180,
+      render: (value?: string) => value ?? '-',
     },
     {
       title: '操作',
       dataIndex: 'actions',
       width: 160,
       align: 'center',
-      render: (_, record) => (
+      render: (_value, record) => (
         <Space size={8}>
           <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
             编辑
@@ -172,19 +322,15 @@ const OperationTemplatePage = () => {
     },
   ];
 
-  const handleTableChange = (nextPagination: { current?: number; pageSize?: number }) => {
-    const current = nextPagination.current ?? 1;
-    const size = nextPagination.pageSize ?? pageSize;
-    void loadData(current, size);
-  };
-
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
         <Input.Search
           allowClear
-          placeholder="搜索模板名称或工序"
+          placeholder="搜索模板名称"
           onSearch={handleSearch}
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
           style={{ maxWidth: 280 }}
           enterButton
         />
@@ -192,6 +338,7 @@ const OperationTemplatePage = () => {
           新建
         </Button>
       </div>
+
       <Table<OperationTemplate>
         rowKey="id"
         loading={loading}
@@ -203,9 +350,13 @@ const OperationTemplatePage = () => {
           total,
           showSizeChanger: true,
           showQuickJumper: true,
-          showTotal: (total, range) => `${range[0]}-${range[1]} / 共 ${total} 条`,
+          showTotal: (totalValue, range) => `${range[0]}-${range[1]} / 共 ${totalValue} 条`,
         }}
-        onChange={(nextPagination) => handleTableChange(nextPagination)}
+        onChange={(nextPagination) => {
+          const current = nextPagination.current ?? 1;
+          const size = nextPagination.pageSize ?? pageSize;
+          loadData({ page: current, pageSize: size });
+        }}
       />
 
       <Modal
@@ -214,10 +365,16 @@ const OperationTemplatePage = () => {
         confirmLoading={modalState.submitting}
         onCancel={() => setModalState({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmit}
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form
+          key={modalState.editing ? modalState.editing.id : 'create'}
+          form={form}
+          layout="vertical"
+          preserve={false}
+          initialValues={initialFormValues}
+        >
           <Form.Item
             name="name"
             label="模板名称"
@@ -225,30 +382,40 @@ const OperationTemplatePage = () => {
           >
             <Input maxLength={40} placeholder="例如：童装标准工序" />
           </Form.Item>
+          <Form.Item name="defaultTemplate" label="设为默认模板" valuePropName="checked">
+            <Switch />
+          </Form.Item>
           <Form.List name="operations">
             {(fields, { add, remove }) => (
               <div>
                 <Divider orientation="left">工序列表</Divider>
                 {fields.map((field, index) => (
                   <Space
-                    key={field.key}
+                    key={`${field.key}-${field.name}`}
                     align="baseline"
                     style={{ width: '100%', marginBottom: 12, display: 'flex' }}
                   >
                     <Form.Item
-                      {...field}
-                      name={[field.name, 'name']}
-                      fieldKey={[field.fieldKey ?? field.key, 'name']}
-                      label={index === 0 ? '工序名称' : undefined}
-                      rules={[{ required: true, message: '请输入工序名称' }]}
+                      name={[field.name, 'processCatalogId']}
+                      fieldKey={[field.fieldKey ?? field.key, 'processCatalogId']}
+                      label={index === 0 ? '工序' : undefined}
+                      rules={[{ required: true, message: '请选择工序' }]}
                       style={{ flex: 2 }}
                     >
-                      <Input maxLength={30} placeholder="如：裁剪" />
+                      <Select
+                        showSearch
+                        placeholder="选择工序"
+                        options={processOptions.map((option) => ({
+                          value: option.id,
+                          label: option.code ? `${option.name}（${option.code}）` : option.name,
+                        }))}
+                        loading={processLoading}
+                        optionFilterProp="label"
+                      />
                     </Form.Item>
                     <Form.Item
-                      {...field}
-                      name={[field.name, 'price']}
-                      fieldKey={[field.fieldKey ?? field.key, 'price']}
+                      name={[field.name, 'unitPrice']}
+                      fieldKey={[field.fieldKey ?? field.key, 'unitPrice']}
                       label={index === 0 ? '工价（元）' : undefined}
                       rules={[{ required: true, message: '请输入工价' }]}
                       style={{ flex: 1 }}
@@ -256,7 +423,6 @@ const OperationTemplatePage = () => {
                       <InputNumber min={0} precision={2} step={0.1} style={{ width: '100%' }} placeholder="0.00" />
                     </Form.Item>
                     <Form.Item
-                      {...field}
                       name={[field.name, 'remarks']}
                       fieldKey={[field.fieldKey ?? field.key, 'remarks']}
                       label={index === 0 ? '备注' : undefined}
@@ -278,7 +444,7 @@ const OperationTemplatePage = () => {
                   type="dashed"
                   block
                   icon={<PlusOutlined />}
-                  onClick={() => add({ name: '', price: 0 })}
+                  onClick={() => add({ processCatalogId: undefined, unitPrice: undefined })}
                 >
                   添加工序
                 </Button>
