@@ -11,9 +11,10 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const initialStore: MaterialItem[] = [
   {
     id: 'mat-001',
+    tenantId: '1',
+    sku: 'FAB-0001',
     name: '32S全棉罗纹',
-    category: 'fabric',
-    categoryPath: ['面料', '针织面料', '罗纹'],
+    materialType: 'fabric',
     imageUrl: '/assets/images/materials/fabric-cotton.jpg',
     width: '180cm',
     grammage: '180g/m²',
@@ -27,9 +28,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-002',
+    tenantId: '1',
+    sku: 'FAB-0002',
     name: '40D锦纶高弹胆布',
-    category: 'fabric',
-    categoryPath: ['面料', '功能面料', '胆布'],
+    materialType: 'fabric',
     imageUrl: '/assets/images/materials/fabric-nylon.jpg',
     width: '152cm',
     grammage: '96g/m²',
@@ -43,9 +45,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-003',
+    tenantId: '1',
+    sku: 'FAB-0003',
     name: '磨毛弹力牛仔',
-    category: 'fabric',
-    categoryPath: ['面料', '梭织面料', '牛仔'],
+    materialType: 'fabric',
     width: '150cm',
     grammage: '320g/m²',
     tolerance: '±2.5cm',
@@ -58,9 +61,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-004',
+    tenantId: '1',
+    sku: 'FAB-0004',
     name: '380T涤塔夫',
-    category: 'fabric',
-    categoryPath: ['面料', '功能面料', '防绒面料'],
+    materialType: 'fabric',
     width: '148cm',
     grammage: '68g/m²',
     tolerance: '±1.5cm',
@@ -73,9 +77,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-005',
+    tenantId: '1',
+    sku: 'ACC-0001',
     name: 'YKK树脂拉链5#',
-    category: 'accessory',
-    categoryPath: ['辅料/包材', '拉链'],
+    materialType: 'accessory',
     imageUrl: '/assets/images/materials/zipper.jpg',
     unit: '个',
     price: 2.2,
@@ -87,9 +92,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-006',
+    tenantId: '1',
+    sku: 'ACC-0002',
     name: '合金四合扣17mm',
-    category: 'accessory',
-    categoryPath: ['辅料/包材', '扣子'],
+    materialType: 'accessory',
     unit: '个',
     price: 0.36,
     colors: ['枪黑', '青古铜'],
@@ -100,9 +106,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-007',
+    tenantId: '1',
+    sku: 'ACC-0003',
     name: '5cm棉包PU腰里',
-    category: 'accessory',
-    categoryPath: ['辅料/包材', '里料'],
+    materialType: 'accessory',
     width: '5cm',
     unit: '米',
     price: 3.2,
@@ -113,9 +120,10 @@ const initialStore: MaterialItem[] = [
   },
   {
     id: 'mat-008',
+    tenantId: '1',
+    sku: 'ACC-0004',
     name: '120gsm珠光吊牌卡纸',
-    category: 'accessory',
-    categoryPath: ['辅料/包材', '包材'],
+    materialType: 'accessory',
     unit: '张',
     price: 0.58,
     colors: ['珠光白'],
@@ -140,13 +148,13 @@ export const listMaterials = async (
 ): Promise<MaterialDataset> =>
   new Promise((resolve) => {
     setTimeout(() => {
-      const { page, pageSize, keyword, category } = params;
+      const { page, pageSize, keyword, materialType } = params;
       const safePage = Math.max(1, page);
       const safeSize = Math.max(1, pageSize);
       const lower = keyword?.trim().toLowerCase();
 
       const filtered = store.filter((item) => {
-        if (item.category !== category) {
+        if (item.materialType !== materialType) {
           return false;
         }
         if (!lower) {
@@ -175,9 +183,10 @@ export const createMaterial = async (
     setTimeout(() => {
       const next: MaterialItem = {
         id: `mat-${Date.now()}`,
+        tenantId: '1',
+        sku: payload.sku ?? `MAT-${Date.now()}`,
         name: payload.name,
-        category: payload.category,
-        categoryPath: payload.categoryPath ?? [],
+        materialType: payload.materialType,
         unit: payload.unit,
         colors: payload.colors ?? [],
         imageUrl: payload.imageUrl,
@@ -209,8 +218,9 @@ export const updateMaterial = async (
       const updated: MaterialItem = {
         ...store[index],
         ...payload,
+        sku: payload.sku ?? store[index].sku,
+        materialType: payload.materialType ?? store[index].materialType,
         colors: payload.colors ?? store[index].colors,
-        categoryPath: payload.categoryPath ?? store[index].categoryPath,
         updatedAt: nowString(),
       };
       store[index] = updated;
@@ -233,7 +243,7 @@ export const removeMaterial = async (id: string, delay = 160): Promise<boolean> 
 
 export const importMaterials = async (
   payload: CreateMaterialPayload[],
-  category: MaterialListParams['category'],
+  materialType: MaterialListParams['materialType'],
   delay = 260,
 ): Promise<number> =>
   new Promise((resolve) => {
@@ -242,9 +252,10 @@ export const importMaterials = async (
       payload.forEach((item) => {
         store.unshift({
           id: `mat-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          tenantId: '1',
+          sku: item.sku ?? `MAT-${Math.floor(Math.random() * 100000)}`,
           name: item.name,
-          category: item.category ?? category,
-          categoryPath: item.categoryPath ?? [category === 'fabric' ? '面料' : '辅料/包材'],
+          materialType: item.materialType ?? materialType,
           unit: item.unit,
           colors: item.colors ?? [],
           imageUrl: item.imageUrl,
@@ -262,14 +273,14 @@ export const importMaterials = async (
   });
 
 export const exportMaterials = async (
-  params: { category: MaterialListParams['category']; keyword?: string },
+  params: { materialType: MaterialListParams['materialType']; keyword?: string },
   delay = 200,
 ): Promise<Blob> =>
   new Promise((resolve) => {
     setTimeout(() => {
       const keyword = params.keyword?.trim().toLowerCase();
       const dataset = store.filter((item) => {
-        if (item.category !== params.category) {
+        if (item.materialType !== params.materialType) {
           return false;
         }
         if (!keyword) {

@@ -1,12 +1,13 @@
-export type MaterialCategory = 'fabric' | 'accessory';
+export type MaterialBasicType = 'fabric' | 'accessory';
 
 export type MaterialUnit = 'kg' | '米' | '件' | '个' | '码' | '张' | '套';
 
 export type MaterialItem = {
   id: string;
+  tenantId?: string;
+  sku: string;
   name: string;
-  category: MaterialCategory;
-  categoryPath?: string[];
+  materialType: MaterialBasicType;
   imageUrl?: string;
   width?: string;
   grammage?: string;
@@ -15,15 +16,16 @@ export type MaterialItem = {
   price?: number;
   colors: string[];
   remarks?: string;
-  updatedAt: string;
-  createdAt: string;
+  status?: 'active' | 'inactive';
+  updatedAt?: string;
+  createdAt?: string;
 };
 
 export type MaterialListParams = {
   page: number;
   pageSize: number;
   keyword?: string;
-  category: MaterialCategory;
+  materialType: MaterialBasicType;
 };
 
 export type MaterialDataset = {
@@ -33,8 +35,8 @@ export type MaterialDataset = {
 
 export type CreateMaterialPayload = {
   name: string;
-  category: MaterialCategory;
-  categoryPath?: string[];
+  sku?: string;
+  materialType: MaterialBasicType;
   imageUrl?: string;
   width?: string;
   grammage?: string;

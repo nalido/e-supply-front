@@ -1,24 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Row,
-  Select,
-  TreeSelect,
-  Upload,
-} from 'antd';
+import { Col, Form, Input, InputNumber, Modal, Row, Select, Upload } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import type { UploadProps } from 'antd/es/upload';
 import { PlusOutlined } from '@ant-design/icons';
 import ColorTagsInput from './ColorTagsInput';
-import type { CreateMaterialPayload, MaterialCategory, MaterialUnit } from '../../types';
+import type { CreateMaterialPayload, MaterialBasicType, MaterialItem, MaterialUnit } from '../../types';
 
 type MaterialFormValues = {
+  sku?: string;
   name: string;
-  categoryValue: string;
   unit: MaterialUnit;
   price?: number;
   width?: string;
@@ -33,100 +23,13 @@ type MaterialFormModalProps = {
   open: boolean;
   loading?: boolean;
   title: string;
-  initialValues?: Partial<CreateMaterialPayload> & {
-    category?: MaterialCategory;
-    categoryPath?: string[];
-  };
-  onSubmit: (values: CreateMaterialPayload & { categoryPath?: string[] }) => void;
+  materialType: MaterialBasicType;
+  initialValues?: Partial<MaterialItem>;
+  onSubmit: (values: CreateMaterialPayload) => void;
   onCancel: () => void;
 };
 
-const categoryTree = [
-  {
-    title: '面料',
-    value: 'fabric|面料',
-    selectable: false,
-    children: [
-      {
-        title: '针织面料',
-        value: 'fabric|面料/针织面料',
-        selectable: false,
-        children: [
-          { title: '罗纹', value: 'fabric|面料/针织面料/罗纹' },
-          { title: '卫衣布', value: 'fabric|面料/针织面料/卫衣布' },
-          { title: '汗布', value: 'fabric|面料/针织面料/汗布' },
-        ],
-      },
-      {
-        title: '梭织面料',
-        value: 'fabric|面料/梭织面料',
-        selectable: false,
-        children: [
-          { title: '牛仔', value: 'fabric|面料/梭织面料/牛仔' },
-          { title: '棉布', value: 'fabric|面料/梭织面料/棉布' },
-          { title: '府绸', value: 'fabric|面料/梭织面料/府绸' },
-        ],
-      },
-      {
-        title: '功能面料',
-        value: 'fabric|面料/功能面料',
-        selectable: false,
-        children: [
-          { title: '防绒面料', value: 'fabric|面料/功能面料/防绒面料' },
-          { title: '胆布', value: 'fabric|面料/功能面料/胆布' },
-          { title: '涂层面料', value: 'fabric|面料/功能面料/涂层面料' },
-        ],
-      },
-    ],
-  },
-  {
-    title: '辅料/包材',
-    value: 'accessory|辅料/包材',
-    selectable: false,
-    children: [
-      {
-        title: '拉链',
-        value: 'accessory|辅料/包材/拉链',
-      },
-      {
-        title: '扣子',
-        value: 'accessory|辅料/包材/扣子',
-      },
-      {
-        title: '里料',
-        value: 'accessory|辅料/包材/里料',
-      },
-      {
-        title: '线带绳',
-        value: 'accessory|辅料/包材/线带绳',
-      },
-      {
-        title: '包装材料',
-        value: 'accessory|辅料/包材/包装材料',
-      },
-    ],
-  },
-];
-
 const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套'];
-
-const buildCategoryValue = (
-  category: MaterialCategory = 'fabric',
-  path?: string[],
-): string => {
-  const fallback = category === 'fabric' ? '面料' : '辅料/包材';
-  const segments = path && path.length > 0 ? path : [fallback];
-  return `${category}|${segments.join('/')}`;
-};
-
-const parseCategoryValue = (
-  value: string,
-): { category: MaterialCategory; categoryPath: string[] } => {
-  const [categoryPart, pathPart] = value.split('|');
-  const category = categoryPart === 'accessory' ? 'accessory' : 'fabric';
-  const path = pathPart ? pathPart.split('/').filter(Boolean) : [];
-  return { category, categoryPath: path };
-};
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -140,6 +43,7 @@ const MaterialFormModal = ({
   open,
   loading,
   title,
+  materialType,
   initialValues,
   onSubmit,
   onCancel,
@@ -149,11 +53,10 @@ const MaterialFormModal = ({
 
   useEffect(() => {
     if (open) {
-      const categoryValue = buildCategoryValue(initialValues?.category, initialValues?.categoryPath);
       form.resetFields();
       form.setFieldsValue({
+        sku: initialValues?.sku,
         name: initialValues?.name ?? '',
-        categoryValue,
         unit: initialValues?.unit ?? '米',
         price: initialValues?.price,
         width: initialValues?.width,
@@ -215,13 +118,10 @@ const MaterialFormModal = ({
 
   const handleOk = async () => {
     const values = await form.validateFields();
-    const { categoryValue, colors, ...rest } = values;
-    const { category, categoryPath } = parseCategoryValue(categoryValue);
     onSubmit({
-      ...rest,
-      category,
-      categoryPath,
-      colors: colors ?? [],
+      ...values,
+      colors: values.colors ?? [],
+      materialType,
     });
   };
 
@@ -237,6 +137,9 @@ const MaterialFormModal = ({
     >
       <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item name="imageUrl" hidden>
+          <Input type="hidden" />
+        </Form.Item>
+        <Form.Item name="sku" hidden>
           <Input type="hidden" />
         </Form.Item>
         <Form.Item label="物料图片">
@@ -261,20 +164,6 @@ const MaterialFormModal = ({
           </Col>
         </Row>
         <Row gutter={16}>
-          <Col xs={24} md={12}>
-            <Form.Item
-              label="物料分类"
-              name="categoryValue"
-              rules={[{ required: true, message: '请选择物料分类' }]}
-            >
-              <TreeSelect
-                treeData={categoryTree}
-                placeholder="请选择分类"
-                treeDefaultExpandAll
-                allowClear
-              />
-            </Form.Item>
-          </Col>
           <Col xs={24} md={12}>
             <Form.Item
               label="用量单位"

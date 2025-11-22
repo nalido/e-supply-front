@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload/interface';
 import {
@@ -20,7 +20,7 @@ import MaterialImportModal from '../components/material/MaterialImportModal';
 import materialApi from '../api/material';
 import type {
   CreateMaterialPayload,
-  MaterialCategory,
+  MaterialBasicType,
   MaterialDataset,
   MaterialItem,
 } from '../types';
@@ -51,7 +51,7 @@ const formatCurrency = (value?: number) => {
 };
 
 const MaterialArchive = () => {
-  const [activeTab, setActiveTab] = useState<MaterialCategory>('fabric');
+  const [activeTab, setActiveTab] = useState<MaterialBasicType>('fabric');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
@@ -59,20 +59,25 @@ const MaterialArchive = () => {
   const [loading, setLoading] = useState(false);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false });
   const [importModal, setImportModal] = useState<ImportModalState>({ open: false, loading: false, fileList: [] });
+  const pageSizeRef = useRef(pageSize);
+
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
 
   const fetchList = useCallback(async (
     params: { page?: number; pageSize?: number; keyword?: string } = {},
   ) => {
-    const nextPage = params.page ?? page;
-    const nextSize = params.pageSize ?? pageSize;
-    const search = params.keyword ?? keyword;
+    const nextPage = params.page ?? 1;
+    const nextSize = params.pageSize ?? 10;
+    const search = params.keyword ?? '';
     setLoading(true);
     try {
       const response = await materialApi.list({
         page: nextPage,
         pageSize: nextSize,
         keyword: search?.trim() ? search.trim() : undefined,
-        category: activeTab,
+        materialType: activeTab,
       });
       setDataset(response);
       setPage(nextPage);
@@ -83,10 +88,10 @@ const MaterialArchive = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, keyword, page, pageSize]);
+  }, [activeTab]);
 
   useEffect(() => {
-    fetchList({ page: 1 });
+    fetchList({ page: 1, pageSize: pageSizeRef.current, keyword: '' });
   }, [activeTab, fetchList]);
 
   const handleTabChange = (key: string) => {
@@ -99,7 +104,7 @@ const MaterialArchive = () => {
   };
 
   const handleSearch = () => {
-    fetchList({ page: 1, keyword });
+    fetchList({ page: 1, pageSize, keyword });
   };
 
   const handlePageChange = (nextPage: number, nextSize?: number) => {
@@ -118,7 +123,7 @@ const MaterialArchive = () => {
     setFormModal({ open: false, submitting: false, record: undefined });
   };
 
-  const handleSubmitForm = async (payload: CreateMaterialPayload & { categoryPath?: string[] }) => {
+  const handleSubmitForm = async (payload: CreateMaterialPayload) => {
     setFormModal((prev) => ({ ...prev, submitting: true }));
     try {
       if (formModal.record) {
@@ -129,7 +134,7 @@ const MaterialArchive = () => {
         message.success(`已新建「${payload.name}」`);
       }
       closeFormModal();
-      fetchList({ page: 1 });
+      fetchList({ page: 1, pageSize, keyword });
     } catch (error) {
       console.error('Failed to submit material form', error);
       message.error('保存物料信息失败，请稍后重试');
@@ -145,7 +150,7 @@ const MaterialArchive = () => {
       if (removed) {
         message.success(`已删除「${record.name}」`);
         const currentPage = dataset.list.length === 1 && page > 1 ? page - 1 : page;
-        fetchList({ page: currentPage });
+        fetchList({ page: currentPage, pageSize, keyword });
       }
     } catch (error) {
       console.error('Failed to remove material', error);
@@ -153,7 +158,7 @@ const MaterialArchive = () => {
     } finally {
       setLoading(false);
     }
-  }, [dataset.list.length, fetchList, page]);
+  }, [dataset.list.length, fetchList, keyword, page, pageSize]);
 
   const handleOpenImport = () => {
     setImportModal({ open: true, loading: false, fileList: [] });
@@ -165,7 +170,7 @@ const MaterialArchive = () => {
       const mockPayload: CreateMaterialPayload[] = [
         {
           name: `${activeTab === 'fabric' ? '导入面料' : '导入辅料'}-${Date.now().toString().slice(-4)}`,
-          category: activeTab,
+          materialType: activeTab,
           unit: activeTab === 'fabric' ? '米' : '个',
           price: activeTab === 'fabric' ? 18.6 : 0.42,
           width: activeTab === 'fabric' ? '145cm' : undefined,
@@ -174,7 +179,7 @@ const MaterialArchive = () => {
         },
       ];
       const count = await materialApi.import(mockPayload, activeTab);
-      fetchList({ page: 1 });
+      fetchList({ page: 1, pageSize, keyword });
       setImportModal({ open: false, loading: false, fileList: [] });
       Modal.success({
         title: '导入完成',
@@ -194,7 +199,7 @@ const MaterialArchive = () => {
 
   const handleExport = async () => {
     try {
-      const blob = await materialApi.export({ category: activeTab, keyword: keyword.trim() });
+      const blob = await materialApi.export({ materialType: activeTab, keyword: keyword.trim() });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -248,9 +253,7 @@ const MaterialArchive = () => {
         render: (value, record) => (
           <div className="material-name-cell">
             <div className="material-name">{value}</div>
-            {record.categoryPath && record.categoryPath.length > 0 && (
-              <div className="material-category-path">{record.categoryPath.join(' / ')}</div>
-            )}
+            {record.sku && <div className="material-category-path">编号：{record.sku}</div>}
           </div>
         ),
       },
@@ -340,6 +343,7 @@ const MaterialArchive = () => {
         open={formModal.open}
         loading={formModal.submitting}
         title={formModal.record ? '编辑物料' : '新建物料'}
+        materialType={formModal.record?.materialType ?? activeTab}
         initialValues={formModal.record}
         onCancel={closeFormModal}
         onSubmit={handleSubmitForm}
