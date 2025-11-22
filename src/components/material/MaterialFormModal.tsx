@@ -29,6 +29,21 @@ type MaterialFormModalProps = {
 
 const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套'];
 
+const formatToleranceValue = (value?: string) => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('±')) {
+    return trimmed;
+  }
+  const withoutSign = trimmed.replace(/^[+-]/, '');
+  return `±${withoutSign}`;
+};
+
 const MaterialFormModal = ({
   open,
   loading,
@@ -131,7 +146,7 @@ const MaterialFormModal = ({
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item label="空差" name="tolerance">
+            <Form.Item label="空差" name="tolerance" normalize={formatToleranceValue}>
               <Input placeholder="如 ±2cm" />
             </Form.Item>
           </Col>

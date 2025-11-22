@@ -32,6 +32,7 @@
 1. 新增 `src/api/storage.ts`，将 `/api/v1/storage/files` 封装为 `storageApi.upload`，内部负责拼接 `tenantId/module`，并输出标准 `FileUploadResult`。
 2. 在 `src/components/upload/ImageUploader.tsx` 实现通用上传组件：集成 AntD `Upload`、自定义 `customRequest` 调用 `storageApi.upload`，支持尺寸限制、预览、删除与受控 `value`。
 3. `src/components/material/MaterialFormModal.tsx` 中移除 base64 逻辑，改用 `<ImageUploader module="materials" />`，表单直接接收文件上传得到的 URL。
+4. （追加需求）物料“空差”输入框通过 `normalize` 自动为数值添加 `±` 前缀，减少手动录入错误。
 
 ## 测试
 - `npm run lint`：通过，确认新增 TS/React 代码符合规范。
