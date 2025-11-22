@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Col, Form, Input, InputNumber, Modal, Row, Select, Upload } from 'antd';
-import type { UploadFile } from 'antd/es/upload/interface';
-import type { UploadProps } from 'antd/es/upload';
-import { PlusOutlined } from '@ant-design/icons';
+import { useEffect } from 'react';
+import { Col, Form, Input, InputNumber, Modal, Row, Select } from 'antd';
 import ColorTagsInput from './ColorTagsInput';
 import type { CreateMaterialPayload, MaterialBasicType, MaterialItem, MaterialUnit } from '../../types';
+import ImageUploader from '../upload/ImageUploader';
 
 type MaterialFormValues = {
   sku?: string;
@@ -31,14 +29,6 @@ type MaterialFormModalProps = {
 
 const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套'];
 
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-
 const MaterialFormModal = ({
   open,
   loading,
@@ -49,7 +39,6 @@ const MaterialFormModal = ({
   onCancel,
 }: MaterialFormModalProps) => {
   const [form] = Form.useForm<MaterialFormValues>();
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -66,55 +55,8 @@ const MaterialFormModal = ({
         remarks: initialValues?.remarks,
         imageUrl: initialValues?.imageUrl,
       });
-      if (initialValues?.imageUrl) {
-        setFileList([
-          {
-            uid: '-1',
-            name: 'material-image',
-            status: 'done',
-            url: initialValues.imageUrl,
-          },
-        ]);
-      } else {
-        setFileList([]);
-      }
     }
   }, [open, initialValues, form]);
-
-  const uploadProps = useMemo<UploadProps>(() => ({
-    listType: 'picture-card',
-    maxCount: 1,
-    fileList,
-    accept: 'image/*',
-    beforeUpload: async (file) => {
-      const base64 = await fileToBase64(file);
-      form.setFieldsValue({ imageUrl: base64 });
-      setFileList([
-        {
-          uid: file.uid,
-          name: file.name,
-          status: 'done',
-          url: base64,
-        },
-      ]);
-      return false;
-    },
-    onRemove: () => {
-      form.setFieldsValue({ imageUrl: undefined });
-      setFileList([]);
-    },
-    onPreview: async (file) => {
-      const src = file.url ?? (file.originFileObj ? await fileToBase64(file.originFileObj as File) : '');
-      if (src) {
-        const image = new Image();
-        image.src = src;
-        const newWindow = window.open(src);
-        if (newWindow) {
-          newWindow.document.write(image.outerHTML);
-        }
-      }
-    },
-  }), [fileList, form]);
 
   const handleOk = async () => {
     const values = await form.validateFields();
@@ -136,21 +78,11 @@ const MaterialFormModal = ({
       destroyOnClose
     >
       <Form form={form} layout="vertical" autoComplete="off">
-        <Form.Item name="imageUrl" hidden>
-          <Input type="hidden" />
-        </Form.Item>
         <Form.Item name="sku" hidden>
           <Input type="hidden" />
         </Form.Item>
-        <Form.Item label="物料图片">
-          <Upload {...uploadProps}>
-            {fileList.length >= 1 ? null : (
-              <div>
-                <PlusOutlined />
-                <div style={{ marginTop: 8 }}>上传</div>
-              </div>
-            )}
-          </Upload>
+        <Form.Item label="物料图片" name="imageUrl" valuePropName="value">
+          <ImageUploader module="materials" tips="支持 JPG/PNG，大小不超过 5MB" />
         </Form.Item>
         <Row gutter={16}>
           <Col span={24}>
