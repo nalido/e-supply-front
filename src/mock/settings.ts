@@ -32,6 +32,13 @@ import type { Paginated } from '../api/mock';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const wait = (ms = 160) => new Promise((resolve) => setTimeout(resolve, ms));
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 const profileStore: UserProfile = {
   id: 'user-001',
@@ -397,7 +404,9 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
 
 export const updateUserAvatar = async (payload: AvatarUpdatePayload): Promise<UserProfile> => {
   await wait();
-  profileStore.avatar = payload.dataUrl || profileStore.avatar;
+  if (payload.file) {
+    profileStore.avatar = await fileToDataUrl(payload.file);
+  }
   profileStore.lastUpdatedAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
   return clone(profileStore);
 };

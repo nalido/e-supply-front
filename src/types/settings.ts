@@ -1,19 +1,21 @@
 export type UserProfile = {
   id: string;
   name: string;
+  username?: string;
   avatar: string;
   phone: string;
   email: string;
   maskedPassword: string;
   position?: string;
+  status?: UserStatus;
   lastUpdatedAt?: string;
+  roleIds?: string[];
+  roleNames?: string[];
 };
 
 export type AvatarUpdatePayload = {
-  fileName: string;
-  fileSize: number;
-  fileType: string;
-  dataUrl: string;
+  userId: string;
+  file: File;
 };
 
 export type PhoneUpdatePayload = {

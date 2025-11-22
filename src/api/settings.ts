@@ -86,6 +86,13 @@ import { tenantStore } from '../stores/tenant'; // Import tenantStore
 
 const useMock = apiConfig.useMock;
 
+type ProfileFetchOptions = {
+  userId?: string;
+  username?: string;
+  email?: string;
+  keyword?: string;
+};
+
 const normalizeRoleIds = (values?: Array<string | number>): string[] =>
   (values ?? [])
     .map((value) => (value === undefined || value === null ? '' : value.toString()))
@@ -112,6 +119,19 @@ const adaptOrgMemberFromBackend = (item: BackendUserAccountResponse): OrgMember 
   status: normalizeUserStatus(item.status),
 });
 
+const adaptUserProfileFromBackend = (item: BackendUserAccountResponse): UserProfile => ({
+  id: String(item.id),
+  name: item.displayName || item.username || '',
+  username: item.username,
+  avatar: item.avatarUrl ?? '',
+  phone: item.phone ?? '',
+  email: item.email ?? '',
+  maskedPassword: '********',
+  status: normalizeUserStatus(item.status),
+  lastUpdatedAt: item.updatedAt,
+  roleIds: normalizeRoleIds(item.roleIds),
+});
+
 const adaptAuditLogFromBackend = (item: BackendAuditLogResponse): ActionLogEntry => ({
   id: String(item.id ?? ''),
   module: item.module ?? '',
@@ -126,9 +146,101 @@ const adaptAuditLogFromBackend = (item: BackendAuditLogResponse): ActionLogEntry
 
 export const settingsApi = {
   profile: {
-    get: (): Promise<UserProfile> => mockFetchUserProfile(),
-    updateAvatar: (payload: AvatarUpdatePayload): Promise<UserProfile> => mockUpdateUserAvatar(payload),
-    updatePhone: (payload: PhoneUpdatePayload): Promise<UserProfile> => mockUpdateUserPhone(payload),
+    get: async (options: ProfileFetchOptions = {}): Promise<UserProfile> => {
+      if (useMock) {
+        return mockFetchUserProfile();
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      if (options.userId) {
+        const response = await http.get<BackendUserAccountResponse>(
+          `/api/v1/settings/users/${options.userId}`,
+          { params: { tenantId } },
+        );
+        return adaptUserProfileFromBackend(response.data);
+      }
+      const keyword = options.keyword ?? options.username ?? options.email;
+      if (!keyword) {
+        throw new Error('无法确定当前用户标识');
+      }
+      const response = await http.get<BackendPageResponse<BackendUserAccountResponse>>(
+        '/api/v1/settings/users',
+        {
+          params: {
+            tenantId,
+            keyword,
+            page: 1,
+            size: 20,
+          },
+        },
+      );
+      const items = response.data.items ?? [];
+      if (!items.length) {
+        throw new Error('未找到当前用户信息');
+      }
+      const normalizedUsername = options.username?.toLowerCase();
+      const normalizedEmail = options.email?.toLowerCase();
+      const matched =
+        items.find((item) => normalizedUsername && item.username?.toLowerCase() === normalizedUsername) ||
+        items.find((item) => normalizedEmail && item.email?.toLowerCase() === normalizedEmail) ||
+        items[0];
+      return adaptUserProfileFromBackend(matched);
+    },
+    updateAvatar: async (payload: AvatarUpdatePayload): Promise<UserProfile> => {
+      if (useMock) {
+        return mockUpdateUserAvatar(payload);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const parsedTenantId = Number(tenantId);
+      if (!Number.isFinite(parsedTenantId)) {
+        throw new Error('Invalid tenant id');
+      }
+      const formData = new FormData();
+      formData.append('file', payload.file);
+      const response = await http.post<BackendUserAccountResponse>(
+        `/api/v1/settings/users/${payload.userId}/avatar`,
+        formData,
+        {
+          params: { tenantId: parsedTenantId },
+          headers: { 'Content-Type': 'multipart/form-data' },
+        },
+      );
+      return adaptUserProfileFromBackend(response.data);
+    },
+    updatePhone: async (payload: PhoneUpdatePayload, context?: UserProfile): Promise<UserProfile> => {
+      if (useMock) {
+        return mockUpdateUserPhone(payload);
+      }
+      if (!context?.id) {
+        throw new Error('User profile is required for updating phone number.');
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const parsedTenantId = Number(tenantId);
+      if (!Number.isFinite(parsedTenantId)) {
+        throw new Error('Invalid tenant id');
+      }
+      const requestBody: BackendUserAccountUpdateRequest = {
+        tenantId: parsedTenantId,
+        displayName: context.name,
+        phone: payload.phone,
+        email: context.email,
+        avatarUrl: context.avatar,
+        status: context.status ? context.status.toUpperCase() : undefined,
+      };
+      const response = await http.post<BackendUserAccountResponse>(
+        `/api/v1/settings/users/${context.id}/update`,
+        requestBody,
+      );
+      return adaptUserProfileFromBackend(response.data);
+    },
     resetPassword: (): Promise<boolean> => mockResetUserPassword(),
   },
   company: {
