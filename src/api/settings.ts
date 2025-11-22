@@ -6,6 +6,7 @@ import type {
   CompanyOverview,
   CreateCredentialPayload,
   CreateOrgMemberPayload,
+  UpdateOrgMemberPayload,
   CreateRolePayload,
   CreateUserPayload,
   CredentialItem,
@@ -28,11 +29,13 @@ import type {
   UserListQuery,
   UserProfile,
   // New DTO types
+  BackendAuditLogResponse,
   BackendRoleResponse,
   BackendRoleRequest,
   BackendPermissionModuleDto,
   BackendPageResponse,
   BackendUserAccountCreateRequest,
+  BackendUserAccountUpdateRequest,
   BackendUserAccountResponse,
 } from '../types/settings';
 import type { Paginated } from './mock';
@@ -64,6 +67,7 @@ import {
   listUsers as mockListUsers,
   removeCredential as mockRemoveCredential,
   removeOrgMember as mockRemoveOrgMember,
+  updateOrgMember as mockUpdateOrgMember,
   removeRole as mockRemoveRole,
   removeUser as mockRemoveUser,
   resetUserPassword as mockResetUserPassword,
@@ -106,6 +110,18 @@ const adaptOrgMemberFromBackend = (item: BackendUserAccountResponse): OrgMember 
   email: item.email,
   roleIds: normalizeRoleIds(item.roleIds),
   status: normalizeUserStatus(item.status),
+});
+
+const adaptAuditLogFromBackend = (item: BackendAuditLogResponse): ActionLogEntry => ({
+  id: String(item.id ?? ''),
+  module: item.module ?? '',
+  action: item.action ?? '',
+  documentNo: item.documentNo ?? undefined,
+  operatorId: item.operatorId ? String(item.operatorId) : undefined,
+  operatorName: item.operatorName ?? '',
+  operatedAt: item.createdAt ?? '',
+  clientIp: item.clientIp ?? undefined,
+  payloadSnapshot: item.payloadSnapshot ?? undefined,
 });
 
 export const settingsApi = {
@@ -162,11 +178,15 @@ export const settingsApi = {
       if (!tenantId) {
         throw new Error('Tenant ID is not available.');
       }
+      const parsedTenantId = Number(tenantId);
+      if (!Number.isFinite(parsedTenantId)) {
+        throw new Error('Invalid tenant id');
+      }
       const roleIds = (payload.roleIds ?? [])
         .map((roleId) => Number(roleId))
         .filter((roleId) => Number.isFinite(roleId) && roleId > 0);
       const requestBody: BackendUserAccountCreateRequest = {
-        tenantId,
+        tenantId: parsedTenantId,
         username: payload.username,
         displayName: payload.name,
         password: payload.password,
@@ -179,7 +199,55 @@ export const settingsApi = {
       const response = await http.post<BackendUserAccountResponse>('/api/v1/settings/users', requestBody);
       return adaptOrgMemberFromBackend(response.data);
     },
-    remove: (memberId: string): Promise<boolean> => mockRemoveOrgMember(memberId),
+    update: async (memberId: string, payload: UpdateOrgMemberPayload): Promise<OrgMember> => {
+      if (useMock) {
+        const next = await mockUpdateOrgMember(memberId, payload);
+        if (!next) {
+          throw new Error('成员不存在');
+        }
+        return next;
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const parsedTenantId = Number(tenantId);
+      if (!Number.isFinite(parsedTenantId)) {
+        throw new Error('Invalid tenant id');
+      }
+      const roleIds = (payload.roleIds ?? [])
+        .map((roleId) => Number(roleId))
+        .filter((roleId) => Number.isFinite(roleId) && roleId > 0);
+      const requestBody: BackendUserAccountUpdateRequest = {
+        tenantId: parsedTenantId,
+        displayName: payload.name,
+        phone: payload.phone,
+        email: payload.email,
+        avatarUrl: payload.avatarUrl,
+        status: payload.status ? payload.status.toUpperCase() : undefined,
+        roleIds: roleIds.length ? roleIds : undefined,
+      };
+      const response = await http.post<BackendUserAccountResponse>(
+        `/api/v1/settings/users/${memberId}/update`,
+        requestBody,
+      );
+      return adaptOrgMemberFromBackend(response.data);
+    },
+    remove: async (memberId: string): Promise<boolean> => {
+      if (useMock) {
+        return mockRemoveOrgMember(memberId);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const parsedTenantId = Number(tenantId);
+      if (!Number.isFinite(parsedTenantId)) {
+        throw new Error('Invalid tenant id');
+      }
+      await http.post(`/api/v1/settings/users/${memberId}/delete`, { tenantId: parsedTenantId });
+      return true;
+    },
   },
   roles: {
     list: async (): Promise<RoleItem[]> => {
@@ -251,7 +319,37 @@ export const settingsApi = {
     },
   },
   audit: {
-    list: (query?: ActionLogQuery): Promise<Paginated<ActionLogEntry>> => mockListActionLogs(query),
+    list: async (query: ActionLogQuery = {}): Promise<Paginated<ActionLogEntry>> => {
+      if (useMock) {
+        return mockListActionLogs(query);
+      }
+      const tenantId = tenantStore.getTenantId();
+      if (!tenantId) {
+        throw new Error('Tenant ID is not available.');
+      }
+      const pageIndex = Math.max(0, (query.page ?? 1) - 1);
+      const pageSize = query.pageSize ?? 10;
+      const response = await http.get<BackendPageResponse<BackendAuditLogResponse>>(
+        '/api/v1/settings/audit-logs',
+        {
+          params: {
+            tenantId,
+            module: query.module,
+            action: query.action,
+            operatorId: query.operatorId,
+            keyword: query.keyword,
+            from: query.from,
+            to: query.to,
+            page: pageIndex,
+            size: pageSize,
+          },
+        },
+      );
+      return {
+        list: (response.data.items ?? []).map(adaptAuditLogFromBackend),
+        total: response.data.total ?? 0,
+      };
+    },
   },
   preferences: {
     list: (): Promise<PreferenceGroup[]> => mockListPreferenceGroups(),

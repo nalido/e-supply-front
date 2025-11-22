@@ -14,8 +14,13 @@ import {
 } from 'antd';
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import settingsApi from '../../api/settings';
-import { apiConfig } from '../../api/config';
-import type { CreateOrgMemberPayload, OrgMember, RoleItem } from '../../types/settings';
+import type { CreateOrgMemberPayload, OrgMember, RoleItem, UpdateOrgMemberPayload } from '../../types/settings';
+
+const userStatusOptions = [
+  { label: '启用', value: 'active' },
+  { label: '停用', value: 'inactive' },
+  { label: '待激活', value: 'pending' },
+] as const;
 
 const OrganizationSettings = () => {
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -23,12 +28,15 @@ const OrganizationSettings = () => {
   const [keyword, setKeyword] = useState('');
   const [activeKeyword, setActiveKeyword] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const latestPageSizeRef = useRef(pagination.pageSize);
   const [rolesMap, setRolesMap] = useState<Record<string, string>>({});
   const [roleList, setRoleList] = useState<RoleItem[]>([]);
-  const allowOrgRemoval = apiConfig.useMock;
   const [createForm] = Form.useForm<CreateOrgMemberPayload>();
+  const [editForm] = Form.useForm<UpdateOrgMemberPayload>();
+  const [editingMember, setEditingMember] = useState<OrgMember | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchMembers = useCallback(
     (page: number, pageSize: number) => {
@@ -92,27 +100,28 @@ const OrganizationSettings = () => {
 
   const handleRemove = useCallback(
     (member: OrgMember) => {
-      if (!allowOrgRemoval) {
-        message.warning('当前环境暂不支持删除成员');
-        return;
-      }
       Modal.confirm({
         title: '确认删除',
         content: `确定要删除「${member.name}」吗？`,
         okText: '删除',
         okButtonProps: { danger: true },
         onOk: async () => {
-          const success = await settingsApi.organization.remove(member.id);
-          if (success) {
+          try {
+            const success = await settingsApi.organization.remove(member.id);
+            if (!success) {
+              message.error('删除失败');
+              throw new Error('删除失败');
+            }
             message.success('成员已删除');
             fetchMembers(pagination.current, pagination.pageSize);
-          } else {
-            message.error('删除失败');
+          } catch (error) {
+            console.error(error);
+            throw error;
           }
         },
       });
     },
-    [allowOrgRemoval, fetchMembers, pagination],
+    [fetchMembers, pagination],
   );
 
   const submitCreate = async () => {
@@ -127,6 +136,47 @@ const OrganizationSettings = () => {
       if (error) {
         console.error(error);
       }
+    }
+  };
+
+  const handleEdit = useCallback(
+    (member: OrgMember) => {
+      setEditingMember(member);
+      setEditModalOpen(true);
+      editForm.setFieldsValue({
+        name: member.name,
+        phone: member.phone,
+        email: member.email ?? '',
+        roleIds: member.roleIds ?? [],
+        status: member.status ?? 'active',
+      });
+    },
+    [editForm],
+  );
+
+  const closeEditModal = useCallback(() => {
+    setEditModalOpen(false);
+    setEditingMember(null);
+    editForm.resetFields();
+  }, [editForm]);
+
+  const submitEdit = async () => {
+    if (!editingMember) {
+      return;
+    }
+    try {
+      const values = await editForm.validateFields();
+      setEditSubmitting(true);
+      await settingsApi.organization.update(editingMember.id, values);
+      message.success('成员信息已更新');
+      closeEditModal();
+      fetchMembers(pagination.current, pagination.pageSize);
+    } catch (error) {
+      if (error) {
+        console.error(error);
+      }
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -154,19 +204,18 @@ const OrganizationSettings = () => {
         key: 'action',
         align: 'right',
         render: (_, record) => (
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleRemove(record)}
-            disabled={!allowOrgRemoval}
-          >
-            删除
-          </Button>
+          <Space size={8}>
+            <Button type="link" onClick={() => handleEdit(record)}>
+              编辑
+            </Button>
+            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleRemove(record)}>
+              删除
+            </Button>
+          </Space>
         ),
       },
     ],
-    [allowOrgRemoval, handleRemove, rolesMap],
+    [handleEdit, handleRemove, rolesMap],
   );
 
   const roleOptions = useMemo(
@@ -275,6 +324,57 @@ const OrganizationSettings = () => {
             ]}
           >
             <Input.Password placeholder="请输入至少6位密码" autoComplete="new-password" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingMember ? `编辑成员：${editingMember.name}` : '编辑成员'}
+        open={editModalOpen}
+        onCancel={closeEditModal}
+        onOk={submitEdit}
+        confirmLoading={editSubmitting}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
+            <Input placeholder="请输入姓名" />
+          </Form.Item>
+          <Form.Item
+            label="手机号码"
+            name="phone"
+            rules={[
+              { required: true, message: '请输入手机号码' },
+              { pattern: /^1\d{10}$/, message: '请输入11位有效手机号' },
+            ]}
+          >
+            <Input placeholder="请输入手机号码" maxLength={11} />
+          </Form.Item>
+          <Form.Item
+            label="邮箱"
+            name="email"
+            rules={[
+              { required: true, message: '请输入邮箱地址' },
+              { type: 'email', message: '请输入有效邮箱' },
+            ]}
+          >
+            <Input placeholder="请输入邮箱，如 user@example.com" />
+          </Form.Item>
+          <Form.Item
+            label="岗位"
+            name="roleIds"
+            rules={[{ required: true, message: '请选择岗位' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择岗位"
+              options={roleOptions}
+              optionFilterProp="label"
+              maxTagCount="responsive"
+            />
+          </Form.Item>
+          <Form.Item label="状态" name="status" rules={[{ required: true, message: '请选择状态' }]}>
+            <Select options={userStatusOptions} placeholder="请选择账号状态" />
           </Form.Item>
         </Form>
       </Modal>

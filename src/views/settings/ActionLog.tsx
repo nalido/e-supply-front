@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Form, Input, Space, Table } from 'antd';
 import { RedoOutlined, SearchOutlined } from '@ant-design/icons';
@@ -29,7 +30,12 @@ const ActionLogPage = () => {
     settingsApi.audit
       .list({ ...values, page, pageSize })
       .then((result) => {
-        setDataSource(result.list);
+        const startIndex = (page - 1) * pageSize;
+        const listWithOrder = result.list.map((item, index) => ({
+          ...item,
+          order: startIndex + index + 1,
+        }));
+        setDataSource(listWithOrder);
         setPagination({ current: page, pageSize, total: result.total });
       })
       .finally(() => setLoading(false));
@@ -56,11 +62,15 @@ const ActionLogPage = () => {
 
   const columns: ColumnsType<ActionLogEntry> = [
     { title: '序号', dataIndex: 'order', width: 80 },
-    { title: '模块名称', dataIndex: 'moduleName' },
-    { title: '操作名称', dataIndex: 'actionName' },
-    { title: '单据编号', dataIndex: 'documentNo' },
-    { title: '用户', dataIndex: 'operator' },
-    { title: '操作时间', dataIndex: 'operatedAt' },
+    { title: '模块名称', dataIndex: 'module' },
+    { title: '操作名称', dataIndex: 'action' },
+    { title: '用户', dataIndex: 'operatorName' },
+    {
+      title: '操作时间',
+      dataIndex: 'operatedAt',
+      render: (value: string | undefined) =>
+        value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-',
+    },
     { title: '客户端IP', dataIndex: 'clientIp' },
   ];
 
@@ -68,14 +78,11 @@ const ActionLogPage = () => {
     <Card title="操作日志">
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
         <Form form={form} layout="inline" onFinish={handleSearch}>
-          <Form.Item name="moduleName" label="模块名称">
+          <Form.Item name="module" label="模块名称">
             <Input placeholder="搜索模块" allowClear />
           </Form.Item>
-          <Form.Item name="actionName" label="操作名称">
+          <Form.Item name="action" label="操作名称">
             <Input placeholder="搜索操作" allowClear />
-          </Form.Item>
-          <Form.Item name="documentNo" label="单据编号">
-            <Input placeholder="搜索单号" allowClear />
           </Form.Item>
           <Form.Item>
             <Space>

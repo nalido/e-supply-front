@@ -98,6 +98,15 @@ export type CreateOrgMemberPayload = {
   status?: UserStatus;
 };
 
+export type UpdateOrgMemberPayload = {
+  name: string;
+  phone: string;
+  email?: string;
+  avatarUrl?: string;
+  roleIds?: string[];
+  status?: UserStatus;
+};
+
 export type RoleItem = {
   id: string;
   name: string;
@@ -160,8 +169,21 @@ export type BackendPageResponse<T> = {
   size: number;
 };
 
+export type BackendAuditLogResponse = {
+  id: string | number;
+  tenantId: string | number;
+  module: string;
+  action: string;
+  documentNo?: string | null;
+  operatorId?: string | number | null;
+  operatorName?: string | null;
+  clientIp?: string | null;
+  payloadSnapshot?: string | null;
+  createdAt: string;
+};
+
 export type BackendUserAccountCreateRequest = {
-  tenantId: string;
+  tenantId: string | number;
   username: string;
   displayName: string;
   password: string;
@@ -169,6 +191,16 @@ export type BackendUserAccountCreateRequest = {
   phone?: string;
   email: string;
   avatarUrl?: string;
+  roleIds?: Array<string | number>;
+};
+
+export type BackendUserAccountUpdateRequest = {
+  tenantId: string | number;
+  displayName?: string;
+  phone?: string;
+  email?: string;
+  avatarUrl?: string;
+  status?: string;
   roleIds?: Array<string | number>;
 };
 
@@ -189,21 +221,26 @@ export type PermissionTreeNode = {
 };
 
 export type ActionLogQuery = {
-  moduleName?: string;
-  actionName?: string;
-  documentNo?: string;
+  module?: string;
+  action?: string;
+  operatorId?: string;
+  keyword?: string;
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
 };
 
 export type ActionLogEntry = {
   id: string;
-  moduleName: string;
-  actionName: string;
-  documentNo: string;
-  operator: string;
+  module: string;
+  action: string;
+  documentNo?: string;
+  operatorId?: string;
+  operatorName: string;
   operatedAt: string;
-  clientIp: string;
+  clientIp?: string;
+  payloadSnapshot?: string;
   order?: number;
 };
 

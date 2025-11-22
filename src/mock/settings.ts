@@ -26,6 +26,7 @@ import type {
   UserAccount,
   UserListQuery,
   UserProfile,
+  UpdateOrgMemberPayload,
 } from '../types';
 import type { Paginated } from '../api/mock';
 
@@ -173,14 +174,19 @@ const actionLogStore: ActionLogEntry[] = Array.from({ length: 28 }).map((_, inde
   const day = ((index % 9) + 1).toString().padStart(2, '0');
   const hour = (9 + (index % 10)).toString().padStart(2, '0');
   const minute = ((index * 3) % 60).toString().padStart(2, '0');
+  const module = ['订单生产', '物料管理', '系统设置', '车间计件'][index % 4];
+  const action = ['新增', '修改', '删除', '导出'][index % 4];
+  const operatorName = ['张敏', '李倩', '王磊', '陈晨'][index % 4];
   return {
     id: `log-${index + 1}`,
-    moduleName: ['订单生产', '物料管理', '系统设置', '车间计件'][index % 4],
-    actionName: ['新增', '修改', '删除', '导出'][index % 4],
+    module,
+    action,
     documentNo: `DOC-${2024030100 + index}`,
-    operator: ['张敏', '李倩', '王磊', '陈晨'][index % 4],
+    operatorId: `op-${(index % 4) + 1}`,
+    operatorName,
     operatedAt: `2025-03-${day} ${hour}:${minute}`,
     clientIp: `192.168.1.${index + 12}`,
+    payloadSnapshot: JSON.stringify({ module, action, operatorName }),
   };
 });
 
@@ -490,6 +496,28 @@ export const removeOrgMember = async (id: string): Promise<boolean> => {
   return before !== orgMembersStore.length;
 };
 
+export const updateOrgMember = async (
+  id: string,
+  payload: UpdateOrgMemberPayload,
+): Promise<OrgMember | undefined> => {
+  await wait();
+  const index = orgMembersStore.findIndex((member) => member.id === id);
+  if (index === -1) {
+    return undefined;
+  }
+  const current = orgMembersStore[index];
+  const updated: OrgMember = {
+    ...current,
+    name: payload.name ?? current.name,
+    phone: payload.phone ?? current.phone,
+    email: payload.email ?? current.email,
+    roleIds: payload.roleIds ?? current.roleIds,
+    status: payload.status ?? current.status,
+  };
+  orgMembersStore[index] = updated;
+  return clone(updated);
+};
+
 export const listRoles = async (): Promise<RoleItem[]> => {
   await wait();
   return clone(rolesStore);
@@ -536,16 +564,24 @@ export const fetchPermissionTree = async (): Promise<PermissionTreeNode[]> => {
 
 export const listActionLogs = async (query: ActionLogQuery = {}): Promise<Paginated<ActionLogEntry>> => {
   await wait();
-  const { moduleName, actionName, documentNo, page = 1, pageSize = 10 } = query;
+  const { module, action, operatorId, keyword, page = 1, pageSize = 10 } = query;
   let data = actionLogStore;
-  if (moduleName) {
-    data = data.filter((item) => item.moduleName.includes(moduleName));
+  if (module) {
+    data = data.filter((item) => item.module.includes(module));
   }
-  if (actionName) {
-    data = data.filter((item) => item.actionName.includes(actionName));
+  if (action) {
+    data = data.filter((item) => item.action.includes(action));
   }
-  if (documentNo) {
-    data = data.filter((item) => item.documentNo.includes(documentNo));
+  if (operatorId) {
+    data = data.filter((item) => item.operatorId === operatorId);
+  }
+  if (keyword) {
+    const lower = keyword.toLowerCase();
+    data = data.filter((item) => {
+      const operatorMatch = item.operatorName?.toLowerCase().includes(lower);
+      const documentMatch = item.documentNo?.toLowerCase().includes(lower);
+      return Boolean(operatorMatch || documentMatch);
+    });
   }
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
