@@ -374,65 +374,111 @@ const StyleDetail = () => {
         </div>
 
         <Form form={form} layout="vertical" className="style-detail-form">
-          <Card title="基础信息" bordered={false} className="style-detail-card">
-            <Row gutter={24}>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item
-                  name="styleNo"
-                  label="款式编号"
-                  rules={[{ required: true, message: '请输入款式编号' }]}
-                >
-                  <Input placeholder="例如 STY-2024-001" disabled={isEditing} />
+          <Card bordered={false} className="style-detail-card style-detail-overview-card">
+            <div className="style-detail-overview">
+              <div className="style-detail-gallery">
+                <div className="style-detail-gallery-title">款式主图</div>
+                <Form.Item name="coverImageUrl" valuePropName="value" className="style-detail-cover-item">
+                  <ImageUploader module="styles" tips="建议尺寸 800x800px，JPG/PNG" />
                 </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item
-                  name="styleName"
-                  label="款式名称"
-                  rules={[{ required: true, message: '请输入款式名称' }]}
-                >
-                  <Input placeholder="请输入款式名称" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item name="defaultUnit" label="计量单位">
-                  <Select placeholder="选择单位" allowClear options={meta?.units?.map((unit) => ({ label: unit, value: unit }))} />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={24}>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item name="designerId" label="设计师">
-                  <Select placeholder="选择设计师" allowClear>
-                    {designerOptions.map((designer) => (
-                      <Select.Option key={designer.id} value={designer.id}>
-                        {designer.name}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}
-                >
-                  <Select>
-                    <Select.Option value="active">启用</Select.Option>
-                    <Select.Option value="inactive">停用</Select.Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col xs={24}>
-                <Form.Item name="remarks" label="备注">
-                  <Input.TextArea rows={3} placeholder="填写款式备注" maxLength={500} showCount allowClear />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          <Card title="封面图片" bordered={false} className="style-detail-card">
-            <Form.Item name="coverImageUrl" valuePropName="value">
-              <ImageUploader module="styles" tips="建议尺寸 800x800px，JPG/PNG" />
-            </Form.Item>
+              </div>
+              <div className="style-detail-info">
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="styleNo"
+                      label="款号"
+                      rules={[{ required: true, message: '请输入款号' }]}
+                    >
+                      <Input placeholder="例如 STY-2024-001" disabled={isEditing} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="styleName"
+                      label="款名"
+                      rules={[{ required: true, message: '请输入款式名称' }]}
+                    >
+                      <Input placeholder="请输入款式名称" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item name="designerId" label="设计师">
+                      <Select placeholder="请选择设计师" allowClear>
+                        {designerOptions.map((designer) => (
+                          <Select.Option key={designer.id} value={designer.id}>
+                            {designer.name}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item name="defaultUnit" label="单位">
+                      <Select
+                        placeholder="选择单位"
+                        allowClear
+                        options={meta?.units?.map((unit) => ({ label: unit, value: unit }))}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
+                      <Select>
+                        <Select.Option value="active">启用</Select.Option>
+                        <Select.Option value="inactive">停用</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24}>
+                    <Form.Item name="remarks" label="备注">
+                      <Input.TextArea rows={3} placeholder="填写款式备注" maxLength={500} showCount allowClear />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <Row gutter={[16, 16]} className="style-detail-info-row">
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="colors"
+                      label="颜色"
+                      rules={[{ required: true, message: '请输入至少一个颜色' }]}
+                    >
+                      <Select mode="tags" placeholder="输入颜色后按回车添加" tokenSeparators={[',']} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="sizes"
+                      label="尺码"
+                      rules={[{ required: true, message: '请输入至少一个尺码' }]}
+                    >
+                      <Select mode="tags" placeholder="输入尺码后按回车添加" tokenSeparators={[',']} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+                <div className="style-detail-color-toggle">
+                  <span className="style-detail-color-toggle-label">颜色图片</span>
+                  <Form.Item name="colorImagesEnabled" valuePropName="checked" noStyle>
+                    <Switch />
+                  </Form.Item>
+                </div>
+              </div>
+            </div>
+            {colorImagesEnabled && normalizedColors.length > 0 && (
+              <div className="style-detail-color-images">
+                {normalizedColors.map((color) => (
+                  <div key={color} className="style-detail-color-item">
+                    <Text className="style-detail-color-label">{color}</Text>
+                    <ImageUploader
+                      module="styles"
+                      value={colorImages[color]}
+                      onChange={(value) => handleColorImageChange(color, value)}
+                      tips="为该颜色上传一张展示图"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           <Card
@@ -474,7 +520,7 @@ const StyleDetail = () => {
                             }
                           />
                         </Form.Item>
-                        <Form.Item name={[field.name, 'unitPrice']} label="单价">
+                        <Form.Item name={[field.name, 'unitPrice']} label="单价" className="style-process-price-item">
                           <InputNumber
                             min={0}
                             step={0.01}
@@ -520,48 +566,6 @@ const StyleDetail = () => {
             </Form.List>
           </Card>
 
-          <Card title="颜色 / 尺码" bordered={false} className="style-detail-card">
-            <Row gutter={24}>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item
-                  name="colors"
-                  label="颜色"
-                  rules={[{ required: true, message: '请输入至少一个颜色' }]}
-                >
-                  <Select mode="tags" placeholder="输入颜色后回车" tokenSeparators={[',']} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item
-                  name="sizes"
-                  label="尺码"
-                  rules={[{ required: true, message: '请输入至少一个尺码' }]}
-                >
-                  <Select mode="tags" placeholder="输入尺码后回车" tokenSeparators={[',']} />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12} lg={8}>
-                <Form.Item name="colorImagesEnabled" label="启用颜色图片" valuePropName="checked">
-                  <Switch />
-                </Form.Item>
-              </Col>
-            </Row>
-            {colorImagesEnabled && normalizedColors.length > 0 && (
-              <div className="style-detail-color-images">
-                {normalizedColors.map((color) => (
-                  <div key={color} className="style-detail-color-item">
-                    <Text className="style-detail-color-label">{color}</Text>
-                    <ImageUploader
-                      module="styles"
-                      value={colorImages[color]}
-                      onChange={(value) => handleColorImageChange(color, value)}
-                      tips="为该颜色上传一张展示图"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
         </Form>
 
         <Modal
