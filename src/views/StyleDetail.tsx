@@ -1,4 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import {
   Button,
   Card,
@@ -15,17 +30,16 @@ import {
   Spin,
   Switch,
   Tag,
-  Tooltip,
   Typography,
 } from 'antd';
 import {
   ApartmentOutlined,
-  ArrowDownOutlined,
-  ArrowUpOutlined,
+  HolderOutlined,
   DeleteOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
 import type { FormInstance } from 'antd/es/form';
+import type { FormListFieldData } from 'antd/es/form/FormList';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styleDetailApi from '../api/style-detail';
 import operationTemplateApi from '../api/operation-template';
@@ -82,14 +96,16 @@ const buildInitialOperations = (detail?: StyleDetailData): StyleProcessFormValue
   if (!detail?.processes?.length) {
     return [{ processCatalogId: undefined, unitPrice: undefined, remarks: undefined }];
   }
-  return detail.processes.map((process) => ({
-    id: process.id,
-    processCatalogId: process.processCatalogId,
-    unitPrice: process.unitPrice,
-    remarks: process.remarks,
-    sourceTemplateId: process.sourceTemplateId,
-    sequence: process.sequence,
-  }));
+  return [...detail.processes]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .map((process) => ({
+      id: process.id,
+      processCatalogId: process.processCatalogId,
+      unitPrice: process.unitPrice,
+      remarks: process.remarks,
+      sourceTemplateId: process.sourceTemplateId,
+      sequence: process.sequence,
+    }));
 };
 
 const buildInitialValues = (detail?: StyleDetailData): StyleFormValues => ({
@@ -124,6 +140,17 @@ const StyleDetail = () => {
     loading: false,
     templates: [],
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const processGridTemplate = '60px 2.2fr 1fr 1.6fr 28px';
 
   const watchedColors = Form.useWatch('colors', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
@@ -494,75 +521,65 @@ const StyleDetail = () => {
             }
           >
             <Form.List name="operations">
-              {(fields, { add, remove, move }) => (
-                <div className="style-process-list">
-                  {fields.length === 0 ? (
-                    <Text type="secondary">暂无工序，请点击下方按钮添加。</Text>
-                  ) : null}
-                  {fields.map((field, index) => (
-                    <div key={field.key} className="style-process-row">
-                      <div className="style-process-index">{index + 1}</div>
-                      <div className="style-process-form">
-                        <Form.Item
-                          name={[field.name, 'processCatalogId']}
-                          label="工序"
-                          rules={[{ required: true, message: '请选择工序' }]}
+              {(fields, { add, remove, move }) => {
+                const handleDragEnd = (event: DragEndEvent) => {
+                  if (!event.over || event.active.id === event.over.id) {
+                    return;
+                  }
+                  const activeIndex = fields.findIndex((field) => field.key === event.active.id);
+                  const overIndex = fields.findIndex((field) => field.key === event.over?.id);
+                  if (activeIndex === -1 || overIndex === -1) {
+                    return;
+                  }
+                  move(activeIndex, overIndex);
+                };
+
+                return (
+                  <div className="style-process-list" style={{ gap: 12 }}>
+                    {fields.length === 0 ? (
+                      <Text type="secondary">暂无工序，请点击下方按钮添加。</Text>
+                    ) : (
+                      <>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: processGridTemplate,
+                            gap: 12,
+                            padding: '0 8px',
+                            fontSize: 13,
+                            color: '#8c8c8c',
+                          }}
                         >
-                          <Select
-                            placeholder="选择工序"
-                            showSearch
-                            loading={processLoading}
-                            options={processSelectOptions}
-                            filterOption={(input, option) =>
-                              typeof option?.label === 'string'
-                                ? option.label.toLowerCase().includes(input.toLowerCase())
-                                : false
-                            }
-                          />
-                        </Form.Item>
-                        <Form.Item name={[field.name, 'unitPrice']} label="单价" className="style-process-price-item">
-                          <InputNumber
-                            min={0}
-                            step={0.01}
-                            style={{ width: '100%' }}
-                            prefix="¥"
-                            placeholder="0.00"
-                          />
-                        </Form.Item>
-                        <Form.Item name={[field.name, 'remarks']} label="备注">
-                          <Input placeholder="备注信息" maxLength={200} />
-                        </Form.Item>
-                      </div>
-                      <div className="style-process-actions">
-                        <Tooltip title="上移">
-                          <Button
-                            icon={<ArrowUpOutlined />}
-                            disabled={index === 0}
-                            onClick={() => move(index, index - 1)}
-                          />
-                        </Tooltip>
-                        <Tooltip title="下移">
-                          <Button
-                            icon={<ArrowDownOutlined />}
-                            disabled={index === fields.length - 1}
-                            onClick={() => move(index, index + 1)}
-                          />
-                        </Tooltip>
-                        <Tooltip title="删除">
-                          <Button
-                            icon={<DeleteOutlined />}
-                            danger
-                            onClick={() => remove(field.name)}
-                          />
-                        </Tooltip>
-                      </div>
-                    </div>
-                  ))}
-                  <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({})}>
-                    添加工序
-                  </Button>
-                </div>
-              )}
+                          <span style={{ paddingLeft: 4 }}>顺序</span>
+                          <span>工序</span>
+                          <span>工价（元）</span>
+                          <span>备注</span>
+                          <span />
+                        </div>
+                        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                          <SortableContext items={fields.map((field) => field.key)} strategy={verticalListSortingStrategy}>
+                            {fields.map((field, index) => (
+                              <SortableStyleProcessItem
+                                key={field.key}
+                                field={field}
+                                index={index}
+                                processSelectOptions={processSelectOptions}
+                                processLoading={processLoading}
+                                remove={remove}
+                                canRemove={fields.length > 1}
+                                gridTemplate={processGridTemplate}
+                              />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
+                      </>
+                    )}
+                    <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({})}>
+                      添加工序
+                    </Button>
+                  </div>
+                );
+              }}
             </Form.List>
           </Card>
 
@@ -631,3 +648,94 @@ const StyleDetail = () => {
 };
 
 export default StyleDetail;
+
+type SortableStyleProcessItemProps = {
+  field: FormListFieldData;
+  index: number;
+  processSelectOptions: { label: string; value: string }[];
+  processLoading: boolean;
+  remove: (index: number) => void;
+  canRemove: boolean;
+  gridTemplate: string;
+};
+
+const SortableStyleProcessItem = ({
+  field,
+  index,
+  processSelectOptions,
+  processLoading,
+  remove,
+  canRemove,
+  gridTemplate,
+}: SortableStyleProcessItemProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.key });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  } as const;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        ...style,
+        border: '1px solid #f0f0f0',
+        borderRadius: 10,
+        background: isDragging ? '#f6faff' : '#fff',
+        padding: '14px 12px',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: gridTemplate,
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#595959' }}>
+          <span style={{ fontWeight: 600, minWidth: 16, textAlign: 'right' }}>{index + 1}</span>
+          <div
+            style={{ cursor: 'grab', color: '#bfbfbf', lineHeight: '20px' }}
+            aria-label="拖拽调整顺序"
+            {...attributes}
+            {...listeners}
+          >
+            <HolderOutlined />
+          </div>
+        </div>
+        <Form.Item
+          name={[field.name, 'processCatalogId']}
+          fieldKey={[field.fieldKey ?? field.key, 'processCatalogId']}
+          rules={[{ required: true, message: '请选择工序' }]}
+          style={{ marginBottom: 0 }}
+        >
+          <Select
+            placeholder="选择工序"
+            showSearch
+            loading={processLoading}
+            options={processSelectOptions}
+            optionFilterProp="label"
+          />
+        </Form.Item>
+        <Form.Item
+          name={[field.name, 'unitPrice']}
+          fieldKey={[field.fieldKey ?? field.key, 'unitPrice']}
+          style={{ marginBottom: 0 }}
+        >
+          <InputNumber min={0} step={0.01} style={{ width: '100%' }} prefix="¥" placeholder="0.00" />
+        </Form.Item>
+        <Form.Item
+          name={[field.name, 'remarks']}
+          fieldKey={[field.fieldKey ?? field.key, 'remarks']}
+          style={{ marginBottom: 0 }}
+        >
+          <Input placeholder="备注信息" maxLength={200} />
+        </Form.Item>
+        {canRemove ? (
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+        ) : null}
+      </div>
+    </div>
+  );
+};
