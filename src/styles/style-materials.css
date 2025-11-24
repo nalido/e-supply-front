@@ -26,14 +26,15 @@
 }
 
 .style-card {
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  transition: box-shadow 0.2s ease;
-  cursor: pointer;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  cursor: default;
 }
 
 .style-card:hover {
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.3) !important;
 }
 
 .style-card__image-wrapper {
@@ -50,28 +51,87 @@
   object-fit: cover;
 }
 
+.style-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(23, 32, 50, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.style-card:hover .style-card__overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.style-card__overlay-btn {
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  border: none;
+  background: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.style-card__overlay-btn:focus-visible {
+  outline: 2px solid #2f54eb;
+  outline-offset: 2px;
+}
+
+.style-card__overlay-btn:hover {
+  transform: translateY(-2px);
+}
+
+.style-card__overlay-btn--edit {
+  color: #2f54eb;
+}
+
+.style-card__overlay-btn--delete {
+  color: #ff4d4f;
+}
+
+.style-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .style-card__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .style-card__title {
   flex: 1;
   font-size: 14px;
   line-height: 1.4;
+  margin: 0;
 }
 
 .style-card__meta {
-  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
 
 .style-card__scroller {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -81,13 +141,14 @@
   display: none;
 }
 
+
 .style-card__tag {
   flex: 0 0 auto;
   background: #f6ffed;
   color: #1f1f1f;
   font-size: 12px;
   line-height: 1;
-  padding: 4px 8px;
+  padding: 3px 8px;
 }
 
 .style-card__tag--size {
@@ -96,7 +157,12 @@
 
 .style-card__actions {
   width: 100%;
-  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.style-card__actions .ant-btn {
+  padding: 2px 6px;
 }
 
 .style-pagination {

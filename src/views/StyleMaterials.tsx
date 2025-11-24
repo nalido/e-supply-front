@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { message, Pagination, Spin } from 'antd';
+import { message, Modal, Pagination, Spin } from 'antd';
 import type { PaginationProps } from 'antd';
 import StyleCard from '../components/StyleCard';
 import StyleMaterialsActionBar from '../components/StyleMaterialsActionBar';
@@ -78,12 +78,25 @@ const StyleMaterials = () => {
     message.info(`下大货操作：${styleId}`);
   }, []);
 
-  const handleView = useCallback(
-    (styleId: string) => {
-      navigate(`/foundation/product/detail?id=${styleId}`);
+  const handleEdit = useCallback(
+    (style: StyleData) => {
+      navigate(`/foundation/product/detail?id=${style.id}`);
     },
     [navigate],
   );
+
+  const handleDelete = useCallback((style: StyleData) => {
+    Modal.confirm({
+      title: '删除款式',
+      content: `确定要删除「${style.styleNo} ${style.styleName}」吗？`,
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        message.info('删除功能开发中，当前仅展示交互。');
+      },
+    });
+  }, []);
 
   const handleNew = useCallback(() => {
     navigate('/foundation/product/detail');
@@ -122,7 +135,8 @@ const StyleMaterials = () => {
               style={item}
               onSample={handleSample}
               onProduction={handleProduction}
-              onView={handleView}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
           ))}
         </div>
