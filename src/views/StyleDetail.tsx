@@ -1,22 +1,12 @@
-import {
-  cloneElement,
-  isValidElement,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
   Col,
-  Divider,
   Form,
   Input,
   InputNumber,
+  List,
   message,
   Modal,
   Row,
@@ -24,724 +14,613 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
+  Tooltip,
   Typography,
-  Upload,
 } from 'antd';
-import type { UploadFile, UploadProps } from 'antd/es/upload/interface';
-import type { RcFile } from 'antd/es/upload';
-import { PlusOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import {
+  ApartmentOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
+import type { FormInstance } from 'antd/es/form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { styleDetailApi } from '../api/style-detail';
+import styleDetailApi from '../api/style-detail';
+import operationTemplateApi from '../api/operation-template';
+import processTypeApi from '../api/process-type';
 import type {
   StyleColorImageMap,
-  StyleDraft,
+  StyleDetailData,
+  StyleDetailSavePayload,
   StyleFormMeta,
-  StyleFormValues,
-  StyleOperation,
-  StyleOperationTemplate,
+  StyleProcessItem,
 } from '../types/style';
+import type { OperationTemplate } from '../types/operation-template';
+import ImageUploader from '../components/upload/ImageUploader';
 import '../styles/style-detail.css';
 
 const { Title, Text } = Typography;
 
-type UploadItemWrapperProps = {
-  children: ReactNode;
-  size: number;
-  extraClass: string;
+type StyleFormValues = {
+  styleNo: string;
+  styleName: string;
+  defaultUnit?: string;
+  designerId?: string;
+  remarks?: string;
+  colors: string[];
+  sizes: string[];
+  status: 'active' | 'inactive';
+  colorImagesEnabled: boolean;
+  coverImageUrl?: string;
+  operations: StyleProcessFormValue[];
 };
 
-const UploadItemWrapper = ({ children, size, extraClass }: UploadItemWrapperProps) => {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const container = wrapperRef.current?.parentElement;
-    if (container) {
-      container.style.width = `${size}px`;
-      container.style.height = `${size}px`;
-    }
-  }, [size]);
-
-  return (
-    <div ref={wrapperRef} className={`style-detail-upload-item ${extraClass}`.trim()}>
-      {children}
-    </div>
-  );
+type StyleProcessFormValue = {
+  id?: string;
+  processCatalogId?: string;
+  unitPrice?: number;
+  remarks?: string;
+  sourceTemplateId?: string;
+  sequence?: number;
 };
 
-const getBase64 = (file: RcFile): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
-  });
+type ProcessOption = {
+  id: string;
+  name: string;
+  code?: string;
+};
 
-const buildOperation = (index: number): StyleOperation => ({
-  id: `op-${Date.now()}-${index}`,
-  sequence: index + 1,
-  operationName: '',
-  stage: undefined,
-  processDepartment: undefined,
-  parts: [],
-  specificationUnitPrice: undefined,
-  specificationEnabled: false,
-  specificationNotes: '',
-  isKeyProcess: false,
-  processUnitPrice: undefined,
+type TemplateModalState = {
+  open: boolean;
+  loading: boolean;
+  templates: OperationTemplate[];
+};
+
+const buildInitialOperations = (detail?: StyleDetailData): StyleProcessFormValue[] => {
+  if (!detail?.processes?.length) {
+    return [{ processCatalogId: undefined, unitPrice: undefined, remarks: undefined }];
+  }
+  return detail.processes.map((process) => ({
+    id: process.id,
+    processCatalogId: process.processCatalogId,
+    unitPrice: process.unitPrice,
+    remarks: process.remarks,
+    sourceTemplateId: process.sourceTemplateId,
+    sequence: process.sequence,
+  }));
+};
+
+const buildInitialValues = (detail?: StyleDetailData): StyleFormValues => ({
+  styleNo: detail?.styleNo ?? '',
+  styleName: detail?.styleName ?? '',
+  defaultUnit: detail?.defaultUnit,
+  designerId: detail?.designerId,
+  remarks: detail?.remarks,
+  colors: detail?.colors ?? [],
+  sizes: detail?.sizes ?? [],
+  status: detail?.status ?? 'active',
+  colorImagesEnabled: Boolean(detail?.colorImages && Object.values(detail.colorImages).some(Boolean)),
+  coverImageUrl: detail?.coverImageUrl,
+  operations: buildInitialOperations(detail),
 });
-
-const recalcSequence = (rows: StyleOperation[]): StyleOperation[] =>
-  rows.map((item, idx) => ({ ...item, sequence: idx + 1 }));
 
 const StyleDetail = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const styleId = searchParams.get('id') ?? undefined;
+  const isEditing = Boolean(styleId);
   const [form] = Form.useForm<StyleFormValues>();
   const [meta, setMeta] = useState<StyleFormMeta>();
-  const [operations, setOperations] = useState<StyleOperation[]>([]);
-  const [templates, setTemplates] = useState<StyleOperationTemplate[]>([]);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>();
-  const [coverFileList, setCoverFileList] = useState<UploadFile[]>([]);
-  const [colorUploadMap, setColorUploadMap] = useState<Record<string, UploadFile[]>>({});
-  const [previewUrl, setPreviewUrl] = useState<string>();
-  const [previewTitle, setPreviewTitle] = useState('');
-  const [previewVisible, setPreviewVisible] = useState(false);
+  const [colorImages, setColorImages] = useState<StyleColorImageMap>({});
+  const [detail, setDetail] = useState<StyleDetailData>();
+  const [processOptions, setProcessOptions] = useState<ProcessOption[]>([]);
+  const [processLoading, setProcessLoading] = useState(false);
+  const [templateModal, setTemplateModal] = useState<TemplateModalState>({
+    open: false,
+    loading: false,
+    templates: [],
+  });
 
-  const isEditing = searchParams.get('mode') === 'edit';
-  const draftId = searchParams.get('id') ?? undefined;
-
-  const watchedColors = Form.useWatch('colors', form) as string[] | undefined;
-  const colors = useMemo(() => watchedColors ?? [], [watchedColors]);
+  const watchedColors = Form.useWatch('colors', form);
+  const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
 
-  useEffect(() => {
-    setColorUploadMap((prev) => {
-      const next: Record<string, UploadFile[]> = {};
+  const mergeProcessOptions = useCallback((options: ProcessOption[]) => {
+    if (!options.length) {
+      return;
+    }
+    setProcessOptions((prev) => {
+      const map = new Map(prev.map((option) => [option.id, option]));
       let changed = false;
-      colors.forEach((color) => {
-        if (!prev[color]) {
-          changed = true;
-          next[color] = [];
-        } else {
-          next[color] = prev[color];
+      options.forEach((option) => {
+        if (!option.id) {
+          return;
         }
-      });
-      Object.keys(prev).forEach((color) => {
-        if (!colors.includes(color)) {
+        const existing = map.get(option.id);
+        if (!existing || existing.name !== option.name || existing.code !== option.code) {
+          map.set(option.id, option);
           changed = true;
         }
       });
-      return changed ? next : prev;
+      return changed ? Array.from(map.values()) : prev;
     });
-  }, [colors]);
+  }, []);
 
-  useEffect(() => {
-    const load = async () => {
+  const ensureProcessOptionsFromDetail = useCallback(
+    (processes?: StyleProcessItem[]) => {
+      if (!processes?.length) {
+        return;
+      }
+      const detailOptions: ProcessOption[] = processes
+        .filter((process) => Boolean(process.processCatalogId))
+        .map((process) => ({
+          id: process.processCatalogId!,
+          name: process.processName ?? '未命名工序',
+          code: process.processCode,
+        }));
+      mergeProcessOptions(detailOptions);
+    },
+    [mergeProcessOptions],
+  );
+
+  const ensureProcessOptionsFromTemplates = useCallback(
+    (templates: OperationTemplate[]) => {
+      if (!templates.length) {
+        return;
+      }
+      const templateOptions: ProcessOption[] = templates
+        .flatMap((template) => template.operations ?? [])
+        .map((operation) => operation.processCatalog)
+        .filter((catalog): catalog is NonNullable<typeof catalog> => Boolean(catalog))
+        .map((catalog) => ({
+          id: catalog.id,
+          name: catalog.name ?? '未命名工序',
+          code: catalog.code,
+        }));
+      mergeProcessOptions(templateOptions);
+    },
+    [mergeProcessOptions],
+  );
+
+  const loadProcessOptions = useCallback(async () => {
+    setProcessLoading(true);
+    try {
+      const response = await processTypeApi.hot();
+      mergeProcessOptions(response.map((item) => ({ id: item.id, name: item.name, code: item.code })));
+    } catch (error) {
+      console.error('加载工序选项失败', error);
+      message.error('获取工序列表失败');
+    } finally {
+      setProcessLoading(false);
+    }
+  }, [mergeProcessOptions]);
+
+  const load = useCallback(
+    async (formRef: FormInstance<StyleFormValues>) => {
       setLoading(true);
       try {
-        const [metaPayload, draftPayload, templatePayload] = await Promise.all([
-          styleDetailApi.fetchMeta(),
-          styleDetailApi.fetchDraft(draftId),
-          styleDetailApi.fetchOperationTemplates(),
-        ]);
+        const metaPayload = await styleDetailApi.fetchMeta();
         setMeta(metaPayload);
-        setTemplates(templatePayload);
-        form.setFieldsValue(draftPayload.form);
-        setOperations(draftPayload.operations);
-        setCoverFileList(
-          draftPayload.coverImage
-            ? [
-                {
-                  uid: draftPayload.coverImage.id,
-                  name: draftPayload.coverImage.filename,
-                  url: draftPayload.coverImage.url,
-                  status: 'done',
-                },
-              ]
-            : [],
-        );
-        setColorUploadMap(
-          Object.entries(draftPayload.colorImages).reduce<Record<string, UploadFile[]>>((acc, [color, image]) => {
-            acc[color] = image
-              ? [
-                  {
-                    uid: image.id,
-                    name: image.filename,
-                    url: image.url,
-                    status: 'done',
-                  },
-                ]
-              : [];
-            return acc;
-          }, {}),
-        );
+        let detailPayload: StyleDetailData | undefined;
+        if (styleId) {
+          detailPayload = await styleDetailApi.fetchDetail(styleId);
+          setDetail(detailPayload);
+          setColorImages(detailPayload.colorImages ?? {});
+          ensureProcessOptionsFromDetail(detailPayload.processes);
+        } else {
+          setColorImages({});
+          ensureProcessOptionsFromDetail([]);
+        }
+        formRef.setFieldsValue(buildInitialValues(detailPayload));
       } catch (error) {
-        console.error('Failed to load style detail', error);
+        console.error('加载款式资料失败', error);
         message.error('加载款式资料失败，请稍后重试');
       } finally {
         setLoading(false);
       }
-    };
-
-    load();
-  }, [draftId, form]);
-
-  const handleOperationChange = useCallback(
-    (id: string, changes: Partial<StyleOperation>) => {
-      setOperations((prev) =>
-        recalcSequence(
-          prev.map((item) => (item.id === id ? { ...item, ...changes } : item)),
-        ),
-      );
     },
-    [],
+    [styleId, ensureProcessOptionsFromDetail],
   );
 
-  const handleAddOperation = useCallback(() => {
-    setOperations((prev) => recalcSequence([...prev, buildOperation(prev.length)]));
-  }, []);
+  useEffect(() => {
+    load(form);
+  }, [form, load]);
 
-  const handleDuplicateOperation = useCallback((id: string) => {
-    setOperations((prev) => {
-      const target = prev.find((item) => item.id === id);
-      if (!target) {
-        message.warning('未找到对应工序，无法复制');
-        return prev;
-      }
-      const clone: StyleOperation = {
-        ...target,
-        id: `op-${Date.now()}`,
-      };
-      return recalcSequence([...prev, clone]);
+  useEffect(() => {
+    loadProcessOptions();
+  }, [loadProcessOptions]);
+
+  useEffect(() => {
+    setColorImages((prev) => {
+      const next: StyleColorImageMap = {};
+      normalizedColors.forEach((color) => {
+        next[color] = prev[color];
+      });
+      return next;
     });
+  }, [normalizedColors]);
+
+  const handleColorImageChange = useCallback((color: string, value?: string) => {
+    setColorImages((prev) => ({
+      ...prev,
+      [color]: value,
+    }));
   }, []);
 
-  const handleResetOperation = useCallback((id: string) => {
-    setOperations((prev) =>
-      recalcSequence(
-        prev.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                operationName: '',
-                stage: undefined,
-                processDepartment: undefined,
-                parts: [],
-                specificationUnitPrice: undefined,
-                specificationEnabled: false,
-                specificationNotes: '',
-                isKeyProcess: false,
-                processUnitPrice: undefined,
-              }
-            : item,
-        ),
-      ),
-    );
+  const openTemplateModal = useCallback(async () => {
+    setTemplateModal((prev) => ({ ...prev, open: true, loading: true }));
+    try {
+      const response = await operationTemplateApi.list({ page: 1, pageSize: 50 });
+      setTemplateModal({ open: true, loading: false, templates: response.list });
+      ensureProcessOptionsFromTemplates(response.list);
+    } catch (error) {
+      console.error('加载工序模板失败', error);
+      message.error('加载工序模板失败');
+      setTemplateModal((prev) => ({ ...prev, loading: false }));
+    }
+  }, [ensureProcessOptionsFromTemplates]);
+
+  const closeTemplateModal = useCallback(() => {
+    setTemplateModal((prev) => ({ ...prev, open: false }));
   }, []);
 
-  const handleDeleteOperations = useCallback(() => {
-    if (!selectedRowKeys.length) {
-      message.warning('请先选择需要删除的工序');
-      return;
-    }
-    setOperations((prev) => recalcSequence(prev.filter((item) => !selectedRowKeys.includes(item.id))));
-    setSelectedRowKeys([]);
-  }, [selectedRowKeys]);
-
-  const handleApplyTemplate = useCallback(() => {
-    if (!selectedTemplateId) {
-      message.warning('请选择一个工序模板');
-      return;
-    }
-    const template = templates.find((item) => item.id === selectedTemplateId);
-    if (!template) {
-      message.error('未找到对应的工序模板');
-      return;
-    }
-    setOperations(
-      recalcSequence(
-        template.operations.map((item, index) => ({
-          ...item,
-          id: `${item.id}-${Date.now()}-${index}`,
-        })),
-      ),
-    );
-    setTemplateModalOpen(false);
-    setSelectedTemplateId(undefined);
-    message.success('已应用工序模板');
-  }, [selectedTemplateId, templates]);
-
-  const resolveUploadFile = useCallback(async (file: UploadFile, associatedColor?: string) => {
-    let url = file.url || file.thumbUrl;
-    if (!url && file.originFileObj) {
-      url = await getBase64(file.originFileObj as RcFile);
-    }
-    return {
-      id: file.uid,
-      filename: file.name,
-      url: url || '',
-      associatedColor,
-    };
-  }, []);
+  const handleTemplateApply = useCallback(
+    (template: OperationTemplate, mode: 'append' | 'replace') => {
+      const mapped = (template.operations ?? [])
+        .filter((operation) => operation.processCatalog?.id)
+        .map((operation) => ({
+          processCatalogId: operation.processCatalog!.id,
+          unitPrice: operation.unitPrice,
+          remarks: operation.remarks,
+          sourceTemplateId: template.id,
+        }));
+      if (!mapped.length) {
+        message.warning('该模板没有可用的工序');
+        return;
+      }
+      ensureProcessOptionsFromTemplates([template]);
+      const current = form.getFieldValue('operations') ?? [];
+      const next = mode === 'replace' ? mapped : [...current, ...mapped];
+      form.setFieldsValue({ operations: next });
+      closeTemplateModal();
+      message.success(mode === 'replace' ? '已覆盖当前工序' : '已追加模板工序');
+    },
+    [closeTemplateModal, ensureProcessOptionsFromTemplates, form],
+  );
 
   const handleSave = useCallback(async () => {
     try {
       const values = await form.validateFields();
-      if (!operations.length) {
-        message.warning('请至少配置一条工序');
+      if (!values.colors?.length) {
+        message.warning('请至少输入一个颜色');
+        return;
+      }
+      if (!values.sizes?.length) {
+        message.warning('请至少输入一个尺码');
         return;
       }
       setSaving(true);
-      const coverImage = coverFileList[0] ? await resolveUploadFile(coverFileList[0]) : undefined;
-      const colorImages: StyleColorImageMap = {};
-      if (values.colorImagesEnabled) {
-        await Promise.all(
-          colors.map(async (color) => {
-            const files = colorUploadMap[color];
-            if (files?.[0]) {
-              colorImages[color] = await resolveUploadFile(files[0], color);
-            }
-          }),
-        );
-      }
-      const payload: StyleDraft = {
-        form: values,
-        operations: recalcSequence(operations),
-        coverImage,
-        colorImages,
+      const normalizedOperations = (values.operations ?? [])
+        .map((operation, index) => ({
+          processCatalogId: operation?.processCatalogId,
+          unitPrice:
+            typeof operation?.unitPrice === 'number' && Number.isFinite(operation.unitPrice)
+              ? Number(operation.unitPrice)
+              : undefined,
+          remarks: operation?.remarks,
+          sequence: index + 1,
+          sourceTemplateId: operation?.sourceTemplateId,
+        }))
+        .filter((operation) => operation.processCatalogId);
+      const payload: StyleDetailSavePayload = {
+        styleNo: values.styleNo.trim(),
+        styleName: values.styleName.trim(),
+        defaultUnit: values.defaultUnit,
+        designerId: values.designerId,
+        remarks: values.remarks,
+        colors: values.colors,
+        sizes: values.sizes,
+        status: values.status,
+        coverImageUrl: values.coverImageUrl,
+        colorImages: values.colorImagesEnabled ? colorImages : {},
+        processes: normalizedOperations,
       };
-      await styleDetailApi.save(payload);
-      message.success('款式资料已保存');
-      if (!isEditing) {
-        navigate('/basic/styles');
+      if (isEditing && styleId) {
+        await styleDetailApi.update(styleId, payload);
+        message.success('款式资料已更新');
+      } else {
+        await styleDetailApi.create(payload);
+        message.success('款式资料已创建');
       }
+      navigate('/basic/styles');
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) {
         return;
       }
-      console.error('Failed to save style draft', error);
+      console.error('保存款式资料失败', error);
       message.error('保存失败，请稍后重试');
     } finally {
       setSaving(false);
     }
-  }, [colorUploadMap, colors, coverFileList, form, isEditing, navigate, operations, resolveUploadFile]);
+  }, [colorImages, form, isEditing, navigate, styleId]);
 
-  const handlePreview: UploadProps['onPreview'] = async (file) => {
-    if (!file.url && !file.preview && file.originFileObj) {
-      file.preview = await getBase64(file.originFileObj as RcFile);
-    }
-    setPreviewUrl(file.url || (file.preview as string) || '');
-    setPreviewTitle(file.name || '图片预览');
-    setPreviewVisible(true);
-  };
-
-  const buildItemRenderer = useCallback(
-    (extraClass: string, size: number): NonNullable<UploadProps['itemRender']> =>
-      (originNode) => {
-        if (!isValidElement(originNode)) {
-          return originNode;
-        }
-        const className = `${originNode.props.className ?? ''} ${extraClass}`.trim();
-        const style = {
-          ...(originNode.props.style ?? {}),
-          width: '100%',
-          height: '100%',
-        };
-        return (
-          <UploadItemWrapper size={size} extraClass={extraClass}>
-            {cloneElement(originNode, { className, style })}
-          </UploadItemWrapper>
-        );
-      },
-    [],
-  );
-
-  const coverUploadProps: UploadProps = {
-    listType: 'picture-card',
-    maxCount: 1,
-    fileList: coverFileList,
-    beforeUpload: () => false,
-    onPreview: handlePreview,
-    onChange: ({ fileList: next }) => setCoverFileList(next),
-    itemRender: buildItemRenderer('style-detail-upload-node', 260),
-  };
-
-  const createColorUploadProps = (color: string): UploadProps => ({
-    listType: 'picture-card',
-    maxCount: 1,
-    fileList: colorUploadMap[color] ?? [],
-    beforeUpload: () => false,
-    onPreview: handlePreview,
-    onChange: ({ fileList: next }) =>
-      setColorUploadMap((prev) => ({
-        ...prev,
-        [color]: next,
+  const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
+  const processSelectOptions = useMemo(
+    () =>
+      processOptions.map((option) => ({
+        label: option.code ? `${option.name}（${option.code}）` : option.name,
+        value: option.id,
       })),
-    itemRender: buildItemRenderer('style-detail-upload-node', 160),
-  });
-
-  const columns: ColumnsType<StyleOperation> = useMemo(() => {
-    const optionNodes = (list?: string[]): ReactNode =>
-      list?.map((value) => (
-        <Select.Option key={value} value={value}>
-          {value}
-        </Select.Option>
-      ));
-
-    return [
-      {
-        title: '序号',
-        dataIndex: 'sequence',
-        width: 72,
-        render: (_value, _record, index) => index + 1,
-      },
-      {
-        title: '工序名称',
-        dataIndex: 'operationName',
-        width: 180,
-        render: (_value, record) => (
-          <Input
-            value={record.operationName}
-            placeholder="请输入"
-            onChange={(event) => handleOperationChange(record.id, { operationName: event.target.value })}
-          />
-        ),
-      },
-      {
-        title: '环节',
-        dataIndex: 'stage',
-        width: 140,
-        render: (_value, record) => (
-          <Select
-            value={record.stage}
-            placeholder="选择环节"
-            allowClear
-            onChange={(value) => handleOperationChange(record.id, { stage: value })}
-          >
-            {optionNodes(meta?.operationStages)}
-          </Select>
-        ),
-      },
-      {
-        title: '工序(部)',
-        dataIndex: 'processDepartment',
-        width: 160,
-        render: (_value, record) => (
-          <Select
-            value={record.processDepartment}
-            placeholder="选择部门"
-            allowClear
-            onChange={(value) => handleOperationChange(record.id, { processDepartment: value })}
-          >
-            {optionNodes(meta?.processDepartments)}
-          </Select>
-        ),
-      },
-      {
-        title: '部位',
-        dataIndex: 'parts',
-        width: 200,
-        render: (_value, record) => (
-          <Select
-            mode="multiple"
-            value={record.parts}
-            placeholder="关联部位"
-            onChange={(value) => handleOperationChange(record.id, { parts: value })}
-          >
-            {optionNodes(meta?.partOptions)}
-          </Select>
-        ),
-      },
-      {
-        title: '规格工价',
-        dataIndex: 'specificationUnitPrice',
-        width: 140,
-        render: (_value, record) => (
-          <InputNumber
-            min={0}
-            precision={2}
-            value={record.specificationUnitPrice}
-            style={{ width: '100%' }}
-            onChange={(value) => handleOperationChange(record.id, { specificationUnitPrice: value ?? undefined })}
-          />
-        ),
-      },
-      {
-        title: '开启规格',
-        dataIndex: 'specificationEnabled',
-        width: 120,
-        render: (_value, record) => (
-          <Switch
-            checked={record.specificationEnabled}
-            onChange={(checked) => handleOperationChange(record.id, { specificationEnabled: checked })}
-          />
-        ),
-      },
-      {
-        title: '备注规格',
-        dataIndex: 'specificationNotes',
-        width: 200,
-        render: (_value, record) => (
-          <Input.TextArea
-            value={record.specificationNotes}
-            autoSize={{ minRows: 1, maxRows: 3 }}
-            placeholder="填写规格说明"
-            onChange={(event) => handleOperationChange(record.id, { specificationNotes: event.target.value })}
-          />
-        ),
-      },
-      {
-        title: '关键工序',
-        dataIndex: 'isKeyProcess',
-        width: 120,
-        render: (_value, record) => (
-          <Switch
-            checked={record.isKeyProcess}
-            onChange={(checked) => handleOperationChange(record.id, { isKeyProcess: checked })}
-          />
-        ),
-      },
-      {
-        title: '工序工价',
-        dataIndex: 'processUnitPrice',
-        width: 140,
-        render: (_value, record) => (
-          <InputNumber
-            min={0}
-            precision={2}
-            value={record.processUnitPrice}
-            style={{ width: '100%' }}
-            onChange={(value) => handleOperationChange(record.id, { processUnitPrice: value ?? undefined })}
-          />
-        ),
-      },
-      {
-        title: '操作',
-        dataIndex: 'actions',
-        fixed: 'right',
-        width: 100,
-        render: (_value, record) => (
-          <Space size="small">
-            <Button type="link" onClick={() => handleDuplicateOperation(record.id)}>
-              复制
-            </Button>
-            <Button type="link" danger onClick={() => handleResetOperation(record.id)}>
-              清空
-            </Button>
-          </Space>
-        ),
-      },
-    ];
-  }, [handleDuplicateOperation, handleOperationChange, handleResetOperation, meta]);
-
-  const disabledSave = loading || saving;
+    [processOptions],
+  );
 
   return (
     <Spin spinning={loading} tip="加载中...">
       <div className="style-detail-page">
         <div className="style-detail-header">
           <div>
-            <Title level={3} style={{ marginBottom: 4 }}>
-              款式资料
-              <Tag color="blue" style={{ marginLeft: 12 }}>
-                {isEditing ? '编辑' : '新建'}
-              </Tag>
-            </Title>
+            <Title level={3}>款式资料</Title>
             <Text type="secondary">基础资料 &gt; 款式资料</Text>
           </div>
-        </div>
-
-        <Card title="基础信息" bordered={false} className="style-detail-card">
-          <Form form={form} layout="vertical">
-            <div className="style-detail-basic">
-                <div className="style-detail-cover">
-                  <Text className="style-detail-cover-label">主图</Text>
-                  <div className="style-detail-cover-upload">
-                    <Upload {...coverUploadProps}>
-                      {coverFileList.length >= 1 ? null : (
-                        <div className="style-detail-cover-trigger">
-                          <PlusOutlined />
-                          <div>上传主图</div>
-                        </div>
-                      )}
-                    </Upload>
-                  </div>
-                  <Text type="secondary" className="style-detail-cover-tip">
-                    建议尺寸 1200×1800，支持 JPG/PNG，单张不超过 5MB
-                  </Text>
-                </div>
-              <div className="style-detail-basic-fields">
-                <Row gutter={24}>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="styleNumber" label="款号" rules={[{ required: true, message: '请输入款号' }]}> 
-                      <Input placeholder="输入款号" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="styleName" label="款名" rules={[{ required: true, message: '请输入款名' }]}> 
-                      <Input placeholder="输入款名" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="unit" label="单位" rules={[{ required: true, message: '请选择单位' }]}> 
-                      <Select placeholder="选择单位">
-                        {meta?.units.map((unit) => (
-                          <Select.Option key={unit} value={unit}>
-                            {unit}
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Row gutter={24}>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="designer" label="设计师">
-                      <Select allowClear placeholder="选择设计师">
-                        {meta?.designers.map((designer) => (
-                          <Select.Option key={designer.id} value={designer.id}>
-                            {designer.name}
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="designNumber" label="设计号">
-                      <Input placeholder="输入设计号" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="remarks" label="备注">
-                      <Input placeholder="输入备注" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Row gutter={24}>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="colors" label="颜色">
-                      <Select mode="tags" placeholder="输入颜色后回车" tokenSeparators={[',']} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="sizes" label="尺码">
-                      <Select mode="tags" placeholder="输入尺码后回车" tokenSeparators={[',']} />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={8}>
-                    <Form.Item name="colorImagesEnabled" label="颜色图片" valuePropName="checked">
-                      <Switch />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </div>
-            </div>
-          </Form>
-
-          {colorImagesEnabled && colors.length > 0 && (
-            <div className="style-detail-color-images">
-              {colors.map((color) => (
-                <div key={color} className="style-detail-color-item">
-                  <Text className="style-detail-color-label">{color}</Text>
-                  <Upload {...createColorUploadProps(color)}>
-                    {(colorUploadMap[color]?.length ?? 0) >= 1 ? null : (
-                      <div className="style-detail-color-trigger">
-                        <PlusOutlined />
-                        <div>上传图片</div>
-                      </div>
-                    )}
-                  </Upload>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card
-          title="款式工序"
-          bordered={false}
-          className="style-detail-card"
-          extra={
-            <Space wrap>
-              <Button type="primary" onClick={() => setTemplateModalOpen(true)}>
-                指定工序
-              </Button>
-              <Button onClick={() => message.info('设置环节功能开发中')}>设置环节</Button>
-              <Button onClick={() => message.info('设置部位功能开发中')}>设置部位</Button>
-              <Button onClick={() => message.info('设置尺码部位功能开发中')}>设置尺码部位</Button>
-              <Button danger onClick={handleDeleteOperations}>
-                删除
-              </Button>
-              <Button onClick={() => message.info('复制工序功能开发中')}>复制工序</Button>
-              <Button onClick={() => message.info('保存到工序库功能开发中')}>保存到工序库</Button>
-              <Button onClick={() => message.info('查看工序库功能开发中')}>查看工序库</Button>
-              <Button onClick={() => message.info('分配规格功能开发中')}>分配规格</Button>
-              <Button onClick={() => message.info('排序功能开发中')}>排序</Button>
-              <Button onClick={() => message.info('导入Excel功能开发中')}>导入Excel</Button>
-              <Button onClick={() => message.info('导出Excel功能开发中')}>导出Excel</Button>
-              <Button type="dashed" onClick={handleAddOperation}>
-                新增工序
-              </Button>
-            </Space>
-          }
-        >
-          <Table
-            size="small"
-            rowKey="id"
-            dataSource={operations}
-            columns={columns}
-            scroll={{ x: 1500 }}
-            pagination={false}
-            locale={{ emptyText: '暂无数据' }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys),
-            }}
-          />
-          <Divider style={{ margin: '16px 0' }} />
-          <Text type="secondary">共 {operations.length} 条工序</Text>
-        </Card>
-
-        <div className="style-detail-footer">
           <Space>
-            <Button onClick={() => message.info('功能开发中')}>查看环节单价</Button>
-            <Button type="primary" loading={saving} disabled={disabledSave} onClick={handleSave}>
-              保存
-            </Button>
-            <Button onClick={() => navigate('/basic/styles')}>返回列表</Button>
+            {detail?.styleNo && (
+              <Text type="secondary">当前款号：{detail.styleNo}</Text>
+            )}
           </Space>
         </div>
 
-        <Modal
-          open={templateModalOpen}
-          title="选择工序模板"
-          onCancel={() => setTemplateModalOpen(false)}
-          onOk={handleApplyTemplate}
-        >
-          <Select
-            style={{ width: '100%' }}
-            placeholder="选择模板"
-            value={selectedTemplateId}
-            onChange={(value) => setSelectedTemplateId(value)}
+        <Form form={form} layout="vertical" className="style-detail-form">
+          <Card title="基础信息" bordered={false} className="style-detail-card">
+            <Row gutter={24}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="styleNo"
+                  label="款式编号"
+                  rules={[{ required: true, message: '请输入款式编号' }]}
+                >
+                  <Input placeholder="例如 STY-2024-001" disabled={isEditing} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="styleName"
+                  label="款式名称"
+                  rules={[{ required: true, message: '请输入款式名称' }]}
+                >
+                  <Input placeholder="请输入款式名称" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="defaultUnit" label="计量单位">
+                  <Select placeholder="选择单位" allowClear options={meta?.units?.map((unit) => ({ label: unit, value: unit }))} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={24}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="designerId" label="设计师">
+                  <Select placeholder="选择设计师" allowClear>
+                    {designerOptions.map((designer) => (
+                      <Select.Option key={designer.id} value={designer.id}>
+                        {designer.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}
+                >
+                  <Select>
+                    <Select.Option value="active">启用</Select.Option>
+                    <Select.Option value="inactive">停用</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col xs={24}>
+                <Form.Item name="remarks" label="备注">
+                  <Input.TextArea rows={3} placeholder="填写款式备注" maxLength={500} showCount allowClear />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          <Card title="封面图片" bordered={false} className="style-detail-card">
+            <Form.Item name="coverImageUrl" valuePropName="value">
+              <ImageUploader module="styles" tips="建议尺寸 800x800px，JPG/PNG" />
+            </Form.Item>
+          </Card>
+
+          <Card
+            title="款式工序"
+            bordered={false}
+            className="style-detail-card"
+            extra={
+              <Space>
+                <Button icon={<ApartmentOutlined />} onClick={openTemplateModal}>
+                  引用工序模板
+                </Button>
+              </Space>
+            }
           >
-            {templates.map((template) => (
-              <Select.Option key={template.id} value={template.id}>
-                {template.name}
-              </Select.Option>
-            ))}
-          </Select>
+            <Form.List name="operations">
+              {(fields, { add, remove, move }) => (
+                <div className="style-process-list">
+                  {fields.length === 0 ? (
+                    <Text type="secondary">暂无工序，请点击下方按钮添加。</Text>
+                  ) : null}
+                  {fields.map((field, index) => (
+                    <div key={field.key} className="style-process-row">
+                      <div className="style-process-index">{index + 1}</div>
+                      <div className="style-process-form">
+                        <Form.Item
+                          name={[field.name, 'processCatalogId']}
+                          label="工序"
+                          rules={[{ required: true, message: '请选择工序' }]}
+                        >
+                          <Select
+                            placeholder="选择工序"
+                            showSearch
+                            loading={processLoading}
+                            options={processSelectOptions}
+                            filterOption={(input, option) =>
+                              typeof option?.label === 'string'
+                                ? option.label.toLowerCase().includes(input.toLowerCase())
+                                : false
+                            }
+                          />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'unitPrice']} label="单价">
+                          <InputNumber
+                            min={0}
+                            step={0.01}
+                            style={{ width: '100%' }}
+                            prefix="¥"
+                            placeholder="0.00"
+                          />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'remarks']} label="备注">
+                          <Input placeholder="备注信息" maxLength={200} />
+                        </Form.Item>
+                      </div>
+                      <div className="style-process-actions">
+                        <Tooltip title="上移">
+                          <Button
+                            icon={<ArrowUpOutlined />}
+                            disabled={index === 0}
+                            onClick={() => move(index, index - 1)}
+                          />
+                        </Tooltip>
+                        <Tooltip title="下移">
+                          <Button
+                            icon={<ArrowDownOutlined />}
+                            disabled={index === fields.length - 1}
+                            onClick={() => move(index, index + 1)}
+                          />
+                        </Tooltip>
+                        <Tooltip title="删除">
+                          <Button
+                            icon={<DeleteOutlined />}
+                            danger
+                            onClick={() => remove(field.name)}
+                          />
+                        </Tooltip>
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({})}>
+                    添加工序
+                  </Button>
+                </div>
+              )}
+            </Form.List>
+          </Card>
+
+          <Card title="颜色 / 尺码" bordered={false} className="style-detail-card">
+            <Row gutter={24}>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="colors"
+                  label="颜色"
+                  rules={[{ required: true, message: '请输入至少一个颜色' }]}
+                >
+                  <Select mode="tags" placeholder="输入颜色后回车" tokenSeparators={[',']} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item
+                  name="sizes"
+                  label="尺码"
+                  rules={[{ required: true, message: '请输入至少一个尺码' }]}
+                >
+                  <Select mode="tags" placeholder="输入尺码后回车" tokenSeparators={[',']} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12} lg={8}>
+                <Form.Item name="colorImagesEnabled" label="启用颜色图片" valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              </Col>
+            </Row>
+            {colorImagesEnabled && normalizedColors.length > 0 && (
+              <div className="style-detail-color-images">
+                {normalizedColors.map((color) => (
+                  <div key={color} className="style-detail-color-item">
+                    <Text className="style-detail-color-label">{color}</Text>
+                    <ImageUploader
+                      module="styles"
+                      value={colorImages[color]}
+                      onChange={(value) => handleColorImageChange(color, value)}
+                      tips="为该颜色上传一张展示图"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Form>
+
+        <Modal
+          open={templateModal.open}
+          onCancel={closeTemplateModal}
+          title="引用工序模板"
+          footer={null}
+          width={720}
+          destroyOnClose
+        >
+          <List
+            dataSource={templateModal.templates}
+            loading={templateModal.loading}
+            locale={{ emptyText: templateModal.loading ? '加载中...' : '暂无模板' }}
+            renderItem={(template) => (
+              <List.Item
+                key={template.id}
+                actions={[
+                  <Button
+                    type="link"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleTemplateApply(template, 'append')}
+                  >
+                    追加
+                  </Button>,
+                  <Button type="link" danger onClick={() => handleTemplateApply(template, 'replace')}>
+                    覆盖当前
+                  </Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space>
+                      <span>{template.name}</span>
+                      {template.defaultTemplate ? <Tag color="blue">默认</Tag> : null}
+                    </Space>
+                  }
+                  description={template.updatedAt ? `最近更新：${template.updatedAt}` : undefined}
+                />
+                <div className="style-process-template-operations">
+                  {(template.operations ?? []).map((operation) => (
+                    <Tag key={operation.id ?? `${template.id}-${operation.processCatalog?.id}`} color="processing">
+                      {operation.processCatalog?.name ?? '未知工序'}
+                    </Tag>
+                  ))}
+                </div>
+              </List.Item>
+            )}
+          />
         </Modal>
 
-        <Modal open={previewVisible} title={previewTitle} footer={null} onCancel={() => setPreviewVisible(false)}>
-          {previewUrl && <img alt={previewTitle} style={{ width: '100%' }} src={previewUrl} />}
-        </Modal>
+        <div className="style-detail-footer">
+          <Space>
+            <Button onClick={() => navigate('/basic/styles')}>返回列表</Button>
+            <Button type="primary" loading={saving} onClick={handleSave} disabled={loading}>
+              保存
+            </Button>
+          </Space>
+        </div>
       </div>
     </Spin>
   );

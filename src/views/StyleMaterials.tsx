@@ -3,7 +3,7 @@ import { message, Pagination, Spin } from 'antd';
 import type { PaginationProps } from 'antd';
 import StyleCard from '../components/StyleCard';
 import StyleMaterialsActionBar from '../components/StyleMaterialsActionBar';
-import { styles as stylesApi } from '../api/mock';
+import { stylesApi } from '../api/styles';
 import type { PaginatedStyleData, StyleData } from '../types/style';
 import { useNavigate } from 'react-router-dom';
 import '../styles/style-materials.css';
@@ -78,6 +78,13 @@ const StyleMaterials = () => {
     message.info(`下大货操作：${styleId}`);
   }, []);
 
+  const handleView = useCallback(
+    (styleId: string) => {
+      navigate(`/foundation/product/detail?id=${styleId}`);
+    },
+    [navigate],
+  );
+
   const handleNew = useCallback(() => {
     navigate('/foundation/product/detail');
   }, [navigate]);
@@ -110,7 +117,13 @@ const StyleMaterials = () => {
       <Spin spinning={loading} tip="加载中...">
         <div className="style-grid">
           {records.map((item) => (
-            <StyleCard key={item.id} style={item} onSample={handleSample} onProduction={handleProduction} />
+            <StyleCard
+              key={item.id}
+              style={item}
+              onSample={handleSample}
+              onProduction={handleProduction}
+              onView={handleView}
+            />
           ))}
         </div>
         {!loading && records.length === 0 && <div className="style-empty">{emptyText}</div>}

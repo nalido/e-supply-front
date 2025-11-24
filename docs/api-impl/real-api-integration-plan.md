@@ -22,7 +22,7 @@
 ### 2. 基础档案（款式/仓库/合作商/工艺）
 | 前端页面 | 现有数据点 | 后端接口 | 适配度 | 必要动作 |
 | --- | --- | --- | --- | --- |
-| `StyleDetail`, `StyleMaterials` | 需要款式详情 + 物料结构 + 图像 | `/api/v1/styles`, `/api/v1/styles/{styleId}` | Adjust | 接口只返回 ID 和基础字段，缺少配色/尺码矩阵；需要确认 `StyleResponse` 是否可扩展或补充 `/variants`。|
+| `StyleDetail`, `StyleMaterials` | 需要款式详情 + 物料结构 + 图像 + 工序 | `/api/v1/styles`, `/api/v1/styles/{styleId}`, `/api/v1/styles/meta` | Ready | `StyleMetadataResponse`/`VariantSummary` 已覆盖颜色、尺码，`StyleResponse.processes`/`StyleProcessRequest` 提供工序+单价+模板来源，配合 `/api/v1/process-catalog` & `/api/v1/operation-templates` 即可完成工序编辑。|
 | `Partners` | 列表 + 启用禁用、合作类型、联系人 | `/api/v1/partners` | Ready | 响应 `status` 为大写，前端需转译；启停接口为 `PATCH /status`。|
 | `Warehouse` | 库存类型（material/finished）、地址、负责人 | `/api/v1/warehouses` | Adjust | 后端 type = `MATERIAL/FINISHED/VIRTUAL`，需映射；响应增加 `status`，前端需展示；创建必须带 `tenantId`。|
 | `ProcessType` / `OperationTemplate` | Mock 使用 `operations[]` 带单价 | `/api/v1/process-catalog`（单工序）+ `/api/v1/production/operational-efficiency`（模板） | Adjust | `process-catalog` 没有组合模板概念，需明确：若 OperationTemplate 应该对应 operational-efficiency，则要改 UI 数据结构（nodeCode/timeUnit = `DAY/HOUR`）；若确需“工序 + 单价”集合，需要后端补数组字段。|
@@ -124,5 +124,3 @@
     - 新增 `adaptPermissionTree()` 适配器，将 `List<PermissionModuleDto>` 转换为 `PermissionTreeNode[]`，并根据返回的树形结构渲染权限选择器。
 
     - 在 `create` 和 `update` 角色时，将选中的权限 `id` 列表作为 `permissionIds` 发送给后端。
-
-

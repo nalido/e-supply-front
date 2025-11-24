@@ -1,5 +1,5 @@
 import { Button, Card, Space, Tag, Typography } from 'antd';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { StyleData } from '../types/style';
 
 const { Text } = Typography;
@@ -8,11 +8,12 @@ type StyleCardProps = {
   style: StyleData;
   onSample: (styleId: string) => void;
   onProduction: (styleId: string) => void;
+  onView?: (styleId: string) => void;
 };
 
 const fallbackImage = (styleNo: string) => `https://via.placeholder.com/320?text=${encodeURIComponent(styleNo)}`;
 
-const StyleCard = ({ style, onSample, onProduction }: StyleCardProps) => {
+const StyleCard = ({ style, onSample, onProduction, onView }: StyleCardProps) => {
   const statusTag = useMemo(() => {
     if (style.status === 'inactive') {
       return <Tag color="default">暂未启用</Tag>;
@@ -20,15 +21,27 @@ const StyleCard = ({ style, onSample, onProduction }: StyleCardProps) => {
     return <Tag color="processing">启用中</Tag>;
   }, [style.status]);
 
+  const coverUrl = useMemo(() => {
+    const trimmed = style.image?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : fallbackImage(style.styleNo);
+  }, [style.image, style.styleNo]);
+
+  const handleCardClick = useCallback(() => {
+    if (onView) {
+      onView(style.id);
+    }
+  }, [onView, style.id]);
+
   return (
     <Card
       className="style-card"
       hoverable
+      onClick={handleCardClick}
       cover={
         <div className="style-card__image-wrapper">
           <img
             className="style-card__image"
-            src={style.image}
+            src={coverUrl}
             alt={style.styleName}
             loading="lazy"
             onError={(event) => {
@@ -67,10 +80,22 @@ const StyleCard = ({ style, onSample, onProduction }: StyleCardProps) => {
         </div>
       </div>
       <Space className="style-card__actions">
-        <Button block onClick={() => onSample(style.id)}>
+        <Button
+          block
+          onClick={(event) => {
+            event.stopPropagation();
+            onSample(style.id);
+          }}
+        >
           打板
         </Button>
-        <Button block onClick={() => onProduction(style.id)}>
+        <Button
+          block
+          onClick={(event) => {
+            event.stopPropagation();
+            onProduction(style.id);
+          }}
+        >
           下大货
         </Button>
       </Space>

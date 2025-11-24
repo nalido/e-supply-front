@@ -1,16 +1,38 @@
+import type { ProcessTypeChargeMode } from './process-type';
+
 export type StyleStatus = 'active' | 'inactive';
+
+export type StyleProcessItem = {
+  id?: string;
+  processCatalogId: string;
+  processCode?: string;
+  processName?: string;
+  chargeMode?: ProcessTypeChargeMode;
+  defaultWage?: number;
+  unit?: string;
+  unitPrice?: number;
+  remarks?: string;
+  sequence?: number;
+  sourceTemplateId?: string;
+};
+
+export type StyleProcessPayload = Pick<
+  StyleProcessItem,
+  'processCatalogId' | 'unitPrice' | 'remarks' | 'sequence' | 'sourceTemplateId'
+>;
 
 export interface StyleData {
   id: string;
   styleNo: string;
   styleName: string;
-  image: string;
+  image?: string;
   colors: string[];
   sizes: string[];
-  category: string;
+  category?: string;
   status: StyleStatus;
-  createTime: string;
-  updateTime: string;
+  defaultUnit?: string;
+  createTime?: string;
+  updateTime?: string;
 }
 
 export interface StyleListParams {
@@ -29,56 +51,35 @@ export interface PaginatedStyleData {
 export interface StyleFormMeta {
   units: string[];
   designers: Array<{ id: string; name: string }>;
-  operationStages: string[];
-  processDepartments: string[];
-  partOptions: string[];
-  specificationOptions: string[];
 }
 
-export interface StyleImage {
-  id: string;
-  filename: string;
-  url: string;
-  associatedColor?: string;
-}
+export type StyleColorImageMap = Record<string, string | undefined>;
 
-export interface StyleOperation {
-  id: string;
-  sequence: number;
-  operationName: string;
-  stage?: string;
-  processDepartment?: string;
-  parts: string[];
-  specificationUnitPrice?: number;
-  specificationEnabled: boolean;
-  specificationNotes?: string;
-  isKeyProcess: boolean;
-  processUnitPrice?: number;
-}
-
-export interface StyleFormValues {
-  styleNumber: string;
+export interface StyleDetailData {
+  id?: string;
+  styleNo: string;
   styleName: string;
-  unit: string;
-  designer?: string;
-  designNumber?: string;
+  status: StyleStatus;
+  defaultUnit?: string;
+  designerId?: string;
   remarks?: string;
+  coverImageUrl?: string;
   colors: string[];
   sizes: string[];
-  colorImagesEnabled: boolean;
-}
-
-export type StyleColorImageMap = Record<string, StyleImage | undefined>;
-
-export interface StyleDraft {
-  form: StyleFormValues;
-  operations: StyleOperation[];
-  coverImage?: StyleImage;
   colorImages: StyleColorImageMap;
+  processes: StyleProcessItem[];
 }
 
-export interface StyleOperationTemplate {
-  id: string;
-  name: string;
-  operations: StyleOperation[];
+export interface StyleDetailSavePayload {
+  styleNo: string;
+  styleName: string;
+  status: StyleStatus;
+  defaultUnit?: string;
+  designerId?: string;
+  remarks?: string;
+  coverImageUrl?: string;
+  colors: string[];
+  sizes: string[];
+  colorImages: StyleColorImageMap;
+  processes: StyleProcessPayload[];
 }
