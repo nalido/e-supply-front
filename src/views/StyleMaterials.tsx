@@ -35,12 +35,14 @@ const StyleMaterials = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<StyleData[]>([]);
   const [pageState, setPageState] = useState<PageState>(defaultPageState);
+  const currentPage = pageState.current;
+  const currentPageSize = pageState.pageSize;
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
 
   const debouncedKeyword = useDebouncedValue(keyword, 300);
 
-  const fetchList = useCallback(async (page = 1, pageSize = pageState.pageSize, keywordValue?: string) => {
+  const fetchList = useCallback(async (page = 1, pageSize = currentPageSize, keywordValue?: string) => {
     setLoading(true);
     try {
       const response: PaginatedStyleData = await stylesApi.list({
@@ -56,7 +58,7 @@ const StyleMaterials = () => {
     } finally {
       setLoading(false);
     }
-  }, [keyword, pageState.pageSize]);
+  }, [currentPageSize, keyword]);
 
   useEffect(() => {
     fetchList(1, pageState.pageSize, debouncedKeyword);
@@ -85,18 +87,32 @@ const StyleMaterials = () => {
     [navigate],
   );
 
-  const handleDelete = useCallback((style: StyleData) => {
-    Modal.confirm({
-      title: '删除款式',
-      content: `确定要删除「${style.styleNo} ${style.styleName}」吗？`,
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-      onOk: () => {
-        message.info('删除功能开发中，当前仅展示交互。');
-      },
-    });
-  }, []);
+  const handleDelete = useCallback(
+    (style: StyleData) => {
+      Modal.confirm({
+        title: '删除款式',
+        content: `确定要删除「${style.styleNo} ${style.styleName}」吗？`,
+        okText: '删除',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        centered: true,
+        onOk: async () => {
+          try {
+            await stylesApi.delete(style.id);
+            message.success('删除成功');
+            const trimmedKeyword = keyword.trim();
+            const nextPage = currentPage > 1 && records.length <= 1 ? currentPage - 1 : currentPage;
+            await fetchList(nextPage, currentPageSize, trimmedKeyword);
+          } catch (error) {
+            console.error('Failed to delete style', error);
+            message.error('删除失败，请稍后重试');
+            throw error;
+          }
+        },
+      });
+    },
+    [currentPage, currentPageSize, fetchList, keyword, records.length],
+  );
 
   const handleNew = useCallback(() => {
     navigate('/foundation/product/detail');

@@ -78,6 +78,17 @@ export const stylesApi = {
       pageSize: response.data.size,
     };
   },
+
+  async delete(styleId: string): Promise<void> {
+    if (useMock) {
+      await mockStyles.delete(styleId);
+      return;
+    }
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/styles/${styleId}/delete`, undefined, {
+      params: { tenantId },
+    });
+  },
 };
 
 export default stylesApi;

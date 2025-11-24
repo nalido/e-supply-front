@@ -784,6 +784,14 @@ export const styles = {
       pageSize: safeSize,
     };
   },
+
+  async delete(styleId: string): Promise<void> {
+    await delay(200);
+    const index = styleCatalog.findIndex((item) => item.id === styleId);
+    if (index >= 0) {
+      styleCatalog.splice(index, 1);
+    }
+  },
 };
 
 // 打板相关API
