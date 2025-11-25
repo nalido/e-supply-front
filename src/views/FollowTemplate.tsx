@@ -13,9 +13,9 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { TablePaginationConfig } from 'antd/es/table/interface';
 
-import { sample } from '../api/mock';
-import FollowTemplateModal, { type FollowTemplateData } from '../components/FollowTemplateModal';
-import type { FollowTemplateSummary } from '../types/sample';
+import FollowTemplateModal from '../components/FollowTemplateModal';
+import { sampleSettingsApi } from '../api/sample-settings';
+import type { FollowTemplatePayload, FollowTemplateSummary } from '../types/sample';
 
 /**
  * 跟进模板页面
@@ -42,18 +42,21 @@ const FollowTemplate: React.FC = () => {
   const [modalLoading, setModalLoading] = useState(false);
 
   // 加载数据
-  const loadData = async () => {
+  const loadData = async (page = pagination.current, pageSize = pagination.pageSize) => {
     try {
       setLoading(true);
       const params = {
-        page: pagination.current,
-        pageSize: pagination.pageSize,
+        page,
+        pageSize,
+        keyword: undefined,
       };
       
-      const result = await sample.followTemplates(params);
+      const result = await sampleSettingsApi.followTemplates.list(params);
       setDataSource(result.list);
       setPagination(prev => ({
         ...prev,
+        current: page,
+        pageSize,
         total: result.total,
       }));
     } catch {
@@ -70,19 +73,10 @@ const FollowTemplate: React.FC = () => {
 
   // 分页变化
   const handleTableChange = (newPagination: TablePaginationConfig) => {
-    setPagination(prev => ({
-      ...prev,
-      current: newPagination.current,
-      pageSize: newPagination.pageSize,
-    }));
+    const nextPage = newPagination.current ?? 1;
+    const nextSize = newPagination.pageSize ?? pagination.pageSize;
+    loadData(nextPage, nextSize);
   };
-
-  // 监听分页变化重新加载数据
-  useEffect(() => {
-    if (pagination.current > 1) {
-      loadData();
-    }
-  }, [pagination.current, pagination.pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 新建模板
   const handleCreate = () => {
@@ -99,7 +93,7 @@ const FollowTemplate: React.FC = () => {
   // 删除模板
   const handleDelete = async (record: FollowTemplateSummary) => {
     try {
-      await sample.deleteFollowTemplate(record.id);
+      await sampleSettingsApi.followTemplates.delete(record.id);
       message.success('删除成功');
       loadData();
     } catch {
@@ -108,15 +102,20 @@ const FollowTemplate: React.FC = () => {
   };
 
   // 提交模板数据
-  const handleTemplateSubmit = async (data: FollowTemplateData) => {
+  const handleTemplateSubmit = async (data: FollowTemplatePayload) => {
     try {
       setModalLoading(true);
+      const payload: FollowTemplatePayload = {
+        ...data,
+        id: editingRecord?.id,
+        sequenceNo: editingRecord?.sequenceNo,
+      };
       
       if (editingRecord) {
-        await sample.updateFollowTemplate(editingRecord.id, data);
+        await sampleSettingsApi.followTemplates.update(editingRecord.id, payload);
         message.success('更新成功');
       } else {
-        await sample.createFollowTemplate(data);
+        await sampleSettingsApi.followTemplates.create(payload);
         message.success('创建成功');
       }
       

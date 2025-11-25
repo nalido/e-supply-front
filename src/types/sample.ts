@@ -123,6 +123,15 @@ export interface FollowTemplateSummary {
   nodes?: TemplateNode[];
 }
 
+export interface FollowTemplatePayload {
+  id?: number;
+  sequenceNo?: number;
+  name: string;
+  isDefault: boolean;
+  description?: string;
+  nodes?: TemplateNode[];
+}
+
 export interface SampleTypeItem {
   id: number;
   name: string;

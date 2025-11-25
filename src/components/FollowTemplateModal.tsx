@@ -13,20 +13,13 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import DraggableNodeTable from './DraggableNodeTable';
-import type { TemplateNode, TemplateFieldType } from '../types/sample';
-
-export interface FollowTemplateData {
-  id?: number;
-  name: string;
-  isDefault: boolean;
-  nodes?: TemplateNode[];
-}
+import type { TemplateNode, TemplateFieldType, FollowTemplatePayload } from '../types/sample';
 
 interface FollowTemplateModalProps {
   visible: boolean;
   loading: boolean;
-  editingRecord?: FollowTemplateData | null;
-  onSubmit: (data: FollowTemplateData) => Promise<void>;
+  editingRecord?: FollowTemplatePayload | null;
+  onSubmit: (data: FollowTemplatePayload) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -45,7 +38,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
   const [nodeModalVisible, setNodeModalVisible] = useState(false);
   const [editingNode, setEditingNode] = useState<TemplateNode | null>(null);
 
-  type TemplateNodeFormValues = Pick<TemplateNode, 'sortOrder' | 'nodeName' | 'fieldType' | 'duration'>;
+  type TemplateNodeFormValues = Pick<TemplateNode, 'nodeName' | 'fieldType' | 'duration'>;
 
   // 字段类型选项
   const fieldTypeOptions: { label: string; value: TemplateFieldType }[] = [
@@ -135,11 +128,11 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const templateData: FollowTemplateData = {
+      const templateData: FollowTemplatePayload = {
         ...values,
         nodes,
       };
-      
+
       if (editingRecord?.id) {
         templateData.id = editingRecord.id;
       }
@@ -223,15 +216,6 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
           form={nodeForm}
           layout="vertical"
         >
-          <Form.Item
-            name="sortOrder"
-            label="排序"
-            rules={[
-              { required: true, message: '请输入排序' },
-            ]}
-          >
-            <InputNumber min={1} placeholder="请输入排序" style={{ width: '100%' }} />
-          </Form.Item>
 
           <Form.Item
             name="nodeName"

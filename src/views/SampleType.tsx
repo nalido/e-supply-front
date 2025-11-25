@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
-import { sample } from '../api/mock';
+import { sampleSettingsApi } from '../api/sample-settings';
 import type { SampleTypeItem } from '../types/sample';
 
 /**
@@ -48,7 +48,7 @@ const SampleType: React.FC = () => {
         pageSize: pagination.pageSize,
       };
       
-      const result = await sample.sampleTypes(params);
+      const result = await sampleSettingsApi.sampleTypes.list(params);
       setDataSource(result.list);
     } catch {
       message.error('加载数据失败');
@@ -79,7 +79,7 @@ const SampleType: React.FC = () => {
   // 删除类型
   const handleDelete = async (record: SampleTypeItem) => {
     try {
-      await sample.deleteSampleType(record.id);
+      await sampleSettingsApi.sampleTypes.delete(record.id);
       message.success('删除成功');
       loadData();
     } catch {
@@ -94,10 +94,10 @@ const SampleType: React.FC = () => {
       setModalLoading(true);
       
       if (editingRecord) {
-        await sample.updateSampleType(editingRecord.id, values);
+        await sampleSettingsApi.sampleTypes.update(editingRecord.id, values);
         message.success('更新成功');
       } else {
-        await sample.createSampleType(values);
+        await sampleSettingsApi.sampleTypes.create(values);
         message.success('创建成功');
       }
       
