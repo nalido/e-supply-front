@@ -183,6 +183,7 @@
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid #eceff2;
+  justify-content: space-between;
 }
 
 .style-card__actions .ant-btn {
@@ -197,6 +198,8 @@
   gap: 4px;
   height: 32px;
   box-shadow: none;
+  flex: 1;
+  justify-content: center;
 }
 
 .style-card__actions .ant-btn:hover {

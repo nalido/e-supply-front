@@ -106,7 +106,6 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
         </div>
         <Space className="style-card__actions">
           <Button
-            block
             onClick={(event) => {
               event.stopPropagation();
               onSample(style.id);
@@ -115,7 +114,6 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
             <CarryOutOutlined /> 打板
           </Button>
           <Button
-            block
             onClick={(event) => {
               event.stopPropagation();
               onProduction(style.id);
