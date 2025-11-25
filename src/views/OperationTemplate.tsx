@@ -1,23 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CSS } from '@dnd-kit/utilities';
-import {
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
 import type { ColumnsType } from 'antd/es/table';
 import {
   Button,
-  Divider,
   Form,
   Input,
   InputNumber,
@@ -30,8 +14,7 @@ import {
   Tag,
   message,
 } from 'antd';
-import { DeleteOutlined, EditOutlined, HolderOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import type { FormListFieldData } from 'antd/es/form/FormList';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type {
   OperationTemplate,
   OperationTemplateDataset,
@@ -41,6 +24,8 @@ import type {
 import operationTemplateApi from '../api/operation-template';
 import processTypeApi from '../api/process-type';
 import type { ProcessType } from '../types';
+import DraggableOperationTable from '../components/DraggableOperationTable';
+import type { TemplateOperationItem as OperationListItem } from '../components/DraggableOperationTable';
 
 const defaultPageSize = 10;
 
@@ -53,29 +38,35 @@ type ModalState = {
 type OperationTemplateFormValues = {
   name: string;
   defaultTemplate: boolean;
-  operations: Array<{
-    processCatalogId?: string;
-    unitPrice?: number;
-    remarks?: string;
-  }>;
 };
 
-const ensureOperations = (template?: OperationTemplate): OperationTemplateFormValues['operations'] => {
-  if (!template || !template.operations?.length) {
-    return [{ processCatalogId: undefined, unitPrice: undefined, remarks: undefined }];
-  }
-  return [...template.operations]
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .map((operation) => ({
-      processCatalogId: operation.processCatalog?.id,
-      unitPrice: operation.unitPrice,
-      remarks: operation.remarks,
-    }));
+type OperationModalFormValues = {
+  processCatalogId?: string;
+  unitPrice?: number;
+  remarks?: string;
 };
 
 type ProcessOption = Pick<ProcessType, 'id' | 'name' | 'code'>;
 
-const operationGridTemplate = '60px 2.2fr 1fr 1.6fr 28px';
+const mapOperationsToItems = (operations?: OperationTemplate['operations']): OperationListItem[] => {
+  if (!operations?.length) {
+    return [];
+  }
+  return [...operations]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .map((operation, index) => ({
+      id: operation.id ?? `${operation.processCatalog?.id ?? 'operation'}-${index}`,
+      processCatalogId: operation.processCatalog?.id,
+      processName: operation.processCatalog?.name,
+      processCode: operation.processCatalog?.code,
+      unitPrice: operation.unitPrice,
+      remarks: operation.remarks,
+      sortOrder: index + 1,
+      sequenceNo: index + 1,
+    }));
+};
+
+const createOperationId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const OperationTemplatePage = () => {
   const [page, setPage] = useState(1);
@@ -88,19 +79,14 @@ const OperationTemplatePage = () => {
   const [processOptions, setProcessOptions] = useState<ProcessOption[]>([]);
   const [processLoading, setProcessLoading] = useState(false);
   const [form] = Form.useForm<OperationTemplateFormValues>();
+  const [operationForm] = Form.useForm<OperationModalFormValues>();
   const [initialFormValues, setInitialFormValues] = useState<OperationTemplateFormValues>({
     name: '',
     defaultTemplate: false,
-    operations: ensureOperations(),
   });
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const [operationItems, setOperationItems] = useState<OperationListItem[]>([]);
+  const [operationModalVisible, setOperationModalVisible] = useState(false);
+  const [editingOperation, setEditingOperation] = useState<OperationListItem | null>(null);
 
   const mergeProcessOptions = useCallback((options: ProcessOption[]) => {
     if (!options.length) {
@@ -201,10 +187,13 @@ const OperationTemplatePage = () => {
 
   useEffect(() => {
     if (!modalState.open) {
+      setOperationModalVisible(false);
+      setEditingOperation(null);
+      operationForm.resetFields();
       return;
     }
     form.setFieldsValue(initialFormValues);
-  }, [form, initialFormValues, modalState.open]);
+  }, [form, initialFormValues, modalState.open, operationForm]);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
@@ -216,8 +205,8 @@ const OperationTemplatePage = () => {
     setInitialFormValues({
       name: '',
       defaultTemplate: false,
-      operations: ensureOperations(),
     });
+    setOperationItems([]);
     setModalState({ open: true, submitting: false });
   };
 
@@ -226,8 +215,8 @@ const OperationTemplatePage = () => {
     setInitialFormValues({
       name: record.name,
       defaultTemplate: record.defaultTemplate,
-      operations: ensureOperations(record),
     });
+    setOperationItems(mapOperationsToItems(record.operations));
     setModalState({ open: true, submitting: false, editing: record });
   };
 
@@ -235,17 +224,18 @@ const OperationTemplatePage = () => {
     try {
       setModalState((prev) => ({ ...prev, submitting: true }));
       const values = await form.validateFields();
+      const normalizedOperations = (operationItems ?? [])
+        .filter((operation) => operation.processCatalogId)
+        .map((operation, index) => ({
+          processCatalogId: operation.processCatalogId!,
+          unitPrice: Number(operation.unitPrice ?? 0),
+          remarks: operation.remarks,
+          sequence: index + 1,
+        }));
       const payload: SaveOperationTemplatePayload = {
         name: values.name,
         defaultTemplate: values.defaultTemplate,
-        operations: (values.operations ?? [])
-          .filter((operation) => operation.processCatalogId)
-          .map((operation, index) => ({
-            processCatalogId: operation.processCatalogId!,
-            unitPrice: Number(operation.unitPrice ?? 0),
-            remarks: operation.remarks,
-            sequence: index + 1,
-          })),
+        operations: normalizedOperations,
       };
       if (!payload.operations.length) {
         message.warning('请至少添加一个工序');
@@ -283,6 +273,87 @@ const OperationTemplatePage = () => {
       loadData({ page: nextPage });
     } catch {
       message.error('删除失败，请稍后重试');
+    }
+  };
+
+  const handleOperationsChange = (items: OperationListItem[]) => {
+    setOperationItems(items);
+  };
+
+  const handleAddOperationItem = () => {
+    setEditingOperation(null);
+    operationForm.resetFields();
+    setOperationModalVisible(true);
+  };
+
+  const handleEditOperationItem = (operation: OperationListItem) => {
+    setEditingOperation(operation);
+    operationForm.setFieldsValue({
+      processCatalogId: operation.processCatalogId,
+      unitPrice: operation.unitPrice,
+      remarks: operation.remarks,
+    });
+    setOperationModalVisible(true);
+  };
+
+  const handleDeleteOperationItem = (operationId: string) => {
+    setOperationItems((prev) => {
+      const filtered = prev.filter((operation) => operation.id !== operationId);
+      return filtered.map((operation, index) => ({
+        ...operation,
+        sortOrder: index + 1,
+        sequenceNo: index + 1,
+      }));
+    });
+    message.success('删除工序成功');
+  };
+
+  const closeOperationModal = () => {
+    setOperationModalVisible(false);
+    setEditingOperation(null);
+    operationForm.resetFields();
+  };
+
+  const handleOperationSubmit = async () => {
+    try {
+      const values = await operationForm.validateFields();
+      const option = processOptions.find((item) => item.id === values.processCatalogId);
+      if (editingOperation) {
+        setOperationItems((prev) =>
+          prev.map((operation) =>
+            operation.id === editingOperation.id
+              ? {
+                  ...operation,
+                  processCatalogId: values.processCatalogId,
+                  processName: option?.name ?? operation.processName,
+                  processCode: option?.code ?? operation.processCode,
+                  unitPrice: values.unitPrice,
+                  remarks: values.remarks,
+                }
+              : operation,
+          ),
+        );
+        message.success('更新工序成功');
+      } else {
+        setOperationItems((prev) => {
+          const nextIndex = prev.length;
+          const newItem: OperationListItem = {
+            id: createOperationId(),
+            processCatalogId: values.processCatalogId,
+            processName: option?.name ?? '未命名工序',
+            processCode: option?.code,
+            unitPrice: values.unitPrice,
+            remarks: values.remarks,
+            sortOrder: nextIndex + 1,
+            sequenceNo: nextIndex + 1,
+          };
+          return [...prev, newItem];
+        });
+        message.success('添加工序成功');
+      }
+      closeOperationModal();
+    } catch {
+      // ignore validation errors
     }
   };
 
@@ -394,7 +465,7 @@ const OperationTemplatePage = () => {
         onCancel={() => setModalState({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmit}
         destroyOnHidden
-        width={640}
+        width={800}
       >
         <Form
           key={modalState.editing ? modalState.editing.id : 'create'}
@@ -413,165 +484,67 @@ const OperationTemplatePage = () => {
           <Form.Item name="defaultTemplate" label="设为默认模板" valuePropName="checked">
             <Switch />
           </Form.Item>
-          <Form.List name="operations">
-            {(fields, { add, remove, move }) => {
-              const handleDragEnd = (event: DragEndEvent) => {
-                if (!event.over || event.active.id === event.over.id) {
-                  return;
-                }
-                const activeIndex = fields.findIndex((field) => field.key === event.active.id);
-                const overIndex = fields.findIndex((field) => field.key === event.over?.id);
-                if (activeIndex === -1 || overIndex === -1) {
-                  return;
-                }
-                move(activeIndex, overIndex);
-              };
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{
+                marginBottom: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontWeight: 500 }}>工序列表</span>
+              <Button type="link" icon={<PlusOutlined />} onClick={handleAddOperationItem}>
+                添加工序
+              </Button>
+            </div>
+            <DraggableOperationTable
+              operations={operationItems}
+              onOperationsChange={handleOperationsChange}
+              onEditOperation={handleEditOperationItem}
+              onDeleteOperation={handleDeleteOperationItem}
+            />
+          </div>
+        </Form>
+      </Modal>
 
-              return (
-                <div>
-                  <Divider orientation="left">工序列表</Divider>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: operationGridTemplate,
-                      gap: 12,
-                      padding: '0 16px',
-                      fontSize: 13,
-                      color: '#8c8c8c',
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span style={{ paddingLeft: 4 }}>顺序</span>
-                    <span>工序</span>
-                    <span>工价（元）</span>
-                    <span>备注</span>
-                    <span />
-                  </div>
-                  <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                    <SortableContext items={fields.map((field) => field.key)} strategy={verticalListSortingStrategy}>
-                      {fields.map((field, index) => (
-                        <SortableOperationItem
-                          key={field.key}
-                          field={field}
-                          index={index}
-                          processOptions={processOptions}
-                          processLoading={processLoading}
-                          remove={remove}
-                          canRemove={fields.length > 1}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                  <Button
-                    type="dashed"
-                    block
-                    icon={<PlusOutlined />}
-                    onClick={() => add({ processCatalogId: undefined, unitPrice: undefined })}
-                  >
-                    添加工序
-                  </Button>
-                </div>
-              );
-            }}
-          </Form.List>
+      <Modal
+        title={editingOperation ? '编辑工序' : '添加工序'}
+        open={operationModalVisible}
+        onOk={handleOperationSubmit}
+        onCancel={closeOperationModal}
+        destroyOnHidden
+      >
+        <Form form={operationForm} layout="vertical">
+          <Form.Item
+            name="processCatalogId"
+            label="工序"
+            rules={[{ required: true, message: '请选择工序' }]}
+          >
+            <Select
+              showSearch
+              placeholder="选择工序"
+              options={processOptions.map((option) => ({
+                value: option.id,
+                label: option.code ? `${option.name}（${option.code}）` : option.name,
+              }))}
+              loading={processLoading}
+              optionFilterProp="label"
+            />
+          </Form.Item>
+          <Form.Item
+            name="unitPrice"
+            label="工价（元）"
+            rules={[{ required: true, message: '请输入工价' }]}
+          >
+            <InputNumber min={0} precision={2} step={0.1} style={{ width: '100%' }} placeholder="0.00" />
+          </Form.Item>
+          <Form.Item name="remarks" label="备注">
+            <Input maxLength={60} placeholder="可选" />
+          </Form.Item>
         </Form>
       </Modal>
     </div>
   );
 };
-
-type SortableOperationItemProps = {
-  field: FormListFieldData;
-  index: number;
-  processOptions: ProcessOption[];
-  processLoading: boolean;
-  remove: (index: number) => void;
-  canRemove: boolean;
-};
-
-const SortableOperationItem = ({
-  field,
-  index,
-  processOptions,
-  processLoading,
-  remove,
-  canRemove,
-}: SortableOperationItemProps) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.key });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  } as const;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        ...style,
-        marginBottom: 12,
-        border: '1px solid #f0f0f0',
-        borderRadius: 10,
-        background: isDragging ? '#f6faff' : '#fff',
-        padding: '14px 16px',
-      }}
-    >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: operationGridTemplate,
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#595959' }}>
-          <span style={{ fontWeight: 600, minWidth: 16, textAlign: 'right' }}>{index + 1}</span>
-          <div
-            style={{ cursor: 'grab', color: '#bfbfbf', lineHeight: '20px' }}
-            aria-label="拖拽调整顺序"
-            {...attributes}
-            {...listeners}
-          >
-            <HolderOutlined />
-          </div>
-        </div>
-        <Form.Item
-          name={[field.name, 'processCatalogId']}
-          fieldKey={[field.fieldKey ?? field.key, 'processCatalogId']}
-          rules={[{ required: true, message: '请选择工序' }]}
-          style={{ marginBottom: 0 }}
-        >
-          <Select
-            showSearch
-            placeholder="选择工序"
-            options={processOptions.map((option) => ({
-              value: option.id,
-              label: option.code ? `${option.name}（${option.code}）` : option.name,
-            }))}
-            loading={processLoading}
-            optionFilterProp="label"
-          />
-        </Form.Item>
-        <Form.Item
-          name={[field.name, 'unitPrice']}
-          fieldKey={[field.fieldKey ?? field.key, 'unitPrice']}
-          rules={[{ required: true, message: '请输入工价' }]}
-          style={{ marginBottom: 0 }}
-        >
-          <InputNumber min={0} precision={2} step={0.1} style={{ width: '100%' }} placeholder="0.00" />
-        </Form.Item>
-        <Form.Item
-          name={[field.name, 'remarks']}
-          fieldKey={[field.fieldKey ?? field.key, 'remarks']}
-          style={{ marginBottom: 0 }}
-        >
-          <Input maxLength={60} placeholder="可选" />
-        </Form.Item>
-        {canRemove ? (
-          <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(field.name)} />
-        ) : null}
-      </div>
-    </div>
-  );
-};
-
 export default OperationTemplatePage;
