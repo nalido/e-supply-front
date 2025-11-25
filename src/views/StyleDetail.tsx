@@ -94,7 +94,7 @@ type TemplateModalState = {
 
 const buildInitialOperations = (detail?: StyleDetailData): StyleProcessFormValue[] => {
   if (!detail?.processes?.length) {
-    return [{ processCatalogId: undefined, unitPrice: undefined, remarks: undefined }];
+    return [];
   }
   return [...detail.processes]
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
@@ -566,7 +566,7 @@ const StyleDetail = () => {
                                 processSelectOptions={processSelectOptions}
                                 processLoading={processLoading}
                                 remove={remove}
-                                canRemove={fields.length > 1}
+                                canRemove={fields.length > 0}
                                 gridTemplate={processGridTemplate}
                               />
                             ))}
