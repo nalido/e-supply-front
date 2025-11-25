@@ -1,4 +1,5 @@
 import { Button, Card, Space, Tag, Typography } from 'antd';
+import { CarryOutOutlined, InboxOutlined } from '@ant-design/icons';
 import { useMemo } from 'react';
 import type { StyleData } from '../types/style';
 
@@ -34,46 +35,48 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
       hoverable
       cover={
         <div className="style-card__image-wrapper">
-          <img
-            className="style-card__image"
-            src={coverUrl}
-            alt={style.styleName}
-            loading="lazy"
-            onError={(event) => {
-              const target = event.currentTarget;
-              if (target.dataset.fallbackApplied) return;
-              target.dataset.fallbackApplied = 'true';
-              target.src = fallbackImage(style.styleNo);
-            }}
-          />
-          {hasHoverActions ? (
-            <div className="style-card__overlay">
-              {onEdit ? (
-                <button
-                  type="button"
-                  className="style-card__overlay-btn style-card__overlay-btn--edit"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEdit(style);
-                  }}
-                >
-                  编辑
-                </button>
-              ) : null}
-              {onDelete ? (
-                <button
-                  type="button"
-                  className="style-card__overlay-btn style-card__overlay-btn--delete"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete(style);
-                  }}
-                >
-                  删除
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="style-card__image-box">
+            <img
+              className="style-card__image"
+              src={coverUrl}
+              alt={style.styleName}
+              loading="lazy"
+              onError={(event) => {
+                const target = event.currentTarget;
+                if (target.dataset.fallbackApplied) return;
+                target.dataset.fallbackApplied = 'true';
+                target.src = fallbackImage(style.styleNo);
+              }}
+            />
+            {hasHoverActions ? (
+              <div className="style-card__overlay">
+                {onEdit ? (
+                  <button
+                    type="button"
+                    className="style-card__overlay-btn style-card__overlay-btn--edit"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit(style);
+                    }}
+                  >
+                    编辑
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    className="style-card__overlay-btn style-card__overlay-btn--delete"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete(style);
+                    }}
+                  >
+                    删除
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       }
       bodyStyle={{ padding: '14px 16px 16px' }}
@@ -107,18 +110,18 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
             onClick={(event) => {
               event.stopPropagation();
               onSample(style.id);
-          }}
-        >
-          打板
-        </Button>
-        <Button
-          block
-          onClick={(event) => {
-            event.stopPropagation();
-            onProduction(style.id);
             }}
           >
-            下大货
+            <CarryOutOutlined /> 打板
+          </Button>
+          <Button
+            block
+            onClick={(event) => {
+              event.stopPropagation();
+              onProduction(style.id);
+            }}
+          >
+            <InboxOutlined /> 下大货
           </Button>
         </Space>
       </div>
