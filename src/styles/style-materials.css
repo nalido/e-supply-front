@@ -144,15 +144,24 @@
 
 .style-card__tag {
   flex: 0 0 auto;
-  background: #f6ffed;
+  background: #e5f4d2;
+  border: 1px solid #c4d999;
+  border-radius: 0;
   color: #1f1f1f;
   font-size: 12px;
   line-height: 1;
-  padding: 3px 8px;
+  padding: 4px 10px;
 }
 
 .style-card__tag--size {
-  background: #f5f7ff;
+  background: #dfe5ff;
+  border-color: #a7b5ef;
+}
+
+.style-card__header .ant-tag {
+  border-radius: 8px;
+  padding: 0 8px;
+  line-height: 22px;
 }
 
 .style-card__actions {
@@ -162,7 +171,9 @@
 }
 
 .style-card__actions .ant-btn {
-  padding: 2px 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .style-pagination {
