@@ -58,11 +58,12 @@ const OrganizationSettings = () => {
 
   useEffect(() => {
     settingsApi.roles.list().then((list) => {
+      const normalizedList = list.map((role) => ({ ...role, id: String(role.id) }));
       const nextMap: Record<string, string> = {};
-      list.forEach((role) => {
+      normalizedList.forEach((role) => {
         nextMap[role.id] = role.name;
       });
-      setRoleList(list);
+      setRoleList(normalizedList);
       setRolesMap(nextMap);
     });
   }, []);
@@ -194,9 +195,24 @@ const OrganizationSettings = () => {
         title: '岗位',
         key: 'title',
         render: (_, record) => {
-          const resolvedTitle =
-            record.title || record.roleIds?.map((roleId) => rolesMap[roleId]).find(Boolean);
-          return resolvedTitle ? <Tag>{resolvedTitle}</Tag> : <Tag color="default">未设置</Tag>;
+          const roleTags = (record.roleIds ?? [])
+            .map((roleId) => String(roleId))
+            .filter((roleId, index, array): roleId is string => Boolean(roleId) && array.indexOf(roleId) === index)
+            .map((roleId) => ({ roleId, roleName: rolesMap[roleId] }))
+            .filter((item): item is { roleId: string; roleName: string } => Boolean(item.roleName));
+          if (roleTags.length) {
+            return (
+              <Space size={[4, 4]} wrap>
+                {roleTags.map((role) => (
+                  <Tag key={`${record.id}-${role.roleId}`}>{role.roleName}</Tag>
+                ))}
+              </Space>
+            );
+          }
+          if (record.title) {
+            return <Tag>{record.title}</Tag>;
+          }
+          return <Tag color="default">未设置</Tag>;
         },
       },
       {
@@ -219,7 +235,7 @@ const OrganizationSettings = () => {
   );
 
   const roleOptions = useMemo(
-    () => roleList.map((role) => ({ label: role.name, value: role.id })),
+    () => roleList.map((role) => ({ label: role.name, value: String(role.id) })),
     [roleList],
   );
 

@@ -72,7 +72,7 @@ export const adaptCompanyOverviewResponse = (payload: CompanyOverviewResponse): 
 
 export const adaptRoleResponse = (response: BackendRoleResponse): RoleItem => {
   return {
-    id: response.id,
+    id: String(response.id),
     name: response.name,
     description: response.description,
     memberCount: 0, // Backend does not provide this, temporarily set to 0 as per plan
