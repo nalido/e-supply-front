@@ -1,19 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CSS } from '@dnd-kit/utilities';
-import {
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -34,12 +19,9 @@ import {
 } from 'antd';
 import {
   ApartmentOutlined,
-  HolderOutlined,
-  DeleteOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
 import type { FormInstance } from 'antd/es/form';
-import type { FormListFieldData } from 'antd/es/form/FormList';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styleDetailApi from '../api/style-detail';
 import operationTemplateApi from '../api/operation-template';
@@ -53,6 +35,7 @@ import type {
 } from '../types/style';
 import type { OperationTemplate } from '../types/operation-template';
 import ImageUploader from '../components/upload/ImageUploader';
+import DraggableOperationTable, { type TemplateOperationItem } from '../components/DraggableOperationTable';
 import '../styles/style-detail.css';
 
 const { Title, Text } = Typography;
@@ -73,12 +56,15 @@ type StyleFormValues = {
 
 type StyleProcessFormValue = {
   id?: string;
+  localId: string;
   processCatalogId?: string;
   unitPrice?: number;
   remarks?: string;
   sourceTemplateId?: string;
   sequence?: number;
 };
+
+type OperationModalFormValues = Pick<StyleProcessFormValue, 'processCatalogId' | 'unitPrice' | 'remarks'>;
 
 type ProcessOption = {
   id: string;
@@ -92,6 +78,11 @@ type TemplateModalState = {
   templates: OperationTemplate[];
 };
 
+const generateOperationLocalId = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `style-operation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const buildInitialOperations = (detail?: StyleDetailData): StyleProcessFormValue[] => {
   if (!detail?.processes?.length) {
     return [];
@@ -100,6 +91,7 @@ const buildInitialOperations = (detail?: StyleDetailData): StyleProcessFormValue
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
     .map((process) => ({
       id: process.id,
+      localId: process.id ?? generateOperationLocalId(),
       processCatalogId: process.processCatalogId,
       unitPrice: process.unitPrice,
       remarks: process.remarks,
@@ -140,21 +132,50 @@ const StyleDetail = () => {
     loading: false,
     templates: [],
   });
+  const [operationModalState, setOperationModalState] = useState<{ open: boolean; editingId?: string }>({
+    open: false,
+    editingId: undefined,
+  });
+  const [operationForm] = Form.useForm<OperationModalFormValues>();
+  const [operationValues, setOperationValues] = useState<StyleProcessFormValue[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+  const initializingRef = useRef(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+  const syncOperations = useCallback(
+    (
+      next: StyleProcessFormValue[],
+      options?: { markDirty?: boolean; targetForm?: FormInstance<StyleFormValues> },
+    ) => {
+      const { markDirty = true, targetForm } = options ?? {};
+      setOperationValues(next);
+      (targetForm ?? form).setFieldsValue({ operations: next });
+      if (markDirty && !initializingRef.current) {
+        setIsDirty(true);
+      }
+    },
+    [form],
   );
-
-  const processGridTemplate = '60px 2.2fr 1fr 1.6fr 28px';
 
   const watchedColors = Form.useWatch('colors', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
+  const processOptionMap = useMemo(() => new Map(processOptions.map((option) => [option.id, option])), [processOptions]);
+  const operationItems = useMemo<TemplateOperationItem[]>(() => {
+    return operationValues.map((operation, index) => {
+      const option = operation.processCatalogId ? processOptionMap.get(operation.processCatalogId) : undefined;
+      return {
+        id: operation.localId,
+        processCatalogId: operation.processCatalogId,
+        processName: option?.name ?? (operation.processCatalogId ? '未知工序' : '未选择工序'),
+        processCode: option?.code,
+        unitPrice: operation.unitPrice,
+        remarks: operation.remarks,
+        sortOrder: index + 1,
+        sequenceNo: index + 1,
+        sourceTemplateId: operation.sourceTemplateId,
+      };
+    });
+  }, [operationValues, processOptionMap]);
 
   const mergeProcessOptions = useCallback((options: ProcessOption[]) => {
     if (!options.length) {
@@ -229,6 +250,7 @@ const StyleDetail = () => {
   const load = useCallback(
     async (formRef: FormInstance<StyleFormValues>) => {
       setLoading(true);
+      initializingRef.current = true;
       try {
         const metaPayload = await styleDetailApi.fetchMeta();
         setMeta(metaPayload);
@@ -242,15 +264,19 @@ const StyleDetail = () => {
           setColorImages({});
           ensureProcessOptionsFromDetail([]);
         }
-        formRef.setFieldsValue(buildInitialValues(detailPayload));
+        const initialValues = buildInitialValues(detailPayload);
+        formRef.setFieldsValue(initialValues);
+        syncOperations(initialValues.operations ?? [], { markDirty: false, targetForm: formRef });
+        setIsDirty(false);
       } catch (error) {
         console.error('加载款式资料失败', error);
         message.error('加载款式资料失败，请稍后重试');
       } finally {
         setLoading(false);
+        initializingRef.current = false;
       }
     },
-    [styleId, ensureProcessOptionsFromDetail],
+    [styleId, ensureProcessOptionsFromDetail, syncOperations],
   );
 
   useEffect(() => {
@@ -300,6 +326,7 @@ const StyleDetail = () => {
       const mapped = (template.operations ?? [])
         .filter((operation) => operation.processCatalog?.id)
         .map((operation) => ({
+          localId: generateOperationLocalId(),
           processCatalogId: operation.processCatalog!.id,
           unitPrice: operation.unitPrice,
           remarks: operation.remarks,
@@ -310,14 +337,117 @@ const StyleDetail = () => {
         return;
       }
       ensureProcessOptionsFromTemplates([template]);
-      const current = form.getFieldValue('operations') ?? [];
-      const next = mode === 'replace' ? mapped : [...current, ...mapped];
-      form.setFieldsValue({ operations: next });
-      closeTemplateModal();
-      message.success(mode === 'replace' ? '已覆盖当前工序' : '已追加模板工序');
+        const next = mode === 'replace' ? mapped : [...operationValues, ...mapped];
+        syncOperations(next);
+        closeTemplateModal();
+        message.success(mode === 'replace' ? '已覆盖当前工序' : '已追加模板工序');
+      },
+      [closeTemplateModal, ensureProcessOptionsFromTemplates, operationValues, syncOperations],
+    );
+
+    const handleOperationsChange = useCallback(
+      (items: TemplateOperationItem[]) => {
+        const currentMap = new Map<string, StyleProcessFormValue>(operationValues.map((operation) => [operation.localId, operation]));
+      const next = items.map((item, index) => {
+        const existing = currentMap.get(item.id);
+        return {
+          ...(existing ?? { localId: item.id }),
+          processCatalogId: item.processCatalogId,
+          unitPrice: item.unitPrice,
+          remarks: item.remarks,
+          sourceTemplateId: existing?.sourceTemplateId,
+          sequence: index + 1,
+        };
+      });
+      syncOperations(next);
     },
-    [closeTemplateModal, ensureProcessOptionsFromTemplates, form],
+    [operationValues, syncOperations],
   );
+
+  const handleOperationDelete = useCallback(
+    (id: string) => {
+      const next = operationValues.filter((operation) => operation.localId !== id);
+      syncOperations(next);
+    },
+    [operationValues, syncOperations],
+  );
+
+  const handleOperationAdd = useCallback(() => {
+    setOperationModalState({ open: true, editingId: undefined });
+    operationForm.resetFields();
+  }, [operationForm]);
+
+  const handleOperationEdit = useCallback(
+    (operation: TemplateOperationItem) => {
+      setOperationModalState({ open: true, editingId: operation.id });
+      operationForm.setFieldsValue({
+        processCatalogId: operation.processCatalogId,
+        unitPrice: operation.unitPrice,
+        remarks: operation.remarks,
+      });
+    },
+    [operationForm],
+  );
+
+  const closeOperationModal = useCallback(() => {
+    setOperationModalState({ open: false, editingId: undefined });
+    operationForm.resetFields();
+  }, [operationForm]);
+
+  const editingOperationId = operationModalState.editingId;
+
+  const handleOperationSubmit = useCallback(async () => {
+    try {
+      const values = await operationForm.validateFields();
+      const current = operationValues;
+      if (editingOperationId) {
+        const next = current.map((operation) =>
+          operation.localId === editingOperationId
+            ? {
+                ...operation,
+                ...values,
+              }
+            : operation,
+        );
+        syncOperations(next);
+        message.success('工序已更新');
+      } else {
+        const next = [
+          ...current,
+          {
+            localId: generateOperationLocalId(),
+            ...values,
+          },
+        ];
+        syncOperations(next);
+        message.success('已添加工序');
+      }
+      closeOperationModal();
+    } catch {
+      // ignore validation errors
+    }
+  }, [closeOperationModal, editingOperationId, operationForm, operationValues, syncOperations]);
+
+  const handleValuesChange = useCallback(() => {
+    if (!initializingRef.current) {
+      setIsDirty(true);
+    }
+  }, []);
+
+  const handleBackClick = useCallback(() => {
+    const goBack = () => navigate('/basic/styles');
+    if (isDirty) {
+      Modal.confirm({
+        title: '尚未保存的修改',
+        content: '离开前是否确认放弃当前修改？',
+        okText: '仍然离开',
+        cancelText: '继续编辑',
+        onOk: goBack,
+      });
+    } else {
+      goBack();
+    }
+  }, [isDirty, navigate]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -331,7 +461,8 @@ const StyleDetail = () => {
         return;
       }
       setSaving(true);
-      const normalizedOperations = (values.operations ?? [])
+      const currentOperations = (form.getFieldValue('operations') ?? operationValues ?? []) as StyleProcessFormValue[];
+      const normalizedOperations = currentOperations
         .map((operation, index) => ({
           processCatalogId: operation?.processCatalogId,
           unitPrice:
@@ -359,11 +490,13 @@ const StyleDetail = () => {
       if (isEditing && styleId) {
         await styleDetailApi.update(styleId, payload);
         message.success('款式资料已更新');
+        setIsDirty(false);
+        load(form);
       } else {
         await styleDetailApi.create(payload);
         message.success('款式资料已创建');
+        setIsDirty(false);
       }
-      navigate('/basic/styles');
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) {
         return;
@@ -373,7 +506,7 @@ const StyleDetail = () => {
     } finally {
       setSaving(false);
     }
-  }, [colorImages, form, isEditing, navigate, styleId]);
+  }, [colorImages, form, isEditing, load, operationValues, setIsDirty, styleId]);
 
   const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
   const processSelectOptions = useMemo(
@@ -400,7 +533,7 @@ const StyleDetail = () => {
           </Space>
         </div>
 
-        <Form form={form} layout="vertical" className="style-detail-form">
+        <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange}>
           <Card bordered={false} className="style-detail-card style-detail-overview-card">
             <div className="style-detail-overview">
               <div className="style-detail-gallery">
@@ -508,82 +641,71 @@ const StyleDetail = () => {
             )}
           </Card>
 
-          <Card
-            title="款式工序"
-            bordered={false}
-            className="style-detail-card"
-            extra={
-              <Space>
-                <Button icon={<ApartmentOutlined />} onClick={openTemplateModal}>
+          <Card title="款式工序" bordered={false} className="style-detail-card">
+            <div
+              style={{
+                marginBottom: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontWeight: 500 }}>工序列表</span>
+              <Space size={4}>
+                <Button type="link" icon={<PlusOutlined />} onClick={handleOperationAdd}>
+                  添加工序
+                </Button>
+                <Button type="link" icon={<ApartmentOutlined />} onClick={openTemplateModal}>
                   引用工序模板
                 </Button>
               </Space>
-            }
-          >
-            <Form.List name="operations">
-              {(fields, { add, remove, move }) => {
-                const handleDragEnd = (event: DragEndEvent) => {
-                  if (!event.over || event.active.id === event.over.id) {
-                    return;
-                  }
-                  const activeIndex = fields.findIndex((field) => field.key === event.active.id);
-                  const overIndex = fields.findIndex((field) => field.key === event.over?.id);
-                  if (activeIndex === -1 || overIndex === -1) {
-                    return;
-                  }
-                  move(activeIndex, overIndex);
-                };
-
-                return (
-                  <div className="style-process-list" style={{ gap: 12 }}>
-                    {fields.length === 0 ? (
-                      <Text type="secondary">暂无工序，请点击下方按钮添加。</Text>
-                    ) : (
-                      <>
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: processGridTemplate,
-                            gap: 12,
-                            padding: '0 8px',
-                            fontSize: 13,
-                            color: '#8c8c8c',
-                          }}
-                        >
-                          <span style={{ paddingLeft: 4 }}>顺序</span>
-                          <span>工序</span>
-                          <span>工价（元）</span>
-                          <span>备注</span>
-                          <span />
-                        </div>
-                        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                          <SortableContext items={fields.map((field) => field.key)} strategy={verticalListSortingStrategy}>
-                            {fields.map((field, index) => (
-                              <SortableStyleProcessItem
-                                key={field.key}
-                                field={field}
-                                index={index}
-                                processSelectOptions={processSelectOptions}
-                                processLoading={processLoading}
-                                remove={remove}
-                                canRemove={fields.length > 0}
-                                gridTemplate={processGridTemplate}
-                              />
-                            ))}
-                          </SortableContext>
-                        </DndContext>
-                      </>
-                    )}
-                    <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({})}>
-                      添加工序
-                    </Button>
-                  </div>
-                );
-              }}
-            </Form.List>
+            </div>
+            <DraggableOperationTable
+              operations={operationItems}
+              onOperationsChange={handleOperationsChange}
+              onEditOperation={handleOperationEdit}
+              onDeleteOperation={handleOperationDelete}
+            />
           </Card>
 
         </Form>
+
+        <Modal
+          title={editingOperationId ? '编辑工序' : '添加工序'}
+          open={operationModalState.open}
+          onOk={handleOperationSubmit}
+          onCancel={closeOperationModal}
+          destroyOnClose
+        >
+          <Form form={operationForm} layout="vertical">
+            <Form.Item
+              name="processCatalogId"
+              label="工序"
+              rules={[{ required: true, message: '请选择工序' }]}
+            >
+              <Select
+                showSearch
+                placeholder="选择工序"
+                options={processSelectOptions}
+                loading={processLoading}
+                optionFilterProp="label"
+              />
+            </Form.Item>
+            <Form.Item name="unitPrice" label="工价（元）">
+              <InputNumber
+                min={0}
+                precision={2}
+                step={0.01}
+                style={{ width: '100%' }}
+                prefix="¥"
+                placeholder="0.00"
+              />
+            </Form.Item>
+            <Form.Item name="remarks" label="备注">
+              <Input placeholder="可选" maxLength={200} />
+            </Form.Item>
+          </Form>
+        </Modal>
 
         <Modal
           open={templateModal.open}
@@ -636,7 +758,7 @@ const StyleDetail = () => {
 
         <div className="style-detail-footer">
           <Space>
-            <Button onClick={() => navigate('/basic/styles')}>返回列表</Button>
+            <Button onClick={handleBackClick}>返回列表</Button>
             <Button type="primary" loading={saving} onClick={handleSave} disabled={loading}>
               保存
             </Button>
@@ -648,94 +770,3 @@ const StyleDetail = () => {
 };
 
 export default StyleDetail;
-
-type SortableStyleProcessItemProps = {
-  field: FormListFieldData;
-  index: number;
-  processSelectOptions: { label: string; value: string }[];
-  processLoading: boolean;
-  remove: (index: number) => void;
-  canRemove: boolean;
-  gridTemplate: string;
-};
-
-const SortableStyleProcessItem = ({
-  field,
-  index,
-  processSelectOptions,
-  processLoading,
-  remove,
-  canRemove,
-  gridTemplate,
-}: SortableStyleProcessItemProps) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.key });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  } as const;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        ...style,
-        border: '1px solid #f0f0f0',
-        borderRadius: 10,
-        background: isDragging ? '#f6faff' : '#fff',
-        padding: '14px 12px',
-      }}
-    >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: gridTemplate,
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#595959' }}>
-          <span style={{ fontWeight: 600, minWidth: 16, textAlign: 'right' }}>{index + 1}</span>
-          <div
-            style={{ cursor: 'grab', color: '#bfbfbf', lineHeight: '20px' }}
-            aria-label="拖拽调整顺序"
-            {...attributes}
-            {...listeners}
-          >
-            <HolderOutlined />
-          </div>
-        </div>
-        <Form.Item
-          name={[field.name, 'processCatalogId']}
-          fieldKey={[field.fieldKey ?? field.key, 'processCatalogId']}
-          rules={[{ required: true, message: '请选择工序' }]}
-          style={{ marginBottom: 0 }}
-        >
-          <Select
-            placeholder="选择工序"
-            showSearch
-            loading={processLoading}
-            options={processSelectOptions}
-            optionFilterProp="label"
-          />
-        </Form.Item>
-        <Form.Item
-          name={[field.name, 'unitPrice']}
-          fieldKey={[field.fieldKey ?? field.key, 'unitPrice']}
-          style={{ marginBottom: 0 }}
-        >
-          <InputNumber min={0} step={0.01} style={{ width: '100%' }} prefix="¥" placeholder="0.00" />
-        </Form.Item>
-        <Form.Item
-          name={[field.name, 'remarks']}
-          fieldKey={[field.fieldKey ?? field.key, 'remarks']}
-          style={{ marginBottom: 0 }}
-        >
-          <Input placeholder="备注信息" maxLength={200} />
-        </Form.Item>
-        {canRemove ? (
-          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
-        ) : null}
-      </div>
-    </div>
-  );
-};

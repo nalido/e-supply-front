@@ -29,6 +29,7 @@ export type TemplateOperationItem = {
   remarks?: string;
   sortOrder: number;
   sequenceNo: number;
+  sourceTemplateId?: string;
 };
 
 interface DraggableOperationTableProps {
