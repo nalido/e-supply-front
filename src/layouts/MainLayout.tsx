@@ -59,9 +59,11 @@ const MainLayout = () => {
             margin: 12,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: 12,
             color: '#fff',
             fontWeight: 600,
+            fontSize: 28,
             letterSpacing: 1,
           }}
         >
