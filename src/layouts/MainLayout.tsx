@@ -53,7 +53,25 @@ const MainLayout = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={208} breakpoint="lg" collapsedWidth={64}>
-        <div style={{ height: 48, margin: 12, color: '#fff', fontWeight: 600 }}>衣协同</div>
+        <div
+          style={{
+            height: 48,
+            margin: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            color: '#fff',
+            fontWeight: 600,
+            letterSpacing: 1,
+          }}
+        >
+          <img
+            src="/assets/images/logo.png"
+            alt="易供云"
+            style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6 }}
+          />
+          易供云
+        </div>
         <Menu
           theme="dark"
           mode="inline"

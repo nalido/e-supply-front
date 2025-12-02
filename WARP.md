@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-This is a supply chain management dashboard frontend application ("衣协同" - Clothing Collaboration) built with React + TypeScript + Vite + Ant Design. It's currently a mock implementation that clones a target site's menu structure and page skeleton, providing unified Mock APIs that can be smoothly transitioned to real backend services later.
+This is a supply chain management dashboard frontend application ("易供云" - Clothing Collaboration) built with React + TypeScript + Vite + Ant Design. It's currently a mock implementation that clones a target site's menu structure and page skeleton, providing unified Mock APIs that can be smoothly transitioned to real backend services later.
 
 ## Common Development Commands
 
@@ -121,4 +121,3 @@ When backend services become available:
 ## 本地开发和原始网站信息
 
 - 本地启动路径为：http://localhost:5173/， 我会在别的终端启动它，不需要你再启动。如果发现前端没有在启动，提醒我即可
-- 原始网站是：https://yxt.huaaosoft.com/， 我们当前的工作内容是复刻这个网站的内容。特别是排版，文字，样式

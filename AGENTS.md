@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Vite + React + TypeScript dashboard (衣协同) mirroring huaaosoft.com's layouts with Ant Design 5 styling.
+- Vite + React + TypeScript dashboard (易供云) mirroring huaaosoft.com's layouts with Ant Design 5 styling.
 - `src/main.tsx` wires locale + theming; `src/router.tsx` consumes `src/menu.config.tsx` to build navigation.
 - Domains live under `src/views/`; share composables via `src/components/`, `src/layouts/`, `src/types/`, and mock clients in `src/api/`.
 - Mock datasets stay in `src/mock/`; global assets/styles live in `src/assets/` and `src/styles/`; Vite-served static files remain in `public/`; builds output to `dist/`.
@@ -10,7 +10,6 @@
 - **Menu-driven routing**: menu tree supports three levels; `flattenMenu()` auto-spawns placeholder routes until real screens replace them.
 - **Mock-first APIs**: `src/api/mock.ts` returns `{ list: T[], total: number }` payloads with simulated latency so real services can slot in without signature changes.
 - **Main layout**: `src/layouts/MainLayout.tsx` owns sidebar, breadcrumbs, and responsiveness—tweak here for global chrome.
-- Preserve business copy and structure from https://yxt.huaaosoft.com/ while lifting UI logic into typed React components.
 
 ## Build, Test, and Development Commands
 - `npm install` syncs dependencies after lockfile updates.

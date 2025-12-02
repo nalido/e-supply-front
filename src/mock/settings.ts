@@ -53,7 +53,7 @@ const profileStore: UserProfile = {
 
 const companyOverviewStore: CompanyOverview = {
   id: 'tenant-001',
-  name: '杭州衣协同科技有限公司',
+  name: '杭州易供云科技有限公司',
   stats: {
     users: { used: 42, total: 60, unit: '人' },
     storage: { used: 168, total: 512, unit: 'GB' },
@@ -67,7 +67,7 @@ const companyOverviewStore: CompanyOverview = {
     { id: 'module-collab', name: '协同中心', status: 'unsubscribed', description: '未购买' },
   ],
   tenants: [
-    { id: 'tenant-001', name: '杭州衣协同科技有限公司', logo: '', isCurrent: true },
+    { id: 'tenant-001', name: '杭州易供云科技有限公司', logo: '', isCurrent: true },
     { id: 'tenant-002', name: '苏州衣联供应链有限公司', logo: '', isCurrent: false },
     { id: 'tenant-003', name: '宁波衣联生产基地', logo: '', isCurrent: false },
   ],

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a supply chain management dashboard frontend application ("衣协同" - Clothing Collaboration) built with React, TypeScript, Vite, and Ant Design. It's a mock implementation that clones the menu structure and page skeleton of https://yxt.huaaosoft.com/, providing unified Mock APIs that can be smoothly transitioned to real backend services later.
+This is a supply chain management dashboard frontend application ("易供云" - Clothing Collaboration) built with React, TypeScript, Vite, and Ant Design. It's a mock implementation that clones the menu structure and page skeleton of the original system, providing unified Mock APIs that can be smoothly transitioned to real backend services later.
 
 ### Key Technologies
 
