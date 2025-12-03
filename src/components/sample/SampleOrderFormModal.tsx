@@ -4,6 +4,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import axios from 'axios';
 import {
   Button,
   Card,
@@ -65,6 +66,9 @@ import type {
 import type { StyleData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
 import stylesApi from '../../api/styles';
+import storageApi from '../../api/storage';
+import ImageUploader from '../upload/ImageUploader';
+import '../../styles/sample-order-form.css';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -465,6 +469,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
   const [colorImagesEnabled, setColorImagesEnabled] = useState(false);
   const [colorImageMap, setColorImageMap] = useState<Record<string, string | undefined>>({});
   const [attachments, setAttachments] = useState<SampleCreationAttachment[]>([]);
+  const mainAttachment = useMemo(() => attachments.find((attachment) => attachment.isMain), [attachments]);
   const [styleState, setStyleState] = useState<StyleListState>({
     open: false,
     loading: false,
@@ -594,14 +599,60 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
     setAttachments((prev) => prev.map((item) => ({ ...item, isMain: item.id === id })));
   }, []);
 
-  const appendAttachment = useCallback((url: string) => {
+  const appendAttachment = useCallback((url: string, options?: { isMain?: boolean }) => {
     setAttachments((prev) => {
-      const next: SampleCreationAttachment[] = prev.map((item) => ({ ...item, isMain: false }));
+      const hasMain = prev.some((item) => item.isMain);
+      const shouldBeMain = options?.isMain ?? !hasMain;
+      const others = shouldBeMain ? prev.map((item) => ({ ...item, isMain: false })) : [...prev];
       const id = generateId();
-      next.unshift({ id, url, isMain: true, createdAt: new Date().toISOString() });
-      return next;
+      const createdAt = new Date().toISOString();
+      const attachment: SampleCreationAttachment = {
+        id,
+        url,
+        isMain: shouldBeMain,
+        createdAt,
+      };
+      return shouldBeMain ? [attachment, ...others] : [...others, attachment];
     });
   }, []);
+
+  const handleMainImageChange = useCallback((value?: string) => {
+    setAttachments((prev) => {
+      const others = prev.filter((item) => !item.isMain);
+      if (!value) {
+        if (others.length === 0) {
+          return [];
+        }
+        const [nextMain, ...rest] = others;
+        return [{ ...nextMain, isMain: true }, ...rest];
+      }
+      const existingMain = prev.find((item) => item.isMain);
+      if (existingMain) {
+        return [{ ...existingMain, url: value }, ...others];
+      }
+      return [
+        {
+          id: generateId(),
+          url: value,
+          isMain: true,
+          createdAt: new Date().toISOString(),
+        },
+        ...others,
+      ];
+    });
+  }, []);
+
+  const handleAttachmentUpload = useCallback(async (file: File) => {
+    try {
+      const result = await storageApi.upload(file, { module: 'sample-orders' });
+      appendAttachment(result.url);
+      return true;
+    } catch (error) {
+      console.error('上传样板图片失败', error);
+      messageApi.error('上传图片失败，请稍后再试');
+      return false;
+    }
+  }, [appendAttachment, messageApi]);
 
   const handleImagePaste = useCallback(async (event: React.ClipboardEvent<HTMLDivElement>) => {
     const items = event.clipboardData?.items;
@@ -613,26 +664,34 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
       return;
     }
     event.preventDefault();
+    let successCount = 0;
     for (const item of imageItems) {
       const file = item.getAsFile();
       if (file) {
-        const base64 = await fileToBase64(file);
-        appendAttachment(base64);
+        const success = await handleAttachmentUpload(file);
+        if (success) {
+          successCount += 1;
+        }
       }
     }
-    messageApi.success('图片已粘贴到样板单');
-  }, [appendAttachment, messageApi]);
+    if (successCount > 0) {
+      messageApi.success(`已添加 ${successCount} 张图片`);
+    }
+  }, [handleAttachmentUpload, messageApi]);
 
   const uploadProps = useMemo<UploadProps>(() => ({
     multiple: true,
-    listType: 'picture-card',
     showUploadList: false,
-    beforeUpload: async (file) => {
-      const base64 = await fileToBase64(file);
-      appendAttachment(base64);
+    beforeUpload: (file) => {
+      void (async () => {
+        const success = await handleAttachmentUpload(file as File);
+        if (success) {
+          messageApi.success('图片上传成功');
+        }
+      })();
       return false;
     },
-  }), [appendAttachment]);
+  }), [handleAttachmentUpload, messageApi]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -724,6 +783,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
       const maybeValidation = error as { errorFields?: unknown };
       if (maybeValidation?.errorFields) {
         messageApi.error('请完善必填信息');
+      } else if (axios.isAxiosError(error)) {
+        // 全局错误提醒组件会统一提示
+        console.warn('创建样板单失败', error.response?.data ?? error.message);
       } else {
         if (error instanceof Error) {
           console.error(error);
@@ -805,14 +867,27 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
               <Divider orientation="left">核心信息</Divider>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <div className="sample-order-cover-card">
+                      <div className="sample-order-cover-title">样板主图</div>
+                      <div className="sample-order-cover-item">
+                        <ImageUploader
+                          module="sample-orders"
+                          value={mainAttachment?.url}
+                          onChange={handleMainImageChange}
+                          tips="建议尺寸 800x800px，支持 JPG/PNG，大小不超过 5MB"
+                        />
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        该图片将作为列表主图展示，可上传或替换为高清图，右键其他图片可重新设为主图
+                      </Text>
+                    </div>
                     <div
                       style={{
                         position: 'relative',
                         border: '1px dashed #d9d9d9',
-                        borderRadius: 8,
+                        borderRadius: 12,
                         padding: 16,
-                        minHeight: 220,
                         background: '#fafafa',
                         display: 'flex',
                         flexDirection: 'column',
@@ -821,10 +896,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                       onPaste={handleImagePaste}
                       role="presentation"
                     >
+                      <Space direction="vertical" size={4}>
+                        <Text strong>附加图片</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>支持拖拽、粘贴或批量上传，右键管理主图</Text>
+                      </Space>
                       {attachments.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '36px 0' }}>
+                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
                           <InboxOutlined style={{ fontSize: 32, color: '#bfbfbf', marginBottom: 8 }} />
-                          <Text type="secondary">可拖拽、粘贴或上传样板图片</Text>
+                          <Text type="secondary">暂未上传图片</Text>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -857,6 +936,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                                   overflow: 'hidden',
                                   border: item.isMain ? '2px solid #1677ff' : '1px solid #f0f0f0',
                                   boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                  background: '#fff',
                                 }}
                               >
                                 <img src={item.url} alt="样板图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -874,7 +954,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                         <Button type="dashed" block icon={<PlusOutlined />}>上传图片</Button>
                       </Upload>
                       <Text type="secondary" style={{ fontSize: 12 }}>
-                        支持鼠标拖拽、文件上传或 Ctrl + V 粘贴图片，右键图片可设为主图
+                        支持鼠标拖拽、文件上传或 Ctrl + V 粘贴图片
                       </Text>
                     </div>
                   </Space>

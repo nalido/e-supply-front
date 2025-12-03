@@ -65,6 +65,8 @@ type SampleListFilters = {
   dateRange?: [Dayjs, Dayjs];
 };
 
+type StatsFilterState = Omit<SampleListFilters, 'status'>;
+
 const STATUS_TO_CARD: Record<SampleStatus, StatCardKey> = {
   [SampleStatusEnum.PENDING]: 'pending',
   [SampleStatusEnum.CONFIRMED]: 'confirmed',
@@ -347,6 +349,12 @@ const SampleList: React.FC = () => {
     priority: undefined,
     dateRange: undefined,
   });
+  const [statsFilters, setStatsFilters] = useState<StatsFilterState>({
+    keyword: '',
+    customer: undefined,
+    priority: undefined,
+    dateRange: undefined,
+  });
   const [activeCardKey, setActiveCardKey] = useState<StatCardKey | null>('total');
   const [rawData, setRawData] = useState<SampleOrder[]>([]);
   const [dataSource, setDataSource] = useState<SampleOrder[]>([]);
@@ -452,7 +460,7 @@ const SampleList: React.FC = () => {
     setDataSource(applySorting(rawData, sortState));
   }, [applySorting, rawData, sortState]);
 
-  const buildQueryParams = useCallback((overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
+  const buildListQueryParams = useCallback((overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
     const base: SampleQueryParams = {
       keyword: filters.keyword || undefined,
       status: filters.status,
@@ -464,22 +472,37 @@ const SampleList: React.FC = () => {
     return { ...base, ...overrides };
   }, [filters]);
 
+  const buildStatsQueryParams = useCallback(
+    (overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
+      const base: SampleQueryParams = {
+        keyword: statsFilters.keyword || undefined,
+        status: undefined,
+        customer: statsFilters.customer,
+        priority: statsFilters.priority,
+        startDate: statsFilters.dateRange ? statsFilters.dateRange[0].format('YYYY-MM-DD') : undefined,
+        endDate: statsFilters.dateRange ? statsFilters.dateRange[1].format('YYYY-MM-DD') : undefined,
+      };
+      return { ...base, ...overrides };
+    },
+    [statsFilters]
+  );
+
   const loadStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const result = await sampleOrderApi.getStats(buildQueryParams({ status: undefined }));
+      const result = await sampleOrderApi.getStats(buildStatsQueryParams());
       setStats(result);
     } catch {
       message.error('加载统计数据失败');
     } finally {
       setStatsLoading(false);
     }
-  }, [buildQueryParams]);
+  }, [buildStatsQueryParams]);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await sampleOrderApi.list(buildQueryParams({
+      const result = await sampleOrderApi.list(buildListQueryParams({
         page: currentPage,
         pageSize: currentPageSize,
       }));
@@ -495,7 +518,7 @@ const SampleList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [buildQueryParams, currentPage, currentPageSize]);
+  }, [buildListQueryParams, currentPage, currentPageSize]);
 
   useEffect(() => {
     void loadStats();
@@ -512,6 +535,7 @@ const SampleList: React.FC = () => {
       setActiveCardKey(resolveActiveKey(next));
       return next;
     });
+    setStatsFilters((prev) => ({ ...prev, keyword }));
     setPagination((prev) => ({ ...prev, current: 1 }));
   }, [resolveActiveKey]);
 
@@ -521,6 +545,9 @@ const SampleList: React.FC = () => {
       setActiveCardKey(resolveActiveKey(next));
       return next;
     });
+    if (key !== 'status') {
+      setStatsFilters((prev) => ({ ...prev, [key]: value } as StatsFilterState));
+    }
     setPagination((prev) => ({ ...prev, current: 1 }));
   }, [resolveActiveKey]);
 
@@ -536,6 +563,12 @@ const SampleList: React.FC = () => {
     setFilters({
       keyword: '',
       status: undefined,
+      customer: undefined,
+      priority: undefined,
+      dateRange: undefined,
+    });
+    setStatsFilters({
+      keyword: '',
       customer: undefined,
       priority: undefined,
       dateRange: undefined,

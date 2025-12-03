@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { message } from 'antd';
 import { tenantStore } from '../stores/tenant';
+import { emitGlobalError } from '../components/common/global-error-bus';
+import { buildFriendlyError } from '../utils/friendly-error';
 
 type TokenResolver = () => Promise<string | null>;
 
@@ -51,10 +52,10 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status !== 401) {
-      const backendMessage = error?.response?.data?.message;
-      const errMsg = backendMessage || error.message || '请求失败，请稍后再试';
-      console.error('API Error:', error.response.status, errMsg); // Log status code
-      message.error(errMsg);
+      const backendMessage = error?.response?.data?.message ?? error.message;
+      const status = error?.response?.status;
+      console.error('API Error:', status, backendMessage);
+      emitGlobalError(buildFriendlyError(backendMessage, status));
     }
     return Promise.reject(error);
   },
