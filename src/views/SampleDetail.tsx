@@ -36,7 +36,7 @@ import type {
   SampleOtherCostItem,
   SampleProcessItem,
 } from '../types/sample-detail';
-import { sampleService } from '../api/mock';
+import sampleOrderApi from '../api/sample-order';
 import DonutChart from '../components/charts/DonutChart';
 
 const { Title, Text } = Typography;
@@ -69,7 +69,7 @@ const SampleDetail = () => {
     const loadDetail = async () => {
       setLoading(true);
       try {
-        const payload = await sampleService.getSampleDetail(sampleId);
+        const payload = await sampleOrderApi.detail(sampleId);
         setDetail(payload);
       } catch (error) {
         console.error('Failed to load sample detail', error);
@@ -102,7 +102,7 @@ const SampleDetail = () => {
   }, []);
 
   const handleEdit = useCallback(() => {
-    message.info('编辑功能即将开放');
+        message.info('编辑功能即将开放');
   }, []);
 
   const handleRefreshCost = useCallback(() => {

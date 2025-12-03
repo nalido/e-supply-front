@@ -33,6 +33,7 @@ export type SampleQuantityMatrix = Record<string, Record<string, number>>;
 export interface SampleOrder {
   id: string;
   orderNo: string; // 样板单号
+  sampleType?: string;
   styleName: string; // 款式名称
   styleCode: string; // 款式编号
   unit?: string; // 单位
@@ -47,7 +48,6 @@ export interface SampleOrder {
   totalAmount: number; // 总金额
   status: SampleStatus; // 状态
   priority: 'low' | 'medium' | 'high' | 'urgent'; // 优先级
-  sampleType?: string; // 板类
   merchandiser?: string; // 跟单员
   merchandiserId?: string;
   patternMaker?: string; // 纸样师
@@ -65,6 +65,10 @@ export interface SampleOrder {
   processes?: SampleProcessStep[]; // 加工流程
   skuMatrix?: SampleQuantityMatrix; // SKU 数量矩阵
   colorImages?: Record<string, string | undefined>; // 颜色图片映射
+  sampleTypeName?: string;
+  styleId?: string;
+  styleNo?: string;
+  orderDate?: string;
 }
 
 /**

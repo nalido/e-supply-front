@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../../types/sample';
+import type { SampleOrderDetail } from '../../types/sample-detail';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
 export type SamplePriorityResponse = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -44,12 +45,14 @@ export type SampleOrderSummaryResponse = {
   customerName?: string;
   styleId?: number;
   styleName?: string;
+  styleNo?: string;
+  unit?: string;
   unitPrice?: number;
   totalAmount?: number;
   deadline?: string;
   expectedFinishDate?: string;
-  approvedAt?: string;
-  productionStartedAt?: string;
+  sampleTypeName?: string;
+  previewImageUrl?: string;
   updatedAt?: string;
 };
 
@@ -58,6 +61,66 @@ export type SampleOrderListResponse = {
   total: number;
   page: number;
   size: number;
+};
+
+export type SampleOrderDetailResponse = {
+  id: number;
+  tenantId: number;
+  sampleNo: string;
+  sampleTypeId?: number;
+  sampleTypeName?: string;
+  customerId?: number;
+  customerName?: string;
+  styleId?: number;
+  styleNo?: string;
+  styleName?: string;
+  quantity?: number;
+  unit?: string;
+  unitPrice?: number;
+  totalAmount?: number;
+  priority: SamplePriorityResponse;
+  status: SampleStatusResponse;
+  deadline?: string;
+  expectedFinishDate?: string;
+  orderDate?: string;
+  slaHours?: number;
+  designerId?: number;
+  designerName?: string;
+  merchandiserId?: number;
+  merchandiserName?: string;
+  patternMakerId?: number;
+  patternMakerName?: string;
+  sampleSewerId?: number;
+  sampleSewerName?: string;
+  patternNo?: string;
+  remarks?: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  skus: Array<{ id?: number; color?: string; size?: string; quantity?: number }>;
+  processes: Array<{
+    id?: number;
+    processCatalogId?: number;
+    processCatalogName?: string;
+    sequence?: number;
+    plannedDurationMinutes?: number;
+  }>;
+  costs: Array<{ id?: number; costItem: string; amount: number }>;
+  attachments: SampleOrderAssetResponse[];
+  colorImages: SampleOrderAssetResponse[];
+  costTotal?: number;
+};
+
+export type SampleOrderAssetResponse = {
+  id?: number;
+  assetType: 'ATTACHMENT' | 'COLOR_IMAGE';
+  name?: string;
+  url: string;
+  fileType?: string;
+  fileSize?: number;
+  isMain?: boolean;
+  color?: string;
+  sortOrder?: number;
 };
 
 export type SampleDashboardCounters = {
@@ -78,8 +141,8 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     id: String(payload.id ?? ''),
     orderNo: payload.sampleNo ?? fallbackText,
     styleName: styleLabel,
-    styleCode: payload.styleId ? `ST-${payload.styleId}` : fallbackText,
-    unit: fallbackText,
+    styleCode: payload.styleNo ?? (payload.styleId ? `ST-${payload.styleId}` : fallbackText),
+    unit: payload.unit ?? fallbackText,
     customer: customerLabel,
     season: fallbackText,
     category: fallbackText,
@@ -91,7 +154,7 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     totalAmount: payload.totalAmount ?? 0,
     status: statusToFrontend[payload.status] ?? 'pending',
     priority: priorityToFrontend[payload.priority] ?? 'medium',
-    sampleType: fallbackText,
+    sampleType: payload.sampleTypeName ?? fallbackText,
     merchandiser: fallbackText,
     merchandiserId: undefined,
     patternMaker: fallbackText,
@@ -107,9 +170,107 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     remarks: '',
     processes: [],
     skuMatrix: undefined,
-    images: [],
+    images: payload.previewImageUrl ? [payload.previewImageUrl] : [],
     colorImages: {},
+    sampleTypeName: payload.sampleTypeName,
+    styleId: payload.styleId ? String(payload.styleId) : undefined,
+    styleNo: payload.styleNo,
   } satisfies SampleOrder;
+};
+
+const buildQuantityMatrix = (
+  skus: SampleOrderDetailResponse['skus'],
+): Record<string, Record<string, number>> => {
+  const matrix: Record<string, Record<string, number>> = {};
+  skus.forEach((sku) => {
+    const color = sku.color || '未指定颜色';
+    const size = sku.size || '均码';
+    if (!matrix[color]) {
+      matrix[color] = {};
+    }
+    matrix[color][size] = (matrix[color][size] || 0) + Number(sku.quantity ?? 0);
+  });
+  return matrix;
+};
+
+const collectUniqueValues = (values: Array<string | undefined>): string[] => {
+  return Array.from(new Set(values.filter((item): item is string => Boolean(item))));
+};
+
+export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): SampleOrderDetail => {
+  const colors = collectUniqueValues(payload.skus?.map((sku) => sku.color) ?? []);
+  const sizes = collectUniqueValues(payload.skus?.map((sku) => sku.size) ?? []);
+  const quantityMatrix = buildQuantityMatrix(payload.skus ?? []);
+  const attachments = (payload.attachments ?? []).map((asset) => ({
+    id: String(asset.id ?? asset.url),
+    name: asset.name || '附件',
+    type: asset.fileType || 'image',
+    size: asset.fileSize ? `${Math.round(asset.fileSize / 1024)}KB` : '',
+    url: asset.url,
+    updatedAt: payload.updatedAt || '',
+  }));
+  const processItems = (payload.processes ?? []).map((process, index) => ({
+    id: String(process.id ?? index),
+    name: process.processCatalogName || `工序${index + 1}`,
+    sequence: process.sequence ?? index + 1,
+    laborPrice: 0,
+    standardTime: process.plannedDurationMinutes ?? undefined,
+  }));
+  const otherCosts = (payload.costs ?? []).map((cost, index) => ({
+    id: String(cost.id ?? index),
+    costType: cost.costItem,
+    developmentCost: Number(cost.amount ?? 0),
+    quotedUnitCost: Number(cost.amount ?? 0),
+  }));
+  const costTotal = Number(payload.costTotal ?? 0);
+  const totalAmount = Number(payload.totalAmount ?? 0);
+  const lineArtImage = attachments.find((asset) => asset.id === attachments[0]?.id && payload.attachments?.[0]?.isMain)?.url
+    || payload.attachments?.find((asset) => asset.isMain)?.url
+    || attachments[0]?.url;
+
+  return {
+    id: String(payload.id),
+    styleNo: payload.styleNo || '--',
+    sampleNo: payload.sampleNo,
+    merchandiser: payload.merchandiserName,
+    patternMaker: payload.patternMakerName,
+    patternPrice: Number(payload.unitPrice ?? 0),
+    styleName: payload.styleName || '--',
+    patternType: payload.sampleTypeName,
+    patternDate: payload.orderDate || payload.createdAt || '',
+    paperPatternNo: payload.patternNo,
+    remarks: payload.remarks,
+    unit: payload.unit || '件',
+    customer: payload.customerName,
+    estimatedDeliveryDate: payload.deadline,
+    sampleSewer: payload.sampleSewerName,
+    processingTypes: processItems.map((item) => item.name),
+    lineArtImage,
+    colors,
+    sizes,
+    quantityMatrix,
+    bom: { fabrics: [], trims: [] },
+    processes: processItems,
+    sizeChartImage: undefined,
+    otherCosts,
+    attachments,
+    cost: {
+      totalQuotedPrice: totalAmount,
+      developmentFee: costTotal,
+      breakdown: {
+        fabric: 0,
+        trims: 0,
+        packaging: 0,
+        processing: costTotal,
+      },
+      developmentFeeDetails: otherCosts.map((item) => ({
+        id: item.id,
+        name: item.costType,
+        amount: item.developmentCost,
+      })),
+    },
+    customer: payload.customerName,
+  };
 };
 
 export const mapStatusToBackend = (status?: SampleStatus): SampleStatusResponse | undefined =>

@@ -42,8 +42,9 @@ import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
-import { sampleService } from '../api/mock';
 import sampleOrderApi from '../api/sample-order';
+import type { SampleCreationMeta } from '../types/sample-create';
+import { getSamplePriorityColor, getSamplePriorityLabel, getSampleStatusColor, getSampleStatusLabel } from '../utils/sample-labels';
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 
@@ -363,7 +364,23 @@ const SampleList: React.FC = () => {
     showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
   });
 
-  const sampleOptions = useMemo(() => sampleService.getSampleFilterOptions(), []);
+  const [creationMeta, setCreationMeta] = useState<SampleCreationMeta | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    sampleOrderApi
+      .getMeta()
+      .then((meta) => {
+        if (mounted) {
+          setCreationMeta(meta);
+        }
+      })
+      .catch(() => {
+        message.warning('加载筛选项失败，可稍后重试');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const currentPage = pagination.current ?? 1;
   const currentPageSize = pagination.pageSize ?? 12;
@@ -592,8 +609,8 @@ const SampleList: React.FC = () => {
     setIsModalVisible(true);
   }, []);
 
-  const handleModalOk = useCallback((order: SampleOrder) => {
-    message.success(`样板单 ${order.orderNo} 创建成功`);
+  const handleModalOk = useCallback(() => {
+    message.success('样板单创建成功');
     setIsModalVisible(false);
     void loadData();
     void loadStats();
@@ -620,17 +637,33 @@ const SampleList: React.FC = () => {
     navigate(`/sample/detail?id=${order.id}&mode=edit`);
   }, [navigate]);
 
-  const handleCopy = useCallback((order: SampleOrder) => {
-    message.success(`已复制样板单 ${order.orderNo}`);
-  }, []);
+  const handleCopy = useCallback(async (order: SampleOrder) => {
+    try {
+      await sampleOrderApi.copy(order.id);
+      message.success(`已复制样板单 ${order.orderNo}`);
+      void loadData();
+      void loadStats();
+    } catch (error) {
+      console.error(error);
+      message.error('复制失败，请稍后再试');
+    }
+  }, [loadData, loadStats]);
 
   const handleBulkOrder = useCallback((order: SampleOrder) => {
     message.success(`已发起大货订单：${order.orderNo}`);
   }, []);
 
-  const handleDelete = useCallback((order: SampleOrder) => {
-    message.success(`已删除样板单：${order.orderNo}`);
-  }, []);
+  const handleDelete = useCallback(async (order: SampleOrder) => {
+    try {
+      await sampleOrderApi.delete(order.id);
+      message.success(`已删除样板单：${order.orderNo}`);
+      void loadData();
+      void loadStats();
+    } catch (error) {
+      console.error(error);
+      message.error('删除失败，请稍后再试');
+    }
+  }, [loadData, loadStats]);
 
   const columns = useMemo<ColumnsType<SampleOrder>>(() => [
     {
@@ -747,8 +780,8 @@ const SampleList: React.FC = () => {
       sortOrder: sortState?.field === 'status' ? sortState.order : undefined,
       sortDirections: ['ascend', 'descend'],
       render: (status: SampleStatus) => (
-        <Tag color={sampleService.getStatusBadgeColor(status)}>
-          {sampleService.getStatusLabel(status)}
+        <Tag color={getSampleStatusColor(status)}>
+          {getSampleStatusLabel(status)}
         </Tag>
       ),
     },
@@ -761,8 +794,8 @@ const SampleList: React.FC = () => {
       sortOrder: sortState?.field === 'priority' ? sortState.order : undefined,
       sortDirections: ['ascend', 'descend'],
       render: (priority: SampleOrder['priority']) => (
-        <Tag color={sampleService.getPriorityBadgeColor(priority)}>
-          {sampleService.getPriorityLabel(priority)}
+        <Tag color={getSamplePriorityColor(priority)}>
+          {getSamplePriorityLabel(priority)}
         </Tag>
       ),
     },
@@ -892,11 +925,11 @@ const SampleList: React.FC = () => {
                 <Text type="secondary">款号：{order.styleCode}</Text>
               </div>
               <Space size={6}>
-                <Tag color={sampleService.getStatusBadgeColor(order.status)}>
-                  {sampleService.getStatusLabel(order.status)}
+                <Tag color={getSampleStatusColor(order.status)}>
+                  {getSampleStatusLabel(order.status)}
                 </Tag>
-                <Tag color={sampleService.getPriorityBadgeColor(order.priority)}>
-                  {sampleService.getPriorityLabel(order.priority)}
+                <Tag color={getSamplePriorityColor(order.priority)}>
+                  {getSamplePriorityLabel(order.priority)}
                 </Tag>
               </Space>
             </div>
@@ -1031,7 +1064,7 @@ const SampleList: React.FC = () => {
             >
               {PRIORITY_OPTIONS.map((priority) => (
                 <Option key={priority} value={priority}>
-                  {sampleService.getPriorityLabel(priority)}
+                  {getSamplePriorityLabel(priority)}
                 </Option>
               ))}
             </Select>
@@ -1046,9 +1079,9 @@ const SampleList: React.FC = () => {
                 (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
-              {sampleOptions.customers.map((customer) => (
-                <Option key={customer} value={customer}>
-                  {customer}
+              {(creationMeta?.customers ?? []).map((customer) => (
+                <Option key={customer.id} value={customer.name}>
+                  {customer.name}
                 </Option>
               ))}
             </Select>

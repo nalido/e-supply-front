@@ -56,15 +56,15 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { arrayMove } from '@dnd-kit/sortable';
-import type { SampleOrder, SampleProcessStep, SampleQuantityMatrix } from '../../types/sample';
+import type { SampleProcessStep, SampleQuantityMatrix } from '../../types/sample';
 import type {
   SampleCreationAttachment,
   SampleCreationMeta,
-  SampleCreationPayload,
   StaffOption,
 } from '../../types/sample-create';
 import type { StyleData } from '../../types/style';
-import { sampleService } from '../../api/mock';
+import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
+import stylesApi from '../../api/styles';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -72,15 +72,16 @@ const { TextArea } = Input;
 interface SampleOrderFormModalProps {
   visible: boolean;
   onCancel: () => void;
-  onOk: (order: SampleOrder) => void;
+  onOk: () => void;
 }
 
 interface SampleOrderFormValues {
+  styleId?: string;
   styleCode: string;
   styleName: string;
   unit: string;
   orderNo?: string;
-  sampleType?: string;
+  sampleTypeId?: string;
   customerId?: string;
   patternPrice?: number;
   orderDate?: Dayjs;
@@ -105,6 +106,7 @@ type StyleListState = {
 };
 
 const generateId = () => `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const generateSampleNo = () => `SMP-${dayjs().format('YYYYMMDDHHmmss')}`;
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -343,7 +345,7 @@ const StyleSelectorDrawer: React.FC<{
     async (nextKeyword: string, page: number = 1) => {
       onStateChange((prev) => ({ ...prev, loading: true, keyword: nextKeyword, page }));
       try {
-        const result = await sampleService.searchStyles({
+        const result = await stylesApi.list({
           page,
           pageSize: state.pageSize,
           keyword: nextKeyword,
@@ -489,7 +491,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
     form.resetFields();
     form.setFieldsValue({
       unit: metaData.units[0],
-      sampleType: metaData.sampleTypes[0],
+      sampleTypeId: metaData.sampleTypes[0]?.id ? String(metaData.sampleTypes[0]?.id) : undefined,
       orderDate: dayjs(),
       deliveryDate: dayjs().add(7, 'day'),
     });
@@ -502,7 +504,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
     setInitializeLoading(true);
     void (async () => {
       try {
-        const metaData = await sampleService.getCreationMeta();
+        const metaData = await sampleOrderApi.getMeta();
         setMeta(metaData);
         resetForm(metaData);
       } catch (error) {
@@ -647,51 +649,77 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
         messageApi.error('请至少保留一个颜色和尺码');
         return;
       }
+      if (!values.styleId) {
+        messageApi.error('请选择款式');
+        return;
+      }
+      if (!values.customerId) {
+        messageApi.error('请选择客户');
+        return;
+      }
 
       setLoading(true);
 
-      const customer = meta.customers.find((item) => item.id === values.customerId);
-      const merchandiser = meta.merchandisers.find((item) => item.id === values.merchandiserId);
-      const patternMaker = meta.patternMakers.find((item) => item.id === values.patternMakerId);
-      const sampleSewer = meta.sampleSewers.find((item) => item.id === values.sampleSewerId);
+      const totalQuantity = sumMatrix(matrix);
+      const skus = colors.flatMap((color) =>
+        sizes.map((size) => ({
+          color,
+          size,
+          quantity: matrix[color]?.[size] ?? 0,
+        })),
+        ).filter((item) => item.quantity > 0);
 
-      const payload: SampleCreationPayload = {
-        styleCode: values.styleCode,
-        styleName: values.styleName,
-        orderNo: values.orderNo,
-        unit: values.unit,
-        sampleType: values.sampleType,
+      const baseAttachments = attachments.map((attachment, index) => ({
+        type: 'ATTACHMENT' as const,
+        url: attachment.url,
+        name: attachment.id,
+        fileType: 'image',
+        isMain: attachment.isMain,
+        sortOrder: index,
+      }));
+
+      const colorAttachments = colorImagesEnabled
+        ? colors
+            .map((color, index) => ({
+              type: 'COLOR_IMAGE' as const,
+              url: colorImageMap[color],
+              color,
+              sortOrder: index,
+            }))
+            .filter((asset) => Boolean(asset.url))
+        : [];
+
+      const payload: SampleOrderCreateInput = {
+        sampleNo: values.orderNo?.trim() || generateSampleNo(),
+        sampleTypeId: values.sampleTypeId,
         customerId: values.customerId,
-        customerName: customer?.name,
-        customer: customer?.name,
-        merchandiserId: values.merchandiserId,
-        merchandiser: merchandiser?.name,
-        patternMakerId: values.patternMakerId,
-        patternMaker: patternMaker?.name,
-        patternNo: values.patternNo,
-        sampleSewerId: values.sampleSewerId,
-        sampleSewer: sampleSewer?.name,
-        remarks: values.remarks,
+        styleId: values.styleId,
+        unit: values.unit,
+        quantity: totalQuantity,
         unitPrice: values.patternPrice,
-        patternPrice: values.patternPrice,
-        orderDate: values.orderDate?.startOf('day').toISOString(),
-        deliveryDate: values.deliveryDate?.startOf('day').toISOString(),
-        processes: processes.map((item, index) => ({ ...item, order: index + 1 })),
-        colors,
-        sizes,
-        quantityMatrix: matrix,
-        colorImagesEnabled,
-        colorImageMap,
-        attachments,
+        totalAmount: values.patternPrice && totalQuantity ? values.patternPrice * totalQuantity : undefined,
+        deadline: values.deliveryDate?.format('YYYY-MM-DD'),
+        expectedFinishDate: values.deliveryDate?.format('YYYY-MM-DD'),
+        orderDate: values.orderDate?.format('YYYY-MM-DD'),
+        merchandiserId: values.merchandiserId,
+        patternMakerId: values.patternMakerId,
+        sampleSewerId: values.sampleSewerId,
+        patternNo: values.patternNo,
+        remarks: values.remarks,
+        skus,
+        processes: processes.map((process, index) => ({
+          processCatalogId: process.id,
+          sequence: index + 1,
+          plannedDurationMinutes: process.defaultDuration,
+        })),
+        costs: [],
+        assets: [...baseAttachments, ...colorAttachments],
       };
 
-      const response = await sampleService.createSampleOrder(payload);
-      if (response.success) {
-        onOk(response.order);
-        handleClose();
-      } else {
-        messageApi.error(response.message || '创建失败，请稍后重试');
-      }
+      await sampleOrderApi.create(payload);
+      messageApi.success('样板单创建成功');
+      onOk();
+      handleClose();
     } catch (error) {
       const maybeValidation = error as { errorFields?: unknown };
       if (maybeValidation?.errorFields) {
@@ -709,6 +737,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     form.setFieldsValue({
+      styleId: style.id,
       styleCode: style.styleNo,
       styleName: style.styleName,
     });
@@ -873,6 +902,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                         <Input placeholder="请输入款名" />
                       </Form.Item>
                     </Col>
+                    <Form.Item name="styleId" hidden>
+                      <Input />
+                    </Form.Item>
                     <Col span={12}>
                       <Form.Item
                         name="unit"
@@ -892,11 +924,11 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                       </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="sampleType" label="板类">
+                      <Form.Item name="sampleTypeId" label="板类">
                         <Select
                           allowClear
                           placeholder="请选择板类"
-                          options={meta?.sampleTypes.map((item) => ({ label: item, value: item }))}
+                          options={meta?.sampleTypes.map((item) => ({ label: item.name, value: String(item.id) }))}
                         />
                       </Form.Item>
                     </Col>
@@ -907,7 +939,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                           showSearch
                           placeholder="请选择客户"
                           optionFilterProp="label"
-                          options={meta?.customers.map((item) => ({ label: item.name, value: item.id }))}
+                          options={meta?.customers.map((item) => ({ label: item.name, value: String(item.id) }))}
                         />
                       </Form.Item>
                     </Col>

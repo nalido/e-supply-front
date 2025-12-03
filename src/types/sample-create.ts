@@ -1,4 +1,10 @@
-import type { SampleOrder, SampleProcessOption, SampleProcessStep, SampleQuantityMatrix } from './sample';
+import type {
+  SampleOrder,
+  SampleProcessOption,
+  SampleProcessStep,
+  SampleQuantityMatrix,
+  SampleTypeItem,
+} from './sample';
 
 export interface StaffOption {
   id: string;
@@ -26,7 +32,7 @@ export interface SampleCreationAttachment {
 
 export interface SampleCreationMeta {
   units: string[];
-  sampleTypes: string[];
+  sampleTypes: SampleTypeItem[];
   customers: CustomerOption[];
   merchandisers: StaffOption[];
   patternMakers: StaffOption[];
