@@ -40,8 +40,7 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import type { Dayjs } from 'dayjs';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import {
   DndContext,
   KeyboardSensor,
@@ -65,7 +64,9 @@ import type {
 } from '../../types/sample-create';
 import type { StyleData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
+import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order';
 import stylesApi from '../../api/styles';
+import styleDetailApi from '../../api/style-detail';
 import storageApi from '../../api/storage';
 import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
@@ -75,8 +76,10 @@ const { TextArea } = Input;
 
 interface SampleOrderFormModalProps {
   visible: boolean;
+  mode?: 'create' | 'edit';
+  orderId?: string;
   onCancel: () => void;
-  onOk: () => void;
+  onOk: (result: { mode: 'create' | 'edit'; orderId?: string }) => void;
 }
 
 interface SampleOrderFormValues {
@@ -112,14 +115,6 @@ type StyleListState = {
 const generateId = () => `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const generateSampleNo = () => `SMP-${dayjs().format('YYYYMMDDHHmmss')}`;
 
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-
 const buildQuantityMatrix = (
   colors: string[],
   sizes: string[],
@@ -139,6 +134,63 @@ const sumMatrix = (matrix: SampleQuantityMatrix): number => {
     return grandTotal + Object.values(row).reduce((rowTotal, value) => rowTotal + Number(value || 0), 0);
   }, 0);
 };
+
+const COVER_SECTION_HEIGHT = 420;
+const FALLBACK_COLOR = '未指定颜色';
+const FALLBACK_SIZE = '均码';
+
+const deriveSkuStateFromDetail = (
+  skus?: SampleOrderDetailResponse['skus'],
+): { colors: string[]; sizes: string[]; matrix: SampleQuantityMatrix } => {
+  const colorSet = new Set<string>();
+  const sizeSet = new Set<string>();
+  const seed: SampleQuantityMatrix = {};
+  (skus ?? []).forEach((sku) => {
+    const color = sku.color || FALLBACK_COLOR;
+    const size = sku.size || FALLBACK_SIZE;
+    colorSet.add(color);
+    sizeSet.add(size);
+    if (!seed[color]) {
+      seed[color] = {};
+    }
+    seed[color][size] = (seed[color][size] ?? 0) + Number(sku.quantity ?? 0);
+  });
+  const colors = Array.from(colorSet);
+  const sizes = Array.from(sizeSet);
+  return {
+    colors,
+    sizes,
+    matrix: colors.length && sizes.length ? buildQuantityMatrix(colors, sizes, seed) : {},
+  };
+};
+
+const mapAttachmentsFromDetail = (
+  assets?: SampleOrderDetailResponse['attachments'],
+): SampleCreationAttachment[] => {
+  const attachments = (assets ?? []).map((asset) => ({
+    id: String(asset.id ?? `${asset.url}-${Math.random().toString(36).slice(2, 8)}`),
+    url: asset.url,
+    isMain: Boolean(asset.isMain),
+    createdAt: new Date().toISOString(),
+  }));
+  if (attachments.length > 0 && !attachments.some((item) => item.isMain)) {
+    attachments[0].isMain = true;
+  }
+  return attachments;
+};
+
+const mapColorImagesFromDetail = (
+  colorImages?: SampleOrderDetailResponse['colorImages'],
+): Record<string, string | undefined> => {
+  return (colorImages ?? []).reduce<Record<string, string | undefined>>((acc, asset) => {
+    if (asset.color) {
+      acc[asset.color] = asset.url;
+    }
+    return acc;
+  }, {});
+};
+
+const toDayjsValue = (value?: string | null) => (value ? dayjs(value) : undefined);
 
 const ProcessListItem: React.FC<{
   process: SampleProcessStep;
@@ -456,9 +508,16 @@ const StyleSelectorDrawer: React.FC<{
   );
 };
 
-const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, onCancel, onOk }) => {
+const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
+  visible,
+  mode = 'create',
+  orderId,
+  onCancel,
+  onOk,
+}) => {
   const [form] = Form.useForm<SampleOrderFormValues>();
   const [messageApi, messageContextHolder] = message.useMessage();
+  const isEditMode = mode === 'edit';
   const [meta, setMeta] = useState<SampleCreationMeta>();
   const [loading, setLoading] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
@@ -482,23 +541,62 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
   const [customProcessVisible, setCustomProcessVisible] = useState(false);
   const [customProcessForm] = Form.useForm();
 
-  const resetForm = useCallback((metaData: SampleCreationMeta) => {
-    const defaultColors = metaData.colorPresets.slice(0, 2);
-    const defaultSizes = metaData.sizePresets.slice(0, 4);
-    setColors(defaultColors);
-    setSizes(defaultSizes);
-    const initialMatrix = buildQuantityMatrix(defaultColors, defaultSizes);
-    setMatrix(initialMatrix);
+  const resetForm = useCallback(() => {
+    setColors([]);
+    setSizes([]);
+    setMatrix({});
     setColorImagesEnabled(false);
     setColorImageMap({});
     setAttachments([]);
-    setProcesses(metaData.defaultProcesses.map((item, index) => ({ ...item, order: index + 1 })));
+    setProcesses([]);
     form.resetFields();
+  }, [form]);
+
+  const hydrateFormFromDetail = useCallback((metaData: SampleCreationMeta, detail: SampleOrderDetailResponse) => {
+    const skuState = deriveSkuStateFromDetail(detail.skus);
+    const fallbackColors = skuState.colors.length > 0 ? skuState.colors : metaData.colorPresets.slice(0, 2);
+    const fallbackSizes = skuState.sizes.length > 0 ? skuState.sizes : metaData.sizePresets.slice(0, 4);
+    setColors(fallbackColors);
+    setSizes(fallbackSizes);
+    const nextMatrix = skuState.colors.length > 0 && skuState.sizes.length > 0
+      ? skuState.matrix
+      : buildQuantityMatrix(fallbackColors, fallbackSizes);
+    setMatrix(nextMatrix);
+
+    const attachmentList = mapAttachmentsFromDetail(detail.attachments);
+    setAttachments(attachmentList);
+
+    const processesFromDetail: SampleProcessStep[] = (detail.processes ?? []).map((process, index) => ({
+      id: process.processCatalogId ? String(process.processCatalogId) : `custom-${process.id ?? index}`,
+      name: process.processCatalogName || `工序${index + 1}`,
+      order: process.sequence ?? index + 1,
+      defaultDuration: process.plannedDurationMinutes ?? undefined,
+      custom: !process.processCatalogId,
+    }));
+    setProcesses(processesFromDetail.length > 0
+      ? processesFromDetail
+      : metaData.defaultProcesses.map((item, index) => ({ ...item, order: index + 1 })));
+
+    const nextColorImageMap = mapColorImagesFromDetail(detail.colorImages);
+    setColorImageMap(nextColorImageMap);
+    setColorImagesEnabled(Object.keys(nextColorImageMap).length > 0);
+
     form.setFieldsValue({
-      unit: metaData.units[0],
-      sampleTypeId: metaData.sampleTypes[0]?.id ? String(metaData.sampleTypes[0]?.id) : undefined,
-      orderDate: dayjs(),
-      deliveryDate: dayjs().add(7, 'day'),
+      styleId: detail.styleId ? String(detail.styleId) : undefined,
+      styleCode: detail.styleNo ?? '',
+      styleName: detail.styleName ?? '',
+      unit: detail.unit || metaData.units[0],
+      orderNo: detail.sampleNo,
+      sampleTypeId: detail.sampleTypeId ? String(detail.sampleTypeId) : undefined,
+      customerId: detail.customerId ? String(detail.customerId) : undefined,
+      patternPrice: detail.unitPrice ?? undefined,
+      orderDate: toDayjsValue(detail.orderDate),
+      deliveryDate: toDayjsValue(detail.deadline),
+      merchandiserId: detail.merchandiserId ? String(detail.merchandiserId) : undefined,
+      patternMakerId: detail.patternMakerId ? String(detail.patternMakerId) : undefined,
+      patternNo: detail.patternNo,
+      sampleSewerId: detail.sampleSewerId ? String(detail.sampleSewerId) : undefined,
+      remarks: detail.remarks,
     });
   }, [form]);
 
@@ -506,20 +604,57 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
     if (!visible) {
       return;
     }
+    let cancelled = false;
     setInitializeLoading(true);
     void (async () => {
       try {
         const metaData = await sampleOrderApi.getMeta();
+        if (cancelled) {
+          return;
+        }
         setMeta(metaData);
-        resetForm(metaData);
+        if (isEditMode) {
+          if (!orderId) {
+            messageApi.error('缺少样板单 ID，无法编辑');
+            onCancel();
+            return;
+          }
+          try {
+            const detailData = await sampleOrderApi.detailRaw(orderId);
+            if (cancelled) {
+              return;
+            }
+            hydrateFormFromDetail(metaData, detailData);
+          } catch (detailError) {
+            console.error(detailError);
+            const rawMessage = detailError instanceof Error ? detailError.message : '';
+            if (rawMessage.includes('Mock')) {
+              messageApi.error('当前为 Mock 数据模式，暂不支持编辑样板单');
+            } else {
+              messageApi.error('加载样板单详情失败，请稍后重试');
+            }
+            onCancel();
+            return;
+          }
+        } else {
+          resetForm();
+        }
       } catch (error) {
         console.error(error);
         messageApi.error('加载样板单创建配置失败，请稍后重试');
+        if (isEditMode) {
+          onCancel();
+        }
       } finally {
-        setInitializeLoading(false);
+        if (!cancelled) {
+          setInitializeLoading(false);
+        }
       }
     })();
-  }, [visible, resetForm, messageApi]);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel]);
 
   const handleClose = useCallback(() => {
     onCancel();
@@ -726,7 +861,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
           size,
           quantity: matrix[color]?.[size] ?? 0,
         })),
-        ).filter((item) => item.quantity > 0);
+      ).filter((item) => item.quantity > 0);
 
       const baseAttachments = attachments.map((attachment, index) => ({
         type: 'ATTACHMENT' as const,
@@ -739,13 +874,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
 
       const colorAttachments = colorImagesEnabled
         ? colors
-            .map((color, index) => ({
-              type: 'COLOR_IMAGE' as const,
-              url: colorImageMap[color],
-              color,
-              sortOrder: index,
-            }))
-            .filter((asset) => Boolean(asset.url))
+          .map((color, index) => ({
+            type: 'COLOR_IMAGE' as const,
+            url: colorImageMap[color],
+            color,
+            sortOrder: index,
+          }))
+          .filter((asset) => Boolean(asset.url))
         : [];
 
       const payload: SampleOrderCreateInput = {
@@ -775,9 +910,19 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
         assets: [...baseAttachments, ...colorAttachments],
       };
 
-      await sampleOrderApi.create(payload);
-      messageApi.success('样板单创建成功');
-      onOk();
+      if (isEditMode) {
+        if (!orderId) {
+          messageApi.error('缺少样板单 ID，无法保存');
+          return;
+        }
+        await sampleOrderApi.update(orderId, payload);
+        messageApi.success('样板单更新成功');
+        onOk({ mode: 'edit', orderId });
+      } else {
+        await sampleOrderApi.create(payload);
+        messageApi.success('样板单创建成功');
+        onOk({ mode: 'create' });
+      }
       handleClose();
     } catch (error) {
       const maybeValidation = error as { errorFields?: unknown };
@@ -785,17 +930,17 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
         messageApi.error('请完善必填信息');
       } else if (axios.isAxiosError(error)) {
         // 全局错误提醒组件会统一提示
-        console.warn('创建样板单失败', error.response?.data ?? error.message);
+        console.warn(isEditMode ? '更新样板单失败' : '创建样板单失败', error.response?.data ?? error.message);
       } else {
         if (error instanceof Error) {
           console.error(error);
         }
-        messageApi.error('创建失败，请稍后重试');
+        messageApi.error(isEditMode ? '更新失败，请稍后重试' : '创建失败，请稍后重试');
       }
     } finally {
       setLoading(false);
     }
-  }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi]);
+  }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     form.setFieldsValue({
@@ -803,17 +948,35 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
       styleCode: style.styleNo,
       styleName: style.styleName,
     });
-    if (style.colors?.length) {
-      handleColorsUpdate(style.colors);
-    }
-    if (style.sizes?.length) {
-      handleSizesUpdate(style.sizes);
-    }
+    handleColorsUpdate(style.colors?.length ? style.colors : []);
+    handleSizesUpdate(style.sizes?.length ? style.sizes : []);
+    setColorImageMap({});
+    setColorImagesEnabled(false);
     if (style.image) {
       appendAttachment(style.image);
     }
     setStyleState((prev) => ({ ...prev, open: false }));
-  }, [appendAttachment, form, handleColorsUpdate, handleSizesUpdate]);
+    if (!style.id) {
+      return;
+    }
+    void (async () => {
+      try {
+        const detail = await styleDetailApi.fetchDetail(style.id);
+        if (detail.colors?.length) {
+          handleColorsUpdate(detail.colors);
+        }
+        if (detail.sizes?.length) {
+          handleSizesUpdate(detail.sizes);
+        }
+        const images = detail.colorImages ?? {};
+        setColorImageMap(images);
+        setColorImagesEnabled(Object.values(images).some((value) => Boolean(value)));
+      } catch (error) {
+        console.error('加载颜色图片失败', error);
+        messageApi.warning('加载颜色图片失败，请稍后重试');
+      }
+    })();
+  }, [appendAttachment, form, handleColorsUpdate, handleSizesUpdate, messageApi]);
 
   const handleCustomProcessOk = useCallback(async () => {
     try {
@@ -836,24 +999,24 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
     }
   }, [customProcessForm, processes.length, addProcess]);
 
-  const handleColorImageUpload = useCallback(async (color: string, file: File) => {
-    const base64 = await fileToBase64(file);
-    setColorImageMap((prev) => ({ ...prev, [color]: base64 }));
-    return false;
-  }, []);
-
   if (!visible) {
     return null;
   }
+
+  const styleSelectTrigger = !isEditMode ? (
+    <Button type="link" onClick={() => setStyleState((prev) => ({ ...prev, open: true }))}>选择</Button>
+  ) : (
+    <Button type="link" disabled>选择</Button>
+  );
 
   return (
     <>
       {messageContextHolder}
       <Modal
         open={visible}
-        title="新建样板单"
+        title={isEditMode ? '编辑样板单' : '新建样板单'}
         width={1080}
-        okText="确定"
+        okText={isEditMode ? '保存' : '确定'}
         cancelText="取消"
         confirmLoading={loading}
         onCancel={handleClose}
@@ -867,8 +1030,10 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
               <Divider orientation="left">核心信息</Divider>
               <Row gutter={16}>
                 <Col span={8}>
-                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    <div className="sample-order-cover-card">
+                    <div className="sample-order-cover-card" style={{ 
+                      minHeight: COVER_SECTION_HEIGHT,
+                      height: "100%",
+                      }}>
                       <div className="sample-order-cover-title">样板主图</div>
                       <div className="sample-order-cover-item">
                         <ImageUploader
@@ -882,82 +1047,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                         该图片将作为列表主图展示，可上传或替换为高清图，右键其他图片可重新设为主图
                       </Text>
                     </div>
-                    <div
-                      style={{
-                        position: 'relative',
-                        border: '1px dashed #d9d9d9',
-                        borderRadius: 12,
-                        padding: 16,
-                        background: '#fafafa',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 12,
-                      }}
-                      onPaste={handleImagePaste}
-                      role="presentation"
-                    >
-                      <Space direction="vertical" size={4}>
-                        <Text strong>附加图片</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>支持拖拽、粘贴或批量上传，右键管理主图</Text>
-                      </Space>
-                      {attachments.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                          <InboxOutlined style={{ fontSize: 32, color: '#bfbfbf', marginBottom: 8 }} />
-                          <Text type="secondary">暂未上传图片</Text>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                          {attachments.map((item) => (
-                            <Dropdown
-                              key={item.id}
-                              trigger={['contextMenu']}
-                              menu={{
-                                items: [
-                                  {
-                                    key: 'main',
-                                    label: '设为主图',
-                                    onClick: () => setAttachmentAsMain(item.id),
-                                  },
-                                  {
-                                    key: 'remove',
-                                    label: '移除',
-                                    danger: true,
-                                    onClick: () => handleAttachmentRemove(item.id),
-                                  },
-                                ],
-                              }}
-                            >
-                              <div
-                                style={{
-                                  position: 'relative',
-                                  width: 96,
-                                  height: 96,
-                                  borderRadius: 8,
-                                  overflow: 'hidden',
-                                  border: item.isMain ? '2px solid #1677ff' : '1px solid #f0f0f0',
-                                  boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                                  background: '#fff',
-                                }}
-                              >
-                                <img src={item.url} alt="样板图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                {item.isMain ? (
-                                  <Tag color="processing" style={{ position: 'absolute', top: 8, left: 8 }}>
-                                    主图
-                                  </Tag>
-                                ) : null}
-                              </div>
-                            </Dropdown>
-                          ))}
-                        </div>
-                      )}
-                      <Upload {...uploadProps}>
-                        <Button type="dashed" block icon={<PlusOutlined />}>上传图片</Button>
-                      </Upload>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        支持鼠标拖拽、文件上传或 Ctrl + V 粘贴图片
-                      </Text>
-                    </div>
-                  </Space>
                 </Col>
                 <Col span={16}>
                   <Row gutter={16}>
@@ -969,7 +1058,8 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                       >
                         <Input
                           placeholder="请输入款号"
-                          addonAfter={<Button type="link" onClick={() => setStyleState((prev) => ({ ...prev, open: true }))}>选择</Button>}
+                          disabled={isEditMode}
+                          addonAfter={styleSelectTrigger}
                         />
                       </Form.Item>
                     </Col>
@@ -979,7 +1069,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                         label="款名"
                         rules={[{ required: true, message: '请输入款名' }]}
                       >
-                        <Input placeholder="请输入款名" />
+                        <Input placeholder="请输入款名" disabled={isEditMode} />
                       </Form.Item>
                     </Col>
                     <Form.Item name="styleId" hidden>
@@ -1000,7 +1090,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                     </Col>
                     <Col span={12}>
                       <Form.Item name="orderNo" label="样板单号">
-                        <Input placeholder="留空时自动生成" />
+                        <Input placeholder="留空时自动生成" disabled={isEditMode} />
                       </Form.Item>
                     </Col>
                     <Col span={12}>
@@ -1022,6 +1112,83 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                           options={meta?.customers.map((item) => ({ label: item.name, value: String(item.id) }))}
                         />
                       </Form.Item>
+                    </Col>
+                    <Col span={24}>
+                      <div
+                        style={{
+                          position: 'relative',
+                          border: '1px dashed #d9d9d9',
+                          borderRadius: 12,
+                          padding: 16,
+                          background: '#fafafa',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 12,
+                        }}
+                        onPaste={handleImagePaste}
+                        role="presentation"
+                      >
+                        <Space direction="vertical" size={4}>
+                          <Text strong>附加图片</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>支持拖拽、粘贴或批量上传，右键管理主图</Text>
+                        </Space>
+                        {attachments.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                            <InboxOutlined style={{ fontSize: 32, color: '#bfbfbf', marginBottom: 8 }} />
+                            <Text type="secondary">暂未上传图片</Text>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                            {attachments.map((item) => (
+                              <Dropdown
+                                key={item.id}
+                                trigger={['contextMenu']}
+                                menu={{
+                                  items: [
+                                    {
+                                      key: 'main',
+                                      label: '设为主图',
+                                      onClick: () => setAttachmentAsMain(item.id),
+                                    },
+                                    {
+                                      key: 'remove',
+                                      label: '移除',
+                                      danger: true,
+                                      onClick: () => handleAttachmentRemove(item.id),
+                                    },
+                                  ],
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    position: 'relative',
+                                    width: 96,
+                                    height: 96,
+                                    borderRadius: 8,
+                                    overflow: 'hidden',
+                                    border: item.isMain ? '2px solid #1677ff' : '1px solid #f0f0f0',
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                                    background: '#fff',
+                                  }}
+                                >
+                                  <img src={item.url} alt="样板图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  {item.isMain ? (
+                                    <Tag color="processing" style={{ position: 'absolute', top: 8, left: 8 }}>
+                                      主图
+                                    </Tag>
+                                  ) : null}
+                                </div>
+                              </Dropdown>
+                            ))}
+                          </div>
+                        )}
+                        <Upload {...uploadProps}>
+                          <Button type="dashed" block icon={<PlusOutlined />}>上传图片</Button>
+                        </Upload>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          支持鼠标拖拽、文件上传或 Ctrl + V 粘贴图片
+                        </Text>
+                      </div>
                     </Col>
                   </Row>
                 </Col>
@@ -1133,36 +1300,36 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({ visible, on
                   </Form.Item>
                 </Col>
                 <Col span={24}>
-                  <Space align="center" size={12}>
+                  <Space align="start" size={12}>
                     <Switch checked={colorImagesEnabled} onChange={setColorImagesEnabled} />
-                    <Text>颜色图片</Text>
-                    <Text type="secondary">开启后可为每个颜色上传配图</Text>
+                    <Space direction="vertical" size={0}>
+                      <Text>颜色图片</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>开关仅控制显示，图片来自款式基础资料</Text>
+                    </Space>
                   </Space>
                 </Col>
                 {colorImagesEnabled ? (
                   <Col span={24}>
                     <Space wrap size={16} style={{ marginTop: 12 }}>
-                      {colors.map((color) => (
-                        <Card key={color} size="small" style={{ width: 180 }}>
-                          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                            <Text strong>{color}</Text>
-                            {colorImageMap[color] ? (
-                              <img src={colorImageMap[color]} alt={color} style={{ width: '100%', height: 120, objectFit: 'cover' }} />
-                            ) : (
-                              <div style={{ width: '100%', height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
-                                <PictureOutlined style={{ fontSize: 36, color: '#bfbfbf' }} />
-                              </div>
-                            )}
-                            <Upload
-                              showUploadList={false}
-                              accept="image/*"
-                              beforeUpload={(file) => handleColorImageUpload(color, file)}
-                            >
-                              <Button block icon={<PlusOutlined />}>上传</Button>
-                            </Upload>
-                          </Space>
-                        </Card>
-                      ))}
+                      {colors.map((color) => {
+                        const image = colorImageMap[color];
+                        return (
+                          <Card key={color} size="small" style={{ width: 200 }}>
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                              <Text strong>{color}</Text>
+                              {image ? (
+                                <img src={image} alt={color} style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 4 }} />
+                              ) : (
+                                <div style={{ width: '100%', height: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: 4 }}>
+                                  <PictureOutlined style={{ fontSize: 36, color: '#bfbfbf' }} />
+                                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>暂无图片</Text>
+                                </div>
+                              )}
+                              <Text type="secondary" style={{ fontSize: 12 }}>如需调整请到款式资料维护</Text>
+                            </Space>
+                          </Card>
+                        );
+                      })}
                     </Space>
                   </Col>
                 ) : null}

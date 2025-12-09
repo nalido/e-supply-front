@@ -37,6 +37,8 @@ import type {
   SampleProcessItem,
 } from '../types/sample-detail';
 import sampleOrderApi from '../api/sample-order';
+import { apiConfig } from '../api/config';
+import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import DonutChart from '../components/charts/DonutChart';
 
 const { Title, Text } = Typography;
@@ -62,26 +64,34 @@ const SampleDetail = () => {
   const [loading, setLoading] = useState(true);
   const [costRefreshing, setCostRefreshing] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState('bom');
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  const isMockMode = apiConfig.useMock;
 
   const sampleId = searchParams.get('id') ?? '';
 
-  useEffect(() => {
-    const loadDetail = async () => {
-      setLoading(true);
-      try {
-        const payload = await sampleOrderApi.detail(sampleId);
-        setDetail(payload);
-      } catch (error) {
-        console.error('Failed to load sample detail', error);
-        message.error('加载样板单详情失败，请稍后重试');
-        setDetail(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDetail();
+  const loadDetail = useCallback(async () => {
+    if (!sampleId) {
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const payload = await sampleOrderApi.detail(sampleId);
+      setDetail(payload);
+    } catch (error) {
+      console.error('Failed to load sample detail', error);
+      message.error('加载样板单详情失败，请稍后重试');
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
   }, [sampleId]);
+
+  useEffect(() => {
+    void loadDetail();
+  }, [loadDetail]);
 
   const handleScrollTo = useCallback((section: SectionKey) => {
     const tabSections = new Set<SectionKey>(['bom', 'process', 'size', 'other', 'attachments']);
@@ -101,9 +111,21 @@ const SampleDetail = () => {
     }, tabSections.has(section) ? 120 : 0);
   }, []);
 
+  const openEditModal = useCallback(() => {
+    if (!sampleId) {
+      message.warning('缺少样板单 ID，无法编辑');
+      return;
+    }
+    if (isMockMode) {
+      message.info('当前为 Mock 数据，暂不支持编辑');
+      return;
+    }
+    setEditModalVisible(true);
+  }, [isMockMode, sampleId]);
+
   const handleEdit = useCallback(() => {
-        message.info('编辑功能即将开放');
-  }, []);
+    openEditModal();
+  }, [openEditModal]);
 
   const handleRefreshCost = useCallback(() => {
     setCostRefreshing(true);
@@ -114,7 +136,19 @@ const SampleDetail = () => {
   }, []);
 
   const handleUploadAttachment = useCallback(() => {
-    message.info('上传附件功能即将开放');
+    setActiveDetailTab('attachments');
+    openEditModal();
+  }, [openEditModal]);
+
+  const handleEditModalOk = useCallback((
+    _result: { mode: 'create' | 'edit'; orderId?: string },
+  ) => {
+    setEditModalVisible(false);
+    void loadDetail();
+  }, [loadDetail]);
+
+  const handleEditModalCancel = useCallback(() => {
+    setEditModalVisible(false);
   }, []);
 
   const quantityColumns = useMemo<ColumnsType<{ key: string; color: string; subtotal: number }>>(() => {
@@ -631,6 +665,14 @@ const SampleDetail = () => {
           </Card>
         </Affix>
       )}
+
+      <SampleOrderFormModal
+        visible={editModalVisible}
+        mode="edit"
+        orderId={sampleId || undefined}
+        onCancel={handleEditModalCancel}
+        onOk={handleEditModalOk}
+      />
     </div>
   );
 };

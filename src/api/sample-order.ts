@@ -215,6 +215,16 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
   })),
 });
 
+const fetchBackendSampleDetail = async (
+  tenantId: string,
+  id: string,
+): Promise<SampleOrderDetailResponse> => {
+  const { data } = await http.get<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}`,
+    { params: { tenantId } },
+  );
+  return data;
+};
+
 const toMockCreationPayload = (payload: SampleOrderCreateInput): SampleCreationPayload => {
   const colors = Array.from(new Set(payload.skus?.map((sku) => sku.color || '默认颜色') ?? ['默认颜色']));
   const sizes = Array.from(new Set(payload.skus?.map((sku) => sku.size || '均码') ?? ['均码']));
@@ -325,10 +335,16 @@ export const sampleOrderApi = {
       return sampleService.getSampleDetail(id);
     }
     const tenantId = ensureTenantId();
-    const { data } = await http.get<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}`,
-      { params: { tenantId } },
-    );
+    const data = await fetchBackendSampleDetail(tenantId, id);
     return adaptSampleOrderDetail(data);
+  },
+
+  async detailRaw(id: string): Promise<SampleOrderDetailResponse> {
+    if (apiConfig.useMock) {
+      throw new Error('当前处于 Mock 模式，无法获取样板单原始详情');
+    }
+    const tenantId = ensureTenantId();
+    return fetchBackendSampleDetail(tenantId, id);
   },
 
   async create(payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
@@ -342,6 +358,16 @@ export const sampleOrderApi = {
     const tenantId = ensureTenantId();
     const body = buildCreateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>('/api/v1/sample-orders', body);
+    return adaptSampleOrderDetail(data);
+  },
+
+  async update(id: string, payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
+    if (apiConfig.useMock) {
+      throw new Error('Mock 模式暂不支持编辑样板单');
+    }
+    const tenantId = ensureTenantId();
+    const body = buildCreateRequest(tenantId, payload);
+    const { data } = await http.post<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}/update`, body);
     return adaptSampleOrderDetail(data);
   },
 

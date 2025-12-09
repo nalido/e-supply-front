@@ -26,7 +26,7 @@ import {
   ExportOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 
 import type { SampleOrder, SampleStats, SampleStatus, SampleQueryParams } from '../types/sample';
 import { sampleService } from '../api/mock';
@@ -45,7 +45,7 @@ type SampleFollowFilters = {
   status?: SampleStatus;
   customer?: string;
   priority?: SampleOrder['priority'];
-  dateRange?: [dayjs.Dayjs, dayjs.Dayjs];
+  dateRange?: [Dayjs, Dayjs];
 };
 
 const SampleFollow: React.FC = () => {

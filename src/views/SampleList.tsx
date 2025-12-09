@@ -38,8 +38,7 @@ import {
   ShoppingCartOutlined,
   TableOutlined,
 } from '@ant-design/icons';
-import type { Dayjs } from 'dayjs';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import sampleOrderApi from '../api/sample-order';
@@ -642,8 +641,9 @@ const SampleList: React.FC = () => {
     setIsModalVisible(true);
   }, []);
 
-  const handleModalOk = useCallback(() => {
-    message.success('样板单创建成功');
+  const handleModalOk = useCallback((
+    _result: { mode: 'create' | 'edit'; orderId?: string },
+  ) => {
     setIsModalVisible(false);
     void loadData();
     void loadStats();
@@ -1176,6 +1176,7 @@ const SampleList: React.FC = () => {
 
       <SampleOrderFormModal
         visible={isModalVisible}
+        mode="create"
         onOk={handleModalOk}
         onCancel={handleModalCancel}
       />
