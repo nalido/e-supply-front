@@ -66,3 +66,99 @@
   box-shadow: 0 0 0 2px rgba(64, 150, 255, 0.35);
   background-color: rgba(64, 150, 255, 0.08);
 }
+
+.sample-order-material-list {
+  width: 100%;
+}
+
+.sample-order-material-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sample-order-material-info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
+.sample-order-material-info img,
+.sample-order-material-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #f5f5f5;
+  flex-shrink: 0;
+}
+
+.sample-order-material-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sample-order-material-name {
+  font-size: 15px;
+  word-break: break-word;
+}
+
+.sample-order-material-meta {
+  font-size: 12px !important;
+  color: #86909c !important;
+  word-break: break-word;
+}
+
+.sample-order-material-fields {
+  flex: 2 1 320px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sample-order-material-field {
+  flex: 1 1 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sample-order-material-field--remark {
+  flex-basis: 240px;
+}
+
+.sample-order-material-input-with-addon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sample-order-material-addon {
+  font-size: 13px;
+  color: #86909c;
+}
+
+.sample-order-material-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .sample-order-material-info {
+    flex-basis: 100%;
+  }
+
+  .sample-order-material-fields {
+    flex-basis: 100%;
+  }
+}

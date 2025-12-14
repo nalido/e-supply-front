@@ -26,7 +26,6 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tag,
   Typography,
   Upload,
@@ -34,7 +33,6 @@ import {
 } from 'antd';
 import type { UploadProps } from 'antd/es/upload/interface';
 import type { MessageInstance } from 'antd/es/message/interface';
-import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
   HolderOutlined,
@@ -781,80 +779,72 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setOtherCosts((prev) => prev.filter((item) => item.uid !== uid));
   }, []);
 
-  const bomColumns = useMemo<ColumnsType<BomEntry>>(() => [
-    {
-      title: '物料信息',
-      key: 'material',
-      render: (_value, record) => (
-        <Space align="center" size={12}>
-          {record.imageUrl ? (
-            <img
-              src={record.imageUrl}
-              alt={record.name}
-              style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }}
-            />
-          ) : (
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f5f5f5' }} />
-          )}
-          <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
-            <Text strong>{record.name}</Text>
-            <Text type="secondary">{record.sku}</Text>
-            <Text type="secondary">
-              单位：{record.unit}
-              {record.unitPrice !== undefined ? ` · 单价 ¥${record.unitPrice.toFixed(2)}` : ''}
-            </Text>
-          </Space>
-        </Space>
-      ),
-    },
-    {
-      title: '单耗',
-      dataIndex: 'consumption',
-      width: 140,
-      render: (_value, record) => (
-        <InputNumber
-          min={0}
-          precision={2}
-          value={record.consumption}
-          onChange={(val) => handleBomFieldChange(record.uid, { consumption: Number(val ?? 0) })}
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: '损耗(%)',
-      dataIndex: 'lossRate',
-      width: 140,
-      render: (_value, record) => (
-        <InputNumber
-          min={0}
-          precision={2}
-          value={record.lossRate}
-          onChange={(val) => handleBomFieldChange(record.uid, { lossRate: Number(val ?? 0) })}
-          style={{ width: '100%' }}
-        />
-      ),
-    },
-    {
-      title: '备注',
-      dataIndex: 'remark',
-      render: (_value, record) => (
-        <Input
-          value={record.remark}
-          placeholder="备注"
-          onChange={(event) => handleBomFieldChange(record.uid, { remark: event.target.value })}
-        />
-      ),
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 80,
-      render: (_value, record) => (
-        <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleBomRemove(record.uid)} />
-      ),
-    },
-  ], [handleBomFieldChange, handleBomRemove]);
+  const renderBomList = useCallback((entries: BomEntry[], emptyText: string) => {
+    if (entries.length === 0) {
+      return <Empty description={emptyText} style={{ margin: '12px 0' }} />;
+    }
+    return (
+      <Space direction="vertical" size={12} className="sample-order-material-list">
+        {entries.map((record) => (
+          <div key={record.uid} className="sample-order-material-item">
+            <div className="sample-order-material-info">
+              {record.imageUrl ? (
+                <img src={record.imageUrl} alt={record.name} />
+              ) : (
+                <div className="sample-order-material-placeholder" />
+              )}
+              <div className="sample-order-material-text">
+                <Text strong className="sample-order-material-name">
+                  {record.name || '未命名物料'}
+                </Text>
+                <Text type="secondary" className="sample-order-material-meta">
+                  {[record.sku, record.unit ? `单位：${record.unit}` : null, record.unitPrice !== undefined ? `单价 ¥${record.unitPrice.toFixed(2)}` : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </div>
+            </div>
+            <div className="sample-order-material-fields">
+              <div className="sample-order-material-field">
+                <Text type="secondary">单耗</Text>
+                <InputNumber
+                  min={0}
+                  precision={2}
+                  value={record.consumption}
+                  style={{ width: '100%' }}
+                  onChange={(value) => handleBomFieldChange(record.uid, { consumption: Number(value ?? 0) })}
+                />
+              </div>
+              <div className="sample-order-material-field">
+                <Text type="secondary">损耗(%)</Text>
+                <div className="sample-order-material-input-with-addon">
+                  <InputNumber
+                    min={0}
+                    precision={2}
+                    value={record.lossRate}
+                    style={{ width: '100%' }}
+                    onChange={(value) => handleBomFieldChange(record.uid, { lossRate: Number(value ?? 0) })}
+                  />
+                  <span className="sample-order-material-addon">%</span>
+                </div>
+              </div>
+              <div className="sample-order-material-field sample-order-material-field--remark">
+                <Text type="secondary">备注</Text>
+                <Input
+                  value={record.remark}
+                  placeholder="备注"
+                  onChange={(event) => handleBomFieldChange(record.uid, { remark: event.target.value })}
+                />
+              </div>
+            </div>
+            <div className="sample-order-material-actions">
+              <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleBomRemove(record.uid)} />
+            </div>
+          </div>
+        ))}
+      </Space>
+    );
+  }, [handleBomFieldChange, handleBomRemove]);
 
   const registerSection = useCallback((section: SampleOrderFormSection) => (
     node: HTMLDivElement | null,
@@ -1647,14 +1637,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       title="面料"
                       extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleMaterialPickerOpen('fabric')}>选择面料</Button>}
                     >
-                      <Table
-                        size="small"
-                        pagination={false}
-                        rowKey="uid"
-                        columns={bomColumns}
-                        dataSource={fabricBomItems}
-                        locale={{ emptyText: '暂未选择面料' }}
-                      />
+                      {renderBomList(fabricBomItems, '暂未选择面料')}
                     </Card>
                   </Col>
                   <Col span={24} lg={12}>
@@ -1663,14 +1646,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       title="辅料/包材"
                       extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleMaterialPickerOpen('accessory')}>选择辅料</Button>}
                     >
-                      <Table
-                        size="small"
-                        pagination={false}
-                        rowKey="uid"
-                        columns={bomColumns}
-                        dataSource={accessoryBomItems}
-                        locale={{ emptyText: '暂未选择辅料' }}
-                      />
+                      {renderBomList(accessoryBomItems, '暂未选择辅料')}
                     </Card>
                   </Col>
                 </Row>
