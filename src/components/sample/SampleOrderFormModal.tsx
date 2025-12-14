@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import axios from 'axios';
@@ -25,6 +26,7 @@ import {
   Space,
   Spin,
   Switch,
+  Table,
   Tag,
   Typography,
   Upload,
@@ -32,6 +34,7 @@ import {
 } from 'antd';
 import type { UploadProps } from 'antd/es/upload/interface';
 import type { MessageInstance } from 'antd/es/message/interface';
+import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
   HolderOutlined,
@@ -65,11 +68,13 @@ import type {
 import type { StyleData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
 import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order';
+import materialApi from '../../api/material';
 import stylesApi from '../../api/styles';
 import styleDetailApi from '../../api/style-detail';
 import storageApi from '../../api/storage';
 import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
+import type { MaterialItem, MaterialBasicType } from '../../types/material';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -80,6 +85,7 @@ interface SampleOrderFormModalProps {
   orderId?: string;
   onCancel: () => void;
   onOk: (result: { mode: 'create' | 'edit'; orderId?: string }) => void;
+  initialSection?: SampleOrderFormSection;
 }
 
 interface SampleOrderFormValues {
@@ -101,6 +107,37 @@ interface SampleOrderFormValues {
 }
 
 type StaffRole = 'merchandiser' | 'patternMaker' | 'sampleSewer';
+
+type BomEntry = {
+  uid: string;
+  materialId?: string;
+  materialType: MaterialBasicType;
+  name: string;
+  sku: string;
+  unit: string;
+  imageUrl?: string;
+  consumption: number;
+  lossRate: number;
+  unitPrice?: number;
+  remark?: string;
+};
+
+type OtherCostEntry = {
+  uid: string;
+  costType: string;
+  amount: number;
+};
+
+export type SampleOrderFormSection =
+  | 'core'
+  | 'attachments'
+  | 'attributes'
+  | 'process'
+  | 'materials'
+  | 'otherCosts'
+  | 'skuDefinitions'
+  | 'skuMatrix'
+  | 'sizeChart';
 
 type StyleListState = {
   open: boolean;
@@ -508,12 +545,134 @@ const StyleSelectorDrawer: React.FC<{
   );
 };
 
+const MaterialSelectorDrawer: React.FC<{
+  open: boolean;
+  materialType: MaterialBasicType;
+  onClose: () => void;
+  onSelect: (material: MaterialItem) => void;
+  messageApi: MessageInstance;
+}> = ({ open, materialType, onClose, onSelect, messageApi }) => {
+  const [keyword, setKeyword] = useState('');
+  const [list, setList] = useState<MaterialItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const appliedKeywordRef = useRef('');
+
+  const fetchList = useCallback(async (nextPage: number = 1, keywordValue?: string) => {
+    if (!open) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await materialApi.list({
+        page: nextPage,
+        pageSize,
+        materialType,
+        keyword: keywordValue?.trim()
+          ? keywordValue.trim()
+          : appliedKeywordRef.current.trim()
+            ? appliedKeywordRef.current.trim()
+            : undefined,
+      });
+      setList(response.list);
+      setTotal(response.total);
+      setPage(nextPage);
+    } catch (error) {
+      console.error('加载物料失败', error);
+      messageApi.error('加载物料失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  }, [materialType, pageSize, messageApi, open]);
+
+  useEffect(() => {
+    if (open) {
+      void fetchList(1);
+    } else {
+      setKeyword('');
+    }
+  }, [fetchList, open]);
+
+  const handleSearch = useCallback(() => {
+    appliedKeywordRef.current = keyword;
+    void fetchList(1, keyword);
+  }, [fetchList, keyword]);
+
+  const handlePageChange = useCallback((nextPage: number, nextSize?: number) => {
+    if (nextSize && nextSize !== pageSize) {
+      setPageSize(nextSize);
+    }
+    void fetchList(nextPage);
+  }, [fetchList, pageSize]);
+
+  return (
+    <Drawer
+      title={materialType === 'fabric' ? '选择面料' : '选择辅料/包材'}
+      open={open}
+      width={520}
+      onClose={onClose}
+      destroyOnClose
+    >
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Input.Search
+          placeholder="搜索物料名称或编号"
+          allowClear
+          enterButton={<SearchOutlined />}
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          onSearch={handleSearch}
+        />
+        <Spin spinning={loading}>
+          <List
+            dataSource={list}
+            renderItem={(item) => (
+              <List.Item
+                key={item.id}
+                actions={[<Button type="link" onClick={() => onSelect(item)}>选择</Button>]}
+              >
+                <Space align="center" size={12}>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f5f5f5' }} />
+                  )}
+                  <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
+                    <Text strong>{item.name}</Text>
+                    <Text type="secondary">编号：{item.sku}</Text>
+                    <Text type="secondary">单位：{item.unit}</Text>
+                  </Space>
+                </Space>
+              </List.Item>
+            )}
+            locale={{ emptyText: '暂无物料' }}
+          />
+        </Spin>
+        <Pagination
+          current={page}
+          pageSize={pageSize}
+          total={total}
+          showSizeChanger
+          showQuickJumper
+          onChange={handlePageChange}
+        />
+      </Space>
+    </Drawer>
+  );
+};
+
 const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   visible,
   mode = 'create',
   orderId,
   onCancel,
   onOk,
+  initialSection,
 }) => {
   const [form] = Form.useForm<SampleOrderFormValues>();
   const [messageApi, messageContextHolder] = message.useMessage();
@@ -529,6 +688,25 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   const [colorImageMap, setColorImageMap] = useState<Record<string, string | undefined>>({});
   const [attachments, setAttachments] = useState<SampleCreationAttachment[]>([]);
   const mainAttachment = useMemo(() => attachments.find((attachment) => attachment.isMain), [attachments]);
+  const [bomItems, setBomItems] = useState<BomEntry[]>([]);
+  const [materialPickerState, setMaterialPickerState] = useState<{ open: boolean; type: MaterialBasicType }>({
+    open: false,
+    type: 'fabric',
+  });
+  const [otherCosts, setOtherCosts] = useState<OtherCostEntry[]>([]);
+  const [sizeChartImage, setSizeChartImage] = useState<string>();
+  const sectionRefs = useRef<Record<SampleOrderFormSection, HTMLDivElement | null>>({
+    core: null,
+    attachments: null,
+    attributes: null,
+    process: null,
+    materials: null,
+    otherCosts: null,
+    skuDefinitions: null,
+    skuMatrix: null,
+    sizeChart: null,
+  });
+  const [highlightSection, setHighlightSection] = useState<SampleOrderFormSection | null>(null);
   const [styleState, setStyleState] = useState<StyleListState>({
     open: false,
     loading: false,
@@ -540,6 +718,155 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   });
   const [customProcessVisible, setCustomProcessVisible] = useState(false);
   const [customProcessForm] = Form.useForm();
+  const createUid = useCallback(() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
+  const fabricBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'fabric'), [bomItems]);
+  const accessoryBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'accessory'), [bomItems]);
+  const handleBomFieldChange = useCallback((uid: string, patch: Partial<BomEntry>) => {
+    setBomItems((prev) => prev.map((item) => (item.uid === uid ? { ...item, ...patch } : item)));
+  }, []);
+  const handleBomRemove = useCallback((uid: string) => {
+    setBomItems((prev) => prev.filter((item) => item.uid !== uid));
+  }, []);
+  const handleMaterialPickerOpen = useCallback((type: MaterialBasicType) => {
+    setMaterialPickerState({ open: true, type });
+  }, []);
+  const handleMaterialPickerClose = useCallback(() => {
+    setMaterialPickerState((prev) => ({ ...prev, open: false }));
+  }, []);
+  const handleMaterialSelected = useCallback((material: MaterialItem) => {
+    setBomItems((prev) => {
+      if (material.id && prev.some((entry) => entry.materialId === material.id)) {
+        messageApi.warning('该物料已在清单中');
+        return prev;
+      }
+      const entry: BomEntry = {
+        uid: `bom-${createUid()}`,
+        materialId: material.id,
+        materialType: material.materialType,
+        name: material.name,
+        sku: material.sku,
+        unit: material.unit,
+        imageUrl: material.imageUrl,
+        consumption: 1,
+        lossRate: 0,
+        unitPrice: material.price,
+        remark: '',
+      };
+      return [...prev, entry];
+    });
+    setMaterialPickerState((prev) => ({ ...prev, open: false }));
+  }, [createUid, messageApi]);
+  const handleAddOtherCost = useCallback(() => {
+    setOtherCosts((prev) => [...prev, { uid: `cost-${createUid()}`, costType: '', amount: 0 }]);
+  }, [createUid]);
+  const handleOtherCostChange = useCallback(
+    (uid: string, field: 'costType' | 'amount', value: string | number | null) => {
+      setOtherCosts((prev) =>
+        prev.map((item) =>
+          item.uid === uid
+            ? {
+                ...item,
+                [field]: field === 'amount'
+                  ? Number(value ?? 0)
+                  : typeof value === 'string'
+                    ? value
+                    : '',
+              }
+            : item,
+        ));
+    },
+    [],
+  );
+  const handleOtherCostRemove = useCallback((uid: string) => {
+    setOtherCosts((prev) => prev.filter((item) => item.uid !== uid));
+  }, []);
+
+  const bomColumns = useMemo<ColumnsType<BomEntry>>(() => [
+    {
+      title: '物料信息',
+      key: 'material',
+      render: (_value, record) => (
+        <Space align="center" size={12}>
+          {record.imageUrl ? (
+            <img
+              src={record.imageUrl}
+              alt={record.name}
+              style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: '#f5f5f5' }} />
+          )}
+          <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
+            <Text strong>{record.name}</Text>
+            <Text type="secondary">{record.sku}</Text>
+            <Text type="secondary">
+              单位：{record.unit}
+              {record.unitPrice !== undefined ? ` · 单价 ¥${record.unitPrice.toFixed(2)}` : ''}
+            </Text>
+          </Space>
+        </Space>
+      ),
+    },
+    {
+      title: '单耗',
+      dataIndex: 'consumption',
+      width: 140,
+      render: (_value, record) => (
+        <InputNumber
+          min={0}
+          precision={2}
+          value={record.consumption}
+          onChange={(val) => handleBomFieldChange(record.uid, { consumption: Number(val ?? 0) })}
+          style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
+      title: '损耗(%)',
+      dataIndex: 'lossRate',
+      width: 140,
+      render: (_value, record) => (
+        <InputNumber
+          min={0}
+          precision={2}
+          value={record.lossRate}
+          onChange={(val) => handleBomFieldChange(record.uid, { lossRate: Number(val ?? 0) })}
+          style={{ width: '100%' }}
+        />
+      ),
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      render: (_value, record) => (
+        <Input
+          value={record.remark}
+          placeholder="备注"
+          onChange={(event) => handleBomFieldChange(record.uid, { remark: event.target.value })}
+        />
+      ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 80,
+      render: (_value, record) => (
+        <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleBomRemove(record.uid)} />
+      ),
+    },
+  ], [handleBomFieldChange, handleBomRemove]);
+
+  const registerSection = useCallback((section: SampleOrderFormSection) => (
+    node: HTMLDivElement | null,
+  ) => {
+    sectionRefs.current[section] = node;
+  }, []);
+
+  const getSectionClassName = useCallback((section: SampleOrderFormSection, extraClass?: string) => {
+    return [extraClass, 'sample-order-form-section', highlightSection === section ? 'sample-order-form-section--highlight' : '']
+      .filter(Boolean)
+      .join(' ');
+  }, [highlightSection]);
 
   const resetForm = useCallback(() => {
     setColors([]);
@@ -549,6 +876,10 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImageMap({});
     setAttachments([]);
     setProcesses([]);
+    setBomItems([]);
+    setOtherCosts([]);
+    setSizeChartImage(undefined);
+    setMaterialPickerState({ open: false, type: 'fabric' });
     form.resetFields();
   }, [form]);
 
@@ -580,6 +911,29 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     const nextColorImageMap = mapColorImagesFromDetail(detail.colorImages);
     setColorImageMap(nextColorImageMap);
     setColorImagesEnabled(Object.keys(nextColorImageMap).length > 0);
+
+    const materialEntries: BomEntry[] = (detail.materials ?? []).map((material, index) => ({
+      uid: `bom-${material.id ?? index}-${material.materialId ?? 'virtual'}`,
+      materialId: material.materialId ? String(material.materialId) : undefined,
+      materialType: material.materialType === 'FABRIC' ? 'fabric' : 'accessory',
+      name: material.materialName ?? `物料${index + 1}`,
+      sku: material.materialSku ?? '--',
+      unit: material.unit ?? '件',
+      imageUrl: material.imageUrl ?? undefined,
+      consumption: Number(material.consumption ?? 0),
+      lossRate: Number((material.lossRate ?? 0) * 100),
+      unitPrice: material.unitPrice ? Number(material.unitPrice) : undefined,
+      remark: material.remark ?? '',
+    }));
+    setBomItems(materialEntries);
+
+    const nextCosts: OtherCostEntry[] = (detail.costs ?? []).map((cost, index) => ({
+      uid: String(cost.id ?? `cost-${index}`),
+      costType: cost.costItem,
+      amount: Number(cost.amount ?? 0),
+    }));
+    setOtherCosts(nextCosts);
+    setSizeChartImage(detail.sizeChartImageUrl ?? undefined);
 
     form.setFieldsValue({
       styleId: detail.styleId ? String(detail.styleId) : undefined,
@@ -655,6 +1009,22 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       cancelled = true;
     };
   }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel]);
+
+  useEffect(() => {
+    if (!visible || !initialSection) {
+      setHighlightSection(null);
+      return;
+    }
+    const target = sectionRefs.current[initialSection];
+    if (!target) {
+      setHighlightSection(null);
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setHighlightSection(initialSection);
+    const timer = window.setTimeout(() => setHighlightSection(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [initialSection, visible]);
 
   const handleClose = useCallback(() => {
     onCancel();
@@ -883,6 +1253,28 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           .filter((asset) => Boolean(asset.url))
         : [];
 
+      const normalizedCosts = otherCosts
+        .filter((item) => item.costType.trim())
+        .map((item) => ({ costItem: item.costType.trim(), amount: Number(item.amount ?? 0) }));
+
+      const materialsPayload = bomItems
+        .filter((item) => item.materialId)
+        .map((item) => ({
+          materialId: item.materialId!,
+          consumption: item.consumption,
+          lossRate: item.lossRate ? item.lossRate / 100 : undefined,
+          remark: item.remark,
+        }));
+
+      const sizeChartAssets = sizeChartImage
+        ? [{
+          type: 'SIZE_IMAGE' as const,
+          url: sizeChartImage,
+          name: '尺寸表',
+          sortOrder: baseAttachments.length + colorAttachments.length,
+        }]
+        : [];
+
       const payload: SampleOrderCreateInput = {
         sampleNo: values.orderNo?.trim() || generateSampleNo(),
         sampleTypeId: values.sampleTypeId,
@@ -906,8 +1298,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           sequence: index + 1,
           plannedDurationMinutes: process.defaultDuration,
         })),
-        costs: [],
-        assets: [...baseAttachments, ...colorAttachments],
+        costs: normalizedCosts,
+        materials: materialsPayload,
+        assets: [...baseAttachments, ...colorAttachments, ...sizeChartAssets],
       };
 
       if (isEditMode) {
@@ -940,7 +1333,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId]);
+  }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     form.setFieldsValue({
@@ -1027,13 +1420,18 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         <Spin spinning={initializeLoading}>
           <div>
             <Form form={form} layout="vertical" colon={false}>
-              <Divider orientation="left">核心信息</Divider>
-              <Row gutter={16}>
-                <Col span={8}>
-                    <div className="sample-order-cover-card" style={{ 
-                      minHeight: COVER_SECTION_HEIGHT,
-                      height: "100%",
-                      }}>
+              <div ref={registerSection('core')} className={getSectionClassName('core')}>
+                <Divider orientation="left">核心信息</Divider>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <div
+                      ref={registerSection('attachments')}
+                      className={getSectionClassName('attachments', 'sample-order-cover-card')}
+                      style={{
+                        minHeight: COVER_SECTION_HEIGHT,
+                        height: '100%',
+                      }}
+                    >
                       <div className="sample-order-cover-title">样板主图</div>
                       <div className="sample-order-cover-item">
                         <ImageUploader
@@ -1047,9 +1445,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         该图片将作为列表主图展示，可上传或替换为高清图，右键其他图片可重新设为主图
                       </Text>
                     </div>
-                </Col>
-                <Col span={16}>
-                  <Row gutter={16}>
+                  </Col>
+                  <Col span={16}>
+                    <Row gutter={16}>
                     <Col span={12}>
                       <Form.Item
                         name="styleCode"
@@ -1193,12 +1591,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   </Row>
                 </Col>
               </Row>
+              </div>
 
-              <Divider orientation="left">详细属性</Divider>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="patternPrice" label="打板价">
-                    <InputNumber
+              <div ref={registerSection('attributes')} className={getSectionClassName('attributes')}>
+                <Divider orientation="left">详细属性</Divider>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item name="patternPrice" label="打板价">
+                      <InputNumber
                       min={0}
                       style={{ width: '100%' }}
                       prefix="¥"
@@ -1230,17 +1630,57 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 <Col span={12}>
                   <StaffSelect role="sampleSewer" label="车板师" options={meta?.sampleSewers ?? []} />
                 </Col>
-                <Col span={24}>
-                  <Form.Item name="remarks" label="备注">
-                    <TextArea rows={2} placeholder="请输入备注" />
-                  </Form.Item>
-                </Col>
-              </Row>
+                  <Col span={24}>
+                    <Form.Item name="remarks" label="备注">
+                      <TextArea rows={2} placeholder="请输入备注" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
 
-              <Divider orientation="left">加工流程</Divider>
-              <Row gutter={16}>
-                <Col span={10}>
-                  <Card size="small" title="可选工序" styles={{ body: { maxHeight: 320, overflow: 'auto' } }}>
+              <div ref={registerSection('materials')} className={getSectionClassName('materials')}>
+                <Divider orientation="left">物料清单</Divider>
+                <Row gutter={16}>
+                  <Col span={24} lg={12}>
+                    <Card
+                      size="small"
+                      title="面料"
+                      extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleMaterialPickerOpen('fabric')}>选择面料</Button>}
+                    >
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey="uid"
+                        columns={bomColumns}
+                        dataSource={fabricBomItems}
+                        locale={{ emptyText: '暂未选择面料' }}
+                      />
+                    </Card>
+                  </Col>
+                  <Col span={24} lg={12}>
+                    <Card
+                      size="small"
+                      title="辅料/包材"
+                      extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleMaterialPickerOpen('accessory')}>选择辅料</Button>}
+                    >
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey="uid"
+                        columns={bomColumns}
+                        dataSource={accessoryBomItems}
+                        locale={{ emptyText: '暂未选择辅料' }}
+                      />
+                    </Card>
+                  </Col>
+                </Row>
+              </div>
+
+              <div ref={registerSection('process')} className={getSectionClassName('process')}>
+                <Divider orientation="left">加工流程</Divider>
+                <Row gutter={16}>
+                  <Col span={10}>
+                    <Card size="small" title="可选工序" styles={{ body: { maxHeight: 320, overflow: 'auto' } }}>
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
                       {meta?.processLibrary.map((process) => (
                         <Card
@@ -1268,18 +1708,20 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     </Space>
                   </Card>
                 </Col>
-                <Col span={14}>
-                  <Card size="small" title="已选工序">
-                    <ProcessList processes={processes} onRemove={removeProcess} onReorder={reorderProcess} />
-                  </Card>
-                </Col>
-              </Row>
+                  <Col span={14}>
+                    <Card size="small" title="已选工序">
+                      <ProcessList processes={processes} onRemove={removeProcess} onReorder={reorderProcess} />
+                    </Card>
+                  </Col>
+                </Row>
+              </div>
 
-              <Divider orientation="left">SKU 定义</Divider>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item label="颜色">
-                    <Select
+              <div ref={registerSection('skuDefinitions')} className={getSectionClassName('skuDefinitions')}>
+                <Divider orientation="left">SKU 定义</Divider>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item label="颜色">
+                      <Select
                       mode="tags"
                       value={colors}
                       onChange={handleColorsUpdate}
@@ -1308,9 +1750,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     </Space>
                   </Space>
                 </Col>
-                {colorImagesEnabled ? (
-                  <Col span={24}>
-                    <Space wrap size={16} style={{ marginTop: 12 }}>
+                  {colorImagesEnabled ? (
+                    <Col span={24}>
+                      <Space wrap size={16} style={{ marginTop: 12 }}>
                       {colors.map((color) => {
                         const image = colorImageMap[color];
                         return (
@@ -1331,14 +1773,68 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         );
                       })}
                     </Space>
+                    </Col>
+                  ) : null}
+                  <Col span={24}>
+                    <div ref={registerSection('skuMatrix')} className={getSectionClassName('skuMatrix')}>
+                      <Card size="small" title="数量矩阵">
+                        <SkuMatrixTable colors={colors} sizes={sizes} matrix={matrix} onChange={handleMatrixChange} />
+                      </Card>
+                    </div>
                   </Col>
-                ) : null}
-                <Col span={24}>
-                  <Card size="small" title="数量矩阵">
-                    <SkuMatrixTable colors={colors} sizes={sizes} matrix={matrix} onChange={handleMatrixChange} />
-                  </Card>
-                </Col>
-              </Row>
+                </Row>
+              </div>
+
+              <div ref={registerSection('sizeChart')} className={getSectionClassName('sizeChart')}>
+                <Divider orientation="left">尺寸表</Divider>
+                <Card size="small">
+                  <ImageUploader
+                    module="sample-orders"
+                    value={sizeChartImage}
+                    onChange={setSizeChartImage}
+                    tips="上传尺寸表图片，建议 1200x800px，支持 JPG/PNG"
+                  />
+                </Card>
+              </div>
+
+              <div ref={registerSection('otherCosts')} className={getSectionClassName('otherCosts')}>
+                <Divider orientation="left">其他费用</Divider>
+                <Card
+                  size="small"
+                  extra={<Button type="dashed" icon={<PlusOutlined />} onClick={handleAddOtherCost}>添加费用</Button>}
+                >
+                  {otherCosts.length === 0 ? (
+                    <Empty description="暂无费用" style={{ margin: '12px 0' }} />
+                  ) : (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      {otherCosts.map((cost) => (
+                        <Row key={cost.uid} gutter={12} align="middle">
+                          <Col span={10}>
+                            <Input
+                              value={cost.costType}
+                              placeholder="费用名称"
+                              onChange={(event) => handleOtherCostChange(cost.uid, 'costType', event.target.value)}
+                            />
+                          </Col>
+                          <Col span={10}>
+                            <InputNumber
+                              min={0}
+                              precision={2}
+                              value={cost.amount}
+                              style={{ width: '100%' }}
+                              prefix="¥"
+                              onChange={(value) => handleOtherCostChange(cost.uid, 'amount', value ?? 0)}
+                            />
+                          </Col>
+                          <Col span={4} style={{ textAlign: 'right' }}>
+                            <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleOtherCostRemove(cost.uid)} />
+                          </Col>
+                        </Row>
+                      ))}
+                    </Space>
+                  )}
+                </Card>
+              </div>
 
               <Divider orientation="left">统计预览</Divider>
               <Row gutter={16}>
@@ -1377,6 +1873,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         onStateChange={setStyleState}
         onClose={() => setStyleState((prev) => ({ ...prev, open: false }))}
         onSelect={handleStyleSelect}
+        messageApi={messageApi}
+      />
+
+      <MaterialSelectorDrawer
+        open={materialPickerState.open}
+        materialType={materialPickerState.type}
+        onClose={handleMaterialPickerClose}
+        onSelect={handleMaterialSelected}
         messageApi={messageApi}
       />
 

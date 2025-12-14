@@ -38,7 +38,7 @@ import type {
 } from '../types/sample-detail';
 import sampleOrderApi from '../api/sample-order';
 import { apiConfig } from '../api/config';
-import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
+import SampleOrderFormModal, { type SampleOrderFormSection } from '../components/sample/SampleOrderFormModal';
 import DonutChart from '../components/charts/DonutChart';
 
 const { Title, Text } = Typography;
@@ -58,13 +58,30 @@ type SectionKey = keyof typeof SECTION_IDS;
 
 const formatCurrency = (value: number): string => `¥${value.toFixed(2)}`;
 
+type DetailTabKey = 'bom' | 'process' | 'size' | 'other' | 'attachments';
+
+const DETAIL_TAB_TO_EDITOR_SECTION: Record<Exclude<DetailTabKey, 'attachments'>, SampleOrderFormSection> = {
+  bom: 'materials',
+  process: 'process',
+  size: 'sizeChart',
+  other: 'otherCosts',
+};
+
+const DETAIL_TAB_LABELS: Record<Exclude<DetailTabKey, 'attachments'>, string> = {
+  bom: '物料清单',
+  process: '加工流程',
+  size: '尺寸表',
+  other: '其他费用',
+};
+
 const SampleDetail = () => {
   const [searchParams] = useSearchParams();
   const [detail, setDetail] = useState<SampleOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [costRefreshing, setCostRefreshing] = useState(false);
-  const [activeDetailTab, setActiveDetailTab] = useState('bom');
+  const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>('bom');
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [initialEditSection, setInitialEditSection] = useState<SampleOrderFormSection>('core');
 
   const isMockMode = apiConfig.useMock;
 
@@ -111,7 +128,7 @@ const SampleDetail = () => {
     }, tabSections.has(section) ? 120 : 0);
   }, []);
 
-  const openEditModal = useCallback(() => {
+  const openEditModal = useCallback((section: SampleOrderFormSection = 'core') => {
     if (!sampleId) {
       message.warning('缺少样板单 ID，无法编辑');
       return;
@@ -120,11 +137,16 @@ const SampleDetail = () => {
       message.info('当前为 Mock 数据，暂不支持编辑');
       return;
     }
+    setInitialEditSection(section);
     setEditModalVisible(true);
   }, [isMockMode, sampleId]);
 
   const handleEdit = useCallback(() => {
-    openEditModal();
+    openEditModal('core');
+  }, [openEditModal]);
+
+  const handleDetailTabEdit = useCallback((section: SampleOrderFormSection) => {
+    openEditModal(section);
   }, [openEditModal]);
 
   const handleRefreshCost = useCallback(() => {
@@ -137,12 +159,10 @@ const SampleDetail = () => {
 
   const handleUploadAttachment = useCallback(() => {
     setActiveDetailTab('attachments');
-    openEditModal();
+    openEditModal('attachments');
   }, [openEditModal]);
 
-  const handleEditModalOk = useCallback((
-    _result: { mode: 'create' | 'edit'; orderId?: string },
-  ) => {
+  const handleEditModalOk = useCallback(() => {
     setEditModalVisible(false);
     void loadDetail();
   }, [loadDetail]);
@@ -311,11 +331,25 @@ const SampleDetail = () => {
 
   const costChartTotal = useMemo(() => costChartData.reduce((sum, item) => sum + item.value, 0), [costChartData]);
 
-  const detailTabExtra = useMemo(() => (
-    activeDetailTab === 'attachments'
-      ? <Button type="link" icon={<UploadOutlined />} onClick={handleUploadAttachment}>上传附件</Button>
-      : <Button type="link" icon={<EditOutlined />} onClick={handleEdit}>编辑</Button>
-  ), [activeDetailTab, handleEdit, handleUploadAttachment]);
+  const detailTabExtra = useMemo(() => {
+    if (activeDetailTab === 'attachments') {
+      return (
+        <Button type="link" icon={<UploadOutlined />} onClick={handleUploadAttachment}>
+          上传附件
+        </Button>
+      );
+    }
+    const section = DETAIL_TAB_TO_EDITOR_SECTION[activeDetailTab];
+    return (
+      <Button
+        type="link"
+        icon={<EditOutlined />}
+        onClick={() => handleDetailTabEdit(section)}
+      >
+        编辑{DETAIL_TAB_LABELS[activeDetailTab]}
+      </Button>
+    );
+  }, [activeDetailTab, handleDetailTabEdit, handleUploadAttachment]);
 
   const renderAttachmentItem = useCallback((item: SampleAttachment) => (
     <List.Item key={item.id} actions={[<Button key="download" type="link" icon={<DownloadOutlined />} onClick={() => message.success(`开始下载 ${item.name}`)}>下载</Button>]}> 
@@ -438,7 +472,7 @@ const SampleDetail = () => {
             >
               <Tabs
                 activeKey={activeDetailTab}
-                onChange={setActiveDetailTab}
+                onChange={(key) => setActiveDetailTab(key as DetailTabKey)}
                 tabBarExtraContent={detailTabExtra}
                 items={[
                   {
@@ -672,6 +706,7 @@ const SampleDetail = () => {
         orderId={sampleId || undefined}
         onCancel={handleEditModalCancel}
         onOk={handleEditModalOk}
+        initialSection={initialEditSection}
       />
     </div>
   );

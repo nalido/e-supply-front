@@ -641,9 +641,7 @@ const SampleList: React.FC = () => {
     setIsModalVisible(true);
   }, []);
 
-  const handleModalOk = useCallback((
-    _result: { mode: 'create' | 'edit'; orderId?: string },
-  ) => {
+  const handleModalOk = useCallback(() => {
     setIsModalVisible(false);
     void loadData();
     void loadStats();

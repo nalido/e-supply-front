@@ -92,8 +92,14 @@ export type SampleOrderCreateInput = {
     departmentId?: string;
   }>;
   costs: Array<{ costItem: string; amount: number }>;
+  materials?: Array<{
+    materialId: string;
+    consumption: number;
+    lossRate?: number;
+    remark?: string;
+  }>;
   assets: Array<{
-    type: 'ATTACHMENT' | 'COLOR_IMAGE';
+    type: 'ATTACHMENT' | 'COLOR_IMAGE' | 'SIZE_IMAGE';
     url: string;
     name?: string;
     fileType?: string;
@@ -203,6 +209,12 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
     departmentId: toNumber(process.departmentId),
   })),
   costs: payload.costs?.map((cost) => ({ costItem: cost.costItem, amount: cost.amount })),
+  materials: payload.materials?.map((material) => ({
+    materialId: toNumber(material.materialId),
+    consumption: material.consumption,
+    lossRate: material.lossRate,
+    remark: material.remark,
+  })),
   assets: payload.assets?.map((asset, index) => ({
     name: asset.name,
     url: asset.url,

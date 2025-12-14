@@ -1,5 +1,6 @@
 export interface SampleMaterialItem {
   id: string;
+  materialId?: string;
   category: 'fabric' | 'trim' | 'packaging';
   name: string;
   code: string;

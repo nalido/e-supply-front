@@ -56,3 +56,13 @@
   object-fit: cover;
   border-radius: 12px;
 }
+
+.sample-order-form-section {
+  border-radius: 12px;
+  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.sample-order-form-section--highlight {
+  box-shadow: 0 0 0 2px rgba(64, 150, 255, 0.35);
+  background-color: rgba(64, 150, 255, 0.08);
+}

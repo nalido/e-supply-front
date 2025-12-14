@@ -108,12 +108,26 @@ export type SampleOrderDetailResponse = {
   costs: Array<{ id?: number; costItem: string; amount: number }>;
   attachments: SampleOrderAssetResponse[];
   colorImages: SampleOrderAssetResponse[];
+  materials: Array<{
+    id?: number;
+    materialId?: number;
+    materialName?: string;
+    materialSku?: string;
+    unit?: string;
+    imageUrl?: string;
+    materialType?: 'FABRIC' | 'ACCESSORY';
+    consumption: number;
+    lossRate?: number;
+    remark?: string;
+    unitPrice?: number;
+  }>;
+  sizeChartImageUrl?: string;
   costTotal?: number;
 };
 
 export type SampleOrderAssetResponse = {
   id?: number;
-  assetType: 'ATTACHMENT' | 'COLOR_IMAGE';
+  assetType: 'ATTACHMENT' | 'COLOR_IMAGE' | 'SIZE_IMAGE';
   name?: string;
   url: string;
   fileType?: string;
@@ -222,11 +236,39 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     developmentCost: Number(cost.amount ?? 0),
     quotedUnitCost: Number(cost.amount ?? 0),
   }));
+  const materialItems = (payload.materials ?? []).map((item, index) => {
+    const consumption = Number(item.consumption ?? 0);
+    const unitPrice = Number(item.unitPrice ?? 0);
+    const cost = Number((consumption * unitPrice).toFixed(2));
+    const category = item.materialType === 'FABRIC' ? 'fabric' : 'trim';
+    return {
+      id: String(item.id ?? `${item.materialId ?? index}`),
+      materialId: item.materialId ? String(item.materialId) : undefined,
+      category,
+      name: item.materialName ?? `物料${index + 1}`,
+      code: item.materialSku ?? '--',
+      unit: item.unit ?? '件',
+      consumption,
+      unitPrice,
+      cost,
+      lossRate: Number(item.lossRate ?? 0),
+      supplier: undefined,
+      image: item.imageUrl,
+      remark: item.remark,
+    } satisfies SampleMaterialItem;
+  });
+  const bom = {
+    fabrics: materialItems.filter((item) => item.category === 'fabric'),
+    trims: materialItems.filter((item) => item.category !== 'fabric'),
+  };
   const costTotal = Number(payload.costTotal ?? 0);
   const totalAmount = Number(payload.totalAmount ?? 0);
   const lineArtImage = attachments.find((asset) => asset.id === attachments[0]?.id && payload.attachments?.[0]?.isMain)?.url
     || payload.attachments?.find((asset) => asset.isMain)?.url
     || attachments[0]?.url;
+  const sizeChartImage = payload.sizeChartImageUrl ?? undefined;
+  const fabricCost = bom.fabrics.reduce((sum, item) => sum + item.cost, 0);
+  const trimCost = bom.trims.reduce((sum, item) => sum + item.cost, 0);
 
   return {
     id: String(payload.id),
@@ -249,17 +291,17 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     colors,
     sizes,
     quantityMatrix,
-    bom: { fabrics: [], trims: [] },
+    bom,
     processes: processItems,
-    sizeChartImage: undefined,
+    sizeChartImage,
     otherCosts,
     attachments,
     cost: {
       totalQuotedPrice: totalAmount,
       developmentFee: costTotal,
       breakdown: {
-        fabric: 0,
-        trims: 0,
+        fabric: fabricCost,
+        trims: trimCost,
         packaging: 0,
         processing: costTotal,
       },
