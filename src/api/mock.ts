@@ -73,6 +73,11 @@ import type {
   MaterialStockMeta,
 } from '../types/material-stock';
 import type {
+  MaterialIssueMeta,
+  MaterialIssueListParams,
+  MaterialIssueListResponse,
+} from '../types/material-issue';
+import type {
   MaterialPurchaseReportListParams,
   MaterialPurchaseReportListResponse,
   MaterialPurchaseReportMeta,
@@ -173,6 +178,7 @@ import {
   getStatusColor,
   getStatusText,
   sampleOptions,
+  updateFollowProgressNode,
 } from '../mock/sample';
 import { fetchBulkCostAggregation, fetchBulkCostList } from '../mock/orders-report';
 import {
@@ -666,13 +672,14 @@ const styleCatalog: StyleData[] = [
   ...Array.from({ length: Math.max(130 - baseStyleCatalog.length, 0) }).map((_, index) => {
     const style = baseStyleCatalog[index % baseStyleCatalog.length];
     const suffix = index + 1;
+    const baseUpdatedAt = style.updateTime ? new Date(style.updateTime).getTime() : Date.now();
     const cloneStyleNo = `${style.styleNo}-${suffix}`;
     return {
       ...style,
       id: `${style.id}-${suffix}`,
       styleNo: cloneStyleNo,
       styleName: `${style.styleName} ${suffix}`,
-      updateTime: new Date(new Date(style.updateTime).getTime() + suffix * 86400000).toISOString(),
+      updateTime: new Date(baseUpdatedAt + suffix * 86400000).toISOString(),
     };
   }),
 ];
@@ -817,6 +824,14 @@ export const sample = {
     return fetchSampleOrderDetail(id);
   },
 
+  async updateFollowProgressNode(
+    orderId: string,
+    nodeId: string,
+    payload: { completed: boolean; statusValue?: string },
+  ) {
+    return updateFollowProgressNode(orderId, nodeId, payload);
+  },
+
   async getSampleStats(params: SampleQueryParams = {}): Promise<SampleStats> {
     return fetchSampleStats(params);
   },
@@ -847,7 +862,7 @@ export const sample = {
     const total = 10;
     
     // 详细的模板数据，包含节点信息
-    const templates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = [
+    const templates: Array<Omit<FollowTemplateSummary, 'sequenceNo'> & { sequenceNo?: number; nodes: TemplateNode[] }> = [
       { 
         id: 1, 
         name: '赛乐', 
@@ -867,7 +882,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '样板制作',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 8
           },
           {
@@ -875,7 +890,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '尺寸确认',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -883,7 +898,7 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '工艺审核',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 3
           }
         ]
@@ -907,7 +922,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '设计草图',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 4
           },
           {
@@ -915,7 +930,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '材料选择',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -931,7 +946,7 @@ export const sample = {
             sortOrder: 5,
             sequenceNo: 5,
             nodeName: '质量检验',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -963,7 +978,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '简易样品',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 4
           },
           {
@@ -971,7 +986,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '即时确认',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 0.5
           }
         ]
@@ -994,7 +1009,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '概念设计',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 8
           },
           {
@@ -1010,7 +1025,7 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '材料测试',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 3
           },
           {
@@ -1018,7 +1033,7 @@ export const sample = {
             sortOrder: 5,
             sequenceNo: 5,
             nodeName: '工艺验证',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 4
           },
           {
@@ -1034,7 +1049,7 @@ export const sample = {
             sortOrder: 7,
             sequenceNo: 7,
             nodeName: '功能测试',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 2
           },
           {
@@ -1042,7 +1057,7 @@ export const sample = {
             sortOrder: 8,
             sequenceNo: 8,
             nodeName: '外观检查',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -1073,7 +1088,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '定制化设计',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 6
           },
           {
@@ -1081,7 +1096,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '客户审核',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1120,7 +1135,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '色彩搭配',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1128,7 +1143,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '面料选择',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 1.5
           }
         ]
@@ -1151,7 +1166,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '多轮质检',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 6
           },
           {
@@ -1159,7 +1174,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '质量报告',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 1
           }
         ]
@@ -1174,7 +1189,7 @@ export const sample = {
             sortOrder: 1,
             sequenceNo: 1,
             nodeName: '成本预估',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -1182,7 +1197,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '材料优化',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 3
           },
           {
@@ -1198,16 +1213,22 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '成本确认',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 0.5
           }
         ]
       }
     ];
     
+    const normalizedTemplates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = templates.map(
+      (template, index) => ({
+        ...template,
+        sequenceNo: template.sequenceNo && template.sequenceNo > 0 ? template.sequenceNo : index + 1,
+      }),
+    );
     const startIndex = (params.page - 1) * params.pageSize;
-    const endIndex = Math.min(startIndex + params.pageSize, templates.length);
-    const list = templates.slice(startIndex, endIndex).map((template, index) => ({
+    const endIndex = Math.min(startIndex + params.pageSize, normalizedTemplates.length);
+    const list = normalizedTemplates.slice(startIndex, endIndex).map((template, index) => ({
       ...template,
       sequenceNo: startIndex + index + 1,
     }));
@@ -1239,7 +1260,7 @@ export const sample = {
     await delay(300);
     
     // 返回对应的模板数据（从 followTemplates 中查找）
-    const templates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = [
+    const templates: Array<Omit<FollowTemplateSummary, 'sequenceNo'> & { sequenceNo?: number; nodes: TemplateNode[] }> = [
       { 
         id: 1, 
         name: '赛乐', 
@@ -1259,7 +1280,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '样板制作',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 8
           },
           {
@@ -1267,7 +1288,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '尺寸确认',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -1275,7 +1296,7 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '工艺审核',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 3
           }
         ]
@@ -1299,7 +1320,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '设计草图',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 4
           },
           {
@@ -1307,7 +1328,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '材料选择',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1323,7 +1344,7 @@ export const sample = {
             sortOrder: 5,
             sequenceNo: 5,
             nodeName: '质量检验',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1355,7 +1376,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '简易样品',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 4
           },
           {
@@ -1363,7 +1384,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '即时确认',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 0.5
           }
         ]
@@ -1386,7 +1407,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '概念设计',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 8
           },
           {
@@ -1402,7 +1423,7 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '材料测试',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 3
           },
           {
@@ -1410,7 +1431,7 @@ export const sample = {
             sortOrder: 5,
             sequenceNo: 5,
             nodeName: '工艺验证',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 4
           },
           {
@@ -1426,7 +1447,7 @@ export const sample = {
             sortOrder: 7,
             sequenceNo: 7,
             nodeName: '功能测试',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 2
           },
           {
@@ -1434,7 +1455,7 @@ export const sample = {
             sortOrder: 8,
             sequenceNo: 8,
             nodeName: '外观检查',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -1465,7 +1486,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '定制化设计',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 6
           },
           {
@@ -1473,7 +1494,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '客户审核',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1512,7 +1533,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '色彩搭配',
-            fieldType: 'checkbox',
+            fieldType: 'boolean',
             duration: 2
           },
           {
@@ -1520,7 +1541,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '面料选择',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 1.5
           }
         ]
@@ -1543,7 +1564,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '多轮质检',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 6
           },
           {
@@ -1551,7 +1572,7 @@ export const sample = {
             sortOrder: 3,
             sequenceNo: 3,
             nodeName: '质量报告',
-            fieldType: 'file',
+            fieldType: 'text',
             duration: 1
           }
         ]
@@ -1566,7 +1587,7 @@ export const sample = {
             sortOrder: 1,
             sequenceNo: 1,
             nodeName: '成本预估',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 1
           },
           {
@@ -1574,7 +1595,7 @@ export const sample = {
             sortOrder: 2,
             sequenceNo: 2,
             nodeName: '材料优化',
-            fieldType: 'select',
+            fieldType: 'boolean',
             duration: 3
           },
           {
@@ -1590,19 +1611,23 @@ export const sample = {
             sortOrder: 4,
             sequenceNo: 4,
             nodeName: '成本确认',
-            fieldType: 'number',
+            fieldType: 'text',
             duration: 0.5
           }
         ]
       }
     ];
     
-    const template = templates.find(t => t.id === id);
-    
+    const normalizedTemplates: Array<FollowTemplateSummary & { nodes: TemplateNode[] }> = templates.map(
+      (template, index) => ({
+        ...template,
+        sequenceNo: template.sequenceNo && template.sequenceNo > 0 ? template.sequenceNo : index + 1,
+      }),
+    );
+    const template = normalizedTemplates.find((t) => t.id === id);
     if (!template) {
       throw new Error('模板不存在');
     }
-    
     return template;
   },
   
@@ -1645,7 +1670,7 @@ export const sample = {
   },
   
   // 打板统计数据
-  async getSampleStats(): Promise<SampleDashboardStats> {
+  async getSampleDashboardStats(): Promise<SampleDashboardStats> {
     await delay(300);
     return {
       thisWeek: 7,

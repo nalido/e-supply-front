@@ -1,6 +1,16 @@
 import dayjs from 'dayjs';
-import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../../types/sample';
-import type { SampleDevelopmentCostItem, SampleOrderDetail } from '../../types/sample-detail';
+import type {
+  SampleFollowProgress,
+  SampleOrder,
+  SampleQueryParams,
+  SampleStats,
+  SampleStatus,
+} from '../../types/sample';
+import type {
+  SampleDevelopmentCostItem,
+  SampleMaterialItem,
+  SampleOrderDetail,
+} from '../../types/sample-detail';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
 export type SamplePriorityResponse = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -54,6 +64,8 @@ export type SampleOrderSummaryResponse = {
   sampleTypeName?: string;
   previewImageUrl?: string;
   updatedAt?: string;
+  followTemplateId?: number;
+  followProgress?: SampleFollowProgressResponse;
 };
 
 export type SampleOrderListResponse = {
@@ -69,6 +81,7 @@ export type SampleOrderDetailResponse = {
   sampleNo: string;
   sampleTypeId?: number;
   sampleTypeName?: string;
+  followTemplateId?: number;
   customerId?: number;
   customerName?: string;
   styleId?: number;
@@ -123,6 +136,24 @@ export type SampleOrderDetailResponse = {
   }>;
   sizeChartImageUrl?: string;
   costTotal?: number;
+  followProgress?: SampleFollowProgressResponse;
+};
+
+export type SampleFollowProgressResponse = {
+  templateId?: number;
+  templateName?: string;
+  nodes?: SampleFollowProgressNodeResponse[];
+};
+
+export type SampleFollowProgressNodeResponse = {
+  id?: number;
+  templateNodeId?: number;
+  nodeName: string;
+  fieldType: string;
+  sortOrder?: number;
+  completed: boolean;
+  statusValue?: string;
+  completedAt?: string;
 };
 
 export type SampleOrderAssetResponse = {
@@ -189,6 +220,8 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     sampleTypeName: payload.sampleTypeName,
     styleId: payload.styleId ? String(payload.styleId) : undefined,
     styleNo: payload.styleNo,
+    followTemplateId: payload.followTemplateId ? String(payload.followTemplateId) : undefined,
+    followProgress: adaptFollowProgress(payload.followProgress),
   } satisfies SampleOrder;
 };
 
@@ -300,6 +333,8 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     id: String(payload.id),
     styleNo: payload.styleNo || '--',
     sampleNo: payload.sampleNo,
+    followTemplateId: payload.followTemplateId ? String(payload.followTemplateId) : undefined,
+    followProgress: adaptFollowProgress(payload.followProgress),
     merchandiser: payload.merchandiserName,
     patternMaker: payload.patternMakerName,
     patternPrice: Number(payload.unitPrice ?? 0),
@@ -333,7 +368,29 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
       },
       developmentFeeDetails,
     },
-    customer: payload.customerName,
+  };
+};
+
+export const adaptFollowProgress = (
+  payload?: SampleFollowProgressResponse,
+): SampleFollowProgress | undefined => {
+  if (!payload) {
+    return undefined;
+  }
+  const nodes = (payload.nodes ?? []).map((node) => ({
+    id: node.id ? String(node.id) : undefined,
+    templateNodeId: node.templateNodeId ? String(node.templateNodeId) : undefined,
+    nodeName: node.nodeName,
+    fieldType: node.fieldType ?? 'text',
+    sortOrder: node.sortOrder,
+    completed: Boolean(node.completed),
+    statusValue: node.statusValue ?? undefined,
+    completedAt: node.completedAt,
+  }));
+  return {
+    templateId: payload.templateId ? String(payload.templateId) : undefined,
+    templateName: payload.templateName,
+    nodes,
   };
 };
 

@@ -1,4 +1,6 @@
 import type {
+  SampleFollowProgress,
+  SampleFollowProgressNode,
   SampleOrder,
   SampleStats,
   SampleStatus,
@@ -43,6 +45,70 @@ const sampleData = {
     '杨设计', '赵设计', '周设计', '吴设计', '徐设计'
   ],
   styleCodes: ['ST', 'DW', 'FW', 'SS', 'AW'],
+};
+
+const FOLLOW_TEMPLATE_PRESETS = [
+  {
+    id: 'tpl-std',
+    name: '标准开发流程',
+    nodes: ['资料确认', '下板', '面料到货', '打版完成', '样衣归档'],
+  },
+  {
+    id: 'tpl-fast',
+    name: '快速打板',
+    nodes: ['需求确认', '布料准备', '样衣制作', '客户反馈'],
+  },
+  {
+    id: 'tpl-custom',
+    name: '客户定制流程',
+    nodes: ['立项', '确认版型', '物料齐套', '打版', '寄送客户'],
+  },
+];
+
+const STATUS_PROGRESS_MAP: Record<SampleStatus, number> = {
+  pending: 1,
+  confirmed: 2,
+  producing: 3,
+  completed: 5,
+  cancelled: 2,
+};
+
+const buildFollowProgress = (
+  seed: number,
+  templateId?: string,
+  status?: SampleStatus,
+): SampleFollowProgress => {
+  const preset =
+    FOLLOW_TEMPLATE_PRESETS.find((item) => item.id === templateId) ??
+    FOLLOW_TEMPLATE_PRESETS[seed % FOLLOW_TEMPLATE_PRESETS.length];
+  const completedCount = Math.min(
+    preset.nodes.length,
+    STATUS_PROGRESS_MAP[status ?? 'pending'] ?? 1,
+  );
+  const nodes = preset.nodes.map((nodeName, index) => {
+    const completed = index < completedCount;
+    return {
+      id: `${preset.id}-${index + 1}`,
+      templateNodeId: String(index + 1),
+      nodeName,
+      fieldType: 'text',
+      sortOrder: index + 1,
+      completed,
+      statusValue: completed
+        ? index % 2 === 0
+          ? '是'
+          : `${Math.max(1, Math.floor(Math.random() * 5))} 套`
+        : '--',
+      completedAt: completed
+        ? new Date(Date.now() - (completedCount - index) * 24 * 3600 * 1000).toISOString()
+        : undefined,
+    } satisfies SampleFollowProgress['nodes'][number];
+  });
+  return {
+    templateId: preset.id,
+    templateName: preset.name,
+    nodes,
+  } satisfies SampleFollowProgress;
 };
 
 /**
@@ -144,6 +210,8 @@ const generateSampleOrder = (index: number): SampleOrder => {
   const status = statuses[Math.floor(Math.random() * statuses.length)];
   const priority = priorities[Math.floor(Math.random() * priorities.length)];
   
+  const followProgress = buildFollowProgress(index, undefined, status);
+
   return {
     id: `sample_${index + 1}`,
     orderNo: generateOrderNo(index),
@@ -166,6 +234,8 @@ const generateSampleOrder = (index: number): SampleOrder => {
     designer: sampleData.designers[Math.floor(Math.random() * sampleData.designers.length)],
     description: Math.random() > 0.7 ? `这是${sampleData.categories[Math.floor(Math.random() * sampleData.categories.length)]}的样板单备注信息` : undefined,
     images: Math.random() > 0.6 ? [`https://picsum.photos/200/200?random=${index}`] : undefined,
+    followTemplateId: followProgress.templateId,
+    followProgress,
   };
 };
 
@@ -317,6 +387,7 @@ export const createSampleOrder = async (
   const deliveryDate = data.deliveryDate ?? data.deadline ?? generateRandomDate(30);
   const orderDate = data.orderDate ?? new Date().toISOString();
   const customerName = data.customer || data.customerName || sampleData.customers[0];
+  const followProgress = buildFollowProgress(orders.length, data.followTemplateId ? String(data.followTemplateId) : undefined, 'pending');
 
   const quantityMatrix = data.quantityMatrix && Object.keys(data.quantityMatrix).length > 0
     ? data.quantityMatrix
@@ -346,6 +417,7 @@ export const createSampleOrder = async (
     description: data.description,
     images: imageList.length > 0 ? imageList : data.images,
     sampleType: data.sampleType,
+    followTemplateId: followProgress.templateId,
     merchandiser: data.merchandiser,
     merchandiserId: data.merchandiserId,
     patternMaker: data.patternMaker,
@@ -357,6 +429,7 @@ export const createSampleOrder = async (
     processes: data.processes,
     skuMatrix: quantityMatrix,
     colorImages: data.colorImageMap,
+    followProgress,
   };
 
   orders.unshift(newOrder);
@@ -604,6 +677,14 @@ const buildSampleDetail = (order: SampleOrder): SampleOrderDetail => {
     id: order.id,
     styleNo: order.styleCode,
     sampleNo: order.orderNo,
+    followTemplateId: order.followTemplateId,
+    followProgress:
+      order.followProgress
+      ?? buildFollowProgress(
+        Number(order.id.replace('sample_', '')) || 0,
+        order.followTemplateId,
+        order.status as SampleStatus,
+      ),
     merchandiser: '赵雨晴',
     patternMaker: '陈纸样',
     patternPrice: 0,
@@ -647,4 +728,38 @@ export const fetchSampleOrderDetail = async (id: string): Promise<SampleOrderDet
   await new Promise((resolve) => setTimeout(resolve, 260));
   const target = ensureSampleOrders().find((item) => item.id === id) ?? ensureSampleOrders()[0];
   return buildSampleDetail(target);
+};
+
+export const updateFollowProgressNode = async (
+  orderId: string,
+  nodeId: string,
+  payload: { completed: boolean; statusValue?: string },
+): Promise<SampleFollowProgress | undefined> => {
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const orders = ensureSampleOrders();
+  const target = orders.find((item) => item.id === orderId);
+  if (!target) {
+    return undefined;
+  }
+  const progress =
+    target.followProgress
+    ?? buildFollowProgress(
+      Number(orderId.replace(/\D/g, '')) || 0,
+      target.followTemplateId,
+      target.status as SampleStatus,
+    );
+  const nextNodes = (progress.nodes ?? []).map((node) => {
+    if (node.id === nodeId || node.templateNodeId === nodeId) {
+      return {
+        ...node,
+        completed: payload.completed,
+        statusValue: payload.statusValue ?? node.statusValue,
+        completedAt: payload.completed ? new Date().toISOString() : undefined,
+      } satisfies SampleFollowProgressNode;
+    }
+    return node;
+  });
+  const updated: SampleFollowProgress = { ...progress, nodes: nextNodes };
+  target.followProgress = updated;
+  return updated;
 };

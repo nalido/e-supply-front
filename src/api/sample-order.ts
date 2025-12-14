@@ -1,4 +1,4 @@
-import type { SampleOrder, SampleQueryParams, SampleStats } from '../types/sample';
+import type { SampleFollowProgress, SampleOrder, SampleQueryParams, SampleStats } from '../types/sample';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
 import http from './http';
@@ -13,6 +13,8 @@ import {
   mapPriorityToBackend,
   type SampleOrderDetailResponse,
   type SampleOrderListResponse,
+  adaptFollowProgress,
+  type SampleFollowProgressResponse,
 } from './adapters/sample-order';
 
 export type SampleOrderListResult = {
@@ -49,6 +51,7 @@ type SampleOrderMetaProcessResponse = {
 type SampleOrderMetaResponse = {
   units: string[];
   sampleTypes: Array<{ id: number; name: string }>;
+  followTemplates: Array<{ id: number; name: string; isDefault?: boolean }>;
   customers: Array<{ id: number; name: string }>;
   merchandisers: SampleOrderMetaStaffResponse[];
   patternMakers: SampleOrderMetaStaffResponse[];
@@ -123,6 +126,11 @@ const adaptMetaResponse = (payload: SampleOrderMetaResponse): SampleCreationMeta
   sampleTypes: (payload.sampleTypes ?? []).map((item) => ({
     id: String(item.id),
     name: item.name,
+  })),
+  followTemplates: (payload.followTemplates ?? []).map((item) => ({
+    id: String(item.id),
+    name: item.name,
+    isDefault: Boolean(item.isDefault),
   })),
   customers: (payload.customers ?? []).map((customer) => ({
     id: String(customer.id),
@@ -250,6 +258,7 @@ const toMockCreationPayload = (payload: SampleOrderCreateInput): SampleCreationP
   }, {});
   return {
     unit: payload.unit || '件',
+    followTemplateId: payload.followTemplateId,
     orderNo: payload.sampleNo,
     styleId: payload.styleId,
     customerId: payload.customerId,
@@ -381,6 +390,26 @@ export const sampleOrderApi = {
     const body = buildCreateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}/update`, body);
     return adaptSampleOrderDetail(data);
+  },
+
+  async updateFollowProgressNode(
+    orderId: string,
+    nodeId: string,
+    payload: { completed: boolean; statusValue?: string },
+  ): Promise<SampleFollowProgress | undefined> {
+    if (apiConfig.useMock) {
+      return sampleService.updateFollowProgressNode(orderId, nodeId, payload);
+    }
+    const tenantId = ensureTenantId();
+    const { data } = await http.post<SampleFollowProgressResponse>(
+      `/api/v1/sample-orders/${orderId}/follow-progress/${nodeId}/update`,
+      {
+        tenantId: Number(tenantId),
+        completed: payload.completed,
+        statusValue: payload.statusValue,
+      },
+    );
+    return adaptFollowProgress(data);
   },
 
   async copy(id: string): Promise<void> {

@@ -39,13 +39,21 @@ import {
   TableOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
-import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../types/sample';
+import type {
+  SampleFollowProgressNode,
+  SampleOrder,
+  SampleQueryParams,
+  SampleStats,
+  SampleStatus,
+} from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import sampleOrderApi from '../api/sample-order';
 import type { SampleCreationMeta } from '../types/sample-create';
 import { getSamplePriorityColor, getSamplePriorityLabel, getSampleStatusColor, getSampleStatusLabel } from '../utils/sample-labels';
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
+import SampleFollowProgress from '../components/sample/SampleFollowProgress';
+import SampleFollowNodeModal, { type FollowNodePayload } from '../components/sample/SampleFollowNodeModal';
 
 
 const { Search } = Input;
@@ -372,6 +380,8 @@ const SampleList: React.FC = () => {
   });
 
   const [creationMeta, setCreationMeta] = useState<SampleCreationMeta | null>(null);
+  const [editingNode, setEditingNode] = useState<{ order: SampleOrder; node: SampleFollowProgressNode } | null>(null);
+  const [nodeModalLoading, setNodeModalLoading] = useState(false);
   useEffect(() => {
     let mounted = true;
     sampleOrderApi
@@ -696,6 +706,41 @@ const SampleList: React.FC = () => {
     }
   }, [loadData, loadStats]);
 
+  const handleProgressNodeClick = useCallback((order: SampleOrder, node: SampleFollowProgressNode) => {
+    if (!node.id && !node.templateNodeId) {
+      message.warning('该节点缺少标识，暂时无法编辑');
+      return;
+    }
+    setEditingNode({ order, node });
+  }, []);
+
+  const handleNodeModalCancel = useCallback(() => {
+    setEditingNode(null);
+  }, []);
+
+  const handleNodeModalSubmit = useCallback(async (values: FollowNodePayload) => {
+    if (!editingNode) {
+      return;
+    }
+    const nodeId = editingNode.node.id ?? editingNode.node.templateNodeId;
+    if (!nodeId) {
+      message.error('节点缺少标识，无法编辑');
+      return;
+    }
+    setNodeModalLoading(true);
+    try {
+      await sampleOrderApi.updateFollowProgressNode(editingNode.order.id, nodeId, values);
+      message.success('节点状态已更新');
+      setEditingNode(null);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to update follow progress node', error);
+      message.error('更新节点状态失败，请稍后重试');
+    } finally {
+      setNodeModalLoading(false);
+    }
+  }, [editingNode, loadData]);
+
   const columns = useMemo<ColumnsType<SampleOrder>>(() => [
     {
       title: '样板单号',
@@ -725,18 +770,8 @@ const SampleList: React.FC = () => {
             style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }}
           />
         ) : (
-          <div style={{
-            width: 56,
-            height: 56,
-            borderRadius: 6,
-            backgroundColor: '#f5f5f5',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#bfbfbf',
-          }}
-          >
-            <PictureOutlined />
+          <div style={{ width: 56, height: 56, borderRadius: 6, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <PictureOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
           </div>
         )
       ),
@@ -744,126 +779,29 @@ const SampleList: React.FC = () => {
     {
       title: '款式信息',
       dataIndex: 'styleName',
-      key: 'styleInfo',
-      width: 260,
+      key: 'styleName',
+      width: 220,
       render: (_value, record) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.styleName}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            款号：{record.styleCode}
-          </Text>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#595959' }}>
-            品类：{record.category} / 面料：{record.fabric} / 颜色：{record.color} / 尺码：{record.size}
+          <Text strong>{record.styleName}</Text>
+          <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+            <div>{record.sampleType || '未分类'}</div>
+            <div>{record.customer}</div>
           </div>
         </div>
       ),
     },
     {
-      title: '客户',
-      dataIndex: 'customer',
-      key: 'customer',
-      width: 140,
-      sorter: true,
-      sortOrder: sortState?.field === 'customer' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-    },
-    {
-      title: '数量',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      width: 90,
-      align: 'right',
-      sorter: true,
-      sortOrder: sortState?.field === 'quantity' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (value: number) => `${value} 件`,
-    },
-    {
-      title: '单价',
-      dataIndex: 'unitPrice',
-      key: 'unitPrice',
-      width: 100,
-      align: 'right',
-      sorter: true,
-      sortOrder: sortState?.field === 'unitPrice' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (value: number) => `¥${value.toFixed(2)}`,
-    },
-    {
-      title: '总金额',
-      dataIndex: 'totalAmount',
-      key: 'totalAmount',
-      width: 110,
-      align: 'right',
-      sorter: true,
-      sortOrder: sortState?.field === 'totalAmount' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (value: number) => (
-        <span style={{ fontWeight: 500 }}>¥{value.toFixed(2)}</span>
+      title: '开发进度',
+      dataIndex: 'followProgress',
+      key: 'followProgress',
+      width: 520,
+      render: (_value, record) => (
+        <SampleFollowProgress
+          progress={record.followProgress}
+          onNodeClick={(node) => handleProgressNodeClick(record, node)}
+        />
       ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 110,
-      sorter: true,
-      sortOrder: sortState?.field === 'status' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (status: SampleStatus) => (
-        <Tag color={getSampleStatusColor(status)}>
-          {getSampleStatusLabel(status)}
-        </Tag>
-      ),
-    },
-    {
-      title: '优先级',
-      dataIndex: 'priority',
-      key: 'priority',
-      width: 90,
-      sorter: true,
-      sortOrder: sortState?.field === 'priority' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (priority: SampleOrder['priority']) => (
-        <Tag color={getSamplePriorityColor(priority)}>
-          {getSamplePriorityLabel(priority)}
-        </Tag>
-      ),
-    },
-    {
-      title: '交期',
-      dataIndex: 'deadline',
-      key: 'deadline',
-      width: 120,
-      sorter: true,
-      sortOrder: sortState?.field === 'deadline' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (value: string) => {
-        const due = dayjs(value);
-        const overdue = due.isBefore(dayjs(), 'day');
-        return (
-          <span style={{ color: overdue ? '#f5222d' : undefined }}>
-            {due.format('YYYY-MM-DD')}
-            {overdue && <Badge status="error" style={{ marginLeft: 4 }} />}
-          </span>
-        );
-      },
-    },
-    {
-      title: '设计师',
-      dataIndex: 'designer',
-      key: 'designer',
-      width: 110,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'createTime',
-      key: 'createTime',
-      width: 120,
-      sorter: true,
-      sortOrder: sortState?.field === 'createTime' ? sortState.order : undefined,
-      sortDirections: ['ascend', 'descend'],
-      render: (value: string) => dayjs(value).format('YYYY-MM-DD'),
     },
     {
       title: '操作',
@@ -904,7 +842,8 @@ const SampleList: React.FC = () => {
         </Space>
       ),
     },
-  ], [handleDelete, handleEdit, handleView, sortState]);
+  ], [handleDelete, handleEdit, handleView, handleProgressNodeClick, sortState]);
+
 
   const viewOptions = useMemo(() => [
     { label: <span><AppstoreOutlined /> 卡片</span>, value: 'card' },
@@ -932,7 +871,7 @@ const SampleList: React.FC = () => {
     };
 
     return (
-      <Card hoverable bodyStyle={{ padding: 16 }} onClick={() => handleView(order)}>
+      <Card hoverable styles={{ body: { padding: 16 } }} onClick={() => handleView(order)}>
         <div style={CARD_LAYOUT_STYLE}>
           <div style={CARD_MEDIA_STYLE}>
             {order.images?.[0] ? (
@@ -1037,7 +976,7 @@ const SampleList: React.FC = () => {
               hoverable
               loading={statsLoading}
               onClick={() => handleStatCardSelect(card.key)}
-              bodyStyle={{ padding: 16 }}
+              styles={{ body: { padding: 16 } }}
               style={{
                 borderColor: activeCardKey === card.key ? '#1677ff' : undefined,
                 boxShadow: activeCardKey === card.key ? '0 0 0 2px rgba(22,119,255,0.12)' : undefined,
@@ -1177,6 +1116,13 @@ const SampleList: React.FC = () => {
         mode="create"
         onOk={handleModalOk}
         onCancel={handleModalCancel}
+      />
+      <SampleFollowNodeModal
+        open={Boolean(editingNode)}
+        node={editingNode?.node}
+        loading={nodeModalLoading}
+        onCancel={handleNodeModalCancel}
+        onSubmit={handleNodeModalSubmit}
       />
     </div>
   );
