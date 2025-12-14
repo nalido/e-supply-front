@@ -76,6 +76,15 @@ const DETAIL_TAB_LABELS: Record<Exclude<DetailTabKey, 'attachments'>, string> = 
   other: '其他费用',
 };
 
+const COST_COLORS: Array<[string, string]> = [
+  ['#4F6FF7', '#6A8DFF'],
+  ['#6AD2FF', '#4EA9F7'],
+  ['#7B61FF', '#9D8CFF'],
+  ['#FF9F7A', '#FFBB96'],
+  ['#FF8DC7', '#FFB5E0'],
+  ['#4CD4A9', '#2BB78C'],
+];
+
 const SampleDetail = () => {
   const [searchParams] = useSearchParams();
   const [detail, setDetail] = useState<SampleOrderDetail | null>(null);
@@ -323,13 +332,24 @@ const SampleDetail = () => {
     if (!detail) {
       return [];
     }
+    const detailSlices = (detail.cost.developmentFeeDetails ?? [])
+      .map((item, index) => ({
+        name: item.name || `费用${index + 1}`,
+        value: Number(item.amount ?? 0),
+        colorStops: COST_COLORS[index % COST_COLORS.length],
+      }))
+      .filter((item) => item.value > 0);
+    if (detailSlices.length > 0) {
+      return detailSlices;
+    }
     const { fabric, trims, packaging, processing } = detail.cost.breakdown;
-    return [
-      { name: '面料', value: fabric, colorStops: ['#4F6FF7', '#6A8DFF'] as [string, string] },
-      { name: '辅料', value: trims, colorStops: ['#6AD2FF', '#4EA9F7'] as [string, string] },
-      { name: '包材', value: packaging, colorStops: ['#7B61FF', '#9D8CFF'] as [string, string] },
-      { name: '加工', value: processing, colorStops: ['#FF9F7A', '#FFBB96'] as [string, string] },
-    ].filter((item) => item.value > 0);
+    const fallback: Array<{ name: string; value: number; colorStops: [string, string] }> = [
+      { name: '面料', value: fabric, colorStops: COST_COLORS[0] },
+      { name: '辅料', value: trims, colorStops: COST_COLORS[1] },
+      { name: '包材', value: packaging, colorStops: COST_COLORS[2] },
+      { name: '加工', value: processing, colorStops: COST_COLORS[3] },
+    ];
+    return fallback.filter((item) => item.value > 0);
   }, [detail]);
 
   const costChartTotal = useMemo(() => costChartData.reduce((sum, item) => sum + item.value, 0), [costChartData]);
@@ -683,7 +703,17 @@ const SampleDetail = () => {
             >
               <Row gutter={[24, 24]}>
                 <Col xs={24} md={12}>
-                  <DonutChart data={costChartData} total={costChartTotal} />
+                  {costChartData.length > 0 ? (
+                    <DonutChart
+                      data={costChartData}
+                      total={costChartTotal}
+                      centerTitle="开发费用"
+                      totalFormatter={(value) => `¥${value.toFixed(2)}`}
+                      valueFormatter={(slice) => `¥${slice.value.toFixed(2)}`}
+                    />
+                  ) : (
+                    <Empty description="暂无成本数据" style={{ padding: '48px 0' }} />
+                  )}
                 </Col>
                 <Col xs={24} md={12}>
                   <Row gutter={[16, 16]}>
