@@ -724,13 +724,13 @@ const SampleDetail = () => {
                   {costChartData.length > 0 ? (
                     <div
                       ref={chartWrapperRef}
-                      style={{ width: '100%', minHeight: 280, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ width: '100%', minHeight: 360, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                       <DonutChart
                         data={costChartData}
                         total={costChartTotal}
-                        width={Math.max(320, chartContainerSize.width || 0)}
-                        height={Math.max(260, chartContainerSize.height || 0)}
+                        width={Math.max(360, chartContainerSize.width || 0)}
+                        height={Math.max(320, chartContainerSize.height || 0)}
                         connectorLength={Math.max(32, (chartContainerSize.width || 360) * 0.08)}
                         labelDistance={Math.max(48, (chartContainerSize.width || 360) * 0.2)}
                         centerTitle="开发费用"
