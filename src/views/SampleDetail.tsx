@@ -24,6 +24,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   EyeOutlined,
+  ArrowLeftOutlined,
   DownloadOutlined,
   EditOutlined,
   FileOutlined,
