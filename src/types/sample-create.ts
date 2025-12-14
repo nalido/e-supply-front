@@ -25,6 +25,9 @@ export interface CustomerOption {
 export interface SampleCreationAttachment {
   id: string;
   url: string;
+  name?: string;
+  fileType?: string;
+  fileSize?: number;
   isMain?: boolean;
   color?: string;
   createdAt?: string;

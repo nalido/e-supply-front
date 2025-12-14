@@ -199,12 +199,25 @@ const deriveSkuStateFromDetail = (
   };
 };
 
+const extractFileNameFromUrl = (url: string): string | undefined => {
+  try {
+    const cleanUrl = url.split('?')[0];
+    const segments = cleanUrl.split('/');
+    return segments[segments.length - 1];
+  } catch (_error) {
+    return undefined;
+  }
+};
+
 const mapAttachmentsFromDetail = (
   assets?: SampleOrderDetailResponse['attachments'],
 ): SampleCreationAttachment[] => {
   const attachments = (assets ?? []).map((asset) => ({
     id: String(asset.id ?? `${asset.url}-${Math.random().toString(36).slice(2, 8)}`),
     url: asset.url,
+    name: asset.name || extractFileNameFromUrl(asset.url),
+    fileType: asset.fileType,
+    fileSize: asset.fileSize,
     isMain: Boolean(asset.isMain),
     createdAt: new Date().toISOString(),
   }));
@@ -1094,16 +1107,19 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setAttachments((prev) => prev.map((item) => ({ ...item, isMain: item.id === id })));
   }, []);
 
-  const appendAttachment = useCallback((url: string, options?: { isMain?: boolean }) => {
+  const appendAttachment = useCallback((file: { url: string; name?: string; fileType?: string; fileSize?: number; isMain?: boolean }) => {
     setAttachments((prev) => {
       const hasMain = prev.some((item) => item.isMain);
-      const shouldBeMain = options?.isMain ?? !hasMain;
+      const shouldBeMain = file.isMain ?? !hasMain;
       const others = shouldBeMain ? prev.map((item) => ({ ...item, isMain: false })) : [...prev];
       const id = generateId();
       const createdAt = new Date().toISOString();
       const attachment: SampleCreationAttachment = {
         id,
-        url,
+        url: file.url,
+        name: file.name ?? extractFileNameFromUrl(file.url),
+        fileType: file.fileType,
+        fileSize: file.fileSize,
         isMain: shouldBeMain,
         createdAt,
       };
@@ -1129,6 +1145,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         {
           id: generateId(),
           url: value,
+          name: extractFileNameFromUrl(value),
           isMain: true,
           createdAt: new Date().toISOString(),
         },
@@ -1140,7 +1157,12 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   const handleAttachmentUpload = useCallback(async (file: File) => {
     try {
       const result = await storageApi.upload(file, { module: 'sample-orders' });
-      appendAttachment(result.url);
+      appendAttachment({
+        url: result.url,
+        name: result.fileName || file.name,
+        fileType: result.contentType || file.type,
+        fileSize: result.size || file.size,
+      });
       return true;
     } catch (error) {
       console.error('上传样板图片失败', error);
@@ -1226,8 +1248,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       const baseAttachments = attachments.map((attachment, index) => ({
         type: 'ATTACHMENT' as const,
         url: attachment.url,
-        name: attachment.id,
-        fileType: 'image',
+        name: attachment.name || extractFileNameFromUrl(attachment.url) || `附件${index + 1}`,
+        fileType: attachment.fileType,
+        fileSize: attachment.fileSize,
         isMain: attachment.isMain,
         sortOrder: index,
       }));
@@ -1336,7 +1359,10 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImageMap({});
     setColorImagesEnabled(false);
     if (style.image) {
-      appendAttachment(style.image);
+      appendAttachment({
+        url: style.image,
+        name: style.styleName ? `${style.styleName}主图` : undefined,
+      });
     }
     setStyleState((prev) => ({ ...prev, open: false }));
     if (!style.id) {

@@ -9,6 +9,7 @@ import {
   Empty,
   Image,
   List,
+  Modal,
   message,
   Row,
   Space,
@@ -22,6 +23,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams } from 'react-router-dom';
 import {
+  EyeOutlined,
   DownloadOutlined,
   EditOutlined,
   FileOutlined,
@@ -77,6 +79,7 @@ const DETAIL_TAB_LABELS: Record<Exclude<DetailTabKey, 'attachments'>, string> = 
 const SampleDetail = () => {
   const [searchParams] = useSearchParams();
   const [detail, setDetail] = useState<SampleOrderDetail | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<SampleAttachment | null>(null);
   const [loading, setLoading] = useState(true);
   const [costRefreshing, setCostRefreshing] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>('bom');
@@ -351,15 +354,65 @@ const SampleDetail = () => {
     );
   }, [activeDetailTab, handleDetailTabEdit, handleUploadAttachment]);
 
-  const renderAttachmentItem = useCallback((item: SampleAttachment) => (
-    <List.Item key={item.id} actions={[<Button key="download" type="link" icon={<DownloadOutlined />} onClick={() => message.success(`开始下载 ${item.name}`)}>下载</Button>]}> 
-      <List.Item.Meta
-        avatar={<FileOutlined style={{ fontSize: 20, color: '#1677ff' }} />}
-        title={<Text strong>{item.name}</Text>}
-        description={(<Space size={12}><span>{item.type.toUpperCase()}</span><span>{item.size}</span><span>{item.updatedAt}</span></Space>)}
-      />
-    </List.Item>
-  ), []);
+  const handleDownloadAttachment = useCallback((attachment: SampleAttachment) => {
+    const link = document.createElement('a');
+    link.href = attachment.url;
+    link.download = attachment.name || '附件';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  const handlePreviewAttachment = useCallback((attachment: SampleAttachment) => {
+    setPreviewAttachment(attachment);
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    setPreviewAttachment(null);
+  }, []);
+
+  const renderAttachmentItem = useCallback((item: SampleAttachment) => {
+    const isImage = item.type?.toLowerCase().startsWith('image');
+    const actions = [
+      ...(isImage
+        ? [
+            <Button key="preview" type="link" icon={<EyeOutlined />} onClick={() => handlePreviewAttachment(item)}>
+              预览
+            </Button>,
+          ]
+        : []),
+      <Button key="download" type="link" icon={<DownloadOutlined />} onClick={() => handleDownloadAttachment(item)}>
+        下载
+      </Button>,
+    ];
+    return (
+      <List.Item key={item.id} actions={actions}>
+        <List.Item.Meta
+          avatar={isImage ? (
+            <Image
+              src={item.url}
+              width={60}
+              height={60}
+              alt={item.name}
+              preview={false}
+              style={{ objectFit: 'cover', borderRadius: 8 }}
+            />
+          ) : (
+            <FileOutlined style={{ fontSize: 24, color: '#1677ff' }} />
+          )}
+          title={<Text strong>{item.name}</Text>}
+          description={(
+            <Space size={12} wrap>
+              {item.type ? <span>{item.type.toUpperCase()}</span> : null}
+              {item.size ? <span>{item.size}</span> : null}
+              {item.updatedAt ? <span>{item.updatedAt}</span> : null}
+            </Space>
+          )}
+        />
+      </List.Item>
+    );
+  }, [handleDownloadAttachment, handlePreviewAttachment]);
 
   const sectionButtons: Array<{ key: SectionKey; label: string }> = [
     { key: 'base', label: '基础信息' },
@@ -372,6 +425,22 @@ const SampleDetail = () => {
 
   return (
     <div style={{ padding: '0 24px 120px' }}>
+      <Modal
+        open={Boolean(previewAttachment)}
+        title={previewAttachment?.name || '附件预览'}
+        footer={null}
+        width={720}
+        onCancel={handleClosePreview}
+      >
+        {previewAttachment?.url ? (
+          <Image
+            src={previewAttachment.url}
+            alt={previewAttachment.name}
+            style={{ width: '100%' }}
+            preview={false}
+          />
+        ) : null}
+      </Modal>
       <Spin spinning={loading} delay={200}>
         {detail ? (
           <Space direction="vertical" size={24} style={{ width: '100%' }}>
