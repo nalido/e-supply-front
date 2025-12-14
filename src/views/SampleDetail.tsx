@@ -21,7 +21,7 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   EyeOutlined,
   DownloadOutlined,
@@ -94,6 +94,7 @@ const SampleDetail = () => {
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>('bom');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [initialEditSection, setInitialEditSection] = useState<SampleOrderFormSection>('core');
+  const navigate = useNavigate();
   const chartWrapperRef = useRef<HTMLDivElement | null>(null);
   const [chartContainerSize, setChartContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
@@ -730,7 +731,7 @@ const SampleDetail = () => {
                         data={costChartData}
                         total={costChartTotal}
                         width={Math.max(360, chartContainerSize.width || 0)}
-                        height={Math.max(380, chartContainerSize.height, (chartContainerSize.width || 360) * 0.75)}
+                        height={Math.max(380, chartContainerSize.height, (chartContainerSize.width || 360) * 0.6)}
                         connectorLength={Math.max(36, (chartContainerSize.width || 360) * 0.1)}
                         labelDistance={Math.max(56, (chartContainerSize.width || 360) * 0.24)}
                         centerTitle="开发费用"
@@ -812,6 +813,9 @@ const SampleDetail = () => {
             }}
           >
             <Space size={8}>
+              <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate('/sample/list')}>
+                返回列表
+              </Button>
               {sectionButtons.map(({ key, label }) => (
                 <Button key={key} type="link" onClick={() => handleScrollTo(key)}>
                   {label}
