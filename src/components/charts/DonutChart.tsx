@@ -122,7 +122,8 @@ export default function DonutChart({
       .map((slice, index) => {
         const fraction = slice.value / sanitizedTotal;
         const angle = fraction * Math.PI * 2;
-        const endAngle = startAngle + angle;
+        const adjustedAngle = angle >= Math.PI * 2 ? Math.PI * 2 - 1e-6 : angle;
+        const endAngle = startAngle + adjustedAngle;
         const midAngle = startAngle + angle / 2;
         const largeArc = angle > Math.PI ? 1 : 0;
         const startOuter = polarToCartesian(centerX, centerY, outerRadius, startAngle);
