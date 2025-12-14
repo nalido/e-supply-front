@@ -707,6 +707,10 @@ const SampleDetail = () => {
                     <DonutChart
                       data={costChartData}
                       total={costChartTotal}
+                      width={360}
+                      height={260}
+                      connectorLength={36}
+                      labelDistance={48}
                       centerTitle="开发费用"
                       totalFormatter={(value) => `¥${value.toFixed(2)}`}
                       valueFormatter={(slice) => `¥${slice.value.toFixed(2)}`}
