@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Affix,
   Button,
@@ -94,6 +94,24 @@ const SampleDetail = () => {
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>('bom');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [initialEditSection, setInitialEditSection] = useState<SampleOrderFormSection>('core');
+  const chartWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [chartContainerSize, setChartContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const container = chartWrapperRef.current;
+    if (!container) {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      setChartContainerSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      });
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const isMockMode = apiConfig.useMock;
 
@@ -704,17 +722,22 @@ const SampleDetail = () => {
               <Row gutter={[24, 24]}>
                 <Col xs={24} md={12}>
                   {costChartData.length > 0 ? (
-                    <DonutChart
-                      data={costChartData}
-                      total={costChartTotal}
-                      width={360}
-                      height={260}
-                      connectorLength={36}
-                      labelDistance={48}
-                      centerTitle="开发费用"
-                      totalFormatter={(value) => `¥${value.toFixed(2)}`}
-                      valueFormatter={(slice) => `¥${slice.value.toFixed(2)}`}
-                    />
+                    <div
+                      ref={chartWrapperRef}
+                      style={{ width: '100%', minHeight: 280, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <DonutChart
+                        data={costChartData}
+                        total={costChartTotal}
+                        width={Math.max(320, chartContainerSize.width || 0)}
+                        height={Math.max(260, chartContainerSize.height || 0)}
+                        connectorLength={Math.max(32, (chartContainerSize.width || 360) * 0.08)}
+                        labelDistance={Math.max(48, (chartContainerSize.width || 360) * 0.2)}
+                        centerTitle="开发费用"
+                        totalFormatter={(value) => `¥${value.toFixed(2)}`}
+                        valueFormatter={(slice) => `¥${slice.value.toFixed(2)}`}
+                      />
+                    </div>
                   ) : (
                     <Empty description="暂无成本数据" style={{ padding: '48px 0' }} />
                   )}
