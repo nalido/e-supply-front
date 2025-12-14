@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import type { SampleOrder, SampleQueryParams, SampleStats, SampleStatus } from '../../types/sample';
-import type { SampleOrderDetail } from '../../types/sample-detail';
+import type { SampleDevelopmentCostItem, SampleOrderDetail } from '../../types/sample-detail';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
 export type SamplePriorityResponse = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -270,6 +270,32 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
   const fabricCost = bom.fabrics.reduce((sum, item) => sum + item.cost, 0);
   const trimCost = bom.trims.reduce((sum, item) => sum + item.cost, 0);
 
+  const materialDevelopmentDetails = [
+    fabricCost > 0
+      ? {
+          id: 'fabric-cost',
+          name: '面料成本',
+          amount: fabricCost,
+        }
+      : null,
+    trimCost > 0
+      ? {
+          id: 'trim-cost',
+          name: '辅料成本',
+          amount: trimCost,
+        }
+      : null,
+  ].filter((item): item is SampleDevelopmentCostItem => Boolean(item));
+
+  const otherDevelopmentDetails: SampleDevelopmentCostItem[] = otherCosts.map((item) => ({
+    id: item.id,
+    name: item.costType,
+    amount: item.developmentCost,
+  }));
+
+  const developmentFeeDetails = [...materialDevelopmentDetails, ...otherDevelopmentDetails];
+  const developmentFee = developmentFeeDetails.reduce((sum, item) => sum + item.amount, 0);
+
   return {
     id: String(payload.id),
     styleNo: payload.styleNo || '--',
@@ -298,18 +324,14 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     attachments,
     cost: {
       totalQuotedPrice: totalAmount,
-      developmentFee: costTotal,
+      developmentFee,
       breakdown: {
         fabric: fabricCost,
         trims: trimCost,
         packaging: 0,
         processing: costTotal,
       },
-      developmentFeeDetails: otherCosts.map((item) => ({
-        id: item.id,
-        name: item.costType,
-        amount: item.developmentCost,
-      })),
+      developmentFeeDetails,
     },
     customer: payload.customerName,
   };
