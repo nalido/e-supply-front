@@ -30,7 +30,6 @@ export const menuTree: MenuNode[] = [
     children: [
       // { key: '/sample/overview', label: <Link to="/sample">打板汇总</Link> },
       { key: '/sample/list', label: <Link to="/sample/list">样板单</Link> },
-      { key: '/sample/follow', label: <Link to="/sample/follow">样板跟进</Link> },
       { key: '/sample/follow-template', label: <Link to="/sample/follow-template">跟进模板</Link> },
       { key: '/sample/type', label: <Link to="/sample/type">样板类型</Link> },
       {
@@ -71,7 +70,6 @@ export const menuTree: MenuNode[] = [
     children: [
       { key: '/material/stock', label: <Link to="/material/stock">物料库存</Link> },
       { key: '/material/purchase-prep', label: <Link to="/material/purchase-prep">备料采购入库</Link> },
-      { key: '/material/purchase-order', label: <Link to="/material/purchase-order">按单采购入库</Link> },
       { key: '/material/issue', label: <Link to="/material/issue">领料出库明细</Link> },
       {
         key: '/material/report',

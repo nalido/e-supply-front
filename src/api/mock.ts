@@ -68,6 +68,8 @@ import type {
   OperationalEfficiencyTemplatePayload,
 } from '../types/operational-efficiency';
 import type {
+  MaterialMovementListParams,
+  MaterialMovementListResponse,
   MaterialStockListParams,
   MaterialStockListResponse,
   MaterialStockMeta,
@@ -76,20 +78,16 @@ import type {
   MaterialIssueMeta,
   MaterialIssueListParams,
   MaterialIssueListResponse,
+  MaterialIssueCreatePayload,
+  MaterialIssueCreateResponse,
+  MaterialIssueStatusUpdatePayload,
+  MaterialIssueStatusUpdateResult,
 } from '../types/material-issue';
 import type {
   MaterialPurchaseReportListParams,
   MaterialPurchaseReportListResponse,
   MaterialPurchaseReportMeta,
 } from '../types/material-purchase-report';
-import type {
-  OrderPurchaseInboundExportParams,
-  OrderPurchaseInboundListParams,
-  OrderPurchaseInboundListResponse,
-  OrderPurchaseInboundMeta,
-  OrderPurchaseInboundReceivePayload,
-  OrderPurchaseInboundStatusPayload,
-} from '../types/order-purchase-inbound';
 import type {
   OrderMaterialRequirementListParams,
   OrderMaterialRequirementListResponse,
@@ -159,11 +157,13 @@ import type {
 } from '../types/sample-order-comparison-report';
 import type {
   StockingBatchReceivePayload,
+  StockingPurchaseCreatePayload,
   StockingPurchaseExportParams,
   StockingPurchaseListParams,
   StockingPurchaseListResponse,
   StockingPurchaseMeta,
   StockingStatusUpdatePayload,
+  ProcurementOrderSummary,
 } from '../types/stocking-purchase-inbound';
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { PaginatedStyleData, StyleData, StyleListParams } from '../types/style';
@@ -200,6 +200,7 @@ import {
 import {
   fetchMaterialStockList,
   fetchMaterialStockMeta,
+  fetchMaterialStockMovements,
 } from '../mock/material-stock';
 import { fetchOrderMaterialRequirementList } from '../mock/order-material-requirement-report';
 import {
@@ -210,13 +211,6 @@ import {
   fetchMaterialIssueList,
   fetchMaterialIssueMeta,
 } from '../mock/material-issue';
-import {
-  exportOrderPurchaseInbound,
-  fetchOrderPurchaseInboundList,
-  fetchOrderPurchaseInboundMeta,
-  submitOrderPurchaseInboundReceive,
-  updateOrderPurchaseInboundStatus,
-} from '../mock/order-purchase-inbound';
 import { fetchOutsourcingCuttingDetailList } from '../mock/order-outsourcing-cutting-detail-report';
 import {
   exportProductionComparison,
@@ -1784,6 +1778,12 @@ const materialStock = {
   ): Promise<MaterialStockListResponse> {
     return fetchMaterialStockList(params);
   },
+
+  async getMovements(
+    params: MaterialMovementListParams,
+  ): Promise<MaterialMovementListResponse> {
+    return fetchMaterialStockMovements(params);
+  },
 };
 
 const materialPurchaseReport = {
@@ -1798,36 +1798,6 @@ const materialPurchaseReport = {
   },
 };
 
-const orderPurchaseInbound = {
-  async getMeta(): Promise<OrderPurchaseInboundMeta> {
-    return fetchOrderPurchaseInboundMeta();
-  },
-
-  async getList(
-    params: OrderPurchaseInboundListParams,
-  ): Promise<OrderPurchaseInboundListResponse> {
-    return fetchOrderPurchaseInboundList(params);
-  },
-
-  async batchReceive(
-    payload: OrderPurchaseInboundReceivePayload,
-  ): Promise<{ success: boolean }> {
-    return submitOrderPurchaseInboundReceive(payload);
-  },
-
-  async updateStatus(
-    payload: OrderPurchaseInboundStatusPayload,
-  ): Promise<{ success: boolean }> {
-    return updateOrderPurchaseInboundStatus(payload);
-  },
-
-  async export(
-    params: OrderPurchaseInboundExportParams,
-  ): Promise<{ url: string }> {
-    return exportOrderPurchaseInbound(params);
-  },
-};
-
 const materialIssue = {
   async getMeta(): Promise<MaterialIssueMeta> {
     return fetchMaterialIssueMeta();
@@ -1837,6 +1807,22 @@ const materialIssue = {
     params: MaterialIssueListParams,
   ): Promise<MaterialIssueListResponse> {
     return fetchMaterialIssueList(params);
+  },
+
+  async createIssue(payload: MaterialIssueCreatePayload): Promise<MaterialIssueCreateResponse> {
+    return Promise.resolve({
+      issueId: `mock-${Date.now()}`,
+      issueNo: 'MI-MOCK',
+      status: 'issued',
+      statusLabel: '已出库',
+      lineCount: payload.lines.length,
+    });
+  },
+
+  async updateStatus(
+    payload: MaterialIssueStatusUpdatePayload,
+  ): Promise<MaterialIssueStatusUpdateResult> {
+    return Promise.resolve({ success: true, affectedCount: payload.lineIds.length });
   },
 };
 
@@ -2034,6 +2020,20 @@ const stockingPurchaseInbound = {
   ): Promise<{ fileUrl: string }> {
     return exportStockingPurchaseList(params);
   },
+
+  async createOrder(
+    payload: StockingPurchaseCreatePayload,
+  ): Promise<ProcurementOrderSummary> {
+    const timestamp = Date.now();
+    const lineCount = payload.lines?.length ?? 0;
+    return {
+      id: `mock-po-${timestamp}`,
+      orderNo: `PO-MOCK-${lineCount}-${timestamp}`,
+      status: 'pending',
+      statusLabel: '未完成',
+      statusTagColor: 'orange',
+    };
+  },
 };
 
 const orderProgressDetailsReport = {
@@ -2228,7 +2228,6 @@ export const sampleService = sample;
 export const operationalEfficiencyService = operationalEfficiency;
 export const materialStockService = materialStock;
 export const materialPurchaseReportService = materialPurchaseReport;
-export const orderPurchaseInboundService = orderPurchaseInbound;
 export const materialIssueService = materialIssue;
 export const finishedGoodsOtherInboundService = finishedGoodsOtherInbound;
 export const finishedGoodsInventoryReportService = finishedGoodsInventoryReport;
@@ -2311,7 +2310,6 @@ export default {
   operationalEfficiency,
   materialStock,
   materialPurchaseReport,
-  orderPurchaseInbound,
   materialIssue,
   finishedGoodsOtherInbound,
   finishedGoodsInventoryReport,

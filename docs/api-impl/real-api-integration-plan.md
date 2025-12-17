@@ -32,7 +32,7 @@
 | --- | --- | --- | --- | --- |
 | `MaterialStock`, `MaterialInventoryReport` (`materialStockService`) | 标签页（面/辅料）、仓库筛选、列表汇总 | `/api/v1/inventory/materials`, `/meta` | Ready | 接口字段与前端类型基本一致，仅 `materialType` / `warehouseId` 需大小写转换。|
 | `MaterialIssueDetails` | 出入库明细 + meta | `/api/v1/inventory/material-issues`, `/meta` | Ready | 同上。|
-| `OrderPurchaseInbound` | 列表 + 汇总 + meta + “收货/强制完成” | `/api/v1/procurement/order-based`, `/meta`, `/orders/{id}/receive`, `/orders/{id}/status` | Adjust | 后端 `OrderPurchaseRecord` 缺少 `imageUrl`、`documentType` 详情；`receiveOrder` 请求体为 `ProcurementReceiptRequest`，字段名与前端 `items[]` 不同，需要适配；所有查询要求 `tenantId` 与 0-based page。|
+| `OrderPurchaseInbound`（已下线） | —— | —— | N/A | 模块已移除，仅保留备料采购入库，相关接口与页面不再维护。|
 | `StockingPurchaseInbound` | 列表 + meta + 批量收货/状态更新 | `/api/v1/procurement/stocking`, `/meta`, `/orders/{orderId}/receive` | Adjust | `StockingPurchaseRecord` 返回字段基本一致，但缺 summary；批量动作需要额外后端接口（当前只有按订单 `POST /receive`）。|
 | `MaterialPurchaseReport`, `MaterialIssueReports` | 报表、导出 | **缺少** `/material-purchase-report`、`/material-issue-summary` 接口 | Blocked | 继续 mock，等待后端提供聚合 API。|
 

@@ -5,7 +5,6 @@ import Workplace from './views/Workplace';
 import SampleDashboard from './views/SampleDashboard';
 import SampleList from './views/SampleList';
 import SampleDetail from './views/SampleDetail';
-import SampleFollow from './views/SampleFollow';
 import FollowTemplate from './views/FollowTemplate';
 import SampleType from './views/SampleType';
 import SampleCostingReport from './views/SampleCostingReport';
@@ -45,7 +44,6 @@ import MaterialInventoryReport from './views/MaterialInventoryReport';
 import MaterialPurchaseReport from './views/MaterialPurchaseReport';
 import MaterialIssueDetails from './views/MaterialIssueDetails';
 import MaterialStock from './views/MaterialStock';
-import OrderPurchaseInbound from './views/OrderPurchaseInbound';
 import OrderOutsourcingCuttingDetailReport from './views/OrderOutsourcingCuttingDetailReport';
 import SettlementCustomerReceipts from './views/SettlementCustomerReceipts';
 import SettlementFactoryPayments from './views/SettlementFactoryPayments';
@@ -95,7 +93,6 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/dashboard/workplace' &&
     n.key !== '/sample' &&
     n.key !== '/sample/list' &&
-    n.key !== '/sample/follow' &&
     n.key !== '/sample/follow-template' &&
     n.key !== '/sample/type' &&
     n.key !== '/orders/factory' &&
@@ -134,7 +131,6 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/product/inbound/received' &&
     n.key !== '/product/outbound' &&
     n.key !== '/material/stock' &&
-    n.key !== '/material/purchase-order' &&
     n.key !== '/material/report/overview' &&
     n.key !== '/material/report/purchase-inbound-detail' &&
     n.key !== '/material/issue' &&
@@ -165,7 +161,6 @@ const router = createBrowserRouter([
       { path: 'sample', element: React.createElement(SampleDashboard) },
       { path: 'sample/list', element: React.createElement(SampleList) },
       { path: 'sample/detail', element: React.createElement(SampleDetail) },
-      { path: 'sample/follow', element: React.createElement(SampleFollow) },
       { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
       { path: 'sample/type', element: React.createElement(SampleType) },
       { path: 'sample/report/costing', element: React.createElement(SampleCostingReport) },
@@ -185,7 +180,6 @@ const router = createBrowserRouter([
       { path: 'product/inbound/pending', element: React.createElement(FinishedGoodsPendingReceipt) },
       { path: 'product/inbound/received', element: React.createElement(FinishedGoodsReceived) },
       { path: 'material/stock', element: React.createElement(MaterialStock) },
-      { path: 'material/purchase-order', element: React.createElement(OrderPurchaseInbound) },
       { path: 'material/purchase-prep', element: React.createElement(StockingPurchaseInbound) },
       { path: 'material/report/overview', element: React.createElement(MaterialInventoryReport) },
       { path: 'material/report/purchase-inbound-detail', element: React.createElement(MaterialPurchaseReport) },

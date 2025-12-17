@@ -23,7 +23,6 @@ export * from './operational-efficiency';
 export * from './material-stock';
 export * from './material-purchase-report';
 export * from './material-issue';
-export * from './order-purchase-inbound';
 export * from './settlement-cashier-accounts';
 export * from './settlement-customer-receipts';
 export * from './settlement-factory-payments';

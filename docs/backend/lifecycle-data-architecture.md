@@ -9,7 +9,7 @@
 | 基础资料准备 | 建立可复用的主数据（款式、物料、往来、工艺、仓库等） | `src/views/StyleDetail.tsx`, `StyleMaterials.tsx`, `MaterialArchive.tsx`, `OperationTemplate.tsx`, `ProcessType.tsx`, `Partners.tsx`, `Warehouse.tsx` | `StyleData`, `StyleDraft`, `MaterialItem`, `ProcessType`, `OperationTemplate`, `Partner`, `Warehouse` |
 | 样板开发 | 管理样板单生命周期、模板、类型与统计 | `SampleDashboard.tsx`, `SampleList.tsx`, `SampleDetail.tsx`, `SampleFollow.tsx`, `FollowTemplate.tsx`, `SampleType.tsx`, 报表（成本、打板下单对照） | `SampleOrder`, `SampleStats`, `TemplateNode`, `SampleTypeItem`, `SampleCostCard`, `SampleOrderComparisonItem` |
 | 订单生产启用 | 将样板转化为大货订单，监控工厂/委外生产进度 | `FactoryOrders.tsx`, `OrderProductionComparison.tsx`, `OperationalEfficiency.tsx`, `OrderProgressDetailsSection.tsx`, `OrderTicketDetailsSection.tsx`, `OperationalEfficiency` 模板 | `FactoryOrderItem`, `FactoryOrderProgress`, `ProductionComparisonRecord`, `OrderProgressDetailsRecord`, `OrderTicketLot`, `OperationalEfficiencyTemplate` |
-| 物料供应与备料 | 管控备料采购、按单采购、库存与出库 | `StockingPurchaseInbound.tsx`, `OrderPurchaseInbound.tsx`, `MaterialStock.tsx`, `MaterialIssueDetails.tsx`, `MaterialInventoryReport.tsx`, `MaterialPurchaseReport.tsx` | `StockingPurchaseRecord`, `OrderPurchaseInboundRecord`, `MaterialStockListItem`, `MaterialIssueRecord`, `MaterialInventoryListItem` |
+| 物料供应与备料 | 管控备料采购、库存与出库 | `StockingPurchaseInbound.tsx`, `MaterialStock.tsx`, `MaterialIssueDetails.tsx`, `MaterialInventoryReport.tsx`, `MaterialPurchaseReport.tsx` | `StockingPurchaseRecord`, `MaterialStockListItem`, `MaterialIssueRecord`, `MaterialInventoryListItem` |
 | 生产执行（车间） | 裁床、计件、质检、车间进度、薪资 | `CuttingPending.tsx`, `CuttingCompleted.tsx`, `CuttingReport.tsx`, `PieceworkDashboard.tsx`, `WorkshopProgress.tsx`, `ProcessProductionComparisonSection.tsx`, `QualityControlManagement.tsx`, `SalaryManagement.tsx` | `CuttingTask`, `CuttingReportRecord`, `PieceworkDashboardDataset`, `WorkshopProgressOrder`, `ProcessProductionLot`, `OrderTicketRecord`, `QualityControlRecord`, `SalaryEmployeeRecord` |
 | 外发协同 | 管理外发订单、外接订单、外协报表 | `OutsourceOrders.tsx`, `IncomingOrders.tsx`, `OutsourcingManagement.tsx`, `OutsourcingProductionReport.tsx`, `OutsourcingManagement` 相关报表 | `OutsourceOrder`, `IncomingOrder`, `OutsourcingManagementListItem`, `OutsourcingProductionReportListItem`, `OutsourcingCuttingDetailRecord` |
 | 成品入库与库存 | 收货、其它入库、库存、出库、进销存报表 | `FinishedGoodsPendingReceipt.tsx`, `FinishedGoodsReceived.tsx`, `FinishedGoodsOtherInbound.tsx`, `FinishedGoodsStock.tsx`, `FinishedGoodsPendingReceipt.tsx`, `FinishedGoodsOutbound.tsx`, `FinishedGoodsInventoryReport.tsx` | `FinishedGoodsPendingReceiptRecord`, `FinishedGoodsReceivedRecord`, `FinishedGoodsOtherInboundRecord`, `FinishedGoodsStockRecord`, `FinishedGoodsOutboundRecord`, `FinishedGoodsInventoryListItem` |
@@ -44,7 +44,7 @@
 ### 2.4 物料域
 
 - 备料采购：`StockingPurchaseRecord`（`src/types/stocking-purchase-inbound.ts`）。
-- 按单采购：`OrderPurchaseInboundRecord`、收货 `OrderPurchaseInboundReceivePayload`。
+-（按单采购已下线，仅保留备料采购流程）。
 - 库存：`MaterialStockListItem`, `MaterialInventoryListItem`（`src/types/material-stock.ts`, `src/types/material-inventory.ts`）。
 - 出库：`MaterialIssueRecord`, 汇总字段统一 `issueQty`, `amount`。
 
@@ -298,4 +298,3 @@
 ---
 
 该设计将现有前端数据结构统一映射到后端规范化模型，减少重复字段维护，确保样板→生产→库存→结算的全链路闭环数据一致性，并为未来引入真实服务与扩展 BI 能力奠定基础。
-
