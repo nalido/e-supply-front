@@ -21,7 +21,7 @@ import {
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
-import { materialInventoryReportService } from '../api/mock';
+import { materialInventoryReportService } from '../api/material-inventory';
 import type {
   MaterialInboundRatioItem,
   MaterialInventoryAggregation,
@@ -252,32 +252,22 @@ const MaterialInventoryReport = () => {
       ),
     },
     {
+      title: '物料名称',
+      dataIndex: 'materialName',
+      width: 220,
+      ellipsis: true,
+    },
+    {
       title: '物料类型',
       dataIndex: 'materialType',
       width: 120,
     },
     {
-      title: '物料名称',
-      dataIndex: 'materialName',
-      width: 200,
-      ellipsis: true,
-    },
-    {
-      title: '颜色',
-      dataIndex: 'color',
-      width: 120,
-    },
-    {
-      title: '幅宽|克重',
-      dataIndex: 'spec',
-      width: 160,
-      ellipsis: true,
-    },
-    {
-      title: '采购单位',
-      dataIndex: 'unit',
-      width: 100,
-      align: 'center',
+      title: '当前库存',
+      dataIndex: 'currentStock',
+      width: 140,
+      align: 'right',
+      render: (value: number) => formatQuantity(value),
     },
     {
       title: '入库数',
@@ -308,11 +298,21 @@ const MaterialInventoryReport = () => {
       render: (value: number) => formatQuantity(value),
     },
     {
-      title: '当前库存',
-      dataIndex: 'currentStock',
-      width: 140,
-      align: 'right',
-      render: (value: number) => formatQuantity(value),
+      title: '颜色',
+      dataIndex: 'color',
+      width: 120,
+    },
+    {
+      title: '幅宽|克重',
+      dataIndex: 'spec',
+      width: 160,
+      ellipsis: true,
+    },
+    {
+      title: '采购单位',
+      dataIndex: 'unit',
+      width: 100,
+      align: 'center',
     },
   ], [page, pageSize]);
 

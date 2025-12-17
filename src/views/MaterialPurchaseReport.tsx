@@ -18,7 +18,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { materialPurchaseReportService } from '../api/mock';
+import { materialPurchaseReportService } from '../api/material-inventory';
 import type {
   MaterialPurchaseReportListItem,
   MaterialPurchaseReportListParams,
@@ -169,15 +169,72 @@ const MaterialPurchaseReport = () => {
 
   const columns: ColumnsType<MaterialPurchaseReportListItem> = useMemo(() => [
     {
-      title: '采购类型',
-      dataIndex: 'purchaseTypeLabel',
-      width: 120,
-      render: (value: string) => <Tag color={PURCHASE_TYPE_COLORS[value] ?? 'blue'}>{value}</Tag>,
-    },
-    {
       title: '采购单号',
       dataIndex: 'purchaseOrderNo',
       width: 160,
+    },
+    {
+      title: '物料名称',
+      dataIndex: 'materialName',
+      width: 220,
+      ellipsis: true,
+    },
+    {
+      title: '物料类型',
+      dataIndex: 'materialType',
+      width: 120,
+    },
+    {
+      title: '采购数',
+      dataIndex: 'orderedQty',
+      width: 120,
+      align: 'right',
+      render: (value: number) => formatQuantity(value),
+    },
+    {
+      title: '入库数',
+      dataIndex: 'inboundQty',
+      width: 120,
+      align: 'right',
+      render: (value: number) => formatQuantity(value),
+    },
+    {
+      title: '采购单位',
+      dataIndex: 'unit',
+      width: 100,
+      align: 'center',
+    },
+    {
+      title: '采购单价',
+      dataIndex: 'unitPrice',
+      width: 140,
+      align: 'right',
+      render: (value: number) => formatCurrency(value),
+    },
+    {
+      title: '采购金额',
+      dataIndex: 'orderedAmount',
+      width: 160,
+      align: 'right',
+      render: (value: number) => formatCurrency(value),
+    },
+    {
+      title: '入库金额',
+      dataIndex: 'inboundAmount',
+      width: 160,
+      align: 'right',
+      render: (value: number) => formatCurrency(value),
+    },
+    {
+      title: '供应商',
+      dataIndex: 'supplierName',
+      width: 160,
+    },
+    {
+      title: '入库时间',
+      dataIndex: 'inboundTime',
+      width: 180,
+      render: (value?: string) => value || <Text type="secondary">-</Text>,
     },
     {
       title: '采购时间',
@@ -197,34 +254,6 @@ const MaterialPurchaseReport = () => {
     {
       title: '款名',
       dataIndex: 'styleName',
-      width: 200,
-      ellipsis: true,
-    },
-    {
-      title: '供应商',
-      dataIndex: 'supplierName',
-      width: 160,
-    },
-    {
-      title: '供应商型号',
-      dataIndex: 'supplierModel',
-      width: 140,
-      render: (value?: string) => value || <Text type="secondary">-</Text>,
-    },
-    {
-      title: '供应商色号',
-      dataIndex: 'supplierColor',
-      width: 140,
-      render: (value?: string) => value || <Text type="secondary">-</Text>,
-    },
-    {
-      title: '物料类型',
-      dataIndex: 'materialType',
-      width: 120,
-    },
-    {
-      title: '物料名称',
-      dataIndex: 'materialName',
       width: 200,
       ellipsis: true,
     },
@@ -254,51 +283,16 @@ const MaterialPurchaseReport = () => {
       render: (value?: string) => value || <Text type="secondary">-</Text>,
     },
     {
-      title: '采购数',
-      dataIndex: 'orderedQty',
-      width: 120,
-      align: 'right',
-      render: (value: number) => formatQuantity(value),
-    },
-    {
-      title: '采购单位',
-      dataIndex: 'unit',
-      width: 100,
-      align: 'center',
-    },
-    {
-      title: '采购单价',
-      dataIndex: 'unitPrice',
+      title: '供应商型号',
+      dataIndex: 'supplierModel',
       width: 140,
-      align: 'right',
-      render: (value: number) => formatCurrency(value),
-    },
-    {
-      title: '采购金额',
-      dataIndex: 'orderedAmount',
-      width: 160,
-      align: 'right',
-      render: (value: number) => formatCurrency(value),
-    },
-    {
-      title: '入库时间',
-      dataIndex: 'inboundTime',
-      width: 180,
       render: (value?: string) => value || <Text type="secondary">-</Text>,
     },
     {
-      title: '入库数',
-      dataIndex: 'inboundQty',
-      width: 120,
-      align: 'right',
-      render: (value: number) => formatQuantity(value),
-    },
-    {
-      title: '入库金额',
-      dataIndex: 'inboundAmount',
-      width: 160,
-      align: 'right',
-      render: (value: number) => formatCurrency(value),
+      title: '供应商色号',
+      dataIndex: 'supplierColor',
+      width: 140,
+      render: (value?: string) => value || <Text type="secondary">-</Text>,
     },
   ], []);
 
