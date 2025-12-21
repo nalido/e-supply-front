@@ -38,7 +38,22 @@ const infoET0193 = getStyleInfo('ET0193');
 const infoET5033 = getStyleInfo('ET5033');
 const infoET5031 = getStyleInfo('ET5031');
 
-const stockDataset: FinishedGoodsStockRecord[] = [
+const buildStockRecord = (
+  record: Omit<FinishedGoodsStockRecord, 'availableQuantity' | 'styleVariantId' | 'productionOrderId' | 'customerId'> & {
+    availableQuantity?: number;
+    styleVariantId?: string;
+    productionOrderId?: string;
+    customerId?: string;
+  },
+): FinishedGoodsStockRecord => ({
+  ...record,
+  availableQuantity: record.availableQuantity ?? record.quantity,
+  styleVariantId: record.styleVariantId ?? `${record.sku}-variant`,
+  productionOrderId: record.productionOrderId ?? record.factoryOrderNo ?? 'PO-DEMO',
+  customerId: record.customerId ?? 'cust-demo',
+});
+
+const rawStockDataset = [
   {
     id: 'stock-0001',
     warehouseId: 'wh-hz',
@@ -51,6 +66,7 @@ const stockDataset: FinishedGoodsStockRecord[] = [
     size: '130',
     sku: 'ET0110-藏青-130',
     quantity: 186,
+    availableQuantity: 132,
     imageUrl: infoET0110.imageUrl,
   },
   {
@@ -180,6 +196,8 @@ const stockDataset: FinishedGoodsStockRecord[] = [
     imageUrl: infoET5031.imageUrl,
   },
 ];
+
+const stockDataset: FinishedGoodsStockRecord[] = rawStockDataset.map((record) => buildStockRecord(record));
 
 const summarize = (records: FinishedGoodsStockRecord[]) =>
   records.reduce(

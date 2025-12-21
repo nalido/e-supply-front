@@ -48,7 +48,7 @@ export default function SampleDashboard() {
     setLoading(true);
     try {
       const [statsData, chartDataset, pieDataset, overdueData] = await Promise.all([
-        sampleService.getSampleStats(),
+        sampleService.getSampleDashboardStats(),
         sampleService.getSampleChartData(),
         sampleService.getSamplePieData(),
         sampleService.getOverdueSamples({ page: 1, pageSize: 10 })

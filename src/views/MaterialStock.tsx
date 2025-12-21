@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { Button, Card, Col, Input, Row, Space, Switch, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Button, Card, Col, Input, Row, Space, Switch, Table, Tabs, Typography, message } from 'antd';
 import { DownloadOutlined, ProfileOutlined, ShoppingOutlined } from '@ant-design/icons';
-import { materialStockService } from '../api/mock';
+import { materialStockService } from '../api/material-inventory';
 import type {
   MaterialStockListItem,
   MaterialStockListParams,
@@ -11,6 +11,9 @@ import type {
   MaterialStockMeta,
   MaterialStockType,
 } from '../types/material-stock';
+import MaterialMovementsModal from '../components/material/MaterialMovementsModal';
+import MaterialIssueModal from '../components/material/MaterialIssueModal';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -35,7 +38,7 @@ const MaterialStock = () => {
   });
   const [tableLoading, setTableLoading] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
-  const [onlyInStock, setOnlyInStock] = useState(true);
+  const [onlyInStock, setOnlyInStock] = useState(false);
   const [remarkKeyword, setRemarkKeyword] = useState('');
   const [orderKeyword, setOrderKeyword] = useState('');
   const [appliedRemarkKeyword, setAppliedRemarkKeyword] = useState<string | undefined>(undefined);
@@ -45,6 +48,20 @@ const MaterialStock = () => {
   const [total, setTotal] = useState(0);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<MaterialStockListItem[]>([]);
+  const [movementModalOpen, setMovementModalOpen] = useState(false);
+  const [movementMaterial, setMovementMaterial] = useState<MaterialStockListItem | null>(null);
+  const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [issueMaterials, setIssueMaterials] = useState<MaterialStockListItem[]>([]);
+
+  const handleMovementModalClose = () => {
+    setMovementModalOpen(false);
+    setMovementMaterial(null);
+  };
+
+  const handleIssueModalClose = () => {
+    setIssueModalOpen(false);
+    setIssueMaterials([]);
+  };
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -130,7 +147,7 @@ const MaterialStock = () => {
     setOrderKeyword('');
     setAppliedRemarkKeyword(undefined);
     setAppliedOrderKeyword(undefined);
-    setOnlyInStock(true);
+    setOnlyInStock(false);
     setPage(1);
     setPageSize(DEFAULT_PAGE_SIZE);
     setSelectedRowKeys([]);
@@ -157,10 +174,17 @@ const MaterialStock = () => {
   );
 
   const handleMaterialRequisition = () => {
-    if (!selectedRowKeys.length) {
+    if (!selectedRows.length) {
+      message.warning('请先勾选需要出库的物料');
       return;
     }
-    message.success(`已添加 ${selectedRowKeys.length} 个物料到领料单草稿`);
+    const warehouseIds = new Set(selectedRows.map((item) => item.warehouseId));
+    if (warehouseIds.size > 1) {
+      message.error('暂仅支持同一仓库的物料同时出库');
+      return;
+    }
+    setIssueMaterials(selectedRows);
+    setIssueModalOpen(true);
   };
 
   const handleShowDetails = () => {
@@ -168,7 +192,8 @@ const MaterialStock = () => {
       return;
     }
     const record = selectedRows[0];
-    message.info(`${record.materialName} 的进出明细将在后续版本提供`);
+    setMovementMaterial(record);
+    setMovementModalOpen(true);
   };
 
   const handleExport = () => {
@@ -180,32 +205,7 @@ const MaterialStock = () => {
       title: '物料图片',
       dataIndex: 'imageUrl',
       width: 96,
-      render: (value, record) => (
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 8,
-            overflow: 'hidden',
-            background: '#f4f4f5',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {value ? (
-            <img
-              src={value}
-              alt={record.materialName}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            <Tag color="default" bordered={false}>
-              暂无图片
-            </Tag>
-          )}
-        </div>
-      ),
+      render: (value, record) => <ListImage src={value} alt={record.materialName} />,
     },
     {
       title: '物料编码',
@@ -286,7 +286,7 @@ const MaterialStock = () => {
   const canShowDetails = selectedRows.length === 1;
 
   return (
-    <Card title="物料库存" bordered={false} loading={metaLoading}>
+    <Card title="物料库存" variant="borderless" loading={metaLoading}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Tabs
           items={tabItems.map((tab) => ({ key: tab.value, label: tab.label }))}
@@ -368,6 +368,21 @@ const MaterialStock = () => {
             showTotal: (value) => `共 ${value} 条`,
           }}
           scroll={{ x: 'max-content' }}
+        />
+        <MaterialMovementsModal
+          open={movementModalOpen}
+          material={movementMaterial}
+          onClose={handleMovementModalClose}
+        />
+        <MaterialIssueModal
+          open={issueModalOpen}
+          materials={issueMaterials}
+          materialType={materialType}
+          onClose={handleIssueModalClose}
+          onIssued={() => {
+            handleIssueModalClose();
+            void loadList();
+          }}
         />
       </Space>
     </Card>

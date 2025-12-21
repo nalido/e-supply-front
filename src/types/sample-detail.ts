@@ -61,10 +61,14 @@ export interface SampleCostInfo {
   developmentFeeDetails: SampleDevelopmentCostItem[];
 }
 
+import type { SampleFollowProgress } from './sample';
+
 export interface SampleOrderDetail {
   id: string;
   styleNo: string;
   sampleNo: string;
+  followTemplateId?: string;
+  followProgress?: SampleFollowProgress;
   merchandiser?: string;
   patternMaker?: string;
   patternPrice: number;

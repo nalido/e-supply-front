@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
 import {
   Button,
@@ -42,6 +41,8 @@ type FilterState = {
   endDate?: string;
 };
 
+type DayRangeValue = [Dayjs | null, Dayjs | null] | null;
+
 const SettlementReportSupplierDetails = () => {
   const [meta, setMeta] = useState<SupplierBusinessDetailMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -60,7 +61,7 @@ const SettlementReportSupplierDetails = () => {
   const [tableLoading, setTableLoading] = useState(false);
 
   const [supplierIds, setSupplierIds] = useState<string[] | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>(null);
+  const [dateRange, setDateRange] = useState<DayRangeValue>(null);
   const [appliedFilters, setAppliedFilters] = useState<FilterState>({});
 
   const loadMeta = useCallback(async () => {
@@ -125,7 +126,8 @@ const SettlementReportSupplierDetails = () => {
   }, [loadList]);
 
   const buildFilters = (): FilterState => {
-    const [start, end] = dateRange ?? [];
+    const start = dateRange?.[0] ?? null;
+    const end = dateRange?.[1] ?? null;
     return {
       supplierIds: supplierIds && supplierIds.length ? supplierIds : undefined,
       startDate: start?.format('YYYY-MM-DD'),

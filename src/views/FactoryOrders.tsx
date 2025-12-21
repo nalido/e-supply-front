@@ -37,6 +37,7 @@ import type {
 } from '../types';
 import { fetchFactoryOrdersDataset } from '../mock';
 import '../styles/factory-orders.css';
+import ListImage from '../components/common/ListImage';
 
 type ViewMode = 'card' | 'table';
 
@@ -370,7 +371,13 @@ const FactoryOrders = () => {
                       />
                     </div>
                     <div className="factory-order-card-info">
-                      <img alt={order.name} src={order.thumbnail} className="factory-order-thumbnail" />
+                      <ListImage
+                        src={order.thumbnail}
+                        alt={order.name}
+                        wrapperClassName="factory-order-thumbnail"
+                        width={null}
+                        height={null}
+                      />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="factory-order-title">{order.name}</div>
                         <Space size={8} wrap>

@@ -35,6 +35,7 @@ import type {
 } from '../types';
 import collaborationApi from '../api/collaboration';
 import '../styles/outsource-orders.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text, Title } = Typography;
 
@@ -263,7 +264,13 @@ const OutsourceOrders = () => {
       key: 'style',
       render: (_value, record) => (
         <div className="outsource-orders-style">
-          <img src={record.styleImage} alt={record.styleName} className="outsource-orders-style-img" />
+          <ListImage
+            src={record.styleImage}
+            alt={record.styleName}
+            wrapperClassName="outsource-orders-style-img"
+            width={null}
+            height={null}
+          />
           <div>
             <div className="outsource-orders-style-code">{record.styleCode}</div>
             <div className="outsource-orders-style-name">{record.styleName}</div>

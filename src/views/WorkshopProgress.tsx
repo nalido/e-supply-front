@@ -26,6 +26,7 @@ import type {
 } from '../types';
 import { fetchWorkshopProgressDataset } from '../mock';
 import '../styles/workshop-progress.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -274,7 +275,13 @@ const WorkshopProgress = () => {
                 </header>
 
                 <div className="workshop-order-main">
-                  <img alt={order.styleName} src={order.thumbnail} className="workshop-order-thumbnail" />
+                  <ListImage
+                    src={order.thumbnail}
+                    alt={order.styleName}
+                    wrapperClassName="workshop-order-thumbnail"
+                    width={null}
+                    height={null}
+                  />
                   <div className="workshop-order-info">
                     <div className="workshop-order-title">{order.styleName}</div>
                     <div className="workshop-order-meta">

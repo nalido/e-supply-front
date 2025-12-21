@@ -15,12 +15,13 @@ import {
 import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import settingsApi from '../../api/settings';
 import type { CreateOrgMemberPayload, OrgMember, RoleItem, UpdateOrgMemberPayload } from '../../types/settings';
+import type { DefaultOptionType } from 'antd/es/select';
 
-const userStatusOptions = [
+const userStatusOptions: DefaultOptionType[] = [
   { label: '启用', value: 'active' },
   { label: '停用', value: 'inactive' },
   { label: '待激活', value: 'pending' },
-] as const;
+];
 
 const OrganizationSettings = () => {
   const [members, setMembers] = useState<OrgMember[]>([]);

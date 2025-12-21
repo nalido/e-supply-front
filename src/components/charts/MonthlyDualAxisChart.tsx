@@ -83,7 +83,7 @@ export default function MonthlyDualAxisChart({
           radius: [6, 6, 0, 0],
         },
         tooltip: {
-          formatter: (datum) => ({
+          formatter: (datum: { value: number }) => ({
             name: columnLabel,
             value: resolveColumnFormatter(Number(datum.value)),
           }),
@@ -107,7 +107,7 @@ export default function MonthlyDualAxisChart({
           },
         },
         tooltip: {
-          formatter: (datum) => ({
+          formatter: (datum: { value: number }) => ({
             name: lineLabel,
             value: resolveLineFormatter(Number(datum.value)),
           }),

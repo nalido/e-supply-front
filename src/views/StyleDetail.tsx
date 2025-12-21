@@ -32,6 +32,7 @@ import type {
   StyleDetailSavePayload,
   StyleFormMeta,
   StyleProcessItem,
+  StyleProcessPayload,
 } from '../types/style';
 import type { OperationTemplate } from '../types/operation-template';
 import ImageUploader from '../components/upload/ImageUploader';
@@ -462,9 +463,12 @@ const StyleDetail = () => {
       }
       setSaving(true);
       const currentOperations = (form.getFieldValue('operations') ?? operationValues ?? []) as StyleProcessFormValue[];
-      const normalizedOperations = currentOperations
-        .map((operation, index) => ({
-          processCatalogId: operation?.processCatalogId,
+      const normalizedOperations = currentOperations.reduce<StyleProcessPayload[]>((acc, operation, index) => {
+        if (!operation?.processCatalogId) {
+          return acc;
+        }
+        acc.push({
+          processCatalogId: String(operation.processCatalogId),
           unitPrice:
             typeof operation?.unitPrice === 'number' && Number.isFinite(operation.unitPrice)
               ? Number(operation.unitPrice)
@@ -472,8 +476,9 @@ const StyleDetail = () => {
           remarks: operation?.remarks,
           sequence: index + 1,
           sourceTemplateId: operation?.sourceTemplateId,
-        }))
-        .filter((operation) => operation.processCatalogId);
+        });
+        return acc;
+      }, []);
       const payload: StyleDetailSavePayload = {
         styleNo: values.styleNo.trim(),
         styleName: values.styleName.trim(),

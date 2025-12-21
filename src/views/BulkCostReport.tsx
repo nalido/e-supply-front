@@ -23,6 +23,7 @@ import DonutChart from '../components/charts/DonutChart';
 import { bulkCostReportService } from '../api/mock';
 import type { BulkCostAggregation, BulkCostOrderItem } from '../types/bulk-cost-report';
 import '../styles/bulk-cost-report.css';
+import ListImage from '../components/common/ListImage';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -443,7 +444,14 @@ const BulkCostReport = () => {
               return (
                 <article className="bulk-cost-order-card" key={order.id}>
                   <div className="bulk-cost-card-header">
-                    <img src={order.imageUrl} alt={order.styleName} className="bulk-cost-card-image" />
+                    <ListImage
+                      src={order.imageUrl}
+                      alt={order.styleName}
+                      wrapperClassName="bulk-cost-card-image"
+                      width={null}
+                      height={null}
+                      background="#fff"
+                    />
                     <div className="bulk-cost-card-meta">
                       <div className="bulk-cost-card-title">
                         <Text strong>{order.styleName}</Text>

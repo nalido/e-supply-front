@@ -43,11 +43,8 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
   // 字段类型选项
   const fieldTypeOptions: { label: string; value: TemplateFieldType }[] = [
     { label: '文本', value: 'text' },
-    { label: '数字', value: 'number' },
     { label: '日期', value: 'date' },
-    { label: '选择', value: 'select' },
-    { label: '多选', value: 'checkbox' },
-    { label: '文件', value: 'file' },
+    { label: '布尔值', value: 'boolean' },
   ];
 
   // 初始化表单数据
@@ -97,7 +94,7 @@ const FollowTemplateModal: React.FC<FollowTemplateModalProps> = ({
 
   const handleNodeSubmit = async () => {
     try {
-      const values = await nodeForm.validateFields<TemplateNodeFormValues>();
+      const values = (await nodeForm.validateFields()) as TemplateNodeFormValues;
       
       if (editingNode) {
         // 编辑节点

@@ -90,7 +90,7 @@ const MaterialFormModal = ({
       onOk={handleOk}
       confirmLoading={loading}
       width={680}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" autoComplete="off">
         <Form.Item name="sku" hidden>

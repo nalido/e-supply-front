@@ -7,6 +7,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import type { CuttingReportDataset, CuttingReportRecord } from '../types';
 import { fetchCuttingReportDataset } from '../mock';
 import '../styles/cutting-report.css';
+import ListImage from '../components/common/ListImage';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -114,7 +115,13 @@ const CuttingReportPage = () => {
       width: 96,
       fixed: 'left',
       render: (value: string, record) => (
-        <img src={value} alt={record.styleName} className="cutting-report-thumbnail" />
+        <ListImage
+          src={value}
+          alt={record.styleName}
+          wrapperClassName="cutting-report-thumbnail"
+          width={null}
+          height={null}
+        />
       ),
     },
     { title: '日期', dataIndex: 'date', width: 120 },

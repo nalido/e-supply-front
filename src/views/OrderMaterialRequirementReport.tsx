@@ -18,6 +18,7 @@ import type {
   OrderMaterialRequirementType,
 } from '../types/order-material-requirement-report';
 import { orderMaterialRequirementReportService } from '../api/mock';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -52,28 +53,7 @@ const OrderMaterialRequirementReport = () => {
       width: 96,
       fixed: 'left',
       render: (value, record) => (
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 10,
-            overflow: 'hidden',
-            background: '#f4f4f5',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {value ? (
-            <img
-              src={value}
-              alt={record.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            <Text type="secondary">暂无图片</Text>
-          )}
-        </div>
+        <ListImage src={value} alt={record.name} fallback={<Text type="secondary">暂无图片</Text>} />
       ),
     },
     {

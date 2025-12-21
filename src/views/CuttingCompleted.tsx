@@ -23,6 +23,7 @@ import {
 import type { CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
 import { fetchCuttingCompletedDataset } from '../mock';
 import '../styles/cutting-pending.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -146,7 +147,14 @@ const CuttingCompletedPage = () => {
               >
                 <div className="cutting-task-header">
                   <div className="cutting-task-main">
-                    <img src={task.thumbnail} alt={task.styleName} className="cutting-task-thumbnail" />
+                    <ListImage
+                      src={task.thumbnail}
+                      alt={task.styleName}
+                      wrapperClassName="cutting-task-thumbnail"
+                      width={null}
+                      height={null}
+                      background="#fff"
+                    />
                     <div className="cutting-task-info">
                       <div className="cutting-task-title">
                         <Text strong>{task.styleName}</Text>
@@ -264,7 +272,14 @@ const CuttingCompletedPage = () => {
           <div className="cutting-color-grid">
             {previewState.task.colors.map((color) => (
               <div className="cutting-color-item" key={`${previewState.task?.id}-${color.name}`}>
-                <img src={color.image} alt={color.name} />
+                <ListImage
+                  src={color.image}
+                  alt={color.name}
+                  width="100%"
+                  height={140}
+                  borderRadius={8}
+                  fallback={<PictureOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />}
+                />
                 <Text>{color.name}</Text>
                 {color.fabric ? (
                   <Text type="secondary" style={{ display: 'block' }}>{color.fabric}</Text>

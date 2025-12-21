@@ -48,6 +48,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -65,6 +66,7 @@ import type {
 } from '../../types/sample-create';
 import type { StyleData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
+import { sampleSettingsApi } from '../../api/sample-settings';
 import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order';
 import materialApi from '../../api/material';
 import stylesApi from '../../api/styles';
@@ -72,6 +74,7 @@ import styleDetailApi from '../../api/style-detail';
 import storageApi from '../../api/storage';
 import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
+import ListImage from '../common/ListImage';
 import type { MaterialItem, MaterialBasicType } from '../../types/material';
 
 const { Text } = Typography;
@@ -204,7 +207,7 @@ const extractFileNameFromUrl = (url: string): string | undefined => {
     const cleanUrl = url.split('?')[0];
     const segments = cleanUrl.split('/');
     return segments[segments.length - 1];
-  } catch (_error) {
+  } catch {
     return undefined;
   }
 };
@@ -314,11 +317,12 @@ const ProcessList: React.FC<{
   );
 
   const handleDragEnd = useCallback(
-    (event: { active: { id: string }; over?: { id: string } }) => {
-      if (!event.over || event.active.id === event.over.id) {
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) {
         return;
       }
-      onReorder(event.active.id, event.over.id);
+      onReorder(String(active.id), String(over.id));
     },
     [onReorder],
   );
@@ -505,29 +509,17 @@ const StyleSelectorDrawer: React.FC<{
                     hoverable
                     onClick={() => onSelect(item)}
                     cover={
-                      item.image ? (
-                        <div
-                          style={{
-                            height: 180,
-                            background: '#fafafa',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            overflow: 'hidden',
-                            padding: 8,
-                          }}
-                        >
-                          <img
-                            src={item.image}
-                            alt={item.styleName}
-                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
-                          <PictureOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />
-                        </div>
-                      )
+                      <ListImage
+                        src={item.image}
+                        alt={item.styleName}
+                        width="100%"
+                        height={180}
+                        borderRadius={8}
+                        background="#fafafa"
+                        wrapperStyle={{ padding: 8 }}
+                        objectFit="contain"
+                        fallback={<PictureOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />}
+                      />
                     }
                   >
                     <Space direction="vertical" size={4}>
@@ -644,15 +636,15 @@ const MaterialSelectorDrawer: React.FC<{
                 actions={[<Button type="link" onClick={() => onSelect(item)}>选择</Button>]}
               >
                 <Space align="center" size={12}>
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f5f5f5' }} />
-                  )}
+                  <ListImage
+                    src={item.imageUrl}
+                    alt={item.name}
+                    width={48}
+                    height={48}
+                    borderRadius={8}
+                    background="#f5f5f5"
+                    fallback={<div style={{ width: '100%', height: '100%', borderRadius: 8, background: '#f5f5f5' }} />}
+                  />
                   <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
                     <Text strong>{item.name}</Text>
                     <Text type="secondary">编号：{item.sku}</Text>
@@ -689,6 +681,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   const [messageApi, messageContextHolder] = message.useMessage();
   const isEditMode = mode === 'edit';
   const [meta, setMeta] = useState<SampleCreationMeta>();
+  const defaultFollowTemplateId = useMemo(() => {
+    if (!meta?.followTemplates || meta.followTemplates.length === 0) {
+      return undefined;
+    }
+    const preferred = meta.followTemplates.find((item) => item.isDefault) ?? meta.followTemplates[0];
+    return preferred ? String(preferred.id) : undefined;
+  }, [meta]);
   const [loading, setLoading] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [processes, setProcesses] = useState<SampleProcessStep[]>([]);
@@ -801,11 +800,15 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         {entries.map((record) => (
           <div key={record.uid} className="sample-order-material-item">
             <div className="sample-order-material-info">
-              {record.imageUrl ? (
-                <img src={record.imageUrl} alt={record.name} />
-              ) : (
-                <div className="sample-order-material-placeholder" />
-              )}
+              <ListImage
+                src={record.imageUrl}
+                alt={record.name}
+                width={56}
+                height={56}
+                borderRadius={8}
+                background="#f5f5f5"
+                fallback={<div className="sample-order-material-placeholder" />}
+              />
               <div className="sample-order-material-text">
                 <Text strong className="sample-order-material-name">
                   {record.name || '未命名物料'}
@@ -945,6 +948,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       unit: detail.unit || metaData.units[0],
       orderNo: detail.sampleNo,
       sampleTypeId: detail.sampleTypeId ? String(detail.sampleTypeId) : undefined,
+      followTemplateId: detail.followTemplateId ? String(detail.followTemplateId) : undefined,
       customerId: detail.customerId ? String(detail.customerId) : undefined,
       patternPrice: detail.unitPrice ?? undefined,
       orderDate: toDayjsValue(detail.orderDate),
@@ -966,10 +970,27 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     void (async () => {
       try {
         const metaData = await sampleOrderApi.getMeta();
+        let followTemplates = metaData.followTemplates ?? [];
+        if (!followTemplates.length) {
+          try {
+            const remoteTemplates = await sampleSettingsApi.followTemplates.list({ page: 1, pageSize: 100 });
+            followTemplates = remoteTemplates.list.map((item) => ({
+              id: String(item.id),
+              name: item.name,
+              isDefault: item.isDefault,
+            }));
+          } catch (templateError) {
+            console.warn('加载跟进模板失败', templateError);
+          }
+        }
+        const normalizedMeta: SampleCreationMeta = {
+          ...metaData,
+          followTemplates,
+        };
         if (cancelled) {
           return;
         }
-        setMeta(metaData);
+        setMeta(normalizedMeta);
         if (isEditMode) {
           if (!orderId) {
             messageApi.error('缺少样板单 ID，无法编辑');
@@ -981,7 +1002,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
             if (cancelled) {
               return;
             }
-            hydrateFormFromDetail(metaData, detailData);
+            hydrateFormFromDetail(normalizedMeta, detailData);
           } catch (detailError) {
             console.error(detailError);
             const rawMessage = detailError instanceof Error ? detailError.message : '';
@@ -1012,6 +1033,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       cancelled = true;
     };
   }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel]);
+
+  useEffect(() => {
+    if (!visible || isEditMode || !defaultFollowTemplateId) {
+      return;
+    }
+    form.setFieldsValue({ followTemplateId: defaultFollowTemplateId });
+  }, [defaultFollowTemplateId, form, visible, isEditMode]);
 
   useEffect(() => {
     if (!visible || !initialSection) {
@@ -1245,25 +1273,27 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         })),
       ).filter((item) => item.quantity > 0);
 
-      const baseAttachments = attachments.map((attachment, index) => ({
-        type: 'ATTACHMENT' as const,
-        url: attachment.url,
-        name: attachment.name || extractFileNameFromUrl(attachment.url) || `附件${index + 1}`,
-        fileType: attachment.fileType,
-        fileSize: attachment.fileSize,
-        isMain: attachment.isMain,
-        sortOrder: index,
-      }));
+      const baseAttachments = attachments
+        .filter((attachment) => Boolean(attachment.url))
+        .map((attachment, index) => ({
+          type: 'ATTACHMENT' as const,
+          url: attachment.url!,
+          name: attachment.name || extractFileNameFromUrl(attachment.url!) || `附件${index + 1}`,
+          fileType: attachment.fileType,
+          fileSize: attachment.fileSize,
+          isMain: attachment.isMain,
+          sortOrder: index,
+        }));
 
       const colorAttachments = colorImagesEnabled
         ? colors
-          .map((color, index) => ({
-            type: 'COLOR_IMAGE' as const,
-            url: colorImageMap[color],
-            color,
-            sortOrder: index,
-          }))
-          .filter((asset) => Boolean(asset.url))
+            .filter((color) => Boolean(colorImageMap[color]))
+            .map((color, index) => ({
+              type: 'COLOR_IMAGE' as const,
+              url: colorImageMap[color]!,
+              color,
+              sortOrder: index,
+            }))
         : [];
 
       const normalizedCosts = otherCosts
@@ -1291,6 +1321,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       const payload: SampleOrderCreateInput = {
         sampleNo: values.orderNo?.trim() || generateSampleNo(),
         sampleTypeId: values.sampleTypeId,
+        followTemplateId: values.followTemplateId,
         customerId: values.customerId,
         styleId: values.styleId,
         unit: values.unit,
@@ -1517,6 +1548,24 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       </Form.Item>
                     </Col>
                     <Col span={12}>
+                      <Form.Item
+                        name="followTemplateId"
+                        label="跟进模板"
+                        rules={[{ required: true, message: '请选择跟进模板' }]}
+                      >
+                        <Select
+                          allowClear
+                          showSearch
+                          placeholder="请选择跟进模板"
+                          optionFilterProp="label"
+                          options={meta?.followTemplates?.map((item) => ({
+                            label: item.name,
+                            value: String(item.id),
+                          })) ?? []}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
                       <Form.Item name="customerId" label="客户">
                         <Select
                           allowClear
@@ -1585,7 +1634,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                                     background: '#fff',
                                   }}
                                 >
-                                  <img src={item.url} alt="样板图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  <ListImage
+                                    src={item.url}
+                                    alt="样板图"
+                                    width="100%"
+                                    height="100%"
+                                    borderRadius={0}
+                                    background="transparent"
+                                  />
                                   {item.isMain ? (
                                     <Tag color="processing" style={{ position: 'absolute', top: 8, left: 8 }}>
                                       主图
@@ -1761,14 +1817,31 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                           <Card key={color} size="small" style={{ width: 200 }}>
                             <Space direction="vertical" size={8} style={{ width: '100%' }}>
                               <Text strong>{color}</Text>
-                              {image ? (
-                                <img src={image} alt={color} style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 4 }} />
-                              ) : (
-                                <div style={{ width: '100%', height: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: 4 }}>
-                                  <PictureOutlined style={{ fontSize: 36, color: '#bfbfbf' }} />
-                                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>暂无图片</Text>
-                                </div>
-                              )}
+                              <ListImage
+                                src={image}
+                                alt={color}
+                                width="100%"
+                                height={140}
+                                borderRadius={4}
+                                background="#f5f5f5"
+                                fallback={
+                                  <div
+                                    style={{
+                                      width: '100%',
+                                      height: '100%',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      background: '#f5f5f5',
+                                      borderRadius: 4,
+                                    }}
+                                  >
+                                    <PictureOutlined style={{ fontSize: 36, color: '#bfbfbf' }} />
+                                    <Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>暂无图片</Text>
+                                  </div>
+                                }
+                              />
                               <Text type="secondary" style={{ fontSize: 12 }}>如需调整请到款式资料维护</Text>
                             </Space>
                           </Card>

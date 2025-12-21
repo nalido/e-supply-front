@@ -54,7 +54,7 @@ const MaterialImportModal = ({
       cancelText="取消"
       confirmLoading={loading}
       okButtonProps={{ disabled: fileList.length === 0 }}
-      destroyOnClose
+      destroyOnHidden
     >
       <Paragraph>
         <Text strong>步骤一：</Text> 下载并填写模板。

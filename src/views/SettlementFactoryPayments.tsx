@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import type { RangeValue } from 'rc-picker/lib/interface';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
   Button,
@@ -40,6 +39,7 @@ const currencyFormatter = new Intl.NumberFormat('zh-CN', {
 });
 
 type PaymentFormValues = Omit<FactoryPaymentPayload, 'date'> & { date?: Dayjs };
+type DayRangeValue = [Dayjs | null, Dayjs | null] | null;
 
 const SettlementFactoryPayments = () => {
   const [form] = Form.useForm<PaymentFormValues>();
@@ -58,7 +58,7 @@ const SettlementFactoryPayments = () => {
   const [tableLoading, setTableLoading] = useState(false);
 
   const [keywordInput, setKeywordInput] = useState('');
-  const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>(null);
+  const [dateRange, setDateRange] = useState<DayRangeValue>(null);
   const [filters, setFilters] = useState<{ keyword?: string; startDate?: string; endDate?: string }>({});
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -107,7 +107,8 @@ const SettlementFactoryPayments = () => {
 
   const buildFiltersFromInputs = () => {
     const keyword = keywordInput.trim();
-    const [start, end] = dateRange ?? [];
+    const start = dateRange?.[0] ?? null;
+    const end = dateRange?.[1] ?? null;
     return {
       keyword: keyword || undefined,
       startDate: start?.format('YYYY-MM-DD'),

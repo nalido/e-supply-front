@@ -3,12 +3,13 @@ import type {
   FinishedGoodsOutboundListResponse,
   FinishedGoodsOutboundMeta,
   FinishedGoodsOutboundRecord,
+  FinishedGoodsOutboundCustomer,
 } from '../types/finished-goods-outbound';
 import { productWarehouses, productStyleOptions } from './product-common';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const outboundCustomers = [
+const outboundCustomers: FinishedGoodsOutboundCustomer[] = [
   { id: 'cust-tmall', name: '天猫童装旗舰店', tier: 'A' },
   { id: 'cust-jd', name: '京东童装旗舰店', tier: 'A' },
   { id: 'cust-offline-east', name: '华东经销商联盟', tier: 'B' },
@@ -33,7 +34,9 @@ const findCustomerName = (customerId: string): string =>
 const findStyleName = (styleNo: string): string =>
   productStyleOptions.find((style) => style.styleNo === styleNo)?.styleName ?? '未登记款式';
 
-const baseOutboundRecords: FinishedGoodsOutboundRecord[] = [
+const rawOutboundRecords: Array<
+  Omit<FinishedGoodsOutboundRecord, 'dispatchId' | 'logisticsProviderId'>
+> = [
   {
     id: 'out-20250301-001',
     dispatchNoteNo: 'DN20250301001',
@@ -355,6 +358,13 @@ const baseOutboundRecords: FinishedGoodsOutboundRecord[] = [
     status: 'partial',
   },
 ];
+
+const baseOutboundRecords: FinishedGoodsOutboundRecord[] = rawOutboundRecords.map((record, index) => ({
+  ...record,
+  dispatchId: `dispatch-${record.dispatchNoteNo || index}`,
+  logisticsProviderId:
+    outboundLogistics.find((item) => item.name === record.logisticsProvider)?.id ?? outboundLogistics[0].id,
+}));
 
 const matchesKeyword = (record: FinishedGoodsOutboundRecord, keyword: string): boolean => {
   const lower = keyword.toLowerCase();

@@ -1,4 +1,7 @@
 import type {
+  MaterialMovementListParams,
+  MaterialMovementListResponse,
+  MaterialMovementRecord,
   MaterialStockListItem,
   MaterialStockListParams,
   MaterialStockListResponse,
@@ -33,6 +36,7 @@ const materialImages: Record<string, string | undefined> = {
 const fabricDataset: MaterialStockListItem[] = [
   {
     id: 'fabric-001',
+    materialId: 'fabric-001',
     materialCode: 'FAB-001',
     materialName: '32S全棉罗纹',
     color: '本白',
@@ -48,6 +52,7 @@ const fabricDataset: MaterialStockListItem[] = [
   },
   {
     id: 'fabric-002',
+    materialId: 'fabric-002',
     materialCode: 'FAB-002',
     materialName: '40D锦纶高弹胆布',
     color: '香槟',
@@ -63,6 +68,7 @@ const fabricDataset: MaterialStockListItem[] = [
   },
   {
     id: 'fabric-003',
+    materialId: 'fabric-003',
     materialCode: 'FAB-003',
     materialName: '磨毛弹力牛仔',
     color: '烟灰',
@@ -78,6 +84,7 @@ const fabricDataset: MaterialStockListItem[] = [
   },
   {
     id: 'fabric-004',
+    materialId: 'fabric-004',
     materialCode: 'FAB-004',
     materialName: '水洗磨毛法兰绒',
     color: '咖啡格',
@@ -96,6 +103,7 @@ const fabricDataset: MaterialStockListItem[] = [
 const accessoryDataset: MaterialStockListItem[] = [
   {
     id: 'accessory-001',
+    materialId: 'accessory-001',
     materialCode: 'ACC-001',
     materialName: 'YKK树脂拉链5#',
     color: '黑色',
@@ -111,6 +119,7 @@ const accessoryDataset: MaterialStockListItem[] = [
   },
   {
     id: 'accessory-002',
+    materialId: 'accessory-002',
     materialCode: 'ACC-002',
     materialName: '合金四合扣17mm',
     color: '青古铜',
@@ -126,6 +135,7 @@ const accessoryDataset: MaterialStockListItem[] = [
   },
   {
     id: 'accessory-003',
+    materialId: 'accessory-003',
     materialCode: 'ACC-003',
     materialName: '5cm棉包PU腰里',
     color: '黑色',
@@ -141,6 +151,7 @@ const accessoryDataset: MaterialStockListItem[] = [
   },
   {
     id: 'accessory-004',
+    materialId: 'accessory-004',
     materialCode: 'ACC-004',
     materialName: '120gsm珠光吊牌卡纸',
     specification: '7cm × 12cm',
@@ -214,5 +225,54 @@ export const fetchMaterialStockList = async (
     list,
     total: filtered.length,
     summary: summarize(filtered),
+  };
+};
+
+const mockMovements: Record<string, MaterialMovementRecord[]> = {
+  'fabric-001': [
+    {
+      id: 'mv-001',
+      direction: 'in',
+      directionLabel: '入库',
+      movementType: 'PROCUREMENT_RECEIPT',
+      movementLabel: '采购收料',
+      documentType: 'MATERIAL_RECEIPT',
+      documentNo: 'MR-202405-001',
+      quantity: 480,
+      unit: '米',
+      warehouseName: '杭州总仓',
+      counterpart: '泉州恒瑞纺织',
+      occurredAt: '2025-05-18 09:00',
+      remark: '首批到货 20 卷',
+    },
+    {
+      id: 'mv-002',
+      direction: 'out',
+      directionLabel: '出库',
+      movementType: 'PRODUCTION_ISSUE',
+      movementLabel: '生产领料',
+      documentType: 'MATERIAL_ISSUE',
+      documentNo: 'MI-202405-001',
+      quantity: 300,
+      unit: '米',
+      warehouseName: '杭州总仓',
+      counterpart: '裁剪工单 PRO-2024-001',
+      occurredAt: '2025-05-20 14:20',
+      remark: '春夏童装批次',
+    },
+  ],
+};
+
+export const fetchMaterialStockMovements = async (
+  params: MaterialMovementListParams,
+): Promise<MaterialMovementListResponse> => {
+  await delay(220);
+  const source = mockMovements[params.materialId] ?? [];
+  const safePage = Math.max(1, params.page);
+  const safeSize = Math.max(1, params.pageSize);
+  const start = (safePage - 1) * safeSize;
+  return {
+    list: source.slice(start, start + safeSize),
+    total: source.length,
   };
 };

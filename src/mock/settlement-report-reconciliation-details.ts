@@ -287,7 +287,11 @@ const computeSummary = (items: ReconciliationDetailsRecord[]): ReconciliationDet
 
 export const fetchReconciliationDetailsMeta = async (): Promise<ReconciliationDetailsMeta> => {
   await delay(140);
-  return clone(partnersByType);
+  return {
+    customers: clone(partnersByType.customer),
+    factories: clone(partnersByType.factory),
+    suppliers: clone(partnersByType.supplier),
+  };
 };
 
 export const fetchReconciliationDetailsList = async (

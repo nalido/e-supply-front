@@ -2,6 +2,7 @@ import { Button, Card, Space, Tag, Typography } from 'antd';
 import { CarryOutOutlined, InboxOutlined } from '@ant-design/icons';
 import { useMemo } from 'react';
 import type { StyleData } from '../types/style';
+import ListImage from './common/ListImage';
 
 const { Text } = Typography;
 
@@ -36,12 +37,16 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
       cover={
         <div className="style-card__image-wrapper">
           <div className="style-card__image-box">
-            <img
-              className="style-card__image"
+            <ListImage
               src={coverUrl}
               alt={style.styleName}
-              loading="lazy"
-              onError={(event) => {
+              wrapperClassName="style-card__image"
+              width={null}
+              height={null}
+              borderRadius={0}
+              background="transparent"
+              imageStyle={{ objectFit: 'cover' }}
+              onImageError={(event) => {
                 const target = event.currentTarget;
                 if (target.dataset.fallbackApplied) return;
                 target.dataset.fallbackApplied = 'true';

@@ -41,6 +41,9 @@ import type {
   FinishedGoodsOutboundListParams,
   FinishedGoodsOutboundListResponse,
   FinishedGoodsOutboundMeta,
+  FinishedGoodsDispatchCreatePayload,
+  FinishedGoodsDispatchSummary,
+  FinishedGoodsDispatchUpdatePayload,
 } from '../types/finished-goods-outbound';
 import type {
   FinishedGoodsPendingReceiptListParams,
@@ -249,7 +252,9 @@ import {
   exportStockingPurchaseList,
   fetchStockingPurchaseList,
   fetchStockingPurchaseMeta,
+  fetchStockingReceipts,
   submitStockingBatchReceive,
+  submitStockingReceive,
   updateStockingPurchaseStatus,
 } from '../mock/stocking-purchase-inbound';
 import {
@@ -2034,6 +2039,17 @@ const stockingPurchaseInbound = {
       statusTagColor: 'orange',
     };
   },
+
+  async receive(
+    orderId: string,
+    payload: StockingReceivePayload,
+  ): Promise<ProcurementReceiptSummary> {
+    return submitStockingReceive(orderId, payload);
+  },
+
+  async getReceipts(params: { orderId: string; lineId?: string }) {
+    return fetchStockingReceipts(params);
+  },
 };
 
 const orderProgressDetailsReport = {
@@ -2087,6 +2103,36 @@ const finishedGoodsOutbound = {
     params: FinishedGoodsOutboundListParams,
   ): Promise<FinishedGoodsOutboundListResponse> {
     return fetchFinishedGoodsOutboundList(params);
+  },
+
+  async createDispatch(
+    payload: FinishedGoodsDispatchCreatePayload,
+  ): Promise<FinishedGoodsDispatchSummary> {
+    await delay(300);
+    const timestamp = Date.now();
+    return {
+      id: `mock-dispatch-${timestamp}`,
+      dispatchNo: `DN${timestamp.toString().slice(-6)}`,
+      status: 'shipped',
+      statusLabel: '已发货',
+      statusTagColor: 'green',
+      warehouseId: payload.warehouseId,
+      warehouseName: 'Mock成品仓',
+    };
+  },
+
+  async updateDispatch(
+    id: string,
+    payload: FinishedGoodsDispatchUpdatePayload,
+  ): Promise<void> {
+    void id;
+    void payload;
+    await delay(200);
+  },
+
+  async removeDispatches(ids: string[]): Promise<{ removed: number }> {
+    await delay(200);
+    return { removed: ids.length };
   },
 };
 

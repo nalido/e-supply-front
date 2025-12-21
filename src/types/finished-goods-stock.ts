@@ -27,6 +27,7 @@ export type FinishedGoodsStockRecord = {
   warehouseId: string;
   warehouseName: string;
   factoryOrderNo?: string;
+  customerId?: string;
   customerName?: string;
   styleNo?: string;
   styleName?: string;
@@ -34,6 +35,9 @@ export type FinishedGoodsStockRecord = {
   size?: string;
   sku?: string;
   quantity: number;
+  availableQuantity: number;
+  styleVariantId?: string;
+  productionOrderId?: string;
 };
 
 export type FinishedGoodsStockListResponse = {

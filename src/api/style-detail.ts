@@ -4,6 +4,7 @@ import type {
   StyleFormMeta,
   StyleStatus,
 } from '../types/style';
+import type { ProcessTypeChargeMode } from '../types/process-type';
 import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
@@ -88,7 +89,7 @@ const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
 const toBackendStatus = (status: StyleStatus): BackendStyleStatus =>
   status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
 
-const adaptChargeMode = (mode?: BackendChargeMode) => {
+const adaptChargeMode = (mode?: BackendChargeMode): ProcessTypeChargeMode => {
   switch (mode) {
     case 'HOURLY':
       return 'hourly';
@@ -140,12 +141,10 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
 
   const processes = Array.isArray(payload.processes)
     ? payload.processes
-        .filter((process) => process.processCatalogId)
+        .filter((process) => process.processCatalogId != null)
         .map((process) => ({
           id: process.id ? String(process.id) : undefined,
-          processCatalogId: process.processCatalogId
-            ? String(process.processCatalogId)
-            : undefined,
+          processCatalogId: String(process.processCatalogId),
           processCode: process.processCode ?? undefined,
           processName: process.processName ?? undefined,
           chargeMode: adaptChargeMode(process.chargeMode),

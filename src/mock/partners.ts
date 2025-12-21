@@ -169,7 +169,6 @@ export const updatePartner = async (
     tags: payload.tags ?? target.tags,
     type: payload.type ?? target.type,
     status: payload.status ?? target.status,
-    disabled: payload.disabled ?? target.disabled,
     updatedAt: nowString(),
   };
   Object.assign(target, updated);

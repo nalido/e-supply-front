@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { fetchPieceworkDashboardDataset } from '../mock';
 import '../styles/piecework-dashboard.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -197,10 +198,12 @@ const PieceworkDashboard = () => {
       key: 'thumbnail',
       width: 80,
       render: (value: string, record) => (
-        <img
-          alt={record.styleName}
+        <ListImage
           src={value}
-          className="piecework-overdue-thumb"
+          alt={record.styleName}
+          wrapperClassName="piecework-overdue-thumb"
+          width={null}
+          height={null}
         />
       ),
     },

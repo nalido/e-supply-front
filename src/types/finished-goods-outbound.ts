@@ -45,6 +45,7 @@ export type FinishedGoodsOutboundMeta = {
 
 export type FinishedGoodsOutboundRecord = {
   id: string;
+  dispatchId: string;
   dispatchNoteNo: string;
   dispatchDate: string;
   customerId: string;
@@ -54,14 +55,16 @@ export type FinishedGoodsOutboundRecord = {
   orderNo: string;
   styleNo: string;
   styleName: string;
+  imageUrl?: string;
   color: string;
   size: string;
   quantity: number;
   unitPrice: number;
   amount: number;
+  logisticsProviderId?: string;
   logisticsProvider: string;
   trackingNumber: string;
-  status: 'partial' | 'shipped';
+  status: 'draft' | 'partial' | 'shipped' | 'cancelled';
 };
 
 export type FinishedGoodsOutboundListSummary = {
@@ -73,4 +76,39 @@ export type FinishedGoodsOutboundListResponse = {
   list: FinishedGoodsOutboundRecord[];
   total: number;
   summary: FinishedGoodsOutboundListSummary;
+};
+
+export type FinishedGoodsDispatchLinePayload = {
+  styleVariantId: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type FinishedGoodsDispatchCreatePayload = {
+  warehouseId: string;
+  customerId?: string;
+  productionOrderId?: string;
+  logisticsProviderId?: string;
+  dispatchAt?: string;
+  trackingNo?: string;
+  remark?: string;
+  items: FinishedGoodsDispatchLinePayload[];
+};
+
+export type FinishedGoodsDispatchUpdatePayload = {
+  status?: FinishedGoodsOutboundRecord['status'];
+  logisticsProviderId?: string;
+  trackingNo?: string;
+  dispatchAt?: string;
+  remark?: string;
+};
+
+export type FinishedGoodsDispatchSummary = {
+  id: string;
+  dispatchNo: string;
+  status: string;
+  statusLabel: string;
+  statusTagColor: string;
+  warehouseId: string;
+  warehouseName: string;
 };

@@ -1,10 +1,13 @@
 import type {
+  ProcurementReceiptSummary,
   StockingBatchReceivePayload,
   StockingPurchaseExportParams,
   StockingPurchaseListParams,
   StockingPurchaseListResponse,
   StockingPurchaseMeta,
   StockingPurchaseRecord,
+  StockingReceivePayload,
+  StockingReceiptRecord,
   StockingStatusUpdatePayload,
 } from '../types/stocking-purchase-inbound';
 
@@ -13,6 +16,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const records: StockingPurchaseRecord[] = [
   {
     id: 'stocking-001',
+    orderId: 'order-001',
+    warehouseId: 'wh-001',
+    warehouseName: '原料一库',
     materialType: 'fabric',
     imageUrl: '/assets/images/materials/fabric-01.png',
     status: 'pending',
@@ -40,6 +46,9 @@ const records: StockingPurchaseRecord[] = [
   },
   {
     id: 'stocking-002',
+    orderId: 'order-002',
+    warehouseId: 'wh-002',
+    warehouseName: '原料二库',
     materialType: 'fabric',
     status: 'partial',
     statusLabel: '收料中',
@@ -66,6 +75,9 @@ const records: StockingPurchaseRecord[] = [
   },
   {
     id: 'stocking-003',
+    orderId: 'order-003',
+    warehouseId: 'wh-001',
+    warehouseName: '原料一库',
     materialType: 'fabric',
     status: 'completed',
     statusLabel: '已完成',
@@ -91,6 +103,9 @@ const records: StockingPurchaseRecord[] = [
   },
   {
     id: 'stocking-004',
+    orderId: 'order-004',
+    warehouseId: 'wh-003',
+    warehouseName: '辅料库',
     materialType: 'accessory',
     status: 'pending',
     statusLabel: '未完成',
@@ -113,6 +128,9 @@ const records: StockingPurchaseRecord[] = [
   },
   {
     id: 'stocking-005',
+    orderId: 'order-005',
+    warehouseId: 'wh-003',
+    warehouseName: '辅料库',
     materialType: 'accessory',
     status: 'partial',
     statusLabel: '收料中',
@@ -134,6 +152,9 @@ const records: StockingPurchaseRecord[] = [
   },
   {
     id: 'stocking-006',
+    orderId: 'order-006',
+    warehouseId: 'wh-003',
+    warehouseName: '辅料库',
     materialType: 'accessory',
     status: 'completed',
     statusLabel: '已完成',
@@ -152,6 +173,49 @@ const records: StockingPurchaseRecord[] = [
     remark: '包含吊牌+水洗标+包装袋',
   },
 ];
+
+const receiptStore: Record<string, StockingReceiptRecord[]> = {};
+
+const buildReceiptSummary = (
+  orderId: string,
+  status: 'pending' | 'partial' | 'completed',
+): ProcurementReceiptSummary => ({
+  id: `receipt-${orderId}-${Date.now()}`,
+  receiptNo: `RC-${orderId}-${Math.floor(Math.random() * 1000)}`,
+  receiptStatus: status,
+  receiptStatusLabel: status === 'completed' ? '已完成' : status === 'partial' ? '收料中' : '未完成',
+  receiptStatusTagColor: status === 'completed' ? 'green' : status === 'partial' ? 'blue' : 'orange',
+  orderId,
+  orderStatus: status,
+  orderStatusLabel: status === 'completed' ? '已完成' : status === 'partial' ? '收料中' : '未完成',
+  orderStatusTagColor: status === 'completed' ? 'green' : status === 'partial' ? 'blue' : 'orange',
+});
+
+const appendReceiptRecord = (
+  orderId: string,
+  lineId: string,
+  payload: StockingReceivePayload,
+) => {
+  const timestamp = Date.now();
+  const key = `${orderId}-${lineId}`;
+  const quantity = payload.items[0]?.receiveQty ?? 0;
+  const record: StockingReceiptRecord = {
+    id: `receipt-${timestamp}`,
+    lineId,
+    receiptNo: `RC-${timestamp}`,
+    status: 'completed',
+    statusLabel: '已完成',
+    statusTagColor: 'green',
+    receivedAt: payload.receivedAt ?? new Date().toISOString(),
+    warehouseName: payload.items[0]?.warehouseId ? `仓库-${payload.items[0]?.warehouseId}` : '原料一库',
+    receivedQty: quantity,
+    pendingQty: Math.max(0, 0),
+    unit: '米',
+    batchNo: payload.items[0]?.batchNo,
+    remark: payload.remark,
+  };
+  receiptStore[key] = [record, ...(receiptStore[key] ?? [])];
+};
 
 const meta: StockingPurchaseMeta = {
   materialTypeTabs: [
@@ -240,4 +304,26 @@ export const exportStockingPurchaseList = async (
   await delay(200);
   void _params;
   return { fileUrl: '/mock/exports/stocking-purchase-inbound.xlsx' };
+};
+
+export const submitStockingReceive = async (
+  orderId: string,
+  payload: StockingReceivePayload,
+): Promise<ProcurementReceiptSummary> => {
+  await delay(240);
+  const lineId = payload.items[0]?.lineId ?? 'unknown';
+  appendReceiptRecord(orderId, lineId, payload);
+  return buildReceiptSummary(orderId, 'partial');
+};
+
+export const fetchStockingReceipts = async (
+  params: { orderId: string; lineId?: string },
+): Promise<StockingReceiptRecord[]> => {
+  await delay(200);
+  if (params.lineId) {
+    return receiptStore[`${params.orderId}-${params.lineId}`] ?? [];
+  }
+  return Object.entries(receiptStore)
+    .filter(([key]) => key.startsWith(`${params.orderId}-`))
+    .flatMap(([, list]) => list);
 };

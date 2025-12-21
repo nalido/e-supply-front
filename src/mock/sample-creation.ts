@@ -1,10 +1,13 @@
-import type { SampleCreationMeta } from '../types/sample-create';
-import type { SampleProcessOption, SampleProcessStep } from '../types/sample';
+import type { SampleCreationMeta, CustomerOption } from '../types/sample-create';
+import type { SampleProcessOption, SampleProcessStep, SampleTypeItem } from '../types/sample';
 import { sampleOptions } from './sample';
 
 const units = ['件', '套', '色', '双', '组'];
 
-const sampleTypes = ['初版', '复版', '产前版', '复尺版', '封样'];
+const sampleTypes: SampleTypeItem[] = ['初版', '复版', '产前版', '复尺版', '封样'].map((name, index) => ({
+  id: `stype-${index + 1}`,
+  name,
+}));
 
 const merchandisers = [
   { id: 'mer-001', name: '陈丽丽', title: '高级跟单', department: '样板部' },
@@ -78,10 +81,10 @@ const defaultProcesses: SampleProcessStep[] = processLibrary.slice(0, 4).map((it
   order: index + 1,
 }));
 
-const customers = sampleOptions.customers.map((name, index) => ({
+const customers: CustomerOption[] = sampleOptions.customers.map((name, index) => ({
   id: `cust-${(index + 1).toString().padStart(3, '0')}`,
   name,
-  level: index < 3 ? 'A' : index < 6 ? 'B' : 'C',
+  level: (index < 3 ? 'A' : index < 6 ? 'B' : 'C') as CustomerOption['level'],
 }));
 
 const designers = sampleOptions.designers.map((name, index) => ({
@@ -91,10 +94,16 @@ const designers = sampleOptions.designers.map((name, index) => ({
 
 const colorPresets = sampleOptions.colors;
 const sizePresets = sampleOptions.sizes;
+const followTemplates = [
+  { id: 'tpl-std', name: '标准开发流程', isDefault: true },
+  { id: 'tpl-fast', name: '快速打板' },
+  { id: 'tpl-custom', name: '客户专用' },
+];
 
 export const sampleCreationMeta: SampleCreationMeta = {
   units,
   sampleTypes,
+  followTemplates,
   customers,
   merchandisers,
   patternMakers,
@@ -119,4 +128,5 @@ export const getSampleCreationMeta = (): SampleCreationMeta => ({
   sizePresets: [...sampleCreationMeta.sizePresets],
   units: [...sampleCreationMeta.units],
   sampleTypes: [...sampleCreationMeta.sampleTypes],
+  followTemplates: [...sampleCreationMeta.followTemplates],
 });

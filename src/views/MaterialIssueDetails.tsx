@@ -2,22 +2,32 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Input, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons';
-import { materialIssueService } from '../api/mock';
+import { materialIssueService } from '../api/material-inventory';
+import ListImage from '../components/common/ListImage';
 import type {
   MaterialIssueListParams,
   MaterialIssueRecord,
   MaterialIssueListResponse,
   MaterialIssueMeta,
   MaterialIssueType,
+  MaterialIssueStatus,
 } from '../types/material-issue';
 
 const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const statusColorMap: Record<MaterialIssueStatus, string> = {
+  pending: 'gold',
+  issued: 'green',
+  canceled: 'default',
+};
 
 const formatQuantity = (value: number): string => value.toLocaleString('zh-CN');
-const formatCurrency = (value: number): string => value.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
+const formatCurrency = (value?: number): string => {
+  const safeValue = typeof value === 'number' ? value : 0;
+  return safeValue.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
+};
 
 const MaterialIssueDetails = () => {
   const [meta, setMeta] = useState<MaterialIssueMeta | null>(null);
@@ -114,6 +124,22 @@ const MaterialIssueDetails = () => {
     message.warning('当前为演示环境，删除操作未开放');
   };
 
+  const handleStatusUpdate = async (status: MaterialIssueStatus) => {
+    if (!selectedRowKeys.length) {
+      message.warning('请先选择需要更新状态的记录');
+      return;
+    }
+    try {
+      await materialIssueService.updateStatus({ lineIds: selectedRowKeys.map(String), status });
+      message.success('状态更新成功');
+      setSelectedRowKeys([]);
+      void loadList();
+    } catch (error) {
+      console.error('failed to update issue status', error);
+      message.error('状态更新失败，请稍后重试');
+    }
+  };
+
   const handleExport = () => {
     message.success('已生成导出任务，请在下载中心查看');
   };
@@ -132,24 +158,11 @@ const MaterialIssueDetails = () => {
         dataIndex: 'imageUrl',
         width: 96,
         render: (value: string | undefined, record) => (
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 8,
-              overflow: 'hidden',
-              background: '#f4f4f5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {value ? (
-              <img src={value} alt={record.materialName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <Tag bordered={false}>无图</Tag>
-            )}
-          </div>
+          <ListImage
+            src={value}
+            alt={record.materialName}
+            fallback={<Tag bordered={false}>无图</Tag>}
+          />
         ),
       },
       {
@@ -256,6 +269,14 @@ const MaterialIssueDetails = () => {
         render: (value?: string) => value || <Text type="secondary">-</Text>,
       },
       {
+        title: '状态',
+        dataIndex: 'status',
+        width: 120,
+        render: (_value: MaterialIssueStatus, record) => (
+          <Tag color={statusColorMap[record.status]}>{record.statusLabel}</Tag>
+        ),
+      },
+      {
         title: '来源订单号',
         dataIndex: 'sourceOrderNo',
         width: 160,
@@ -327,6 +348,24 @@ const MaterialIssueDetails = () => {
               onClick={handleDelete}
             >
               删除
+            </Button>
+            <Button
+              disabled={!selectedRowKeys.length}
+              onClick={() => handleStatusUpdate('issued')}
+            >
+              标记已出库
+            </Button>
+            <Button
+              disabled={!selectedRowKeys.length}
+              onClick={() => handleStatusUpdate('pending')}
+            >
+              设为待出库
+            </Button>
+            <Button
+              disabled={!selectedRowKeys.length}
+              onClick={() => handleStatusUpdate('canceled')}
+            >
+              取消
             </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExport}>
               导出Excel

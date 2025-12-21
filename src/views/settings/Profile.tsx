@@ -54,10 +54,11 @@ const extractMetadataValue = (metadata: unknown, key: string): string | undefine
 };
 
 const resolveLocalUserId = (clerkUser: ReturnType<typeof useUser>['user']): string | undefined => {
+  const privateMetadata = (clerkUser as { privateMetadata?: unknown } | null)?.privateMetadata;
   return (
     extractMetadataValue(clerkUser?.unsafeMetadata, 'localUserId') ??
     extractMetadataValue(clerkUser?.unsafeMetadata, 'userId') ??
-    extractMetadataValue(clerkUser?.privateMetadata as unknown, 'localUserId') ??
+    extractMetadataValue(privateMetadata, 'localUserId') ??
     extractMetadataValue(clerkUser?.publicMetadata as unknown, 'localUserId')
   );
 };

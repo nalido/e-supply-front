@@ -30,6 +30,7 @@ import {
 import type { IncomingOrder, IncomingOrderStatus } from '../types';
 import collaborationApi from '../api/collaboration';
 import '../styles/incoming-orders.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -288,7 +289,13 @@ const IncomingOrders = () => {
       key: 'style',
       render: (_value, record) => (
         <div className="incoming-orders-style">
-          <img src={record.styleImage} alt={record.styleName} className="incoming-orders-style-img" />
+          <ListImage
+            src={record.styleImage}
+            alt={record.styleName}
+            wrapperClassName="incoming-orders-style-img"
+            width={null}
+            height={null}
+          />
           <div>
             <div className="incoming-orders-style-code">{record.styleCode}</div>
             <div className="incoming-orders-style-name">{record.styleName}</div>

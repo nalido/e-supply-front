@@ -7,6 +7,10 @@ import type {
   StockingStatusUpdatePayload,
   StockingPurchaseExportParams,
   ProcurementOrderSummary,
+  StockingReceivePayload,
+  ProcurementReceiptSummary,
+  StockingReceiptRecord,
+  StockingReceiptListResponse,
 } from '../types/stocking-purchase-inbound';
 import { apiConfig } from './config';
 import http from './http';
@@ -141,5 +145,50 @@ export const stockingPurchaseInboundService = {
       { params: { tenantId } },
     );
     return adaptOrderSummary(response.data);
+  },
+
+  async receive(
+    orderId: string,
+    payload: StockingReceivePayload,
+  ): Promise<ProcurementReceiptSummary> {
+    if (useMock) {
+      return mockStockingService.receive(orderId, payload);
+    }
+    const tenantId = ensureTenantId();
+    const response = await http.post<ProcurementReceiptSummary>(
+      `/api/v1/procurement/orders/${orderId}/receive`,
+      {
+        warehouseId: Number(payload.warehouseId),
+        receivedAt: payload.receivedAt,
+        handlerId: payload.handlerId ? Number(payload.handlerId) : undefined,
+        remark: payload.remark,
+        items: payload.items.map((item) => ({
+          lineId: Number(item.lineId),
+          receiveQty: item.receiveQty,
+          batchNo: item.batchNo,
+          remark: item.remark,
+          warehouseId: item.warehouseId ? Number(item.warehouseId) : undefined,
+        })),
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async getReceipts(params: { orderId: string; lineId?: string }): Promise<StockingReceiptRecord[]> {
+    if (useMock) {
+      return mockStockingService.getReceipts(params);
+    }
+    const tenantId = ensureTenantId();
+    const response = await http.get<StockingReceiptListResponse>(
+      `/api/v1/procurement/stocking/orders/${params.orderId}/receipts`,
+      {
+        params: {
+          tenantId,
+          lineId: params.lineId,
+        },
+      },
+    );
+    return response.data.list;
   },
 };

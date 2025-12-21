@@ -9,6 +9,7 @@ import type {
   ProductionComparisonSummary,
 } from '../types/order-production-comparison';
 import { productionComparisonService } from '../api/mock';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -160,28 +161,12 @@ const OrderProductionComparison = () => {
         width: 96,
         fixed: 'left' as const,
         render: (value: string, record) => (
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 10,
-              overflow: 'hidden',
-              background: '#f4f4f5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {value ? (
-              <img
-                src={value}
-                alt={record.styleName}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <Text type="secondary">暂无图片</Text>
-            )}
-          </div>
+          <ListImage
+            src={value}
+            alt={record.styleName}
+            borderRadius={10}
+            fallback={<Text type="secondary">暂无图片</Text>}
+          />
         ),
       },
       {

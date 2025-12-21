@@ -28,6 +28,7 @@ import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import type { CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
 import { fetchCuttingPendingDataset } from '../mock';
 import '../styles/cutting-pending.css';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -174,7 +175,14 @@ const CuttingPendingPage = () => {
               <article className="cutting-task-card" key={task.id}>
                 <div className="cutting-task-header">
                   <div className="cutting-task-main">
-                    <img src={task.thumbnail} alt={task.styleName} className="cutting-task-thumbnail" />
+                    <ListImage
+                      src={task.thumbnail}
+                      alt={task.styleName}
+                      wrapperClassName="cutting-task-thumbnail"
+                      width={null}
+                      height={null}
+                      background="#fff"
+                    />
                     <div className="cutting-task-info">
                       <div className="cutting-task-title">
                         <Text strong>{task.styleName}</Text>
@@ -289,7 +297,13 @@ const CuttingPendingPage = () => {
           <div className="cutting-color-grid">
             {previewState.task.colors.map((color) => (
               <div className="cutting-color-item" key={`${previewState.task?.id}-${color.name}`}>
-                <img src={color.image} alt={color.name} />
+                <ListImage
+                  src={color.image}
+                  alt={color.name}
+                  width="100%"
+                  height={140}
+                  borderRadius={8}
+                />
                 <Text>{color.name}</Text>
                 {color.fabric ? (
                   <Text type="secondary" style={{ display: 'block' }}>{color.fabric}</Text>

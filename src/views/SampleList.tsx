@@ -53,6 +53,7 @@ import { getSamplePriorityColor, getSamplePriorityLabel, getSampleStatusColor, g
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import SampleFollowProgress from '../components/sample/SampleFollowProgress';
+import ListImage from '../components/common/ListImage';
 import SampleFollowNodeModal, { type FollowNodePayload } from '../components/sample/SampleFollowNodeModal';
 
 
@@ -248,22 +249,6 @@ const CARD_MEDIA_STYLE: CSSProperties = {
   borderRadius: 12,
   background: 'linear-gradient(135deg, #f5f7ff 0%, #f0f3ff 100%)',
   overflow: 'hidden',
-};
-
-const CARD_IMAGE_STYLE: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover',
-};
-
-const CARD_PLACEHOLDER_STYLE: CSSProperties = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  color: '#bfbfbf',
 };
 
 const CARD_INFO_STYLE: CSSProperties = {
@@ -763,17 +748,15 @@ const SampleList: React.FC = () => {
       key: 'images',
       width: 90,
       render: (_value, record) => (
-        record.images?.[0] ? (
-          <img
-            src={record.images[0]}
-            alt={record.styleName}
-            style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 6 }}
-          />
-        ) : (
-          <div style={{ width: 56, height: 56, borderRadius: 6, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <PictureOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />
-          </div>
-        )
+        <ListImage
+          src={record.images?.[0]}
+          alt={record.styleName}
+          width={56}
+          height={56}
+          borderRadius={6}
+          background="#f5f5f5"
+          fallback={<PictureOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />}
+        />
       ),
     },
     {
@@ -874,17 +857,17 @@ const SampleList: React.FC = () => {
       <Card hoverable styles={{ body: { padding: 16 } }} onClick={() => handleView(order)}>
         <div style={CARD_LAYOUT_STYLE}>
           <div style={CARD_MEDIA_STYLE}>
-            {order.images?.[0] ? (
-              <img
-                src={order.images[0]}
-                alt={order.styleName}
-                style={CARD_IMAGE_STYLE}
-              />
-            ) : (
-              <div style={CARD_PLACEHOLDER_STYLE}>
-                <PictureOutlined style={{ fontSize: 64, color: '#bfbfbf' }} />
-              </div>
-            )}
+            <ListImage
+              src={order.images?.[0]}
+              alt={order.styleName}
+              width="100%"
+              height="100%"
+              borderRadius={0}
+              background="transparent"
+              wrapperStyle={{ position: 'absolute', inset: 0 }}
+              fallback={<PictureOutlined style={{ fontSize: 64, color: '#bfbfbf' }} />}
+              objectFit="cover"
+            />
           </div>
           <div style={CARD_INFO_STYLE}>
             <div style={CARD_HEADER_STYLE}>

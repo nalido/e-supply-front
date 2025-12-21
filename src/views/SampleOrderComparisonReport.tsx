@@ -12,7 +12,7 @@ import type { ColumnsType, TableProps } from 'antd/es/table';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
-import { sampleOrderComparisonReportService } from '../api/mock';
+import { sampleOrderComparisonReportService } from '../api/sample-report';
 import type {
   SampleOrderAggregation,
   SampleOrderComparisonItem,

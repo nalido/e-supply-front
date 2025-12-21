@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Typography,
   message,
 } from 'antd';
@@ -32,11 +31,6 @@ const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-
-const PURCHASE_TYPE_COLORS: Record<string, string> = {
-  备料采购: 'processing',
-  按单采购: 'success',
-};
 
 const CURRENCY_FORMATTER = new Intl.NumberFormat('zh-CN', {
   style: 'currency',

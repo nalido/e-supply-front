@@ -10,6 +10,7 @@ import type {
   TemplateFieldType,
   SampleTypeItem,
 } from '../types/sample';
+import { TemplateFieldTypes } from '../types/sample';
 
 type BackendPageResponse<T> = {
   items?: T[];
@@ -66,6 +67,12 @@ const normalizeNodeOrder = (nodes?: TemplateNode[]): TemplateNode[] => {
   });
 };
 
+const isValidFieldType = (value: unknown): value is TemplateFieldType =>
+  TemplateFieldTypes.includes(value as TemplateFieldType);
+
+const normalizeFieldType = (value?: string | null): TemplateFieldType =>
+  value && isValidFieldType(value) ? value : 'text';
+
 const adaptNodeFromBackend = (
   node: BackendFollowTemplateNode,
   index: number,
@@ -74,7 +81,7 @@ const adaptNodeFromBackend = (
   sortOrder: node.sortOrder ?? node.sequenceNo ?? index + 1,
   sequenceNo: node.sequenceNo ?? node.sortOrder ?? index + 1,
   nodeName: node.nodeName ?? `节点${index + 1}`,
-  fieldType: (node.fieldType ?? 'text') as TemplateFieldType,
+  fieldType: normalizeFieldType(node.fieldType),
   duration: typeof node.duration === 'number' ? node.duration : Number(node.duration ?? 0),
 });
 
@@ -104,7 +111,7 @@ const buildFollowTemplateRequestBody = (
       sortOrder: node.sortOrder ?? index + 1,
       sequenceNo: node.sequenceNo ?? node.sortOrder ?? index + 1,
       nodeName: node.nodeName,
-      fieldType: node.fieldType,
+      fieldType: normalizeFieldType(node.fieldType),
       duration: Number.isFinite(node.duration) ? node.duration : 0,
     })),
   };

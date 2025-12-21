@@ -12,6 +12,7 @@ export type MaterialStockWarehouse = {
 
 export type MaterialStockListItem = {
   id: string;
+  materialId: string;
   imageUrl?: string;
   materialCode: string;
   materialName: string;
@@ -50,4 +51,36 @@ export type MaterialStockListResponse = {
 export type MaterialStockMeta = {
   materialTabs: MaterialStockTab[];
   warehouses: MaterialStockWarehouse[];
+};
+
+export type MaterialMovementDirection = 'in' | 'out' | 'adjust';
+
+export type MaterialMovementRecord = {
+  id: string;
+  direction: MaterialMovementDirection;
+  directionLabel: string;
+  movementType: string;
+  movementLabel: string;
+  documentType?: string;
+  documentNo?: string;
+  quantity: number;
+  unit: string;
+  warehouseName?: string;
+  counterpart?: string;
+  occurredAt?: string;
+  remark?: string;
+};
+
+export type MaterialMovementListParams = {
+  materialId: string;
+  warehouseId?: string;
+  startDate?: string;
+  endDate?: string;
+  page: number;
+  pageSize: number;
+};
+
+export type MaterialMovementListResponse = {
+  list: MaterialMovementRecord[];
+  total: number;
 };

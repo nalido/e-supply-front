@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
 import {
   Button,
@@ -58,8 +57,11 @@ const statusOptions: Array<{ label: string; value: ReconciliationStatus }> = [
   { label: '未对账', value: 'unreconciled' },
 ];
 
-const buildRangeParams = (range: RangeValue<Dayjs>, startKey: string, endKey: string) => {
-  const [start, end] = range ?? [];
+type DayRangeValue = [Dayjs | null, Dayjs | null] | null;
+
+const buildRangeParams = (range: DayRangeValue, startKey: string, endKey: string) => {
+  const start = range?.[0] ?? null;
+  const end = range?.[1] ?? null;
   return {
     [startKey]: start?.format('YYYY-MM-DD'),
     [endKey]: end?.format('YYYY-MM-DD'),
@@ -83,8 +85,8 @@ const SettlementReportReconciliationDetails = () => {
   const [orderNo, setOrderNo] = useState('');
   const [styleKeyword, setStyleKeyword] = useState('');
   const [statementNo, setStatementNo] = useState('');
-  const [shipmentRange, setShipmentRange] = useState<RangeValue<Dayjs>>(null);
-  const [reconciliationRange, setReconciliationRange] = useState<RangeValue<Dayjs>>(null);
+  const [shipmentRange, setShipmentRange] = useState<DayRangeValue>(null);
+  const [reconciliationRange, setReconciliationRange] = useState<DayRangeValue>(null);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -292,11 +294,16 @@ const SettlementReportReconciliationDetails = () => {
     }
   }, [partnerType]);
 
-  const partnerNameHints = useMemo(() => {
+  const partnerNameHints = useMemo<Array<{ label: string; value: string }>>(() => {
     if (!partnerType || !meta) {
       return [];
     }
-    return meta[partnerType] ?? [];
+    const metaKeyMap: Record<ReconciliationPartnerType, keyof ReconciliationDetailsMeta> = {
+      customer: 'customers',
+      factory: 'factories',
+      supplier: 'suppliers',
+    };
+    return meta[metaKeyMap[partnerType]] ?? [];
   }, [meta, partnerType]);
 
   return (

@@ -22,6 +22,12 @@ export interface CustomerOption {
   contact?: string;
 }
 
+export interface FollowTemplateOption {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+}
+
 export interface SampleCreationAttachment {
   id: string;
   url: string;
@@ -36,6 +42,7 @@ export interface SampleCreationAttachment {
 export interface SampleCreationMeta {
   units: string[];
   sampleTypes: SampleTypeItem[];
+  followTemplates: FollowTemplateOption[];
   customers: CustomerOption[];
   merchandisers: StaffOption[];
   patternMakers: StaffOption[];

@@ -22,6 +22,7 @@ import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/ic
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
 import { materialInventoryReportService } from '../api/material-inventory';
+import ListImage from '../components/common/ListImage';
 import type {
   MaterialInboundRatioItem,
   MaterialInventoryAggregation,
@@ -244,11 +245,7 @@ const MaterialInventoryReport = () => {
       dataIndex: 'imageUrl',
       width: 92,
       render: (value: string, record) => (
-        <img
-          src={value}
-          alt={record.materialName}
-          style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', background: '#f3f4f6' }}
-        />
+        <ListImage src={value} alt={record.materialName} />
       ),
     },
     {

@@ -34,6 +34,7 @@ export interface SampleOrder {
   id: string;
   orderNo: string; // 样板单号
   sampleType?: string;
+  followTemplateId?: string;
   styleName: string; // 款式名称
   styleCode: string; // 款式编号
   unit?: string; // 单位
@@ -69,6 +70,7 @@ export interface SampleOrder {
   styleId?: string;
   styleNo?: string;
   orderDate?: string;
+  followProgress?: SampleFollowProgress;
 }
 
 /**
@@ -108,7 +110,9 @@ export interface SampleDashboardStats {
   thisYear: number;
 }
 
-export type TemplateFieldType = 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'file';
+export const TemplateFieldTypes = ['text', 'date', 'boolean'] as const;
+
+export type TemplateFieldType = typeof TemplateFieldTypes[number];
 
 export interface TemplateNode {
   id: number;
@@ -117,6 +121,23 @@ export interface TemplateNode {
   nodeName: string;
   fieldType: TemplateFieldType;
   duration: number;
+}
+
+export interface SampleFollowProgressNode {
+  id?: string;
+  templateNodeId?: string;
+  nodeName: string;
+  fieldType: TemplateFieldType | string;
+  sortOrder?: number;
+  completed: boolean;
+  statusValue?: string;
+  completedAt?: string;
+}
+
+export interface SampleFollowProgress {
+  templateId?: string;
+  templateName?: string;
+  nodes: SampleFollowProgressNode[];
 }
 
 export interface FollowTemplateSummary {
@@ -137,7 +158,7 @@ export interface FollowTemplatePayload {
 }
 
 export interface SampleTypeItem {
-  id: number;
+  id: number | string;
   name: string;
 }
 

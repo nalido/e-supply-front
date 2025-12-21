@@ -42,7 +42,7 @@ const StyleMaterials = () => {
 
   const debouncedKeyword = useDebouncedValue(keyword, 300);
 
-  const fetchList = useCallback(async (page = 1, pageSize = currentPageSize, keywordValue?: string) => {
+  const fetchList = useCallback(async (page: number = 1, pageSize: number = currentPageSize, keywordValue?: string) => {
     setLoading(true);
     try {
       const response: PaginatedStyleData = await stylesApi.list({
