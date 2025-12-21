@@ -20,7 +20,9 @@ import {
   message,
 } from 'antd';
 import { DeleteOutlined, DownloadOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { finishedGoodsReceivedService } from '../api/mock';
+import { finishedGoodsReceivedService } from '../api/finished-goods';
+import StyleInfo from '../components/common/StyleInfo';
+import ListImage from '../components/common/ListImage';
 import type {
   FinishedGoodsReceivedDailyAggregation,
   FinishedGoodsReceivedListParams,
@@ -211,20 +213,27 @@ const FinishedGoodsReceived = () => {
         fixed: 'left',
         render: (value: string | undefined, record) =>
           record.recordType === 'detail' ? (
-            <img
-              src={value}
-              alt={record.styleName}
-              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }}
-            />
+            <ListImage src={value} alt={record.styleName} width={56} height={56} borderRadius={8} />
           ) : (
             '-'
           ),
       },
       {
-        title: '款号',
+        title: '款式',
         dataIndex: 'styleNo',
-        width: 120,
+        width: 220,
         fixed: 'left',
+        render: (_value, record) =>
+          record.recordType === 'detail' ? (
+            <StyleInfo
+              styleNo={record.styleNo}
+              styleName={record.styleName}
+              color={record.color}
+              size={record.size}
+            />
+          ) : (
+            '-'
+          ),
       },
       {
         title: '仓库',
@@ -241,11 +250,6 @@ const FinishedGoodsReceived = () => {
         dataIndex: 'customerCategory',
         width: 140,
         render: (value: string) => <Tag color="blue">{value}</Tag>,
-      },
-      {
-        title: '款名',
-        dataIndex: 'styleName',
-        width: 200,
       },
       {
         title: '加工厂',

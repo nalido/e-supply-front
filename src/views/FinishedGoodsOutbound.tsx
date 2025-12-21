@@ -5,8 +5,10 @@ import {
   Card,
   Checkbox,
   Col,
+  DatePicker,
   Form,
   Input,
+  Modal,
   Row,
   Select,
   Space,
@@ -17,13 +19,17 @@ import {
 } from 'antd';
 import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import { DeleteOutlined, DownloadOutlined, EditOutlined, FlagOutlined, PrinterOutlined } from '@ant-design/icons';
-import { finishedGoodsOutboundService } from '../api/mock';
+import { finishedGoodsDispatchService, finishedGoodsOutboundService } from '../api/finished-goods';
+import dayjs, { type Dayjs } from 'dayjs';
 import type {
   FinishedGoodsOutboundGrouping,
   FinishedGoodsOutboundListResponse,
   FinishedGoodsOutboundMeta,
   FinishedGoodsOutboundRecord,
+  FinishedGoodsDispatchUpdatePayload,
 } from '../types/finished-goods-outbound';
+import StyleInfo from '../components/common/StyleInfo';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -56,6 +62,7 @@ type TableRecord =
       orderNo?: string;
       styleNo?: string;
       styleName?: string;
+      imageUrl?: string;
       color?: string;
       size?: string;
       quantity: number;
@@ -63,6 +70,13 @@ type TableRecord =
     });
 
 const FinishedGoodsOutbound = () => {
+  type EditFormValues = {
+    status?: FinishedGoodsOutboundRecord['status'];
+    logisticsProviderId?: string;
+    trackingNumber?: string;
+    dispatchAt?: Dayjs;
+    remark?: string;
+  };
   const [meta, setMeta] = useState<FinishedGoodsOutboundMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [listState, setListState] = useState<FinishedGoodsOutboundListResponse>({ list: [], total: 0, summary: { quantity: 0, amount: 0 } });
@@ -76,6 +90,29 @@ const FinishedGoodsOutbound = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRecords, setSelectedRecords] = useState<FinishedGoodsOutboundRecord[]>([]);
+  const [editRecord, setEditRecord] = useState<FinishedGoodsOutboundRecord | null>(null);
+  const [editForm] = Form.useForm<EditFormValues>();
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const statusLabelMap = useMemo(
+    () => ({
+      draft: { label: '草稿', color: 'default' },
+      partial: { label: '部分发货', color: 'gold' },
+      shipped: { label: '已发货', color: 'green' },
+      cancelled: { label: '已取消', color: 'red' },
+    }),
+    [],
+  );
+  const statusOptions = useMemo(
+    () => [
+      { label: statusLabelMap.draft.label, value: 'draft' as FinishedGoodsOutboundRecord['status'] },
+      { label: statusLabelMap.partial.label, value: 'partial' as FinishedGoodsOutboundRecord['status'] },
+      { label: statusLabelMap.shipped.label, value: 'shipped' as FinishedGoodsOutboundRecord['status'] },
+      { label: statusLabelMap.cancelled.label, value: 'cancelled' as FinishedGoodsOutboundRecord['status'] },
+    ],
+    [statusLabelMap],
+  );
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -109,6 +146,10 @@ const FinishedGoodsOutbound = () => {
       setListState(response);
       const currentIds = new Set(response.list.map((item) => item.id));
       setSelectedRowKeys((prev) => prev.filter((key) => currentIds.has(String(key))));
+      setSelectedRecords((prev) => {
+        const validMap = new Map(response.list.map((item) => [item.id, item] as const));
+        return prev.filter((item) => validMap.has(item.id));
+      });
     } catch (error) {
       console.error('failed to load outbound list', error);
       message.error('获取出库明细失败');
@@ -123,6 +164,7 @@ const FinishedGoodsOutbound = () => {
 
   useEffect(() => {
     setSelectedRowKeys([]);
+    setSelectedRecords([]);
   }, [groupBy]);
 
   const handleGroupingChange = (values: CheckboxValueType[]) => {
@@ -162,6 +204,7 @@ const FinishedGoodsOutbound = () => {
     setPage(1);
     setPageSize(DEFAULT_PAGE_SIZE);
     setSelectedRowKeys([]);
+    setSelectedRecords([]);
   };
 
   const handleTableChange = (nextPage: number, nextPageSize?: number) => {
@@ -171,12 +214,25 @@ const FinishedGoodsOutbound = () => {
     }
   };
 
-  const handleRowSelectionChange = (keys: React.Key[]) => {
+  const handleRowSelectionChange = (keys: React.Key[], rows: FinishedGoodsOutboundRecord[]) => {
     setSelectedRowKeys(keys);
+    setSelectedRecords(rows);
   };
 
   const handleModify = () => {
-    message.info(`已选择 ${selectedRowKeys.length} 条记录，准备修改出库信息`);
+    if (!canModify || !selectedRecords.length) {
+      return;
+    }
+    const record = selectedRecords[0];
+    setEditRecord(record);
+    editForm.setFieldsValue({
+      status: record.status,
+      logisticsProviderId: record.logisticsProviderId,
+      trackingNumber: record.trackingNumber,
+      dispatchAt: record.dispatchDate ? dayjs(record.dispatchDate) : undefined,
+      remark: undefined,
+    });
+    setEditModalOpen(true);
   };
 
   const handlePrint = () => {
@@ -184,7 +240,33 @@ const FinishedGoodsOutbound = () => {
   };
 
   const handleDelete = () => {
-    message.warning('已提交出库记录作废申请，待仓储主管审批');
+    if (!canBatchAction || !selectedRecords.length) {
+      return;
+    }
+    const dispatchIds = Array.from(new Set(selectedRecords.map((item) => item.dispatchId)));
+    if (!dispatchIds.length) {
+      message.warning('请选择需要删除的出库记录');
+      return;
+    }
+    Modal.confirm({
+      title: '确认删除所选出库记录？',
+      content: '删除后对应成品库存将恢复，请确认已校对数量。',
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await finishedGoodsDispatchService.remove(dispatchIds);
+          message.success('已删除所选出库记录');
+          setSelectedRowKeys([]);
+          setSelectedRecords([]);
+          void loadList();
+        } catch (error) {
+          console.error('failed to remove finished goods dispatches', error);
+          message.error('删除失败，请稍后再试');
+        }
+      },
+    });
   };
 
   const handleStatusUpdate = () => {
@@ -193,6 +275,43 @@ const FinishedGoodsOutbound = () => {
 
   const handleExport = () => {
     message.success('已生成出库明细导出任务，可前往下载中心查看');
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalOpen(false);
+    setEditRecord(null);
+    editForm.resetFields();
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editRecord) {
+      return;
+    }
+    try {
+      const values = await editForm.validateFields();
+      setEditSubmitting(true);
+      const payload: FinishedGoodsDispatchUpdatePayload = {
+        status: values.status,
+        logisticsProviderId: values.logisticsProviderId,
+        trackingNo: values.trackingNumber?.trim() || undefined,
+        dispatchAt: values.dispatchAt ? values.dispatchAt.toISOString() : undefined,
+        remark: values.remark?.trim() || undefined,
+      };
+      await finishedGoodsDispatchService.update(editRecord.dispatchId, payload);
+      message.success('出库记录已更新');
+      handleEditModalClose();
+      setSelectedRowKeys([]);
+      setSelectedRecords([]);
+      void loadList();
+    } catch (error) {
+      if ((error as { errorFields?: unknown[] } | undefined)?.errorFields) {
+        return;
+      }
+      console.error('failed to update finished goods dispatch', error);
+      message.error('修改出库记录失败，请稍后再试');
+    } finally {
+      setEditSubmitting(false);
+    }
   };
 
   const displayedData: TableRecord[] = useMemo(() => {
@@ -240,6 +359,7 @@ const FinishedGoodsOutbound = () => {
         orderNo: record.orderNo,
         styleNo: record.styleNo,
         styleName: record.styleName,
+        imageUrl: (record as FinishedGoodsOutboundRecord).imageUrl,
         color: record.color,
         size: record.size,
         quantity: record.quantity,
@@ -279,16 +399,61 @@ const FinishedGoodsOutbound = () => {
       color: { title: '颜色', dataIndex: 'color', width: 120 },
       size: { title: '尺码', dataIndex: 'size', width: 100 },
       style: {
-        title: '款号/款名',
+        title: '款式',
         dataIndex: 'styleNo',
         width: 220,
-        render: (value: string, record) => (
-          <Space direction="vertical" size={0}>
-            <Text>{value}</Text>
-            {record.styleName ? <Text type="secondary">{record.styleName}</Text> : null}
-          </Space>
+        render: (_value: string, record) => (
+          <StyleInfo
+            styleNo={record.styleNo}
+            styleName={record.styleName}
+            color={record.color}
+            size={record.size}
+          />
         ),
       },
+    };
+
+    const imageColumn: ColumnsType<TableRecord>[number] = {
+      title: '图片',
+      dataIndex: 'imageUrl',
+      width: 96,
+      fixed: 'left',
+      render: (_value, record) => (
+        <ListImage
+          src={record.imageUrl}
+          alt={record.styleName ?? record.styleNo}
+          width={64}
+          height={64}
+          borderRadius={8}
+        />
+      ),
+    };
+
+    const styleColumn: ColumnsType<TableRecord>[number] = {
+      title: '款式',
+      dataIndex: 'styleNo',
+      width: 220,
+      fixed: 'left',
+      render: (_value, record) => (
+        <StyleInfo
+          styleNo={record.styleNo}
+          styleName={record.styleName}
+          color={record.color}
+          size={record.size}
+        />
+      ),
+    };
+
+    const warehouseColumn: ColumnsType<TableRecord>[number] = {
+      title: '仓库',
+      dataIndex: 'warehouseName',
+      width: 160,
+    };
+
+    const dispatchDateColumn: ColumnsType<TableRecord>[number] = {
+      title: '出库日期',
+      dataIndex: 'dispatchDate',
+      width: 140,
     };
 
     const quantityColumn: ColumnsType<TableRecord>[number] = {
@@ -320,16 +485,14 @@ const FinishedGoodsOutbound = () => {
     }
 
     const detailColumns: ColumnsType<TableRecord>[number][] = [
-      { title: '发货单号', dataIndex: 'dispatchNoteNo', width: 200 },
-      { title: '出库日期', dataIndex: 'dispatchDate', width: 140 },
-      { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true },
-      { title: '仓库', dataIndex: 'warehouseName', width: 160 },
-      { title: '订单号', dataIndex: 'orderNo', width: 160 },
-      { title: '款号', dataIndex: 'styleNo', width: 140 },
-      { title: '款名', dataIndex: 'styleName', width: 220, ellipsis: true },
-      { title: '颜色', dataIndex: 'color', width: 120 },
-      { title: '尺码', dataIndex: 'size', width: 100 },
+      imageColumn,
+      styleColumn,
+      warehouseColumn,
+      dispatchDateColumn,
       quantityColumn,
+      { title: '发货单号', dataIndex: 'dispatchNoteNo', width: 200 },
+      { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true },
+      { title: '订单号', dataIndex: 'orderNo', width: 160 },
       unitPriceColumn,
       amountColumn,
       { title: '物流公司', dataIndex: 'logisticsProvider', width: 160 },
@@ -338,40 +501,44 @@ const FinishedGoodsOutbound = () => {
         title: '状态',
         dataIndex: 'status',
         width: 120,
-        render: (value: FinishedGoodsOutboundRecord['status']) => (
-          <Tag color={value === 'shipped' ? 'green' : 'gold'}>{value === 'shipped' ? '已发货' : '部分发货'}</Tag>
-        ),
+        render: (value: FinishedGoodsOutboundRecord['status']) => {
+          const meta = statusLabelMap[value] || { label: value, color: 'default' };
+          return <Tag color={meta.color}>{meta.label}</Tag>;
+        },
       },
     ];
 
     return [indexColumn, ...detailColumns];
-  }, [groupBy, page, pageSize]);
+  }, [groupBy, page, pageSize, statusLabelMap]);
 
-  const isActionDisabled = selectedRowKeys.length === 0 || groupBy.length > 0;
+  const canModify = groupBy.length === 0 && selectedRowKeys.length === 1;
+  const canBatchAction = groupBy.length === 0 && selectedRowKeys.length > 0;
 
   const rowSelection = groupBy.length
     ? undefined
     : {
         selectedRowKeys,
-        onChange: handleRowSelectionChange,
+        onChange: (keys: React.Key[], rows: TableRecord[]) =>
+          handleRowSelectionChange(keys, rows as FinishedGoodsOutboundRecord[]),
         preserveSelectedRowKeys: true,
       };
 
   return (
-    <Card title="出库明细" bordered={false} loading={metaLoading && !meta}>
+    <>
+      <Card title="出库明细" bordered={false} loading={metaLoading && !meta}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Row justify="space-between" align="middle">
           <Space wrap>
-            <Button icon={<EditOutlined />} type="primary" disabled={isActionDisabled} onClick={handleModify}>
+            <Button icon={<EditOutlined />} type="primary" disabled={!canModify} onClick={handleModify}>
               修改
             </Button>
-            <Button icon={<PrinterOutlined />} disabled={isActionDisabled} onClick={handlePrint}>
+            <Button icon={<PrinterOutlined />} disabled={!canBatchAction} onClick={handlePrint}>
               打印
             </Button>
-            <Button danger icon={<DeleteOutlined />} disabled={isActionDisabled} onClick={handleDelete}>
+            <Button danger icon={<DeleteOutlined />} disabled={!canBatchAction} onClick={handleDelete}>
               删除
             </Button>
-            <Button icon={<FlagOutlined />} disabled={isActionDisabled} onClick={handleStatusUpdate}>
+            <Button icon={<FlagOutlined />} disabled={!canBatchAction} onClick={handleStatusUpdate}>
               设置订单状态
             </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExport}>
@@ -476,6 +643,38 @@ const FinishedGoodsOutbound = () => {
         />
       </Space>
     </Card>
+    <Modal
+      title="修改出库记录"
+      open={editModalOpen}
+      okText="保存"
+      cancelText="取消"
+      onCancel={handleEditModalClose}
+      confirmLoading={editSubmitting}
+      onOk={handleEditSubmit}
+    >
+      <Form<EditFormValues> form={editForm} layout="vertical">
+        <Form.Item label="出库状态" name="status" rules={[{ required: true, message: '请选择出库状态' }]}>
+          <Select options={statusOptions} placeholder="选择状态" />
+        </Form.Item>
+        <Form.Item label="物流公司" name="logisticsProviderId">
+          <Select
+            allowClear
+            placeholder="选择物流公司"
+            options={meta?.logistics.map((item) => ({ label: item.name, value: item.id })) ?? []}
+          />
+        </Form.Item>
+        <Form.Item label="出库时间" name="dispatchAt">
+          <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm" />
+        </Form.Item>
+        <Form.Item label="物流单号" name="trackingNumber">
+          <Input placeholder="填写物流单号" />
+        </Form.Item>
+        <Form.Item label="备注" name="remark">
+          <Input.TextArea rows={2} placeholder="填写备注" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  </>
   );
 };
 

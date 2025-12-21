@@ -20,8 +20,11 @@ import {
   Typography,
   message,
 } from 'antd';
+import type { RadioChangeEvent } from 'antd/es/radio';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { finishedGoodsOtherInboundService } from '../api/mock';
+import { finishedGoodsOtherInboundService } from '../api/finished-goods';
+import StyleInfo from '../components/common/StyleInfo';
+import ListImage from '../components/common/ListImage';
 import type {
   FinishedGoodsOtherInboundDailyRecord,
   FinishedGoodsOtherInboundFormPayload,
@@ -161,7 +164,7 @@ const FinishedGoodsOtherInbound = () => {
     setPage(1);
   };
 
-  const handleViewModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleViewModeChange = (event: RadioChangeEvent) => {
     const nextMode = event.target.value as FinishedGoodsOtherInboundViewMode;
     setViewMode(nextMode);
     setPage(1);
@@ -251,16 +254,24 @@ const FinishedGoodsOtherInbound = () => {
       dataIndex: 'imageUrl',
       width: 96,
       render: (value: string, record) => (
-        <img
-          src={value}
-          alt={record.styleName}
-          style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', background: '#f4f4f5' }}
-        />
+        <ListImage src={value} alt={record.styleName} />
       ),
     },
     { title: '仓库', dataIndex: 'warehouseName', width: 140 },
     { title: '加工厂', dataIndex: 'processorName', width: 180 },
-    { title: '款号', dataIndex: 'styleNo', width: 120 },
+    {
+      title: '款式',
+      dataIndex: 'styleNo',
+      width: 220,
+      render: (_value, record) => (
+        <StyleInfo
+          styleNo={record.styleNo}
+          styleName={record.styleName}
+          color={record.color}
+          size={record.size}
+        />
+      ),
+    },
     {
       title: 'SKU',
       dataIndex: 'sku',
@@ -279,7 +290,6 @@ const FinishedGoodsOtherInbound = () => {
       dataIndex: 'receiptAt',
       width: 180,
     },
-    { title: '款名', dataIndex: 'styleName', width: 200, ellipsis: true },
     {
       title: '单价',
       dataIndex: 'unitPrice',

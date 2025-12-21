@@ -20,7 +20,9 @@ import {
 } from 'antd';
 import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import { DownloadOutlined, InboxOutlined, SearchOutlined } from '@ant-design/icons';
-import { finishedGoodsPendingReceiptService } from '../api/mock';
+import { finishedGoodsPendingReceiptService } from '../api/finished-goods';
+import StyleInfo from '../components/common/StyleInfo';
+import ListImage from '../components/common/ListImage';
 import type {
   FinishedGoodsPendingReceiptListParams,
   FinishedGoodsPendingReceiptListResponse,
@@ -300,14 +302,17 @@ const FinishedGoodsPendingReceipt = () => {
       if (groupBy.includes('spec')) {
         groupColumns.push(
           {
-            title: '款号/款名',
+            title: '款式',
             dataIndex: 'styleNo',
-            width: 184,
+            width: 220,
             render: (_value: string, record) => (
-              <Space direction="vertical" size={0}>
-                <Text>{record.styleNo}</Text>
-                {record.styleName ? <Text type="secondary">{record.styleName}</Text> : null}
-              </Space>
+              <StyleInfo
+                styleNo={record.styleNo}
+                styleName={record.styleName}
+                color={record.color}
+                size={record.size}
+                hideSpecLine
+              />
             ),
           },
           { title: '颜色', dataIndex: 'color', width: 92 },
@@ -325,11 +330,7 @@ const FinishedGoodsPendingReceipt = () => {
         width: 80,
         fixed: 'left',
         render: (value: string, record) => (
-          <img
-            src={value}
-            alt={record.styleName}
-            style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', background: '#f3f4f6' }}
-          />
+          <ListImage src={value} alt={record.styleName} />
         ),
       },
       {
@@ -345,8 +346,19 @@ const FinishedGoodsPendingReceipt = () => {
         ),
       },
       { title: '客户', dataIndex: 'customerName', width: 188, ellipsis: true },
-      { title: '款号', dataIndex: 'styleNo', width: 112 },
-      { title: '款名', dataIndex: 'styleName', width: 188, ellipsis: true },
+      {
+        title: '款式',
+        dataIndex: 'styleNo',
+        width: 220,
+        render: (_value, record) => (
+          <StyleInfo
+            styleNo={record.styleNo}
+            styleName={record.styleName}
+            color={record.color}
+            size={record.size}
+          />
+        ),
+      },
       { title: '颜色', dataIndex: 'color', width: 92 },
       { title: '尺码', dataIndex: 'size', width: 88 },
       { title: 'SKU', dataIndex: 'sku', width: 184 },
