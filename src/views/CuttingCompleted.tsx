@@ -21,7 +21,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import type { CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
-import { fetchCuttingCompletedDataset } from '../mock';
+import { pieceworkService } from '../api/piecework';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 
@@ -72,12 +72,18 @@ const CuttingCompletedPage = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetchCuttingCompletedDataset().then((data) => {
-      setDataset(data);
-      setPage(1);
-    }).finally(() => {
-      setLoading(false);
-    });
+    pieceworkService
+      .getCuttingCompleted()
+      .then((data) => {
+        setDataset(data);
+        setPage(1);
+      })
+      .catch(() => {
+        message.error('获取已裁记录失败，请稍后重试');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {

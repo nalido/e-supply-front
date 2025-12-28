@@ -12,7 +12,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { orderTicketDetailsReportService } from '../../api/mock';
+import { pieceworkService } from '../../api/piecework';
 import type {
   OrderTicketLot,
   OrderTicketLotListParams,
@@ -94,7 +94,7 @@ const OrderTicketDetailsSection = () => {
     setLotsLoading(true);
     try {
       const params = buildLotParams(lotPage, lotPageSize, lotKeyword);
-      const response = await orderTicketDetailsReportService.getLots(params);
+      const response = await pieceworkService.getTicketLots(params);
       setLots(response.list);
       setLotTotal(response.total);
       if (response.list.length && !response.list.find((lot) => lot.id === activeLot?.id)) {
@@ -118,7 +118,7 @@ const OrderTicketDetailsSection = () => {
     setRecordsLoading(true);
     try {
       const params = buildRecordParams(activeLot.id, recordPage, recordPageSize, recordKeyword);
-      const response = await orderTicketDetailsReportService.getRecords(params);
+      const response = await pieceworkService.getTicketRecords(params);
       setRecords(response.list);
       setRecordTotal(response.total);
       setRecordSummary(response.summary);
@@ -170,10 +170,14 @@ const OrderTicketDetailsSection = () => {
     }
     setExporting(true);
     try {
-      const params = buildRecordParams(activeLot.id, recordPage, recordPageSize, recordKeyword);
-      const result = await orderTicketDetailsReportService.export(params);
-      message.success('导出任务已生成，请稍后在下载中心查看');
-      console.info('mock export file url', result.fileUrl);
+      const { fileUrl } = await pieceworkService.exportTicketRecords({
+        lotId: activeLot.id,
+        keyword: recordKeyword || undefined,
+      });
+      message.success('导出任务已生成，请在日志目录查看生成的文件');
+      if (fileUrl) {
+        console.info('ticket records export file', fileUrl);
+      }
     } catch (error) {
       console.error('failed to export ticket records', error);
       message.error('导出失败，请稍后重试');

@@ -1,4 +1,4 @@
-export type OutsourcingTaskStatus = '待发出' | '已发出' | '已接收' | '已完成' | '已结算';
+export type OutsourcingTaskStatus = '待发出' | '已发出' | '已接收' | '已完成' | '已结算' | '已取消';
 
 export interface OutsourcingManagementListItem {
   id: string;
@@ -36,9 +36,26 @@ export interface OutsourcingManagementListParams {
   processorId?: string;
   dispatchDateStart?: string;
   dispatchDateEnd?: string;
+  statusKey?: string;
 }
 
 export interface OutsourcingManagementListResponse {
   list: OutsourcingManagementListItem[];
   total: number;
+  summary?: {
+    totalOrders: number;
+    inProgressOrders: number;
+    completedOrders: number;
+    dispatchedQty: number;
+    goodReceivedQty: number;
+  };
+}
+
+export interface OutsourcingReceivePayload {
+  orderId: string;
+  receivedQty: number;
+  defectQty?: number;
+  reworkQty?: number;
+  receivedAt: string;
+  remark?: string;
 }

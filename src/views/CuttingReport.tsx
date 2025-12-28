@@ -5,7 +5,7 @@ import { DatePicker, Input, Space, Table, Tag, Typography, Button, message } fro
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { CuttingReportDataset, CuttingReportRecord } from '../types';
-import { fetchCuttingReportDataset } from '../mock';
+import { pieceworkService } from '../api/piecework';
 import '../styles/cutting-report.css';
 import ListImage from '../components/common/ListImage';
 
@@ -30,15 +30,22 @@ const CuttingReportPage = () => {
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    fetchCuttingReportDataset().then((data) => {
-      setDataset(data);
-      setPage(1);
-    }).finally(() => {
-      setLoading(false);
-    });
+    pieceworkService
+      .getCuttingReport()
+      .then((data) => {
+        setDataset(data);
+        setPage(1);
+      })
+      .catch(() => {
+        message.error('获取裁床报表失败，请稍后重试');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const filteredRecords = useMemo(() => {
@@ -96,8 +103,28 @@ const CuttingReportPage = () => {
     setDateRange(null);
   };
 
-  const handleExport = () => {
-    message.success(`将导出 ${filteredRecords.length} 条裁床单记录`);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = {
+        orderKeyword: orderKeyword || undefined,
+        styleKeyword: styleKeyword || undefined,
+        cutterKeyword: cutterKeyword || undefined,
+        remarkKeyword: remarkKeyword || undefined,
+        startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
+        endDate: dateRange?.[1]?.format('YYYY-MM-DD'),
+      };
+      const { fileUrl } = await pieceworkService.exportCuttingReport(params);
+      message.success('导出任务已开始，请在服务器 logs/exports 目录查看');
+      if (fileUrl) {
+        console.info('cutting report export file', fileUrl);
+      }
+    } catch (error) {
+      console.error('failed to export cutting report', error);
+      message.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const columns: ColumnsType<CuttingReportRecord> = useMemo(() => [
@@ -278,7 +305,7 @@ const CuttingReportPage = () => {
         <div className="cutting-report-toolbar">
           <Space size={12} wrap>
             <Button icon={<ReloadOutlined />} onClick={handleReset}>重置条件</Button>
-            <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>
+            <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
               按当前条件全部导出
             </Button>
           </Space>

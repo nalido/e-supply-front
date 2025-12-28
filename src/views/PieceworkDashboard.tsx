@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { Card, Col, Empty, Progress, Row, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Card, Col, Empty, Progress, Row, Space, Spin, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Column } from '@antv/g2plot';
 import type { ColumnOptions } from '@antv/g2plot';
@@ -15,7 +15,7 @@ import type {
   PieceworkMetric,
   PieceworkOverdueOrder,
 } from '../types';
-import { fetchPieceworkDashboardDataset } from '../mock';
+import { pieceworkService } from '../api/piecework';
 import '../styles/piecework-dashboard.css';
 import ListImage from '../components/common/ListImage';
 
@@ -125,9 +125,13 @@ const PieceworkDashboard = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetchPieceworkDashboardDataset()
+    pieceworkService
+      .getDashboard()
       .then((data) => {
         setDataset(data);
+      })
+      .catch(() => {
+        message.error('加载车间仪表板失败，请稍后重试');
       })
       .finally(() => {
         setLoading(false);

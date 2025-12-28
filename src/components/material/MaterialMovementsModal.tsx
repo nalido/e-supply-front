@@ -52,7 +52,7 @@ const MaterialMovementsModal = ({ open, material, onClose }: MaterialMovementsMo
       setPage(1);
       setDateRange(buildDefaultRange());
     }
-  }, [material?.id, open]);
+  }, [material, open]);
 
   const fetchMovements = useCallback(async () => {
     if (!open || !material) {

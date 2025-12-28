@@ -14,7 +14,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { qualityControlManagementService } from '../api/mock';
+import { pieceworkService } from '../api/piecework';
 import type {
   QualityControlListParams,
   QualityControlMeta,
@@ -96,20 +96,31 @@ const QualityControlManagement = () => {
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     const loadMeta = async () => {
       setMetaLoading(true);
       try {
-        const response = await qualityControlManagementService.getMeta();
-        setMeta(response);
+        const response = await pieceworkService.getQualityMeta();
+        if (mounted) {
+          setMeta(response);
+          setStatus(response.defaultStatus ?? 'all');
+          setAppliedFilters(createDefaultFilters(response.defaultStatus ?? 'all'));
+        }
       } catch (error) {
         console.error('failed to load quality control meta', error);
-        message.error('加载质检筛选项失败');
+        if (mounted) {
+          message.error('加载质检配置失败');
+        }
       } finally {
-        setMetaLoading(false);
+        if (mounted) {
+          setMetaLoading(false);
+        }
       }
     };
-
     void loadMeta();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -147,10 +158,10 @@ const QualityControlManagement = () => {
       if (!params.endDate) {
         delete params.endDate;
       }
-      const response = await qualityControlManagementService.getList(params);
+      const response = await pieceworkService.getQualityList(params);
       setRecords(response.list);
       setTotal(response.total);
-      setSummary(response.summary);
+      setSummary(response.summary ?? { inspectedQty: 0, passedQty: 0, failedQty: 0, reworkQty: 0 });
     } catch (error) {
       console.error('failed to load quality control list', error);
       message.error('获取质检记录失败');
@@ -324,31 +335,34 @@ const QualityControlManagement = () => {
   );
 
   const statusOptions = meta?.statusOptions ?? [
-    { label: '全部状态', value: 'all' as QualityInspectionStatus | 'all' },
+    { label: '全部状态', value: 'all' },
     { label: '合格', value: 'passed' as QualityInspectionStatus },
     { label: '不合格', value: 'failed' as QualityInspectionStatus },
     { label: '返工', value: 'rework' as QualityInspectionStatus },
   ];
 
-  const inspectorOptions = meta?.inspectorOptions ?? [
-    { label: '全部质检员', value: '' },
-    { label: '林珊', value: '林珊' },
-    { label: '王婷', value: '王婷' },
-    { label: '郭诚', value: '郭诚' },
-  ];
+  const inspectorOptions = useMemo(
+    () => [
+      { label: '全部质检员', value: '' },
+      ...(meta?.inspectorOptions ?? []),
+    ],
+    [meta?.inspectorOptions],
+  );
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      const result = await qualityControlManagementService.export({
+      const { fileUrl } = await pieceworkService.exportQualityInspections({
         keyword: appliedFilters.keyword,
         status: appliedFilters.status,
-        inspector: appliedFilters.inspector,
+        inspectorId: appliedFilters.inspector,
         startDate: appliedFilters.startDate,
         endDate: appliedFilters.endDate,
       });
-      message.success('导出任务已生成，请稍后在下载中心查看');
-      console.info('mock export url', result.fileUrl);
+      message.success('导出任务已生成，请在日志目录查看生成的文件');
+      if (fileUrl) {
+        console.info('quality export file', fileUrl);
+      }
     } catch (error) {
       console.error('failed to export quality control records', error);
       message.error('导出失败，请稍后重试');

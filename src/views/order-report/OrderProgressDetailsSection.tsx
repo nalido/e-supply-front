@@ -24,7 +24,7 @@ import type {
   OrderProgressDetailsRecord,
   OrderProgressStatus,
 } from '../../types/order-progress-details-report';
-import { orderProgressDetailsReportService } from '../../api/mock';
+import { pieceworkService } from '../../api/piecework';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -263,7 +263,7 @@ const OrderProgressDetailsSection = () => {
         orderDateStart: dateRange?.[0]?.format('YYYY-MM-DD'),
         orderDateEnd: dateRange?.[1]?.format('YYYY-MM-DD'),
       };
-      const response = await orderProgressDetailsReportService.getList(params);
+      const response = await pieceworkService.getOrderProgress(params);
       setRecords(response.list);
       setTotal(response.total);
     } catch (error) {

@@ -22,7 +22,7 @@ const GlobalErrorAlert = () => {
       clearGlobalError();
     }, 10_000);
     return () => window.clearTimeout(timeout);
-  }, [error?.id]);
+  }, [error]);
 
   if (!error) {
     return null;

@@ -41,4 +41,7 @@ export type WorkshopProgressSummary = {
 export type WorkshopProgressDataset = {
   summary: WorkshopProgressSummary;
   orders: WorkshopProgressOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
 };

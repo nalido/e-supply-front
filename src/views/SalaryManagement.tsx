@@ -17,7 +17,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, FormOutlined, InteractionOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { salaryManagementService } from '../api/mock';
+import { pieceworkService } from '../api/piecework';
 import type {
   SalaryEmployeeRecord,
   SalaryListParams,
@@ -91,7 +91,7 @@ const SalaryManagement = () => {
     const loadMeta = async () => {
       setMetaLoading(true);
       try {
-        const response = await salaryManagementService.getMeta();
+        const response = await pieceworkService.getSalaryMeta();
         setMeta(response);
         const initialRange = createDefaultRange(response);
         setDateRange(initialRange);
@@ -114,7 +114,7 @@ const SalaryManagement = () => {
     setTableLoading(true);
     try {
       const params = createFilterParams(appliedFilters, page, pageSize);
-      const response = await salaryManagementService.getList(params);
+      const response = await pieceworkService.getSalaryList(params);
       setRecords(response.list);
       setTotal(response.total);
       setSummary(response.summary);
@@ -304,7 +304,7 @@ const SalaryManagement = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await salaryManagementService.settle(payload);
+          await pieceworkService.settlePayroll(payload);
           message.success('结算操作已完成');
           setSelectedRowKeys([]);
           void loadList();

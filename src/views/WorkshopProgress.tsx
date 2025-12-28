@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import type { ProgressProps } from 'antd/es/progress';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
@@ -17,6 +17,7 @@ import {
   Steps,
   Tag,
   Typography,
+  message,
 } from 'antd';
 import type { StepsProps } from 'antd';
 import type {
@@ -24,7 +25,7 @@ import type {
   WorkshopProgressOrder,
   WorkshopStageStatus,
 } from '../types';
-import { fetchWorkshopProgressDataset } from '../mock';
+import { pieceworkService } from '../api/piecework';
 import '../styles/workshop-progress.css';
 import ListImage from '../components/common/ListImage';
 
@@ -72,19 +73,54 @@ const WorkshopProgress = () => {
   const [dataset, setDataset] = useState<WorkshopProgressDataset | null>(null);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [bedKeyword, setBedKeyword] = useState('');
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [detailOrder, setDetailOrder] = useState<WorkshopProgressOrder | null>(null);
 
+  const fetchOrders = useCallback(
+    async ({
+      page,
+      keyword: keywordValue,
+      includeCompleted: includeValue,
+      withSummary,
+    }: {
+      page: number;
+      keyword: string;
+      includeCompleted: boolean;
+      withSummary?: boolean;
+    }) => {
+      setLoading(true);
+      try {
+        const data = await pieceworkService.getWorkshopProgress({
+          page,
+          pageSize,
+          keyword: keywordValue,
+          includeCompleted: includeValue,
+          includeSummary: withSummary,
+        });
+        setDataset((prev) => {
+          const summary = withSummary || !prev ? data.summary : prev.summary;
+          return {
+            ...data,
+            summary,
+          };
+        });
+        setCurrentPage(data.page);
+      } catch (error) {
+        console.error('failed to load workshop progress', error);
+        message.error('获取车间进度失败，请稍后重试');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    setLoading(true);
-    fetchWorkshopProgressDataset().then((data) => {
-      setDataset(data);
-    }).finally(() => {
-      setLoading(false);
-    });
-  }, []);
+    void fetchOrders({ page: 1, keyword: '', includeCompleted: false, withSummary: true });
+  }, [fetchOrders]);
 
   const summaryMetrics: SummaryMetric[] = useMemo(() => {
     if (!dataset) {
@@ -123,42 +159,21 @@ const WorkshopProgress = () => {
 
   const filteredOrders = useMemo(() => {
     if (!dataset) return [];
+    const bed = bedKeyword.trim();
+    if (!bed) {
+      return dataset.orders;
+    }
+    return dataset.orders.filter((order) => order.bedNo === bed);
+  }, [dataset, bedKeyword]);
 
-    const lowerKeyword = keyword.trim().toLowerCase();
-    const exactBed = bedKeyword.trim();
-
-    return dataset.orders.filter((order) => {
-      if (!includeCompleted && order.status === 'completed') {
-        return false;
-      }
-
-      const matchesKeyword = lowerKeyword
-        ? [
-            order.orderNo,
-            order.remark,
-            order.styleNo,
-            order.styleName,
-            order.customer,
-            order.colorSizeSummary,
-          ]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(lowerKeyword))
-        : true;
-
-      const matchesBed = exactBed ? order.bedNo === exactBed : true;
-
-      return matchesKeyword && matchesBed;
-    });
-  }, [dataset, keyword, bedKeyword, includeCompleted]);
-
-  const pagedOrders = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredOrders.slice(start, start + pageSize);
-  }, [filteredOrders, currentPage]);
+  const ordersToDisplay = filteredOrders;
 
   const handleSearch = (value: string) => {
-    setKeyword(value.trim());
+    setKeyword(value);
+    const trimmed = value.trim();
+    setAppliedKeyword(trimmed);
     setCurrentPage(1);
+    void fetchOrders({ page: 1, keyword: trimmed, includeCompleted, withSummary: true });
   };
 
   const handleBedSearch = (value: string) => {
@@ -175,8 +190,10 @@ const WorkshopProgress = () => {
   };
 
   const handleIncludeCompletedChange = (event: CheckboxChangeEvent) => {
-    setIncludeCompleted(event.target.checked);
+    const nextValue = event.target.checked;
+    setIncludeCompleted(nextValue);
     setCurrentPage(1);
+    void fetchOrders({ page: 1, keyword: appliedKeyword, includeCompleted: nextValue, withSummary: true });
   };
 
   const handleOpenDetail = (order: WorkshopProgressOrder) => {
@@ -253,12 +270,12 @@ const WorkshopProgress = () => {
         <div className="workshop-progress-loading">
           <Spin tip="正在获取车间工序进度..." />
         </div>
-      ) : filteredOrders.length === 0 ? (
+      ) : ordersToDisplay.length === 0 ? (
         <Empty description="暂未找到符合条件的订单" />
       ) : (
         <>
           <div className="workshop-progress-list">
-            {pagedOrders.map((order) => (
+            {ordersToDisplay.map((order) => (
               <article className="workshop-order-card" key={order.id}>
                 <header className="workshop-order-header">
                   <Space size={8} wrap>
@@ -340,9 +357,14 @@ const WorkshopProgress = () => {
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={filteredOrders.length}
-              onChange={setCurrentPage}
+              total={dataset?.total ?? 0}
+              showSizeChanger={false}
+              showQuickJumper
               showTotal={(total) => `共 ${total} 单`}
+              onChange={(nextPage) => {
+                setCurrentPage(nextPage);
+                void fetchOrders({ page: nextPage, keyword: appliedKeyword, includeCompleted, withSummary: false });
+              }}
             />
           </div>
         </>

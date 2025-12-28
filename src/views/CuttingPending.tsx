@@ -26,7 +26,7 @@ import {
 } from '@ant-design/icons';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import type { CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
-import { fetchCuttingPendingDataset } from '../mock';
+import { pieceworkService } from '../api/piecework';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 
@@ -70,12 +70,18 @@ const CuttingPendingPage = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetchCuttingPendingDataset().then((data) => {
-      setDataset(data);
-      setPage(1);
-    }).finally(() => {
-      setLoading(false);
-    });
+    pieceworkService
+      .getCuttingPending()
+      .then((data) => {
+        setDataset(data);
+        setPage(1);
+      })
+      .catch(() => {
+        message.error('获取待裁数据失败，请稍后重试');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {

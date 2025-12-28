@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProgressProps } from 'antd/es/progress';
 import {
@@ -26,27 +26,19 @@ import {
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import type {
-  FactoryOrderDataset,
+  FactoryOrderItem,
   FactoryOrderMetric,
   FactoryOrderProgress,
   FactoryOrderStatusSummary,
   FactoryOrderTableRow,
 } from '../types';
-import { fetchFactoryOrdersDataset } from '../mock';
+import { factoryOrdersApi } from '../api/factory-orders';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
 
 type ViewMode = 'card' | 'table';
-
-const initialDataset: FactoryOrderDataset = {
-  metrics: [],
-  orders: [],
-  table: [],
-  statusTabs: [],
-};
 
 const sortOptions = [
   { label: '预计交货（近 → 远）', value: 'delivery-asc' },
@@ -69,17 +61,6 @@ const progressStatusLabel: Record<NonNullable<FactoryOrderProgress['status']>, P
   danger: 'exception',
 };
 
-const normalizeKeyword = (keyword: string) => keyword.trim().toLowerCase();
-
-const getDateValue = (value?: string) => {
-  if (!value) return Number.POSITIVE_INFINITY;
-  const parsed = dayjs(value, 'YYYY-MM-DD', true);
-  if (!parsed.isValid()) {
-    return Number.POSITIVE_INFINITY;
-  }
-  return parsed.valueOf();
-};
-
 const getMaterialTagColor = (status: string) => {
   if (status.includes('未采购')) return 'volcano';
   if (status.includes('采购中')) return 'orange';
@@ -87,140 +68,166 @@ const getMaterialTagColor = (status: string) => {
   return 'default';
 };
 
-const filterByKeyword = <T extends { code?: string; name?: string; customer?: string }>(records: T[], keyword: string) => {
-  if (!keyword) return records;
-  const normalized = normalizeKeyword(keyword);
-  return records.filter((record) =>
-    [record.code, record.name, record.customer]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(normalized)),
-  );
-};
-
-const filterTableByKeyword = (records: FactoryOrderTableRow[], keyword: string) => {
-  if (!keyword) return records;
-  const normalized = normalizeKeyword(keyword);
-  return records.filter((record) =>
-    [
-      record.orderCode,
-      record.styleCode,
-      record.styleName,
-      record.customer,
-      record.merchandiser,
-    ]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(normalized)),
-  );
-};
-
 const { Paragraph, Text } = Typography;
 
 const FactoryOrders = () => {
-  const [dataset, setDataset] = useState<FactoryOrderDataset>(initialDataset);
-  const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [includeCompleted, setIncludeCompleted] = useState(false);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
-  const [activeStatus, setActiveStatus] = useState('pending');
-  const [sortKey, setSortKey] = useState(sortOptions[0].value);
-  const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [metrics, setMetrics] = useState<FactoryOrderMetric[]>([]);
+  const [statusTabs, setStatusTabs] = useState<FactoryOrderStatusSummary[]>([]);
+  const [cardOrders, setCardOrders] = useState<FactoryOrderItem[]>([]);
+  const [cardTotal, setCardTotal] = useState(0);
   const [cardPage, setCardPage] = useState(1);
   const [cardPageSize, setCardPageSize] = useState(6);
+  const [tableOrders, setTableOrders] = useState<FactoryOrderTableRow[]>([]);
+  const [tableTotal, setTableTotal] = useState(0);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(10);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [loadingTable, setLoadingTable] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [includeCompleted, setIncludeCompleted] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [activeStatus, setActiveStatus] = useState('RELEASED');
+  const [sortKey, setSortKey] = useState(sortOptions[0].value);
+  const [viewMode, setViewMode] = useState<ViewMode>('card');
 
   useEffect(() => {
-    setLoading(true);
-    fetchFactoryOrdersDataset().then((data) => {
-      setDataset(data);
-      setSelectedOrderIds([]);
-      if (data.statusTabs.length > 0) {
-        setActiveStatus((prev) => (data.statusTabs.some((tab) => tab.key === prev) ? prev : data.statusTabs[0].key));
+    let cancelled = false;
+    const loadSummary = async () => {
+      setLoadingSummary(true);
+      try {
+        const data = await factoryOrdersApi.getSummary();
+        if (cancelled) {
+          return;
+        }
+        setMetrics(data.metrics);
+        setStatusTabs(data.statusTabs);
+        if (data.statusTabs.length > 0) {
+          setActiveStatus((prev) =>
+            data.statusTabs.some((tab) => tab.key === prev) ? prev : data.statusTabs[0].key,
+          );
+        }
+      } catch (err) {
+        console.error('failed to fetch factory order summary', err);
+        if (!cancelled) {
+          message.error('获取工厂订单概览失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSummary(false);
+        }
       }
-    }).finally(() => {
-      setLoading(false);
-    });
+    };
+    void loadSummary();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const allowCompleted = includeCompleted || activeStatus === 'completed';
-
-  const sortedCardOrders = useMemo(() => {
-    const filteredStatus = dataset.orders.filter((order) => {
-      const matchStatus = activeStatus === 'all' ? true : order.statusKey === activeStatus;
-      const matchCompletion = allowCompleted || !order.isCompleted;
-      return matchStatus && matchCompletion;
-    });
-    const filteredKeyword = filterByKeyword(filteredStatus, keyword);
-
-    const sorted = [...filteredKeyword];
-    sorted.sort((a, b) => {
-      if (sortKey === 'delivery-asc') {
-        return getDateValue(a.expectedDelivery) - getDateValue(b.expectedDelivery);
+  useEffect(() => {
+    let cancelled = false;
+    const loadCards = async () => {
+      setLoadingCards(true);
+      try {
+        const response = await factoryOrdersApi.getCards({
+          status: activeStatus,
+          keyword: appliedKeyword,
+          includeCompleted,
+          sort: sortKey,
+          page: cardPage,
+          pageSize: cardPageSize,
+        });
+        if (cancelled) {
+          return;
+        }
+        setCardOrders(response.list);
+        setCardTotal(response.total);
+      } catch (err) {
+        console.error('failed to fetch factory order cards', err);
+        if (!cancelled) {
+          message.error('获取工厂订单卡片失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingCards(false);
+        }
       }
-      if (sortKey === 'delivery-desc') {
-        return getDateValue(b.expectedDelivery) - getDateValue(a.expectedDelivery);
-      }
-      if (sortKey === 'order-desc') {
-        return getDateValue(b.orderDate) - getDateValue(a.orderDate);
-      }
-      return getDateValue(a.orderDate) - getDateValue(b.orderDate);
-    });
-    return sorted;
-  }, [dataset.orders, activeStatus, allowCompleted, keyword, sortKey]);
-
-  const sortedTableOrders = useMemo(() => {
-    const filteredStatus = dataset.table.filter((record) => {
-      const matchStatus = activeStatus === 'all' ? true : record.statusKey === activeStatus;
-      const matchCompletion = allowCompleted || !record.isCompleted;
-      return matchStatus && matchCompletion;
-    });
-    const filteredKeyword = filterTableByKeyword(filteredStatus, keyword);
-    const sorted = [...filteredKeyword];
-    sorted.sort((a, b) => {
-      if (sortKey === 'delivery-asc') {
-        return getDateValue(a.expectedDelivery) - getDateValue(b.expectedDelivery);
-      }
-      if (sortKey === 'delivery-desc') {
-        return getDateValue(b.expectedDelivery) - getDateValue(a.expectedDelivery);
-      }
-      if (sortKey === 'order-desc') {
-        return getDateValue(b.orderDate) - getDateValue(a.orderDate);
-      }
-      return getDateValue(a.orderDate) - getDateValue(b.orderDate);
-    });
-    return sorted;
-  }, [dataset.table, activeStatus, allowCompleted, keyword, sortKey]);
+    };
+    void loadCards();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, cardPage, cardPageSize]);
 
   useEffect(() => {
-    setCardPage(1);
-  }, [keyword, activeStatus, includeCompleted, sortKey]);
+    let cancelled = false;
+    const loadTable = async () => {
+      setLoadingTable(true);
+      try {
+        const response = await factoryOrdersApi.getTable({
+          status: activeStatus,
+          keyword: appliedKeyword,
+          includeCompleted,
+          sort: sortKey,
+          page: tablePage,
+          pageSize: tablePageSize,
+        });
+        if (cancelled) {
+          return;
+        }
+        setTableOrders(response.list);
+        setTableTotal(response.total);
+      } catch (err) {
+        console.error('failed to fetch factory order table rows', err);
+        if (!cancelled) {
+          message.error('获取工厂订单表格失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingTable(false);
+        }
+      }
+    };
+    void loadTable();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, tablePage, tablePageSize]);
 
-  useEffect(() => {
-    const pageCount = Math.max(1, Math.ceil(sortedCardOrders.length / cardPageSize));
-    if (cardPage > pageCount) {
-      setCardPage(pageCount);
-    }
-  }, [sortedCardOrders.length, cardPage, cardPageSize]);
-
-  const paginatedCardOrders = useMemo(() => {
-    const start = (cardPage - 1) * cardPageSize;
-    return sortedCardOrders.slice(start, start + cardPageSize);
-  }, [sortedCardOrders, cardPage, cardPageSize]);
-
-  const currentVisibleIds = useMemo(() => (
-    viewMode === 'card'
-      ? paginatedCardOrders.map((order) => order.id)
-      : sortedTableOrders.map((record) => record.id)
-  ), [viewMode, paginatedCardOrders, sortedTableOrders]);
+  const currentVisibleIds = useMemo(
+    () => (viewMode === 'card'
+      ? cardOrders.map((order) => order.id)
+      : tableOrders.map((record) => record.id)),
+    [viewMode, cardOrders, tableOrders],
+  );
 
   const visibleSelectedCount = currentVisibleIds.filter((id) => selectedOrderIds.includes(id)).length;
   const allVisibleSelected = currentVisibleIds.length > 0 && visibleSelectedCount === currentVisibleIds.length;
   const indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < currentVisibleIds.length;
 
+  const resetPagination = useCallback(() => {
+    setCardPage(1);
+    setTablePage(1);
+  }, []);
+
   const handleSearch = (value: string) => {
-    setKeyword(value.trim());
+    setSearchValue(value);
+    setAppliedKeyword(value.trim());
+    resetPagination();
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    if (!value) {
+      setAppliedKeyword('');
+      resetPagination();
+    }
   };
 
   const handleIncludeCompletedChange = (event: CheckboxChangeEvent) => {
     setIncludeCompleted(event.target.checked);
+    resetPagination();
   };
 
   const handleToggleOrder = (orderId: string, checked: boolean) => {
@@ -244,10 +251,23 @@ const FactoryOrders = () => {
   };
 
   useEffect(() => {
-    setSelectedOrderIds((prev) => prev.filter((id) => dataset.orders.some((order) => order.id === id)));
-  }, [dataset.orders]);
+    if (loadingCards || loadingTable) {
+      return;
+    }
+    if (!cardOrders.length && !tableOrders.length) {
+      setSelectedOrderIds([]);
+      return;
+    }
+    setSelectedOrderIds((prev) => {
+      const validIds = new Set([
+        ...cardOrders.map((order) => order.id),
+        ...tableOrders.map((record) => record.id),
+      ]);
+      return prev.filter((id) => validIds.has(id));
+    });
+  }, [cardOrders, tableOrders, loadingCards, loadingTable]);
 
-  const tabItems = dataset.statusTabs.map((tab: FactoryOrderStatusSummary) => ({
+  const tabItems = statusTabs.map((tab: FactoryOrderStatusSummary) => ({
     key: tab.key,
     label: (
       <div className="factory-orders-tab-label">
@@ -341,7 +361,7 @@ const FactoryOrders = () => {
   }), [selectedOrderIds]);
 
   const renderCardView = () => {
-    if (loading) {
+    if (loadingCards && cardOrders.length === 0) {
       return (
         <div className="factory-orders-list">
           {Array.from({ length: cardPageSize }).map((_, index) => (
@@ -351,14 +371,14 @@ const FactoryOrders = () => {
       );
     }
 
-    if (sortedCardOrders.length === 0) {
-      return <Empty description={keyword ? '未找到匹配的工厂订单' : '暂无工厂订单'} />;
+    if (!loadingCards && cardOrders.length === 0) {
+      return <Empty description={appliedKeyword ? '未找到匹配的工厂订单' : '暂无工厂订单'} />;
     }
 
     return (
       <>
         <div className="factory-orders-list">
-          {paginatedCardOrders.map((order) => {
+          {cardOrders.map((order) => {
             const isChecked = selectedOrderIds.includes(order.id);
             return (
               <article className="factory-order-card" key={order.id}>
@@ -476,12 +496,12 @@ const FactoryOrders = () => {
             );
           })}
         </div>
-        {sortedCardOrders.length > cardPageSize ? (
+        {cardTotal > cardPageSize ? (
           <div className="factory-orders-pagination">
             <Pagination
               current={cardPage}
               pageSize={cardPageSize}
-              total={sortedCardOrders.length}
+              total={cardTotal}
               showQuickJumper
               showSizeChanger
               pageSizeOptions={['6', '9', '12']}
@@ -500,14 +520,8 @@ const FactoryOrders = () => {
   };
 
   const renderTableView = () => {
-    if (sortedTableOrders.length === 0) {
-      return loading ? (
-        <div className="factory-orders-table-skeleton">
-          <Skeleton active paragraph={{ rows: 6 }} />
-        </div>
-      ) : (
-        <Empty description={keyword ? '未找到匹配的工厂订单' : '暂无工厂订单'} />
-      );
+    if (!loadingTable && tableOrders.length === 0) {
+      return <Empty description={appliedKeyword ? '未找到匹配的工厂订单' : '暂无工厂订单'} />;
     }
 
     return (
@@ -515,14 +529,23 @@ const FactoryOrders = () => {
         bordered
         rowKey={(record) => record.id}
         columns={tableColumns}
-        dataSource={sortedTableOrders}
-        loading={loading}
+        dataSource={tableOrders}
+        loading={loadingTable}
         rowSelection={rowSelection}
         pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          total: tableTotal,
           showQuickJumper: true,
           showSizeChanger: true,
-          defaultPageSize: 10,
+          pageSizeOptions: ['10', '20', '40'],
           showTotal: (total, range) => `${range[0]}-${range[1]} / 共 ${total} 单`,
+          onChange: (page, size) => {
+            setTablePage(page);
+            if (size) {
+              setTablePageSize(size);
+            }
+          },
         }}
         scroll={{ x: 1200 }}
       />
@@ -535,25 +558,32 @@ const FactoryOrders = () => {
         <Tabs
           activeKey={activeStatus}
           items={tabItems}
-          onChange={(key) => setActiveStatus(key)}
+          onChange={(key) => {
+            setActiveStatus(key);
+            resetPagination();
+          }}
         />
       </section>
 
       <section className="factory-orders-toolbar">
         <div className="factory-orders-toolbar-left">
           <div className="factory-orders-metrics">
-            {dataset.metrics.map((metric: FactoryOrderMetric) => (
-              <div
-                key={metric.key}
-                className={`factory-orders-metric-card${metric.tone === 'warning' ? ' warning' : ''}`}
-              >
-                <div className="factory-orders-metric-title">{metric.label}</div>
-                <div className="factory-orders-metric-primary">{metric.primaryValue}</div>
-                {metric.secondaryValue ? (
-                  <div className="factory-orders-metric-secondary">{metric.secondaryValue}</div>
-                ) : null}
-              </div>
-            ))}
+            {loadingSummary && metrics.length === 0 ? (
+              <Skeleton active paragraph={{ rows: 2 }} />
+            ) : (
+              metrics.map((metric: FactoryOrderMetric) => (
+                <div
+                  key={metric.key}
+                  className={`factory-orders-metric-card${metric.tone === 'warning' ? ' warning' : ''}`}
+                >
+                  <div className="factory-orders-metric-title">{metric.label}</div>
+                  <div className="factory-orders-metric-primary">{metric.primaryValue}</div>
+                  {metric.secondaryValue ? (
+                    <div className="factory-orders-metric-secondary">{metric.secondaryValue}</div>
+                  ) : null}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -573,15 +603,18 @@ const FactoryOrders = () => {
           placeholder="请输入订单号/款号/款名/客户/跟单员"
           enterButton={<SearchOutlined />}
           onSearch={handleSearch}
-          onChange={(event) => setKeyword(event.target.value)}
-          value={keyword}
+          onChange={(event) => handleSearchChange(event.target.value)}
+          value={searchValue}
         />
         <Checkbox checked={includeCompleted} onChange={handleIncludeCompletedChange}>包含已完成</Checkbox>
         <Select
           className="factory-orders-sort-select"
           options={sortOptions}
           value={sortKey}
-          onChange={(value) => setSortKey(value)}
+          onChange={(value) => {
+            setSortKey(value);
+            resetPagination();
+          }}
         />
         <Segmented
           value={viewMode}
@@ -612,7 +645,7 @@ const FactoryOrders = () => {
       {includeCompleted ? (
         <Paragraph style={{ marginTop: 16 }} type="secondary">
           <InfoCircleOutlined style={{ marginRight: 6 }} />
-          已展示包含已完成订单的看板数据，此开关仅模拟交互。
+          已展示包含已完工订单的数据，关闭后仅查看「已下发 / 生产中」状态下的记录。
         </Paragraph>
       ) : null}
     </div>

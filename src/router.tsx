@@ -96,6 +96,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sample/follow-template' &&
     n.key !== '/sample/type' &&
     n.key !== '/orders/factory' &&
+    n.key !== '/piecework/orders' &&
     n.key !== '/orders/efficiency' &&
     n.key !== '/basic/process-type' &&
     n.key !== '/basic/styles' &&
@@ -166,6 +167,7 @@ const router = createBrowserRouter([
       { path: 'sample/report/costing', element: React.createElement(SampleCostingReport) },
       { path: 'sample/report/order-compare', element: React.createElement(SampleOrderComparisonReport) },
       { path: 'orders/factory', element: React.createElement(FactoryOrders) },
+      { path: 'piecework/orders', element: React.createElement(FactoryOrders) },
       { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
       { path: 'orders/report/profit', element: React.createElement(OrderShipmentProfitReport) },
       { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
