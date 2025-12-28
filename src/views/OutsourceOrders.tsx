@@ -46,14 +46,21 @@ type MaterialRequestFormFields = OutsourceMaterialRequestPayload;
 
 const statusOptions: Array<{ label: string; value: OutsourceStatusFilter }> = [
   { label: '全部', value: '全部' },
+  { label: '待发出', value: '待发出' },
   { label: '已完结', value: '已完结' },
   { label: '已取消', value: '已取消' },
 ];
 
 const statusColorMap: Record<OutsourceOrderStatus, string> = {
+  待发出: 'processing',
   已完结: 'success',
   已取消: 'error',
 };
+
+const bulkStatusOptions: Array<{ label: string; value: OutsourceOrderStatus }> = [
+  { label: '已完结', value: '已完结' },
+  { label: '已取消', value: '已取消' },
+];
 
 const OutsourceOrders = () => {
   const [orders, setOrders] = useState<OutsourceOrder[]>([]);
@@ -204,10 +211,7 @@ const OutsourceOrders = () => {
   };
 
   const statusMenuItems: MenuProps['items'] = useMemo(
-    () =>
-      statusOptions
-        .filter((option) => option.value !== '全部')
-        .map(({ label, value }) => ({ key: value, label, icon: <CheckCircleOutlined /> })),
+    () => bulkStatusOptions.map(({ label, value }) => ({ key: value, label, icon: <CheckCircleOutlined /> })),
     [],
   );
 

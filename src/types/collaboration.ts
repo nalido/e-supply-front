@@ -32,7 +32,7 @@ export type IncomingOrderShipmentPayload = {
   remark?: string;
 };
 
-export type OutsourceOrderStatus = '已完结' | '已取消';
+export type OutsourceOrderStatus = '待发出' | '已完结' | '已取消';
 
 export type OutsourceOrder = {
   id: string;
