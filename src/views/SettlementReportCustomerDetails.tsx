@@ -20,7 +20,7 @@ import type {
   CustomerBusinessDetailMeta,
   CustomerBusinessDetailRecord,
 } from '../types/settlement-report-customer-details';
-import { customerBusinessDetailReportService } from '../api/mock';
+import { customerBusinessDetailReportService } from '../api/settlement';
 
 const { RangePicker } = DatePicker;
 const { Link, Text } = Typography;
@@ -231,7 +231,7 @@ const SettlementReportCustomerDetails = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={metaLoading || aggregationLoading} title="应收已收趋势图 (年)">
+      <Card variant="borderless" loading={metaLoading || aggregationLoading} title="应收已收趋势图 (年)">
         <MonthlyDualAxisChart
           columnData={columnData}
           lineData={lineData}
@@ -241,7 +241,7 @@ const SettlementReportCustomerDetails = () => {
           lineFormatter={(value) => currencyFormatter.format(value)}
         />
       </Card>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Form layout="inline" style={{ marginBottom: 16 }}>
           <Form.Item label="客户" style={{ minWidth: 320 }}>
             <Select

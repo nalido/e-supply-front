@@ -38,6 +38,8 @@ export interface BulkCostOrderItem {
   orderDate: string;
   receiptDate: string;
   costs: Record<string, BulkCostDetailValue>;
+  actualCost?: BulkCostDetailValue;
+  estimatedCost?: BulkCostDetailValue;
 }
 
 export interface BulkCostListParams {

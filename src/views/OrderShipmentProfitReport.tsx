@@ -16,7 +16,7 @@ import {
 import { DownloadOutlined, LineChartOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import DonutChart from '../components/charts/DonutChart';
 import MonthlyDualAxisChart from '../components/charts/MonthlyDualAxisChart';
-import { orderShipmentProfitReportService } from '../api/mock';
+import { orderShipmentProfitReportService } from '../api/order-shipment-profit-report';
 import type {
   OrderShipmentProfitAggregation,
   OrderShipmentProfitListParams,
@@ -302,7 +302,7 @@ const OrderShipmentProfitReport = () => {
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={14}>
-                  <Card bordered={false} loading={aggregationLoading}>
+                  <Card variant="borderless" loading={aggregationLoading}>
                     <Title level={5} style={{ marginBottom: 24 }}>
                       订单出货利润表（半年）
                     </Title>
@@ -317,7 +317,7 @@ const OrderShipmentProfitReport = () => {
                   </Card>
                 </Col>
                 <Col xs={24} lg={10}>
-                  <Card bordered={false} loading={aggregationLoading}>
+                  <Card variant="borderless" loading={aggregationLoading}>
                     <Title level={5} style={{ marginBottom: 24 }}>
                       客户下单金额占比
                     </Title>
@@ -347,7 +347,7 @@ const OrderShipmentProfitReport = () => {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {chartCollapse}
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space
           direction={screens.xs ? 'vertical' : 'horizontal'}
           size={16}

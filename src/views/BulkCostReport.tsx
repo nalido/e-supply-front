@@ -20,7 +20,7 @@ import type { RangeValue } from 'rc-picker/lib/interface';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
-import { bulkCostReportService } from '../api/mock';
+import { bulkCostReportService } from '../api/bulk-cost-report';
 import type { BulkCostAggregation, BulkCostOrderItem } from '../types/bulk-cost-report';
 import '../styles/bulk-cost-report.css';
 import ListImage from '../components/common/ListImage';
@@ -135,6 +135,12 @@ const buildCostKeys = (order: BulkCostOrderItem): string[] => {
     return safeA - safeB;
   });
 };
+
+const sumCost = (cost?: BulkCostDetailValue): number =>
+  (cost?.procurement ?? 0) + (cost?.production ?? 0);
+
+const formatVarianceText = (value: number): string =>
+  `${value >= 0 ? '+' : '-'}${formatCurrency(Math.abs(value))}`;
 
 const buildLineDataset = (aggregation: BulkCostAggregation | null) => {
   if (!aggregation) {
@@ -340,7 +346,7 @@ const BulkCostReport = () => {
             <Card
               title="成本金额趋势（半年）"
               loading={aggregationLoading}
-              bodyStyle={{ height: 320, display: 'flex', alignItems: 'center' }}
+              styles={{ body: { height: 320, display: 'flex', alignItems: 'center' } }}
             >
               {aggregationLoading ? null : lineDataset.length > 0 ? (
                 <div className="bulk-cost-trend-chart">
@@ -363,7 +369,7 @@ const BulkCostReport = () => {
             <Card
               title="客户下单金额占比（半年）"
               loading={aggregationLoading}
-              bodyStyle={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              styles={{ body: { height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
             >
               {aggregationLoading ? null : pieSlices.length > 0 ? (
                 <div className="bulk-cost-donut-wrapper">
@@ -512,6 +518,41 @@ const BulkCostReport = () => {
                         })}
                       </tbody>
                     </table>
+                    <div className="bulk-cost-variance-summary">
+                      {(() => {
+                        const actualCost = order.actualCost ?? { procurement: 0, production: 0 };
+                        const estimatedCost = order.estimatedCost ?? { procurement: 0, production: 0 };
+                        const actualTotal = sumCost(actualCost);
+                        const estimatedTotal = sumCost(estimatedCost);
+                        const delta = actualTotal - estimatedTotal;
+                        const deltaProcurement = actualCost.procurement - estimatedCost.procurement;
+                        const deltaProcessing = actualCost.production - estimatedCost.production;
+                        return (
+                          <>
+                            <div className="bulk-cost-variance-row">
+                              <span className="bulk-cost-variance-label">实际总成本</span>
+                              <strong>{formatCurrency(actualTotal)}</strong>
+                            </div>
+                            <div className="bulk-cost-variance-row">
+                              <span className="bulk-cost-variance-label">估算总成本</span>
+                              <strong>{formatCurrency(estimatedTotal)}</strong>
+                            </div>
+                            <div className="bulk-cost-variance-row">
+                              <span className="bulk-cost-variance-label">差异（总）</span>
+                              <span className="bulk-cost-variance-delta">{formatVarianceText(delta)}</span>
+                            </div>
+                            <div className="bulk-cost-variance-row">
+                              <span className="bulk-cost-variance-label">差异（采购）</span>
+                              <span className="bulk-cost-variance-delta">{formatVarianceText(deltaProcurement)}</span>
+                            </div>
+                            <div className="bulk-cost-variance-row">
+                              <span className="bulk-cost-variance-label">差异（加工）</span>
+                              <span className="bulk-cost-variance-delta">{formatVarianceText(deltaProcessing)}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </article>
               );

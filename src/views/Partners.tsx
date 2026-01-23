@@ -351,7 +351,7 @@ const PartnersPage = () => {
         confirmLoading={modalState.submitting}
         onCancel={() => setModalState({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmit}
-        destroyOnClose
+        destroyOnHidden
         width={520}
       >
         <Form form={form} layout="vertical">

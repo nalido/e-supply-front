@@ -5,12 +5,8 @@ import type {
   StyleStatus,
 } from '../types/style';
 import type { ProcessTypeChargeMode } from '../types/process-type';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import { getStyleDetail, getStyleFormMeta, saveStyleDetail } from '../mock/style-detail';
-
-const useMock = apiConfig.useMock;
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
 type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
@@ -231,9 +227,6 @@ const buildProcesses = (payload: StyleDetailSavePayload): BackendStyleProcessReq
 
 export const styleDetailApi = {
   async fetchMeta(): Promise<StyleFormMeta> {
-    if (useMock) {
-      return getStyleFormMeta();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendMetadataResponse>('/api/v1/styles/meta', {
       params: { tenantId },
@@ -241,9 +234,6 @@ export const styleDetailApi = {
     return adaptMetadata(response.data);
   },
   async fetchDetail(styleId: string): Promise<StyleDetailData> {
-    if (useMock) {
-      return getStyleDetail(styleId);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendStyleResponse>(`/api/v1/styles/${styleId}`, {
       params: { tenantId },
@@ -251,18 +241,12 @@ export const styleDetailApi = {
     return adaptDetail(response.data);
   },
   async create(payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    if (useMock) {
-      return saveStyleDetail(payload);
-    }
     const tenantId = ensureTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     const response = await http.post<BackendStyleResponse>('/api/v1/styles', requestBody);
     return adaptDetail(response.data);
   },
   async update(styleId: string, payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    if (useMock) {
-      return saveStyleDetail({ ...payload, styleNo: payload.styleNo || styleId });
-    }
     const tenantId = ensureTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     const response = await http.post<BackendStyleResponse>(`/api/v1/styles/${styleId}/update`, requestBody);

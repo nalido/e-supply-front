@@ -271,7 +271,7 @@ const RolesSettings = () => {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={submit}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical">
           <Form.Item

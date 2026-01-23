@@ -268,7 +268,9 @@ const WorkshopProgress = () => {
 
       {loading ? (
         <div className="workshop-progress-loading">
-          <Spin tip="正在获取车间工序进度..." />
+          <Spin spinning tip="正在获取车间工序进度...">
+            <div style={{ minHeight: 120 }} />
+          </Spin>
         </div>
       ) : ordersToDisplay.length === 0 ? (
         <Empty description="暂未找到符合条件的订单" />

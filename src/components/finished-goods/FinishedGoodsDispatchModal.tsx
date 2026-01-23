@@ -202,6 +202,7 @@ const FinishedGoodsDispatchModal = ({ open, records, meta, onClose, onDispatched
       okText="确认出库"
       confirmLoading={submitting}
       onOk={handleSubmit}
+      forceRender
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Alert

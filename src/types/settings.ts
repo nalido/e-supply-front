@@ -58,17 +58,6 @@ export type CompanyOverview = {
   tenants: TenantSummary[];
 };
 
-export type InviteMemberPayload = {
-  phone: string;
-  roleId: string;
-  remark?: string;
-};
-
-export type TransferTenantPayload = {
-  targetUserId: string;
-  verificationCode: string;
-};
-
 export type OrgMember = {
   id: string;
   name: string;
@@ -184,6 +173,17 @@ export type BackendAuditLogResponse = {
   createdAt: string;
 };
 
+export type BackendPreferenceResponse = {
+  id?: number;
+  tenantId?: number;
+  ownerType?: string;
+  ownerId?: number;
+  key: string;
+  value?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type BackendUserAccountCreateRequest = {
   tenantId: string | number;
   username: string;
@@ -274,61 +274,3 @@ export type UpdatePreferencePayload = {
 };
 
 export type UserStatus = 'active' | 'inactive' | 'pending';
-
-export type UserAccount = {
-  id: string;
-  avatar: string;
-  name: string;
-  username: string;
-  phone: string;
-  role: string;
-  status: UserStatus;
-  createdAt: string;
-};
-
-export type UserListQuery = {
-  keyword?: string;
-  status?: UserStatus | 'all';
-  page?: number;
-  pageSize?: number;
-};
-
-export type CreateUserPayload = {
-  name: string;
-  username: string;
-  phone: string;
-  role: string;
-  password: string;
-};
-
-export type UpdateUserPayload = Partial<CreateUserPayload>;
-
-export type JoinApplicationStatus = 'pending' | 'approved' | 'rejected';
-
-export type JoinApplication = {
-  id: string;
-  name: string;
-  phone: string;
-  status: JoinApplicationStatus;
-  appliedAt: string;
-  handledAt?: string;
-};
-
-export type CredentialItem = {
-  id: string;
-  userId: string;
-  userName: string;
-  secretId: string;
-  secretKey: string;
-  createdAt: string;
-};
-
-export type CreateCredentialPayload = {
-  userId: string;
-  expiresIn?: number;
-};
-
-export type BulkAssignRolePayload = {
-  userIds: string[];
-  role: string;
-};

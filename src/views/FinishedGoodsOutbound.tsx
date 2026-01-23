@@ -525,7 +525,7 @@ const FinishedGoodsOutbound = () => {
 
   return (
     <>
-      <Card title="出库明细" bordered={false} loading={metaLoading && !meta}>
+      <Card title="出库明细" variant="borderless" loading={metaLoading && !meta}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Row justify="space-between" align="middle">
           <Space wrap>
@@ -551,7 +551,7 @@ const FinishedGoodsOutbound = () => {
           </Space>
         </Row>
 
-        <Card size="small" bordered>
+        <Card size="small" variant="outlined">
           <Form layout="vertical">
             <Row gutter={[16, 16]}>
               <Col span={24}>

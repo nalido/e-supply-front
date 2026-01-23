@@ -6,19 +6,8 @@ import type {
   MaterialListParams,
   MaterialUnit,
 } from '../types';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  createMaterial as mockCreateMaterial,
-  exportMaterials as mockExportMaterials,
-  importMaterials as mockImportMaterials,
-  listMaterials as mockListMaterials,
-  removeMaterial as mockRemoveMaterial,
-  updateMaterial as mockUpdateMaterial,
-} from '../mock/material';
-
-const useMock = apiConfig.useMock;
 
 type BackendMaterialStatus = 'ACTIVE' | 'INACTIVE';
 type BackendMaterialType = 'FABRIC' | 'ACCESSORY';
@@ -240,9 +229,6 @@ const buildImportPayload = (
 
 export const materialApi = {
   list: async (params: MaterialListParams): Promise<MaterialDataset> => {
-    if (useMock) {
-      return mockListMaterials(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendPageResponse<BackendMaterialResponse>>(
       '/api/v1/materials',
@@ -262,9 +248,6 @@ export const materialApi = {
     };
   },
   create: async (payload: CreateMaterialPayload): Promise<MaterialItem> => {
-    if (useMock) {
-      return mockCreateMaterial(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendMaterialResponse>('/api/v1/materials', {
       ...buildRequestPayload(tenantId, payload, { includeStatus: true }),
@@ -272,9 +255,6 @@ export const materialApi = {
     return adaptMaterial(response.data);
   },
   update: async (id: string, payload: CreateMaterialPayload): Promise<MaterialItem | undefined> => {
-    if (useMock) {
-      return mockUpdateMaterial(id, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendMaterialResponse>(
       `/api/v1/materials/${id}/update`,
@@ -283,9 +263,6 @@ export const materialApi = {
     return adaptMaterial(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    if (useMock) {
-      return mockRemoveMaterial(id);
-    }
     const tenantId = ensureTenantId();
     await http.delete(`/api/v1/materials/${id}`, {
       params: { tenantId },
@@ -293,9 +270,6 @@ export const materialApi = {
     return true;
   },
   import: async (payload: CreateMaterialPayload[], materialType: MaterialBasicType): Promise<number> => {
-    if (useMock) {
-      return mockImportMaterials(payload, materialType);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<MaterialImportResponse>('/api/v1/materials/import', {
       ...buildImportPayload(tenantId, materialType, payload),
@@ -303,9 +277,6 @@ export const materialApi = {
     return response.data.imported;
   },
   export: async (params: { materialType: MaterialBasicType; keyword?: string }): Promise<Blob> => {
-    if (useMock) {
-      return mockExportMaterials({ materialType: params.materialType, keyword: params.keyword });
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialExportResponse>('/api/v1/materials/export', {
       params: {

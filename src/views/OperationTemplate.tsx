@@ -465,6 +465,7 @@ const OperationTemplatePage = () => {
         onCancel={() => setModalState({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmit}
         destroyOnHidden
+        forceRender
         width={800}
       >
         <Form
@@ -514,6 +515,7 @@ const OperationTemplatePage = () => {
         onOk={handleOperationSubmit}
         onCancel={closeOperationModal}
         destroyOnHidden
+        forceRender
       >
         <Form form={operationForm} layout="vertical">
           <Form.Item

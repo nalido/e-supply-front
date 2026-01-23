@@ -4,21 +4,18 @@ import { useSearchParams } from 'react-router-dom';
 import OrderProgressDetailsSection from './order-report/OrderProgressDetailsSection';
 import OrderTicketDetailsSection from './order-report/OrderTicketDetailsSection';
 import ProcessProductionComparisonSection from './order-report/ProcessProductionComparisonSection';
+import SequentialProcessSection from './order-report/SequentialProcessSection';
+import DownloadRecordsSection from './order-report/DownloadRecordsSection';
 
 const TAB_KEYS = {
   process: 'process-comparison',
   ticket: 'ticket-details',
   progress: 'order-progress',
   sequential: 'sequential-process',
+  downloads: 'download-records',
 } as const;
 
 const DEFAULT_KEY = TAB_KEYS.progress;
-
-const PlaceholderCard = ({ title }: { title: string }) => (
-  <Card bordered={false} bodyStyle={{ padding: 48, textAlign: 'center' }}>
-    尚未实现的报表：{title}
-  </Card>
-);
 
 const OrderReportAggregation = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,7 +45,9 @@ const OrderReportAggregation = () => {
       case TAB_KEYS.process:
         return <ProcessProductionComparisonSection />;
       case TAB_KEYS.sequential:
-        return <PlaceholderCard title="按序生产工序表" />;
+        return <SequentialProcessSection />;
+      case TAB_KEYS.downloads:
+        return <DownloadRecordsSection />;
       default:
         return <OrderProgressDetailsSection />;
     }
@@ -60,6 +59,7 @@ const OrderReportAggregation = () => {
       { key: TAB_KEYS.ticket, label: '订单计菲明细表' },
       { key: TAB_KEYS.progress, label: '订单进度明细表' },
       { key: TAB_KEYS.sequential, label: '按序生产工序表' },
+      { key: TAB_KEYS.downloads, label: '下载记录' },
     ],
     [],
   );
@@ -72,7 +72,7 @@ const OrderReportAggregation = () => {
         onChange={handleTabChange}
         style={{ marginBottom: 16 }}
       />
-      <Suspense fallback={<Card bordered={false}><Skeleton active /></Card>}>
+      <Suspense fallback={<Card variant="borderless"><Skeleton active /></Card>}>
         {content}
       </Suspense>
     </div>

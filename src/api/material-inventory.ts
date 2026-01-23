@@ -25,17 +25,8 @@ import type {
   MaterialStockListResponse,
   MaterialStockMeta,
 } from '../types/material-stock';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  materialStockService as mockMaterialStockService,
-  materialIssueService as mockMaterialIssueService,
-  materialInventoryReportService as mockInventoryReportService,
-  materialPurchaseReportService as mockPurchaseReportService,
-} from './mock';
-
-const useMock = apiConfig.useMock;
 
 const ensureTenantId = (): string => {
   const tenantId = tenantStore.getTenantId();
@@ -65,9 +56,6 @@ const buildInventoryParams = (
 
 export const materialStockService = {
   async getMeta(): Promise<MaterialStockMeta> {
-    if (useMock) {
-      return mockMaterialStockService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialStockMeta>('/api/v1/inventory/materials/meta', {
       params: { tenantId },
@@ -76,9 +64,6 @@ export const materialStockService = {
   },
 
   async getList(params: MaterialStockListParams): Promise<MaterialStockListResponse> {
-    if (useMock) {
-      return mockMaterialStockService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialStockListResponse>('/api/v1/inventory/materials', {
       params: {
@@ -97,9 +82,6 @@ export const materialStockService = {
   async getMovements(
     params: MaterialMovementListParams,
   ): Promise<MaterialMovementListResponse> {
-    if (useMock) {
-      return mockMaterialStockService.getMovements(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialMovementListResponse>(
       `/api/v1/inventory/materials/${params.materialId}/movements`,
@@ -120,17 +102,11 @@ export const materialStockService = {
 
 export const materialIssueService = {
   async getMeta(): Promise<MaterialIssueMeta> {
-    if (useMock) {
-      return mockMaterialIssueService.getMeta();
-    }
     const response = await http.get<MaterialIssueMeta>('/api/v1/inventory/material-issues/meta');
     return response.data;
   },
 
   async getList(params: MaterialIssueListParams): Promise<MaterialIssueListResponse> {
-    if (useMock) {
-      return mockMaterialIssueService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialIssueListResponse>('/api/v1/inventory/material-issues', {
       params: {
@@ -145,9 +121,6 @@ export const materialIssueService = {
   },
 
   async createIssue(payload: MaterialIssueCreatePayload): Promise<MaterialIssueCreateResponse> {
-    if (useMock) {
-      return mockMaterialIssueService.createIssue(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<MaterialIssueCreateResponse>(
       '/api/v1/inventory/material-issues',
@@ -173,9 +146,6 @@ export const materialIssueService = {
   async updateStatus(
     payload: MaterialIssueStatusUpdatePayload,
   ): Promise<MaterialIssueStatusUpdateResult> {
-    if (useMock) {
-      return mockMaterialIssueService.updateStatus(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<MaterialIssueStatusUpdateResult>(
       '/api/v1/inventory/material-issues/status/update',
@@ -191,9 +161,6 @@ export const materialIssueService = {
 
 export const materialInventoryReportService = {
   async getOverview(params: MaterialInventoryQueryParams = {}): Promise<MaterialInventoryAggregation> {
-    if (useMock) {
-      return mockInventoryReportService.getOverview(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialInventoryAggregation>(
       '/api/v1/inventory/materials/report/overview',
@@ -203,9 +170,6 @@ export const materialInventoryReportService = {
   },
 
   async getList(params: MaterialInventoryListParams): Promise<MaterialInventoryListResponse> {
-    if (useMock) {
-      return mockInventoryReportService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialInventoryListResponse>('/api/v1/inventory/materials/report', {
       params: {
@@ -220,9 +184,6 @@ export const materialInventoryReportService = {
 
 export const materialPurchaseReportService = {
   async getMeta(): Promise<MaterialPurchaseReportMeta> {
-    if (useMock) {
-      return mockPurchaseReportService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialPurchaseReportMeta>(
       '/api/v1/inventory/materials/purchase-report/meta',
@@ -234,9 +195,6 @@ export const materialPurchaseReportService = {
   async getList(
     params: MaterialPurchaseReportListParams,
   ): Promise<MaterialPurchaseReportListResponse> {
-    if (useMock) {
-      return mockPurchaseReportService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<MaterialPurchaseReportListResponse>(
       '/api/v1/inventory/materials/purchase-report',

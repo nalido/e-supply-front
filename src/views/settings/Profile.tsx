@@ -163,7 +163,7 @@ const ProfileSettings = () => {
   }
 
   return (
-    <Card title="个人资料" bordered={false} style={{ maxWidth: 720 }}>
+    <Card title="个人资料" variant="borderless" style={{ maxWidth: 720 }}>
       <Space align="start" size={32} wrap>
         <div style={{ textAlign: 'center' }}>
           <Avatar size={96} src={profile.avatar} icon={<UserOutlined />} />

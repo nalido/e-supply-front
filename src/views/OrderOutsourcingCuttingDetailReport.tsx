@@ -3,7 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import { Button, Card, Checkbox, Space, Table, Typography, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
-import { outsourcingCuttingDetailReportService } from '../api/mock';
+import { outsourcingCuttingDetailReportService } from '../api/outsourcing-cutting-detail-report';
 import type {
   OutsourcingCuttingDetailGroupKey,
   OutsourcingCuttingDetailListParams,
@@ -120,8 +120,18 @@ const OrderOutsourcingCuttingDetailReport = () => {
     setPage(1);
   };
 
-  const handleExport = () => {
-    message.success('已生成外发裁剪明细导出任务，请稍后在下载中心查看');
+  const handleExport = async () => {
+    try {
+      await outsourcingCuttingDetailReportService.export({
+        groupBy,
+        page,
+        pageSize,
+      });
+      message.success('已生成外发裁剪明细导出任务，请稍后在下载中心查看');
+    } catch (error) {
+      console.error('failed to export outsourcing cutting detail list', error);
+      message.error('导出失败，请稍后重试');
+    }
   };
 
   const { displayedRows, pageSummary } = useMemo(() => {

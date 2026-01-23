@@ -7,19 +7,8 @@ import type {
   SavePartnerPayload,
   UpdatePartnerPayload,
 } from '../types';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  createPartner as mockCreatePartner,
-  invitePartner as mockInvitePartner,
-  listPartners as mockListPartners,
-  removePartner as mockRemovePartner,
-  togglePartnerDisabled as mockTogglePartnerDisabled,
-  updatePartner as mockUpdatePartner,
-} from '../mock/partners';
-
-const useMock = apiConfig.useMock;
 
 type BackendPartnerType = 'CUSTOMER' | 'SUPPLIER' | 'FACTORY' | 'SUBCONTRACTOR';
 type BackendPartnerStatus = 'UNINVITED' | 'INVITED' | 'BOUND' | 'DISABLED';
@@ -161,15 +150,6 @@ const setPartnerStatus = async (
   partnerId: string,
   status: PartnerStatus,
 ): Promise<Partner | undefined> => {
-  if (useMock) {
-    if (status === 'disabled') {
-      return mockTogglePartnerDisabled(partnerId, true);
-    }
-    if (status === 'invited') {
-      return mockInvitePartner(partnerId);
-    }
-    return mockTogglePartnerDisabled(partnerId, false);
-  }
   const tenantId = ensureTenantId();
   const response = await http.post<BackendPartnerResponse>(
     `/api/v1/partners/${partnerId}/status/update`,
@@ -181,9 +161,6 @@ const setPartnerStatus = async (
 
 export const partnersApi = {
   list: async (params: PartnerListParams): Promise<PartnerDataset> => {
-    if (useMock) {
-      return mockListPartners(params);
-    }
     const tenantId = ensureTenantId();
     const statusFilter = params.onlyDisabled ? 'disabled' : params.status;
     const response = await http.get<BackendPageResponse<BackendPartnerResponse>>(
@@ -205,9 +182,6 @@ export const partnersApi = {
     };
   },
   create: async (payload: SavePartnerPayload): Promise<Partner> => {
-    if (useMock) {
-      return mockCreatePartner(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendPartnerResponse>('/api/v1/partners', {
       ...buildPartnerPayload(tenantId, payload),
@@ -215,9 +189,6 @@ export const partnersApi = {
     return adaptPartner(response.data);
   },
   update: async (id: string, payload: UpdatePartnerPayload): Promise<Partner | undefined> => {
-    if (useMock) {
-      return mockUpdatePartner(id, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendPartnerResponse>(
       `/api/v1/partners/${id}/update`,
@@ -226,9 +197,6 @@ export const partnersApi = {
     return adaptPartner(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    if (useMock) {
-      return mockRemovePartner(id);
-    }
     const tenantId = ensureTenantId();
     await http.delete(`/api/v1/partners/${id}`, {
       params: { tenantId },

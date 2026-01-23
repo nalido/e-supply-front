@@ -1,7 +1,5 @@
 import http from './http';
-import { apiConfig } from './config';
-import { sample } from './mock';
-import type { Paginated } from './mock';
+import type { Paginated } from '../types/pagination';
 import { tenantStore } from '../stores/tenant';
 import type {
   FollowTemplateSummary,
@@ -42,8 +40,6 @@ interface BackendSampleTypeResponse {
   name: string;
   description?: string;
 }
-
-const useMock = apiConfig.useMock;
 
 const ensureTenantId = (): string => {
   const tenantId = tenantStore.getTenantId();
@@ -136,9 +132,6 @@ const paginateArray = <T>(items: T[], page: number, pageSize: number): Paginated
 export const sampleSettingsApi = {
   followTemplates: {
     async list(params: { page: number; pageSize: number; keyword?: string }): Promise<Paginated<FollowTemplateSummary>> {
-      if (useMock) {
-        return sample.followTemplates(params);
-      }
       const tenantId = ensureTenantId();
       const { data } = await http.get<BackendPageResponse<BackendFollowTemplateResponse>>(
         '/api/v1/sample-follow-templates',
@@ -158,28 +151,16 @@ export const sampleSettingsApi = {
       };
     },
     async create(payload: FollowTemplatePayload): Promise<void> {
-      if (useMock) {
-        await sample.createFollowTemplate(payload);
-        return;
-      }
       const tenantId = ensureTenantId();
       const body = buildFollowTemplateRequestBody(tenantId, payload);
       await http.post('/api/v1/sample-follow-templates', body);
     },
     async update(id: number, payload: FollowTemplatePayload): Promise<void> {
-      if (useMock) {
-        await sample.updateFollowTemplate(id, payload);
-        return;
-      }
       const tenantId = ensureTenantId();
       const body = buildFollowTemplateRequestBody(tenantId, payload);
       await http.post(`/api/v1/sample-follow-templates/${id}/update`, body);
     },
     async delete(id: number): Promise<void> {
-      if (useMock) {
-        await sample.deleteFollowTemplate(id);
-        return;
-      }
       const tenantId = ensureTenantId();
       await http.post(`/api/v1/sample-follow-templates/${id}/delete`, null, {
         params: { tenantId },
@@ -188,9 +169,6 @@ export const sampleSettingsApi = {
   },
   sampleTypes: {
     async list(params: { page: number; pageSize: number }): Promise<Paginated<SampleTypeItem>> {
-      if (useMock) {
-        return sample.sampleTypes(params);
-      }
       const tenantId = ensureTenantId();
       const { data } = await http.get<BackendSampleTypeResponse[]>(
         '/api/v1/sample-types',
@@ -202,10 +180,6 @@ export const sampleSettingsApi = {
       return paginateArray(normalized, params.page, params.pageSize);
     },
     async create(payload: { name: string }): Promise<void> {
-      if (useMock) {
-        await sample.createSampleType(payload);
-        return;
-      }
       const tenantId = ensureTenantId();
       await http.post('/api/v1/sample-types', {
         tenantId: Number(tenantId),
@@ -214,10 +188,6 @@ export const sampleSettingsApi = {
       });
     },
     async update(id: number, payload: { name: string }): Promise<void> {
-      if (useMock) {
-        await sample.updateSampleType(id, payload);
-        return;
-      }
       const tenantId = ensureTenantId();
       await http.post(`/api/v1/sample-types/${id}/update`, {
         tenantId: Number(tenantId),
@@ -226,10 +196,6 @@ export const sampleSettingsApi = {
       });
     },
     async delete(id: number): Promise<void> {
-      if (useMock) {
-        await sample.deleteSampleType(id);
-        return;
-      }
       const tenantId = ensureTenantId();
       await http.post(`/api/v1/sample-types/${id}/delete`, null, {
         params: { tenantId },

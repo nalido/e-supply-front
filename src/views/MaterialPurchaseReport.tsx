@@ -301,7 +301,7 @@ const MaterialPurchaseReport = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card title="物料采购入库明细表" bordered={false}>
+      <Card title="物料采购入库明细表" variant="borderless">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Row gutter={[16, 16]} wrap>
             <Col xs={24} sm={12} md={8} lg={6}>
@@ -378,7 +378,7 @@ const MaterialPurchaseReport = () => {
         </Space>
       </Card>
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Table<MaterialPurchaseReportListItem>
           rowKey="id"
           loading={tableLoading}

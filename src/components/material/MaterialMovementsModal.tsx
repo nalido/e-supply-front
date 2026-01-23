@@ -187,7 +187,7 @@ const MaterialMovementsModal = ({ open, material, onClose }: MaterialMovementsMo
       open={open}
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Space direction="vertical" size={4} style={{ width: '100%' }}>

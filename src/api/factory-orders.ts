@@ -1,4 +1,3 @@
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 import type {
@@ -8,9 +7,6 @@ import type {
   FactoryOrderStatusSummary,
   FactoryOrderTableRow,
 } from '../types';
-import { fetchFactoryOrdersDataset } from '../mock/factory-orders';
-
-const useMock = apiConfig.useMock;
 
 export type FactoryOrdersQuery = {
   status?: string | string[];
@@ -22,6 +18,7 @@ export type FactoryOrdersQuery = {
   includeCompleted?: boolean;
   page?: number;
   pageSize?: number;
+  orderIds?: string[];
 };
 
 export type FactoryOrderSummary = {
@@ -41,6 +38,44 @@ export type FactoryOrderTablePage = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+export type FactoryOrderImportRecord = {
+  orderNo: string;
+  styleId: number;
+  customerId: number;
+  merchandiserId?: number;
+  factoryId?: number;
+  totalQuantity: number;
+  expectedDelivery?: string;
+  status?: string;
+  materialStatus?: string;
+  completedQuantity?: number;
+  remarks?: string;
+};
+
+export type FactoryOrderImportResult = {
+  created: number;
+  updated: number;
+  errors?: string[];
+};
+
+export type FactoryOrderBatchUpdatePayload = {
+  orderIds: string[];
+  status?: string;
+  materialStatus?: string;
+  completedQuantity?: number;
+  note?: string;
+};
+
+export type FactoryOrderBatchUpdateResult = {
+  updated: number;
+  failedOrderIds: number[];
+};
+
+export type FactoryOrderExportResult = {
+  fileUrl?: string;
+  exported: number;
 };
 
 type BackendFactoryOrderSummary = {
@@ -244,13 +279,6 @@ const buildQueryParams = (params?: FactoryOrdersQuery) => {
 
 export const factoryOrdersApi = {
   async getSummary(): Promise<FactoryOrderSummary> {
-    if (useMock) {
-      const dataset = await fetchFactoryOrdersDataset();
-      return {
-        metrics: dataset.metrics,
-        statusTabs: dataset.statusTabs,
-      };
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<BackendFactoryOrderSummary>('/api/v1/production-orders/summary', {
       params: { tenantId },
@@ -259,17 +287,6 @@ export const factoryOrdersApi = {
   },
 
   async getCards(params?: FactoryOrdersQuery): Promise<FactoryOrderCardPage> {
-    if (useMock) {
-      const dataset = await fetchFactoryOrdersDataset();
-      const page = params?.page ?? 1;
-      const pageSize = params?.pageSize ?? (dataset.orders.length || 1);
-      return {
-        list: dataset.orders,
-        total: dataset.orders.length,
-        page,
-        pageSize,
-      };
-    }
     const tenantId = ensureTenantId();
     const query = buildQueryParams(params);
     const { data } = await http.get<BackendFactoryOrderCardPage>('/api/v1/production-orders/cards', {
@@ -282,17 +299,6 @@ export const factoryOrdersApi = {
   },
 
   async getTable(params?: FactoryOrdersQuery): Promise<FactoryOrderTablePage> {
-    if (useMock) {
-      const dataset = await fetchFactoryOrdersDataset();
-      const page = params?.page ?? 1;
-      const pageSize = params?.pageSize ?? (dataset.table.length || 1);
-      return {
-        list: dataset.table,
-        total: dataset.table.length,
-        page,
-        pageSize,
-      };
-    }
     const tenantId = ensureTenantId();
     const query = buildQueryParams(params);
     const { data } = await http.get<BackendFactoryOrderTablePage>('/api/v1/production-orders/table', {
@@ -302,5 +308,59 @@ export const factoryOrdersApi = {
       },
     });
     return adaptTablePage(data);
+  },
+
+  async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
+    const tenantId = ensureTenantId();
+    const requestBody = {
+      tenantId,
+      orders: payload.orders.map((order) => ({
+        orderNo: order.orderNo,
+        styleId: Number(order.styleId),
+        customerId: Number(order.customerId),
+        merchandiserId: order.merchandiserId ? Number(order.merchandiserId) : undefined,
+        factoryId: order.factoryId ? Number(order.factoryId) : undefined,
+        totalQuantity: Number(order.totalQuantity),
+        expectedDelivery: order.expectedDelivery,
+        status: order.status,
+        materialStatus: order.materialStatus,
+        completedQuantity: order.completedQuantity,
+        remarks: order.remarks,
+      })),
+    };
+    const { data } = await http.post<FactoryOrderImportResult>('/api/v1/production-orders/import', requestBody);
+    return data;
+  },
+
+  async batchUpdateStatus(payload: FactoryOrderBatchUpdatePayload): Promise<FactoryOrderBatchUpdateResult> {
+    const tenantId = ensureTenantId();
+    const body = {
+      tenantId,
+      orderIds: payload.orderIds.map((id) => Number(id)),
+      status: payload.status,
+      materialStatus: payload.materialStatus,
+      completedQuantity: payload.completedQuantity,
+      note: payload.note,
+    };
+    const { data } = await http.post<FactoryOrderBatchUpdateResult>(
+      '/api/v1/production-orders/status/batch-update',
+      body,
+    );
+    return data;
+  },
+
+  async exportOrders(params: FactoryOrdersQuery): Promise<FactoryOrderExportResult> {
+    const tenantId = ensureTenantId();
+    const body = {
+      tenantId,
+      statuses: params.status ? (Array.isArray(params.status) ? params.status : [params.status]) : undefined,
+      keyword: params.keyword,
+      includeCompleted: params.includeCompleted,
+      sort: params.sort,
+      orderIds: params.orderIds?.map((id) => Number(id)),
+      maxRows: params.pageSize ?? 1000,
+    };
+    const { data } = await http.post<FactoryOrderExportResult>('/api/v1/production-orders/export', body);
+    return data;
   },
 };

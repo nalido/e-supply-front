@@ -17,7 +17,7 @@ import type {
   OrderMaterialRequirementListParams,
   OrderMaterialRequirementType,
 } from '../types/order-material-requirement-report';
-import { orderMaterialRequirementReportService } from '../api/mock';
+import { orderMaterialRequirementReportService } from '../api/order-material-requirement-report';
 import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
@@ -234,7 +234,7 @@ const OrderMaterialRequirementReport = () => {
           <Tabs
             activeKey={materialType}
             onChange={handleTabChange}
-            destroyInactiveTabPane
+            destroyOnHidden
             items={materialTabs.map((item) => ({ key: item.key, label: item.label }))}
           />
         </Space>

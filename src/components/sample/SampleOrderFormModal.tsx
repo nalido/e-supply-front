@@ -486,7 +486,7 @@ const StyleSelectorDrawer: React.FC<{
       open={state.open}
       width={480}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Input.Search
@@ -616,7 +616,7 @@ const MaterialSelectorDrawer: React.FC<{
       open={open}
       width={520}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Input.Search
@@ -1005,12 +1005,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
             hydrateFormFromDetail(normalizedMeta, detailData);
           } catch (detailError) {
             console.error(detailError);
-            const rawMessage = detailError instanceof Error ? detailError.message : '';
-            if (rawMessage.includes('Mock')) {
-              messageApi.error('当前为 Mock 数据模式，暂不支持编辑样板单');
-            } else {
-              messageApi.error('加载样板单详情失败，请稍后重试');
-            }
+            messageApi.error('加载样板单详情失败，请稍后重试');
             onCancel();
             return;
           }
@@ -1462,6 +1457,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         onCancel={handleClose}
         onOk={handleSubmit}
         destroyOnHidden
+        forceRender
         maskClosable={false}
       >
         <Spin spinning={initializeLoading}>
@@ -1966,7 +1962,8 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         onOk={handleCustomProcessOk}
         okText="添加"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
+        forceRender
       >
         <Form form={customProcessForm} layout="vertical" colon={false}>
           <Form.Item

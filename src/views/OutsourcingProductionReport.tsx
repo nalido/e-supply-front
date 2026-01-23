@@ -23,7 +23,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { outsourcingProductionReportService } from '../api/mock';
+import { outsourcingProductionReportService } from '../api/outsourcing-production-report';
 import type {
   OutsourcingOrderStatus,
   OutsourcingProductionReportListItem,
@@ -501,7 +501,7 @@ const OutsourcingProductionReport = () => {
           <Col flex="260px">
             <Card
               size="small"
-              bodyStyle={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12, height: '100%' }}
+              styles={{ body: { padding: 12, display: 'flex', flexDirection: 'column', gap: 12, height: '100%' } }}
               style={{ height: '100%' }}
             >
               <Button
@@ -548,7 +548,7 @@ const OutsourcingProductionReport = () => {
             </Card>
           </Col>
           <Col flex="auto">
-            <Card bordered={false} bodyStyle={{ padding: 0 }} style={{ height: '100%' }}>
+            <Card variant="borderless" styles={{ body: { padding: 0 } }} style={{ height: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Space direction="vertical" size={0}>
                   <Text strong>{activeSubcontractor ? `${activeSubcontractor} 委外生产数据` : '全部加工厂委外生产数据'}</Text>

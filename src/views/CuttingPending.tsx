@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -36,6 +36,8 @@ const initialDataset: CuttingTaskDataset = {
   summary: [],
   list: [],
   total: 0,
+  page: 1,
+  pageSize: 4,
 };
 
 type ColorPreviewState = {
@@ -45,65 +47,65 @@ type ColorPreviewState = {
 
 type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
-const filterTasks = (tasks: CuttingTask[], keyword: string, includeCompleted: boolean): CuttingTask[] => {
-  const normalized = keyword.trim().toLowerCase();
-  return tasks.filter((task) => {
-    if (!includeCompleted && task.pendingQuantity <= 0) {
-      return false;
-    }
-    if (!normalized) {
-      return true;
-    }
-    const haystack = [task.orderCode, task.styleCode, task.styleName].join(' ').toLowerCase();
-    return haystack.includes(normalized);
-  });
-};
-
 const CuttingPendingPage = () => {
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [includeCompleted, setIncludeCompleted] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(4);
+  const [page, setPage] = useState(initialDataset.page);
+  const [pageSize, setPageSize] = useState(initialDataset.pageSize);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
 
   useEffect(() => {
-    setLoading(true);
-    pieceworkService
-      .getCuttingPending()
-      .then((data) => {
-        setDataset(data);
-        setPage(1);
-      })
-      .catch(() => {
-        message.error('获取待裁数据失败，请稍后重试');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    setPage(1);
-  }, [keyword, includeCompleted]);
-
-  const filteredTasks = useMemo(
-    () => filterTasks(dataset.list, keyword, includeCompleted),
-    [dataset.list, keyword, includeCompleted],
-  );
-
-  const paginatedTasks = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredTasks.slice(start, start + pageSize);
-  }, [filteredTasks, page, pageSize]);
+    let cancelled = false;
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await pieceworkService.getCuttingPending({
+          page,
+          pageSize,
+          keyword: appliedKeyword,
+          includeCompleted,
+          includeSummary: page === 1,
+        });
+        if (!cancelled) {
+          setDataset(response);
+          if (response.page !== page) {
+            setPage(response.page);
+          }
+          if (response.pageSize !== pageSize) {
+            setPageSize(response.pageSize);
+          }
+        }
+      } catch (error) {
+        console.error('failed to load pending cutting tasks', error);
+        if (!cancelled) {
+          message.error('获取待裁数据失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    void fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, appliedKeyword, includeCompleted]);
 
   const handleSearch = (value: string) => {
-    setKeyword(value.trim());
+    const trimmed = value.trim();
+    setKeyword(trimmed);
+    setAppliedKeyword(trimmed);
+    setPage(1);
   };
 
   const handleIncludeCompleted = (event: CheckboxChangeEvent) => {
-    setIncludeCompleted(event.target.checked);
+    const nextValue = event.target.checked;
+    setIncludeCompleted(nextValue);
+    setPage(1);
   };
 
   const handleOpenPreview = (task: CuttingTask) => {
@@ -166,11 +168,11 @@ const CuttingPendingPage = () => {
             <Skeleton key={index} active paragraph={{ rows: 4 }} />
           ))}
         </div>
-      ) : paginatedTasks.length === 0 ? (
-        <Empty description={keyword ? '未找到匹配的待裁任务' : '暂无待裁任务'} />
+      ) : dataset.list.length === 0 ? (
+        <Empty description={appliedKeyword ? '未找到匹配的待裁任务' : '暂无待裁任务'} />
       ) : (
         <div className="cutting-task-list">
-          {paginatedTasks.map((task) => {
+          {dataset.list.map((task) => {
             const menuItems: MenuProps['items'] = [
               { key: 'create-sheet', label: '创建裁床单' },
               { key: 'edit', label: '编辑' },
@@ -274,12 +276,12 @@ const CuttingPendingPage = () => {
         </div>
       )}
 
-      {filteredTasks.length > 0 ? (
+      {dataset.total > 0 ? (
         <div className="cutting-pagination-wrap">
           <Pagination
             current={page}
             pageSize={pageSize}
-            total={filteredTasks.length}
+            total={dataset.total}
             showSizeChanger
             showQuickJumper
             pageSizeOptions={[4, 6, 8]}

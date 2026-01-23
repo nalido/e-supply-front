@@ -8,7 +8,7 @@ import type {
   ProductionComparisonStage,
   ProductionComparisonSummary,
 } from '../types/order-production-comparison';
-import { productionComparisonService } from '../api/mock';
+import { productionComparisonService } from '../api/order-production-comparison';
 import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
@@ -342,7 +342,7 @@ const OrderProductionComparison = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space size={12} wrap>
           <Input
             style={{ width: 320 }}
@@ -362,7 +362,7 @@ const OrderProductionComparison = () => {
         </Space>
       </Card>
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Table<ProductionComparisonRecord>
           rowKey="id"
           columns={columns}

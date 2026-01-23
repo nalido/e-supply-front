@@ -14,7 +14,7 @@ type StyleCardProps = {
   onDelete?: (style: StyleData) => void;
 };
 
-const fallbackImage = (styleNo: string) => `https://via.placeholder.com/320?text=${encodeURIComponent(styleNo)}`;
+const fallbackImage = '/assets/images/logo.png';
 
 const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCardProps) => {
   const statusTag = useMemo(() => {
@@ -26,8 +26,8 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
 
   const coverUrl = useMemo(() => {
     const trimmed = style.image?.trim();
-    return trimmed && trimmed.length > 0 ? trimmed : fallbackImage(style.styleNo);
-  }, [style.image, style.styleNo]);
+    return trimmed && trimmed.length > 0 ? trimmed : fallbackImage;
+  }, [style.image]);
   const hasHoverActions = Boolean(onEdit || onDelete);
 
   return (
@@ -50,7 +50,7 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
                 const target = event.currentTarget;
                 if (target.dataset.fallbackApplied) return;
                 target.dataset.fallbackApplied = 'true';
-                target.src = fallbackImage(style.styleNo);
+                target.src = fallbackImage;
               }}
             />
             {hasHoverActions ? (
@@ -84,7 +84,7 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
           </div>
         </div>
       }
-      bodyStyle={{ padding: '14px 16px 16px' }}
+      styles={{ body: { padding: '14px 16px 16px' } }}
     >
       <div className="style-card__body">
         <div className="style-card__header">

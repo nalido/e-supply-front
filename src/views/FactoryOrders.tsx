@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProgressProps } from 'antd/es/progress';
+import type { UploadFile } from 'antd/es/upload/interface';
+import type { RcFile } from 'antd/es/upload';
 import {
+  Alert,
   Button,
   Checkbox,
   Empty,
+  Form,
   Input,
+  InputNumber,
+  Modal,
   Pagination,
   Progress,
   Segmented,
@@ -16,6 +22,7 @@ import {
   Tabs,
   Tag,
   Typography,
+  Upload,
   message,
 } from 'antd';
 import {
@@ -70,6 +77,33 @@ const getMaterialTagColor = (status: string) => {
 
 const { Paragraph, Text } = Typography;
 
+type ImportRecord = {
+  orderNo: string;
+  styleId: number;
+  customerId: number;
+  merchandiserId?: number;
+  factoryId?: number;
+  totalQuantity: number;
+  expectedDelivery?: string;
+  status?: string;
+  materialStatus?: string;
+  remarks?: string;
+};
+
+const statusOptionsList = [
+  { label: '待排产', value: 'RELEASED' },
+  { label: '生产中', value: 'IN_PROGRESS' },
+  { label: '已完工', value: 'COMPLETED' },
+  { label: '已取消', value: 'CANCELLED' },
+];
+
+const materialStatusOptions = [
+  { label: '待齐备', value: 'PENDING' },
+  { label: '齐备中', value: 'ALLOCATING' },
+  { label: '已齐备', value: 'ALLOCATED' },
+  { label: '已发料', value: 'ISSUED' },
+];
+
 const FactoryOrders = () => {
   const [metrics, setMetrics] = useState<FactoryOrderMetric[]>([]);
   const [statusTabs, setStatusTabs] = useState<FactoryOrderStatusSummary[]>([]);
@@ -91,8 +125,20 @@ const FactoryOrders = () => {
   const [activeStatus, setActiveStatus] = useState('RELEASED');
   const [sortKey, setSortKey] = useState(sortOptions[0].value);
   const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [reloadFlag, setReloadFlag] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [importModal, setImportModal] = useState<{
+    open: boolean;
+    records: ImportRecord[];
+    fileList: UploadFile[];
+    uploading: boolean;
+    error?: string;
+  }>({ open: false, records: [], fileList: [], uploading: false });
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [statusForm] = Form.useForm();
 
-  useEffect(() => {
+  const fetchSummary = useCallback(() => {
     let cancelled = false;
     const loadSummary = async () => {
       setLoadingSummary(true);
@@ -124,6 +170,11 @@ const FactoryOrders = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const cancel = fetchSummary();
+    return cancel;
+  }, [fetchSummary, reloadFlag]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,7 +209,7 @@ const FactoryOrders = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, cardPage, cardPageSize]);
+  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, cardPage, cardPageSize, reloadFlag]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,7 +244,7 @@ const FactoryOrders = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, tablePage, tablePageSize]);
+  }, [activeStatus, appliedKeyword, includeCompleted, sortKey, tablePage, tablePageSize, reloadFlag]);
 
   const currentVisibleIds = useMemo(
     () => (viewMode === 'card'
@@ -248,6 +299,140 @@ const FactoryOrders = () => {
     }
     const visibleSet = new Set(currentVisibleIds);
     setSelectedOrderIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+  };
+
+  const triggerReload = () => {
+    setReloadFlag((flag) => flag + 1);
+  };
+
+  const handleExport = async (selectedOnly: boolean) => {
+    if (selectedOnly && selectedOrderIds.length === 0) {
+      message.warning('请先勾选需要导出的订单');
+      return;
+    }
+    try {
+      setExporting(true);
+      const response = await factoryOrdersApi.exportOrders({
+        status: activeStatus,
+        keyword: appliedKeyword,
+        includeCompleted,
+        sort: sortKey,
+        orderIds: selectedOnly ? selectedOrderIds : undefined,
+      });
+      if (response.fileUrl) {
+        message.success(`已生成导出文件：${response.fileUrl}`);
+      } else {
+        message.success('已生成导出任务，请稍后在下载中心查看');
+      }
+    } catch (error) {
+      console.error('failed to export factory orders', error);
+      message.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleOpenImport = () => {
+    setImportModal((prev) => ({ ...prev, open: true }));
+  };
+
+  const handleCloseImport = () => {
+    setImportModal({ open: false, records: [], fileList: [], uploading: false });
+  };
+
+  const handleImportBeforeUpload = (file: RcFile) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const content = typeof reader.result === 'string' ? reader.result : '';
+        const parsed = JSON.parse(content);
+        const normalized: ImportRecord[] = Array.isArray(parsed)
+          ? parsed
+              .map((item) => ({
+                orderNo: String(item.orderNo ?? '').trim(),
+                styleId: Number(item.styleId),
+                customerId: Number(item.customerId),
+                merchandiserId: item.merchandiserId ? Number(item.merchandiserId) : undefined,
+                factoryId: item.factoryId ? Number(item.factoryId) : undefined,
+                totalQuantity: Number(item.totalQuantity ?? 0),
+                expectedDelivery: item.expectedDelivery,
+                status: item.status,
+                materialStatus: item.materialStatus,
+                remarks: item.remarks,
+              }))
+              .filter((record) => record.orderNo && Number.isFinite(record.styleId) && Number.isFinite(record.customerId) && Number.isFinite(record.totalQuantity) && record.totalQuantity > 0)
+          : [];
+        if (!normalized.length) {
+          throw new Error('文件内容为空或格式不正确');
+        }
+        setImportModal((prev) => ({
+          ...prev,
+          records: normalized,
+          fileList: [{ uid: file.uid, name: file.name, status: 'done' }],
+          error: undefined,
+        }));
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : '无法解析文件内容';
+        setImportModal((prev) => ({ ...prev, error: messageText, records: [], fileList: [] }));
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+    return false;
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importModal.records.length) {
+      message.warning('请先上传包含订单数据的 JSON 文件');
+      return;
+    }
+    setImportModal((prev) => ({ ...prev, uploading: true }));
+    try {
+      const result = await factoryOrdersApi.importOrders({ orders: importModal.records });
+      message.success(`导入完成：新增 ${result.created} 条，更新 ${result.updated} 条`);
+      handleCloseImport();
+      triggerReload();
+    } catch (error) {
+      console.error('failed to import factory orders', error);
+      message.error('导入失败，请稍后重试');
+      setImportModal((prev) => ({ ...prev, uploading: false }));
+    }
+  };
+
+  const handleOpenStatusModal = () => {
+    if (!selectedOrderIds.length) {
+      message.warning('请先勾选需要设置状态的订单');
+      return;
+    }
+    setStatusModalOpen(true);
+  };
+
+  const handleSubmitStatus = async () => {
+    try {
+      const values = await statusForm.validateFields();
+      setStatusSubmitting(true);
+      await factoryOrdersApi.batchUpdateStatus({
+        orderIds: selectedOrderIds,
+        status: values.status,
+        materialStatus: values.materialStatus,
+        completedQuantity: values.completedQuantity,
+        note: values.note,
+      });
+      message.success('批量更新状态成功');
+      setStatusModalOpen(false);
+      statusForm.resetFields();
+      triggerReload();
+    } catch (error) {
+      if (error instanceof Error) {
+        message.error(error.message);
+      } else if (error && typeof error === 'object' && 'errorFields' in error) {
+        // 表单校验错误，忽略
+      } else {
+        console.error('failed to batch update factory order status', error);
+        message.error('批量更新状态失败，请稍后重试');
+      }
+    } finally {
+      setStatusSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -590,9 +775,14 @@ const FactoryOrders = () => {
         <div className="factory-orders-toolbar-right">
           <Space size={12} wrap>
             <Button type="primary" icon={<PlusOutlined />}>新建</Button>
-            <Button icon={<ImportOutlined />}>导入</Button>
-            <Button icon={<DownloadOutlined />}>导出</Button>
-            <Button icon={<SettingOutlined />}>设置状态</Button>
+            <Button icon={<ImportOutlined />} onClick={handleOpenImport}>导入</Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => handleExport(false)}>
+              导出
+            </Button>
+            <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => handleExport(true)}>
+              导出所选
+            </Button>
+            <Button icon={<SettingOutlined />} onClick={handleOpenStatusModal}>设置状态</Button>
           </Space>
         </div>
       </section>
@@ -648,6 +838,79 @@ const FactoryOrders = () => {
           已展示包含已完工订单的数据，关闭后仅查看「已下发 / 生产中」状态下的记录。
         </Paragraph>
       ) : null}
+
+      <Modal
+        open={importModal.open}
+        title="导入工厂订单"
+        onCancel={handleCloseImport}
+        onOk={handleConfirmImport}
+        confirmLoading={importModal.uploading}
+        destroyOnHidden
+        width={720}
+      >
+        <Upload.Dragger
+          accept=".json,application/json"
+          multiple={false}
+          beforeUpload={handleImportBeforeUpload}
+          fileList={importModal.fileList}
+          onRemove={() => {
+            setImportModal((prev) => ({ ...prev, fileList: [], records: [] }));
+            return true;
+          }}
+        >
+          <p className="ant-upload-drag-icon">
+            <ImportOutlined />
+          </p>
+          <p className="ant-upload-text">点击或拖拽 JSON 文件到此处完成导入</p>
+          <p className="ant-upload-hint">支持字段：orderNo、styleId、customerId、merchandiserId、factoryId、totalQuantity、expectedDelivery、status、materialStatus、remarks</p>
+        </Upload.Dragger>
+        {importModal.error ? (
+          <Alert type="error" showIcon style={{ marginTop: 16 }} message={importModal.error} />
+        ) : null}
+        {importModal.records.length ? (
+          <Table<ImportRecord>
+            style={{ marginTop: 16 }}
+            size="small"
+            bordered
+            rowKey={(record) => record.orderNo}
+            dataSource={importModal.records}
+            pagination={false}
+            columns={[
+              { title: '订单号', dataIndex: 'orderNo' },
+              { title: '款式 ID', dataIndex: 'styleId' },
+              { title: '客户 ID', dataIndex: 'customerId' },
+              { title: '数量', dataIndex: 'totalQuantity' },
+              { title: '预计交期', dataIndex: 'expectedDelivery' },
+              { title: '状态', dataIndex: 'status' },
+              { title: '物料状态', dataIndex: 'materialStatus' },
+            ]}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={statusModalOpen}
+        title="批量设置状态"
+        onCancel={() => setStatusModalOpen(false)}
+        onOk={handleSubmitStatus}
+        confirmLoading={statusSubmitting}
+        destroyOnHidden
+      >
+        <Form form={statusForm} layout="vertical">
+          <Form.Item label="订单状态" name="status">
+            <Select allowClear options={statusOptionsList} placeholder="请选择需要设置的订单状态" />
+          </Form.Item>
+          <Form.Item label="物料状态" name="materialStatus">
+            <Select allowClear options={materialStatusOptions} placeholder="请选择物料状态" />
+          </Form.Item>
+          <Form.Item label="已完成数量" name="completedQuantity">
+            <InputNumber min={0} style={{ width: '100%' }} placeholder="填写时将覆盖当前完成数量" />
+          </Form.Item>
+          <Form.Item label="备注" name="note">
+            <Input.TextArea rows={3} placeholder="可选，方便记录操作人" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

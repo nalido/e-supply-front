@@ -168,7 +168,7 @@ const ProcessProductionComparisonSection = () => {
   return (
     <Card title="工序生产对照表">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card bordered={false}>
+        <Card variant="borderless">
           <Space size={24} wrap>
             <Space direction="vertical" size={0}>
               <Text type="secondary">在制品库存</Text>
@@ -209,7 +209,7 @@ const ProcessProductionComparisonSection = () => {
         </Space>
 
         {records.length === 0 ? (
-          <Card bordered={false}>
+          <Card variant="borderless">
             {loading ? <Empty description="正在加载" /> : <Empty description="暂无数据" />}
           </Card>
         ) : (

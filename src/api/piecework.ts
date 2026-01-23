@@ -1,4 +1,3 @@
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 import type {
@@ -8,18 +7,38 @@ import type {
   WorkshopProgressDataset,
 } from '../types';
 import type {
+  QualityControlCreatePayload,
+  QualityControlListParams,
+  QualityControlListResponse,
+  QualityControlMeta,
+  QualityControlRecord,
+  QualityExceptionResolvePayload,
+  QualityExceptionLog,
+  QualityExceptionStatus,
+  QualityInspectionStatus,
+} from '../types/quality-control-management';
+import type {
   SalaryEmployeeRecord,
   SalaryListParams,
   SalaryListResponse,
   SalaryMeta,
   SalarySettlePayload,
+  SalaryTicketListParams,
+  SalaryTicketListResponse,
+  SalaryTicketRecord,
+  SalaryTicketSummary,
+  SalaryBatchAdjustPayload,
+  SalaryPayslipSendPayload,
+  SalaryPayslipSendResult,
+  SalaryPayslipRecord,
+  SalaryPayslipLogListParams,
+  SalaryPayslipLogResponse,
+  SalaryPayslipLogRecord,
+  SalaryScanStatistics,
+  SalaryScanStatisticsParams,
+  SalaryTicketDetailParams,
+  SalaryTicketDetailResponse,
 } from '../types/salary-management';
-import type {
-  QualityControlListParams,
-  QualityControlListResponse,
-  QualityControlMeta,
-  QualityControlRecord,
-} from '../types/quality-control-management';
 import type {
   OrderProgressDetailsListResponse,
   OrderProgressDetailsListParams,
@@ -34,22 +53,16 @@ import type {
   ProcessProductionListParams,
   ProcessProductionListResponse,
 } from '../types/process-production-comparison-report';
-import {
-  fetchPieceworkDashboardDataset,
-  fetchCuttingPendingDataset,
-  fetchCuttingCompletedDataset,
-  fetchCuttingReportDataset,
-  fetchWorkshopProgressDataset,
-} from '../mock';
-import {
-  qualityControlManagementService,
-  salaryManagementService,
-  orderProgressDetailsReportService,
-  orderTicketDetailsReportService,
-  processProductionComparisonReportService,
-} from './mock';
-
-const useMock = apiConfig.useMock;
+import type {
+  ReportDownloadListParams,
+  ReportDownloadListResponse,
+  ReportDownloadRecord,
+} from '../types/report-download-log';
+import type {
+  SequentialProcessExportParams,
+  SequentialProcessListParams,
+  SequentialProcessListResponse,
+} from '../types/sequential-process-report';
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -63,16 +76,30 @@ const ensureTenantId = (): number => {
   return parsed;
 };
 
+const normalizePage = (page?: number): number => {
+  const next = page ?? 1;
+  return next <= 0 ? 0 : next - 1;
+};
+
+const normalizeKeyword = (value?: string): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
 type CuttingDatasetPayload = Partial<{
   summary: CuttingTaskDataset['summary'];
   list: CuttingTaskDataset['list'];
   total: number;
+  page: number;
+  pageSize: number;
 }>;
 
 type CuttingReportPayload = Partial<{
   list: CuttingReportDataset['list'];
   total: number;
   summary: CuttingReportDataset['summary'];
+  page: number;
+  pageSize: number;
 }>;
 
 type PieceworkDashboardPayload = Partial<PieceworkDashboardDataset>;
@@ -81,6 +108,7 @@ type WorkshopProgressPayload = Partial<WorkshopProgressDataset>;
 
 type QualityRecordPayload = Partial<{
   id: string | number;
+  workOrderId: string | number;
   qcDate: string;
   orderNumber: string;
   styleNumber: string;
@@ -94,6 +122,20 @@ type QualityRecordPayload = Partial<{
   defectReason: string;
   disposition: QualityControlRecord['disposition'];
   inspector: string;
+  inspectorId?: string | number;
+  exceptionStatus?: string;
+  exceptionNote?: string;
+  exceptionHandledBy?: string | number;
+  exceptionHandledAt?: string;
+}>;
+
+type QualityExceptionLogPayload = Partial<{
+  id: string | number;
+  status: string;
+  note?: string;
+  handledBy?: string | number;
+  handledByName?: string;
+  createdAt?: string;
 }>;
 
 type SalaryEmployeeApiRecord = {
@@ -111,6 +153,118 @@ type SalaryListApiResponse = {
   list: SalaryEmployeeApiRecord[];
   total?: number;
   summary?: Partial<SalaryListResponse['summary']>;
+};
+
+type SalaryTicketApiRecord = {
+  ticketId?: string | number;
+  ticketNo?: string;
+  processName?: string;
+  recordedAt?: string;
+  status?: SalaryTicketRecord['status'];
+  quantity?: number;
+  pieceRate?: number | string;
+  amount?: number | string;
+  workOrderId?: number;
+  productionOrderId?: number;
+};
+
+type SalaryTicketApiResponse = {
+  list?: SalaryTicketApiRecord[];
+  total?: number;
+  page?: number;
+  size?: number;
+  summary?: Partial<SalaryTicketSummary>;
+};
+
+type SalaryPayslipApiRecord = {
+  employeeId?: string | number;
+  employeeName?: string;
+  settledAmount?: number | string;
+  unsettledAmount?: number | string;
+  adjustmentAmount?: number | string;
+  totalAmount?: number | string;
+};
+
+type SalaryPayslipLogApiRecord = {
+  id?: string | number;
+  employeeId?: string | number;
+  employeeName?: string;
+  startDate?: string;
+  endDate?: string;
+  settledAmount?: number | string;
+  unsettledAmount?: number | string;
+  adjustmentAmount?: number | string;
+  totalAmount?: number | string;
+  status?: string;
+  message?: string;
+  requestedBy?: string | number;
+  requestedByName?: string;
+  sentAt?: string;
+};
+
+type SalaryPayslipLogApiResponse = {
+  list?: SalaryPayslipLogApiRecord[];
+  total?: number;
+  page?: number;
+  size?: number;
+};
+
+type SalaryScanSummaryPayload = Partial<{
+  totalTickets: number;
+  totalQuantity: number;
+  settledAmount: number | string;
+  unsettledAmount: number | string;
+  totalAmount: number | string;
+}>;
+
+type SalaryScanEmployeePayload = Partial<{
+  employeeId: string | number;
+  employeeName: string;
+  department: string;
+  ticketCount: number;
+  totalQuantity: number;
+  totalAmount: number | string;
+  unsettledAmount: number | string;
+}>;
+
+type SalaryScanProcessPayload = Partial<{
+  processId?: string | number;
+  processName?: string;
+  ticketCount?: number;
+  totalQuantity?: number;
+  totalAmount?: number | string;
+}>;
+
+type SalaryScanTrendPayload = Partial<{
+  date?: string;
+  totalQuantity?: number;
+  totalAmount?: number | string;
+}>;
+
+type SalaryScanStatisticsPayload = {
+  summary?: SalaryScanSummaryPayload;
+  topEmployees?: SalaryScanEmployeePayload[];
+  topProcesses?: SalaryScanProcessPayload[];
+  trend?: SalaryScanTrendPayload[];
+};
+
+type SalaryTicketDetailApiRecord = Partial<{
+  employeeId: string | number;
+  employeeName: string;
+  department: string;
+  ticketCount: number;
+  totalQuantity: number;
+  settledAmount: number | string;
+  unsettledAmount: number | string;
+  totalAmount: number | string;
+  lastScanAt?: string;
+}>;
+
+type SalaryTicketDetailApiResponse = {
+  list?: SalaryTicketDetailApiRecord[];
+  total?: number;
+  page?: number;
+  size?: number;
 };
 
 type QualityStatusOptionResponse = {
@@ -132,10 +286,32 @@ type CuttingReportExportParams = {
   endDate?: string;
 };
 
+type CuttingTaskQueryParams = {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  includeCompleted?: boolean;
+  startDate?: string;
+  endDate?: string;
+  includeSummary?: boolean;
+};
+
+type CuttingReportQueryParams = {
+  page?: number;
+  pageSize?: number;
+  orderKeyword?: string;
+  styleKeyword?: string;
+  cutterKeyword?: string;
+  remarkKeyword?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
 type QualityInspectionExportParams = {
   keyword?: string;
   inspectorId?: string;
-  status?: string;
+  workOrderId?: string;
+  status?: QualityInspectionStatus | 'all';
   startDate?: string;
   endDate?: string;
 };
@@ -145,23 +321,20 @@ type TicketRecordExportParams = {
   keyword?: string;
 };
 
-type MockProcessLot = {
-  orderNumber: string;
-  styleNumber: string;
-  styleName: string;
-  quantity: number;
-};
-
 const adaptCuttingDataset = (payload: CuttingDatasetPayload): CuttingTaskDataset => ({
   summary: payload.summary ?? [],
   list: payload.list ?? [],
   total: payload.total ?? 0,
+  page: payload.page ?? 1,
+  pageSize: payload.pageSize ?? (payload.list?.length ?? 0),
 });
 
 const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset => ({
   list: payload.list ?? [],
   total: payload.total ?? 0,
   summary: payload.summary ?? { cuttingQuantity: 0, ticketQuantity: 0 },
+  page: payload.page ?? 1,
+  pageSize: payload.pageSize ?? (payload.list?.length ?? 0),
 });
 
 const adaptDashboard = (payload: PieceworkDashboardPayload): PieceworkDashboardDataset => ({
@@ -194,6 +367,7 @@ const adaptWorkshopProgress = (
 
 const adaptQualityRecord = (payload: QualityRecordPayload): QualityControlRecord => ({
   id: String(payload.id ?? ''),
+  workOrderId: payload.workOrderId != null ? String(payload.workOrderId) : '',
   qcDate: payload.qcDate ?? '',
   orderNumber: payload.orderNumber ?? '-',
   styleNumber: payload.styleNumber ?? '-',
@@ -207,13 +381,86 @@ const adaptQualityRecord = (payload: QualityRecordPayload): QualityControlRecord
   defectReason: payload.defectReason ?? '',
   disposition: payload.disposition ?? 'accepted',
   inspector: payload.inspector ?? '-',
+  inspectorId: payload.inspectorId != null ? String(payload.inspectorId) : undefined,
+  exceptionStatus: (payload.exceptionStatus as QualityControlRecord['exceptionStatus']) ?? 'none',
+  exceptionNote: payload.exceptionNote ?? undefined,
+  exceptionHandledBy: payload.exceptionHandledBy
+    ? String(payload.exceptionHandledBy)
+    : undefined,
+  exceptionHandledAt: payload.exceptionHandledAt ?? undefined,
+});
+
+const adaptQualityExceptionLog = (
+  payload: QualityExceptionLogPayload,
+): QualityExceptionLog => ({
+  id: String(payload.id ?? ''),
+  status: (payload.status as QualityExceptionStatus) ?? 'pending',
+  note: payload.note ?? undefined,
+  handledBy: payload.handledBy ? String(payload.handledBy) : undefined,
+  handledByName: payload.handledByName ?? undefined,
+  createdAt: payload.createdAt ?? undefined,
+});
+
+const adaptSalaryScanStatistics = (payload: SalaryScanStatisticsPayload): SalaryScanStatistics => ({
+  summary: {
+    totalTickets: Number(payload.summary?.totalTickets ?? 0),
+    totalQuantity: Number(payload.summary?.totalQuantity ?? 0),
+    settledAmount: Number(payload.summary?.settledAmount ?? 0),
+    unsettledAmount: Number(payload.summary?.unsettledAmount ?? 0),
+    totalAmount: Number(payload.summary?.totalAmount ?? 0),
+  },
+  topEmployees: (payload.topEmployees ?? []).map((item) => ({
+    employeeId: String(item.employeeId ?? ''),
+    employeeName: item.employeeName ?? '-',
+    department: item.department ?? '计件工序',
+    ticketCount: Number(item.ticketCount ?? 0),
+    totalQuantity: Number(item.totalQuantity ?? 0),
+    totalAmount: Number(item.totalAmount ?? 0),
+    unsettledAmount: Number(item.unsettledAmount ?? 0),
+  })),
+  topProcesses: (payload.topProcesses ?? []).map((item) => ({
+    processId: item.processId ? String(item.processId) : undefined,
+    processName: item.processName ?? '计件工序',
+    ticketCount: Number(item.ticketCount ?? 0),
+    totalQuantity: Number(item.totalQuantity ?? 0),
+    totalAmount: Number(item.totalAmount ?? 0),
+  })),
+  trend: (payload.trend ?? []).map((item) => ({
+    date: item.date,
+    totalQuantity: Number(item.totalQuantity ?? 0),
+    totalAmount: Number(item.totalAmount ?? 0),
+  })),
+});
+
+const adaptSalaryTicketDetailRecord = (
+  payload: SalaryTicketDetailApiRecord,
+): SalaryTicketDetailResponse['list'][number] => ({
+  employeeId: String(payload.employeeId ?? ''),
+  employeeName: payload.employeeName ?? '-',
+  department: payload.department ?? '计件工序',
+  ticketCount: Number(payload.ticketCount ?? 0),
+  totalQuantity: Number(payload.totalQuantity ?? 0),
+  settledAmount: Number(payload.settledAmount ?? 0),
+  unsettledAmount: Number(payload.unsettledAmount ?? 0),
+  totalAmount: Number(payload.totalAmount ?? 0),
+  lastScanAt: payload.lastScanAt ?? undefined,
+});
+
+const adaptSalaryTicketRecord = (payload: SalaryTicketApiRecord): SalaryTicketRecord => ({
+  id: String(payload.ticketId ?? payload.ticketNo ?? ''),
+  ticketNo: payload.ticketNo ?? '-',
+  processName: payload.processName ?? '-',
+  recordedAt: payload.recordedAt ?? '',
+  status: payload.status ?? 'PENDING',
+  quantity: Number(payload.quantity ?? 0),
+  pieceRate: Number(payload.pieceRate ?? 0),
+  amount: Number(payload.amount ?? 0),
+  workOrderId: payload.workOrderId ?? undefined,
+  productionOrderId: payload.productionOrderId ?? undefined,
 });
 
 export const pieceworkService = {
   async getDashboard(): Promise<PieceworkDashboardDataset> {
-    if (useMock) {
-      return fetchPieceworkDashboardDataset();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/piecework-dashboard', {
       params: { tenantId },
@@ -221,35 +468,53 @@ export const pieceworkService = {
     return adaptDashboard(data);
   },
 
-  async getCuttingPending(): Promise<CuttingTaskDataset> {
-    if (useMock) {
-      return fetchCuttingPendingDataset();
-    }
+  async getCuttingPending(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/pending', {
-      params: { tenantId },
+      params: {
+        tenantId,
+        keyword: normalizeKeyword(params?.keyword),
+        includeCompleted: params?.includeCompleted,
+        page: normalizePage(params?.page),
+        size: params?.pageSize ?? 10,
+        startDate: params?.startDate,
+        endDate: params?.endDate,
+        includeSummary: params?.includeSummary,
+      },
     });
     return adaptCuttingDataset(data);
   },
 
-  async getCuttingCompleted(): Promise<CuttingTaskDataset> {
-    if (useMock) {
-      return fetchCuttingCompletedDataset();
-    }
+  async getCuttingCompleted(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/completed', {
-      params: { tenantId },
+      params: {
+        tenantId,
+        keyword: normalizeKeyword(params?.keyword),
+        page: normalizePage(params?.page),
+        size: params?.pageSize ?? 10,
+        startDate: params?.startDate,
+        endDate: params?.endDate,
+        includeSummary: params?.includeSummary,
+      },
     });
     return adaptCuttingDataset(data);
   },
 
-  async getCuttingReport(): Promise<CuttingReportDataset> {
-    if (useMock) {
-      return fetchCuttingReportDataset();
-    }
+  async getCuttingReport(params?: CuttingReportQueryParams): Promise<CuttingReportDataset> {
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/report', {
-      params: { tenantId },
+      params: {
+        tenantId,
+        orderKeyword: normalizeKeyword(params?.orderKeyword),
+        styleKeyword: normalizeKeyword(params?.styleKeyword),
+        cutterKeyword: normalizeKeyword(params?.cutterKeyword),
+        remarkKeyword: normalizeKeyword(params?.remarkKeyword),
+        startDate: params?.startDate,
+        endDate: params?.endDate,
+        page: normalizePage(params?.page),
+        size: params?.pageSize ?? 10,
+      },
     });
     return adaptCuttingReport(data);
   },
@@ -261,9 +526,6 @@ export const pieceworkService = {
     includeCompleted?: boolean;
     includeSummary?: boolean;
   }): Promise<WorkshopProgressDataset> {
-    if (useMock) {
-      return fetchWorkshopProgressDataset();
-    }
     const tenantId = ensureTenantId();
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 10;
@@ -300,9 +562,6 @@ export const pieceworkService = {
   },
 
   async getSalaryMeta(): Promise<SalaryMeta> {
-    if (useMock) {
-      return salaryManagementService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/payroll/overview/meta', {
       params: { tenantId },
@@ -314,11 +573,9 @@ export const pieceworkService = {
   },
 
   async getSalaryList(params: SalaryListParams): Promise<SalaryListResponse> {
-    if (useMock) {
-      return salaryManagementService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { startDate, endDate, page, pageSize, department, keyword } = params;
+    const normalizedPage = normalizePage(page);
     const { data } = await http.get<SalaryListApiResponse>('/api/v1/workshop/payroll/overview/employees', {
       params: {
         tenantId,
@@ -326,7 +583,7 @@ export const pieceworkService = {
         endDate,
         department,
         keyword,
-        page,
+        page: normalizedPage,
         size: pageSize,
       },
     });
@@ -354,46 +611,191 @@ export const pieceworkService = {
     };
   },
 
+  async getSalaryTickets(params: SalaryTicketListParams): Promise<SalaryTicketListResponse> {
+    const tenantId = ensureTenantId();
+    const { employeeId, startDate, endDate, page, pageSize, status, keyword } = params;
+    const normalizedStatus = !status || status === 'all' ? undefined : status;
+    const { data } = await http.get<SalaryTicketApiResponse>(
+      `/api/v1/workshop/payroll/overview/employees/${employeeId}/tickets`,
+      {
+        params: {
+          tenantId,
+          startDate,
+          endDate,
+          status: normalizedStatus,
+          keyword: keyword?.trim() || undefined,
+          page: normalizePage(page),
+          size: pageSize,
+        },
+      },
+    );
+    const list = (data.list ?? []).map(adaptSalaryTicketRecord);
+    const summary: SalaryTicketSummary = {
+      totalQuantity: Number(data.summary?.totalQuantity ?? 0),
+      settledAmount: Number(data.summary?.settledAmount ?? 0),
+      unsettledAmount: Number(data.summary?.unsettledAmount ?? 0),
+      totalAmount: Number(data.summary?.totalAmount ?? 0),
+    };
+    return {
+      list,
+      total: data.total ?? 0,
+      page: (data.page ?? 0) + 1,
+      pageSize: data.size ?? pageSize,
+      summary,
+    };
+  },
+
+  async getPayrollScanStatistics(
+    params: SalaryScanStatisticsParams,
+  ): Promise<SalaryScanStatistics> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<SalaryScanStatisticsPayload>(
+      '/api/v1/workshop/payroll/overview/scan-statistics',
+      {
+        params: {
+          tenantId,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          department: params.department?.trim() || undefined,
+          keyword: params.keyword?.trim() || undefined,
+        },
+      },
+    );
+    return adaptSalaryScanStatistics(data ?? {});
+  },
+
+  async getPayrollTicketDetails(
+    params: SalaryTicketDetailParams,
+  ): Promise<SalaryTicketDetailResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<SalaryTicketDetailApiResponse>(
+      '/api/v1/workshop/payroll/overview/tickets/detail',
+      {
+        params: {
+          tenantId,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          department: params.department?.trim() || undefined,
+          keyword: params.keyword?.trim() || undefined,
+          page: normalizePage(params.page),
+          size: params.pageSize,
+        },
+      },
+    );
+    const list = (data.list ?? []).map(adaptSalaryTicketDetailRecord);
+    return {
+      list,
+      total: data.total ?? 0,
+      page: (data.page ?? 0) + 1,
+      pageSize: data.size ?? params.pageSize,
+    };
+  },
+
   async settlePayroll(payload: SalarySettlePayload): Promise<void> {
-    if (useMock) {
-      await salaryManagementService.settle(payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post('/api/v1/workshop/payroll/overview/settle', payload, {
       params: { tenantId },
     });
   },
 
-  async getQualityList(params: QualityControlListParams): Promise<QualityControlListResponse> {
-    if (useMock) {
-      return qualityControlManagementService.getList(params);
-    }
+  async batchAdjustSalary(payload: SalaryBatchAdjustPayload): Promise<void> {
     const tenantId = ensureTenantId();
-    const { page, pageSize, startDate, endDate, keyword, inspector, status } = params;
+    await http.post('/api/v1/workshop/payroll/overview/adjustments', payload, {
+      params: { tenantId },
+    });
+  },
+
+  async sendPayslips(payload: SalaryPayslipSendPayload): Promise<SalaryPayslipSendResult> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.post('/api/v1/workshop/payroll/overview/payslips/send', payload, {
+      params: { tenantId },
+    });
+    const records: SalaryPayslipRecord[] = (data.records ?? []).map((item: SalaryPayslipApiRecord) => ({
+      employeeId: String(item.employeeId),
+      employeeName: item.employeeName,
+      settledAmount: Number(item.settledAmount ?? 0),
+      unsettledAmount: Number(item.unsettledAmount ?? 0),
+      adjustmentAmount: Number(item.adjustmentAmount ?? 0),
+      totalAmount: Number(item.totalAmount ?? 0),
+    }));
+    return {
+      sentCount: Number(data.sentCount ?? records.length),
+      records,
+    };
+  },
+
+  async getPayslipLogs(
+    params: SalaryPayslipLogListParams,
+  ): Promise<SalaryPayslipLogResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<SalaryPayslipLogApiResponse>(
+      '/api/v1/workshop/payroll/overview/payslips',
+      {
+        params: {
+          tenantId,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          status: params.status && params.status !== 'all' ? params.status : undefined,
+          keyword: params.keyword?.trim() || undefined,
+          page: normalizePage(params.page),
+          size: params.pageSize,
+        },
+      },
+    );
+    const list: SalaryPayslipLogRecord[] = (data.list ?? []).map((item: SalaryPayslipLogApiRecord) => ({
+      id: String(item.id ?? ''),
+      employeeId: String(item.employeeId ?? ''),
+      employeeName: item.employeeName ?? '-',
+      startDate: item.startDate ?? '',
+      endDate: item.endDate ?? '',
+      settledAmount: Number(item.settledAmount ?? 0),
+      unsettledAmount: Number(item.unsettledAmount ?? 0),
+      adjustmentAmount: Number(item.adjustmentAmount ?? 0),
+      totalAmount: Number(item.totalAmount ?? 0),
+      status: (item.status ?? 'SENT') as SalaryPayslipLogRecord['status'],
+      message: item.message ?? undefined,
+      requestedBy: item.requestedBy ? String(item.requestedBy) : undefined,
+      requestedByName: item.requestedByName ?? undefined,
+      sentAt: item.sentAt ?? undefined,
+    }));
+    return {
+      list,
+      total: data.total ?? 0,
+      page: (data.page ?? 0) + 1,
+      pageSize: data.size ?? params.pageSize,
+    };
+  },
+
+  async getQualityList(params: QualityControlListParams): Promise<QualityControlListResponse> {
+    const tenantId = ensureTenantId();
+    const { page, pageSize, startDate, endDate, keyword, inspectorId, status, workOrderId } = params;
+    const normalizedPage = normalizePage(page);
+    const normalizedWorkOrderId = workOrderId ? Number(workOrderId) : undefined;
+    const normalizedInspectorId = inspectorId ? Number(inspectorId) : undefined;
+    const normalizedStatus = status && status !== 'all' ? status : undefined;
     const { data } = await http.get('/api/v1/quality-inspections', {
       params: {
         tenantId,
         startDate,
         endDate,
         keyword,
-        status,
-        inspectorId: inspector,
-        page,
+        status: normalizedStatus,
+        workOrderId: Number.isFinite(normalizedWorkOrderId) ? normalizedWorkOrderId : undefined,
+        inspectorId: Number.isFinite(normalizedInspectorId) ? normalizedInspectorId : undefined,
+        page: normalizedPage,
         size: pageSize,
       },
     });
     return {
       list: (data.list ?? []).map(adaptQualityRecord),
       total: data.total ?? 0,
+      page: (data.page ?? 0) + 1,
+      pageSize: data.size ?? pageSize,
       summary: data.summary ?? { inspectedQty: 0, passedQty: 0, failedQty: 0, reworkQty: 0 },
     };
   },
 
   async getQualityMeta(): Promise<QualityControlMeta> {
-    if (useMock) {
-      return qualityControlManagementService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<{
       statusOptions?: QualityStatusOptionResponse[];
@@ -418,9 +820,6 @@ export const pieceworkService = {
   },
 
   async getOrderProgress(params: OrderProgressDetailsListParams): Promise<OrderProgressDetailsListResponse> {
-    if (useMock) {
-      return orderProgressDetailsReportService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { page, pageSize, orderDateStart, orderDateEnd, keyword } = params;
     const { data } = await http.get('/api/v1/workshop/reports/order-progress', {
@@ -428,18 +827,32 @@ export const pieceworkService = {
         tenantId,
         startDate: orderDateStart,
         endDate: orderDateEnd,
-        keyword,
-        page,
+        keyword: normalizeKeyword(keyword),
+        page: normalizePage(page),
         size: pageSize,
       },
     });
     return { list: data.list ?? [], total: data.total ?? 0 };
   },
 
+  async exportOrderProgress(
+    params: Pick<OrderProgressDetailsListParams, 'orderDateStart' | 'orderDateEnd' | 'keyword'> & { maxRows?: number },
+  ): Promise<{ fileUrl: string }> {
+    const tenantId = ensureTenantId();
+    const response = await http.post<{ fileUrl: string }>(
+      '/api/v1/workshop/reports/order-progress/export',
+      {
+        startDate: params.orderDateStart,
+        endDate: params.orderDateEnd,
+        keyword: normalizeKeyword(params.keyword),
+        maxRows: params.maxRows,
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
   async getTicketLots(params: OrderTicketLotListParams): Promise<OrderTicketLotListResponse> {
-    if (useMock) {
-      return orderTicketDetailsReportService.getLots(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/ticket-lots', {
       params: {
@@ -453,9 +866,6 @@ export const pieceworkService = {
   },
 
   async getTicketRecords(params: OrderTicketRecordListParams): Promise<OrderTicketRecordListResponse> {
-    if (useMock) {
-      return orderTicketDetailsReportService.getRecords(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/ticket-records', {
       params: { tenantId, lotId: params.lotId },
@@ -468,21 +878,6 @@ export const pieceworkService = {
   },
 
   async getProcessComparison(params: ProcessProductionListParams): Promise<ProcessProductionListResponse> {
-    if (useMock) {
-      const mockLots = await processProductionComparisonReportService.getLots({
-        page: params.page,
-        pageSize: params.pageSize,
-        keyword: params.keyword,
-      });
-      const list = mockLots.list.map((lot: MockProcessLot) => ({
-        orderNumber: lot.orderNumber,
-        styleNumber: lot.styleNumber,
-        styleName: lot.styleName,
-        orderQuantity: lot.quantity,
-        stages: [],
-      }));
-      return { list, total: list.length, inventoryQuantity: 0 };
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/process-comparison', {
       params: {
@@ -501,12 +896,82 @@ export const pieceworkService = {
     };
   },
 
+  async getSequentialProcesses(
+    params: SequentialProcessListParams,
+  ): Promise<SequentialProcessListResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get('/api/v1/workshop/reports/sequential-processes', {
+      params: {
+        tenantId,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        keyword: params.keyword,
+        status: params.status,
+        page: normalizePage(params.page),
+        size: params.pageSize,
+      },
+    });
+    return {
+      list: data.list ?? [],
+      total: data.total ?? 0,
+    };
+  },
+
+  async exportSequentialProcesses(
+    params: SequentialProcessExportParams,
+  ): Promise<{ fileUrl: string }> {
+    const tenantId = ensureTenantId();
+    const response = await http.post<{ fileUrl: string }>(
+      '/api/v1/workshop/reports/sequential-processes/export',
+      {
+        keyword: normalizeKeyword(params.keyword),
+        startDate: params.startDate,
+        endDate: params.endDate,
+        status: params.status,
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async getReportDownloads(
+    params: ReportDownloadListParams,
+  ): Promise<ReportDownloadListResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get('/api/v1/workshop/reports/downloads', {
+      params: {
+        tenantId,
+        reportType: params.reportType && params.reportType !== 'ALL' ? params.reportType : undefined,
+        status: params.status && params.status !== 'all' ? params.status : undefined,
+        keyword: params.keyword?.trim() || undefined,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        page: normalizePage(params.page),
+        size: params.pageSize,
+      },
+    });
+    const list: ReportDownloadRecord[] = (data.list ?? []).map((item: Record<string, unknown>) => ({
+      id: item.id != null ? String(item.id) : '',
+      reportType: (item.reportType ?? 'ORDER_PROGRESS') as ReportDownloadRecord['reportType'],
+      status: (item.status ?? 'COMPLETED') as ReportDownloadRecord['status'],
+      fileUrl: typeof item.fileUrl === 'string' ? item.fileUrl : undefined,
+      filters: typeof item.filters === 'string' ? item.filters : undefined,
+      message: typeof item.message === 'string' ? item.message : undefined,
+      requestedBy: item.requestedBy != null ? String(item.requestedBy) : undefined,
+      requestedByName: typeof item.requestedByName === 'string' ? item.requestedByName : undefined,
+      requestedAt: typeof item.requestedAt === 'string' ? item.requestedAt : undefined,
+    }));
+    return {
+      list,
+      total: data.total ?? 0,
+      page: (data.page ?? 0) + 1,
+      pageSize: data.size ?? params.pageSize,
+    };
+  },
+
   async exportCuttingReport(
     params: CuttingReportExportParams,
   ): Promise<{ fileUrl: string }> {
-    if (useMock) {
-      return { fileUrl: '' };
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/cutting/report/export',
@@ -519,16 +984,16 @@ export const pieceworkService = {
   async exportQualityInspections(
     params: QualityInspectionExportParams,
   ): Promise<{ fileUrl: string }> {
-    if (useMock) {
-      return { fileUrl: '' };
-    }
     const tenantId = ensureTenantId();
+    const normalizedStatus = params.status && params.status !== 'all' ? params.status : undefined;
+    const normalizedWorkOrderId = params.workOrderId ? Number(params.workOrderId) : undefined;
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/quality-inspections/export',
       {
         keyword: params.keyword,
         inspectorId: params.inspectorId ? Number(params.inspectorId) : undefined,
-        status: params.status,
+        workOrderId: Number.isFinite(normalizedWorkOrderId) ? normalizedWorkOrderId : undefined,
+        status: normalizedStatus,
         startDate: params.startDate,
         endDate: params.endDate,
       },
@@ -537,12 +1002,57 @@ export const pieceworkService = {
     return response.data;
   },
 
+  async createQualityInspection(payload: QualityControlCreatePayload): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      '/api/v1/quality-inspections',
+      {
+        workOrderId: Number(payload.workOrderId),
+        inspectorId: Number(payload.inspectorId),
+        qcDate: payload.qcDate,
+        inspectedQty: payload.inspectedQty,
+        passedQty: payload.passedQty,
+        failedQty: payload.failedQty,
+        defectReason: payload.defectReason,
+        disposition: payload.disposition?.toUpperCase(),
+      },
+      { params: { tenantId } },
+    );
+  },
+
+  async getQualityDetail(inspectionId: string): Promise<QualityControlRecord> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get(`/api/v1/quality-inspections/${inspectionId}`, {
+      params: { tenantId },
+    });
+    return adaptQualityRecord(data);
+  },
+
+  async resolveQualityException(
+    inspectionId: string,
+    payload: QualityExceptionResolvePayload,
+  ): Promise<QualityControlRecord> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.post(
+      `/api/v1/quality-inspections/${inspectionId}/resolve`,
+      { note: payload.note },
+      { params: { tenantId } },
+    );
+    return adaptQualityRecord(data);
+  },
+
+  async getQualityExceptionLogs(inspectionId: string): Promise<QualityExceptionLog[]> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get(`/api/v1/quality-inspections/${inspectionId}/logs`, {
+      params: { tenantId },
+    });
+    const list = Array.isArray(data) ? data : [];
+    return list.map((item: QualityExceptionLogPayload) => adaptQualityExceptionLog(item));
+  },
+
   async exportTicketRecords(
     params: TicketRecordExportParams,
   ): Promise<{ fileUrl: string }> {
-    if (useMock) {
-      return { fileUrl: '' };
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/reports/ticket-records/export',

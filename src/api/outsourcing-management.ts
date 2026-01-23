@@ -1,4 +1,3 @@
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 import type {
@@ -8,12 +7,10 @@ import type {
   OutsourcingManagementMeta,
   OutsourcingManagementProcessorOption,
   OutsourcingReceivePayload,
+  OutsourcingOrderDetail,
 } from '../types/outsourcing-management';
-import { outsourcingManagementService } from './mock';
 import type { PartnerDataset } from '../types';
 import { partnersApi } from './partners';
-
-const useMock = apiConfig.useMock;
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -60,6 +57,66 @@ type BackendOutsourcingSummary = {
   goodReceivedQty: number;
 };
 
+type BackendOutsourcingWorkOrder = {
+  id?: number | string;
+  plannedQty?: number;
+  completedQty?: number;
+  status?: string;
+  remark?: string;
+};
+
+type BackendOutsourcingProductionOrder = {
+  id?: number | string;
+  orderNo?: string;
+  totalQuantity?: number;
+  completedQuantity?: number;
+  expectedDelivery?: string;
+};
+
+type BackendOutsourcingReceipt = {
+  id?: number | string;
+  receivedQty?: number;
+  defectQty?: number;
+  reworkQty?: number;
+  goodQty?: number;
+  receivedAt?: string;
+  remark?: string;
+};
+
+type BackendOutsourcingMaterialRequest = {
+  id?: number | string;
+  materialId?: number | string;
+  requestQuantity?: number;
+  requestedAt?: string;
+  remark?: string;
+};
+
+type BackendOutsourcingDetail = {
+  id?: number | string;
+  status?: string;
+  outgoingNo?: string;
+  orderNo?: string;
+  styleNo?: string;
+  styleName?: string;
+  processorName?: string;
+  processStep?: string;
+  dispatchQty?: number;
+  receivedQty?: number;
+  goodReceivedQty?: number;
+  progressPercent?: number;
+  attritionRate?: number;
+  unitPrice?: number;
+  totalCost?: number;
+  dispatchDate?: string;
+  expectedCompletionDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  workOrder?: BackendOutsourcingWorkOrder;
+  productionOrder?: BackendOutsourcingProductionOrder;
+  receipts?: BackendOutsourcingReceipt[];
+  materialRequests?: BackendOutsourcingMaterialRequest[];
+};
+
 const adaptRecord = (item: BackendOutsourcingListItem): OutsourcingManagementListItem => ({
   id: String(item.id),
   status: item.status as OutsourcingManagementListItem['status'],
@@ -82,11 +139,68 @@ const adaptRecord = (item: BackendOutsourcingListItem): OutsourcingManagementLis
 const adaptMetaOptions = (dataset: PartnerDataset): OutsourcingManagementProcessorOption[] =>
   (dataset.list ?? []).map((partner) => ({ id: partner.id, name: partner.name ?? '-' }));
 
+const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail => ({
+  id: String(payload.id ?? ''),
+  status: payload.status as OutsourcingOrderDetail['status'],
+  outgoingNo: payload.outgoingNo ?? '',
+  orderNo: payload.orderNo ?? '',
+  styleNo: payload.styleNo ?? '',
+  styleName: payload.styleName ?? '',
+  processorName: payload.processorName ?? '-',
+  processStep: payload.processStep ?? '-',
+  dispatchQty: Number(payload.dispatchQty ?? 0),
+  receivedQty: Number(payload.receivedQty ?? 0),
+  goodReceivedQty: Number(payload.goodReceivedQty ?? 0),
+  progressPercent: typeof payload.progressPercent === 'number' ? payload.progressPercent : 0,
+  attritionRate: Number(payload.attritionRate ?? 0),
+  unitPrice: Number(payload.unitPrice ?? 0),
+  totalCost: Number(payload.totalCost ?? 0),
+  dispatchDate: payload.dispatchDate ?? undefined,
+  expectedCompletionDate: payload.expectedCompletionDate ?? undefined,
+  createdAt: payload.createdAt ?? undefined,
+  updatedAt: payload.updatedAt ?? undefined,
+  workOrder: payload.workOrder
+    ? {
+        id: String(payload.workOrder.id ?? ''),
+        plannedQty: Number(payload.workOrder.plannedQty ?? 0),
+        completedQty: Number(payload.workOrder.completedQty ?? 0),
+        status: payload.workOrder.status ?? undefined,
+        remark: payload.workOrder.remark ?? undefined,
+      }
+    : undefined,
+  productionOrder: payload.productionOrder
+    ? {
+        id: String(payload.productionOrder.id ?? ''),
+        orderNo: payload.productionOrder.orderNo ?? '',
+        totalQuantity: Number(payload.productionOrder.totalQuantity ?? 0),
+        completedQuantity: Number(payload.productionOrder.completedQuantity ?? 0),
+        expectedDelivery: payload.productionOrder.expectedDelivery ?? undefined,
+      }
+    : undefined,
+  receipts: Array.isArray(payload.receipts)
+    ? payload.receipts.map((item) => ({
+        id: String(item.id ?? ''),
+        receivedQty: Number(item.receivedQty ?? 0),
+        defectQty: Number(item.defectQty ?? 0),
+        reworkQty: Number(item.reworkQty ?? 0),
+        goodQty: Number(item.goodQty ?? 0),
+        receivedAt: item.receivedAt ?? undefined,
+        remark: item.remark ?? undefined,
+      }))
+    : [],
+  materialRequests: Array.isArray(payload.materialRequests)
+    ? payload.materialRequests.map((item) => ({
+        id: String(item.id ?? ''),
+        materialId: item.materialId != null ? String(item.materialId) : undefined,
+        requestQuantity: Number(item.requestQuantity ?? 0),
+        requestedAt: item.requestedAt ?? undefined,
+        remark: item.remark ?? undefined,
+      }))
+    : [],
+});
+
 export const outsourcingManagementApi = {
   async getMeta(): Promise<OutsourcingManagementMeta> {
-    if (useMock) {
-      return outsourcingManagementService.getMeta();
-    }
     const response = await partnersApi.list({
       page: 0,
       pageSize: 200,
@@ -98,9 +212,6 @@ export const outsourcingManagementApi = {
   async getList(
       params: OutsourcingManagementListParams,
     ): Promise<OutsourcingManagementListResponse> {
-    if (useMock) {
-      return outsourcingManagementService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<BackendOutsourcingListResponse>('/api/v1/outsourcing-orders', {
       params: {
@@ -123,9 +234,6 @@ export const outsourcingManagementApi = {
   },
 
   async confirmReceive(payload: OutsourcingReceivePayload): Promise<void> {
-    if (useMock) {
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       `/api/v1/outsourcing-orders/${Number(payload.orderId)}/receipts`,
@@ -141,10 +249,38 @@ export const outsourcingManagementApi = {
   },
 
   async export(params: OutsourcingManagementListParams): Promise<{ fileUrl: string }> {
-    if (useMock) {
-      return outsourcingManagementService.export(params);
+    const tenantId = ensureTenantId();
+    const orderIds = params.selectedOrderIds
+      ?.map((value) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      })
+      .filter((value): value is number => typeof value === 'number');
+    const response = await http.post<{ fileUrl: string }>(
+      '/api/v1/outsourcing-orders/export',
+      {
+        orderKeyword: params.orderNo?.trim() || undefined,
+        styleKeyword: params.styleKeyword?.trim() || undefined,
+        processorId: params.processorId ? Number(params.processorId) : undefined,
+        dispatchStart: params.dispatchDateStart,
+        dispatchEnd: params.dispatchDateEnd,
+        status: params.statusKey && params.statusKey.length > 0 ? params.statusKey : undefined,
+        orderIds: orderIds && orderIds.length > 0 ? orderIds : undefined,
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async getDetail(orderId: string): Promise<OutsourcingOrderDetail> {
+    const tenantId = ensureTenantId();
+    const parsedId = Number(orderId);
+    if (!Number.isFinite(parsedId)) {
+      throw new Error('Invalid outsourcing order id');
     }
-    // 导出接口尚未开放，保持与 Mock 行为一致
-    return { fileUrl: '' };
+    const { data } = await http.get(`/api/v1/outsourcing-orders/${parsedId}`, {
+      params: { tenantId },
+    });
+    return adaptDetail(data);
   },
 };

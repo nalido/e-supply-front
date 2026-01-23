@@ -4,12 +4,8 @@ import type {
   SampleOrderComparisonParams,
   SampleOrderComparisonResponse,
 } from '../types/sample-order-comparison-report';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import { sampleOrderComparisonReportService as mockService } from './mock';
-
-const useMock = apiConfig.useMock;
 
 type BackendRecord = {
   styleId?: number;
@@ -62,9 +58,6 @@ const adaptListResponse = (payload: BackendListResponse): SampleOrderComparisonR
 
 export const sampleOrderComparisonReportService = {
   async getAggregation(): Promise<SampleOrderAggregation> {
-    if (useMock) {
-      return mockService.getAggregation();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<SampleOrderAggregation>(
       '/api/v1/sample/reports/order-comparison/aggregation',
@@ -74,9 +67,6 @@ export const sampleOrderComparisonReportService = {
   },
 
   async getList(params: SampleOrderComparisonParams): Promise<SampleOrderComparisonResponse> {
-    if (useMock) {
-      return mockService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendListResponse>('/api/v1/sample/reports/order-comparison', {
       params: {
@@ -92,9 +82,6 @@ export const sampleOrderComparisonReportService = {
   },
 
   async export(params: SampleOrderComparisonParams): Promise<ExportResponse> {
-    if (useMock) {
-      return mockService.export(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<ExportResponse>(
       '/api/v1/sample/reports/order-comparison/export',

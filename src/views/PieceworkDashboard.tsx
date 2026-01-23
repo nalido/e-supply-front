@@ -282,7 +282,7 @@ const PieceworkDashboard = () => {
 
               return (
                 <Col xs={24} sm={12} xl={6} key={metric.key}>
-                  <Card className="piecework-kpi-card" bordered={false}>
+                  <Card className="piecework-kpi-card" variant="borderless">
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
                       <div className="piecework-kpi-header">
                         <Text type="secondary">{metric.title}</Text>
@@ -306,7 +306,7 @@ const PieceworkDashboard = () => {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={12}>
-              <Card title="实裁数" bordered={false} className="piecework-chart-card">
+              <Card title="实裁数" variant="borderless" className="piecework-chart-card">
                 {cuttingTrendAreaData.length ? (
                   <MonthlyAreaChart
                     data={cuttingTrendAreaData}
@@ -321,7 +321,7 @@ const PieceworkDashboard = () => {
             </Col>
 
             <Col xs={24} xl={12}>
-              <Card title="产能对比表" bordered={false} className="piecework-chart-card">
+              <Card title="产能对比表" variant="borderless" className="piecework-chart-card">
                 {capacityComparison.length ? (
                   <GroupedColumnChart data={capacityComparison} />
                 ) : (
@@ -333,7 +333,7 @@ const PieceworkDashboard = () => {
 
           <Row gutter={[16, 16]}>
             <Col xs={24} xl={8}>
-              <Card title="总完成百分比（年）" bordered={false} className="piecework-chart-card">
+              <Card title="总完成百分比（年）" variant="borderless" className="piecework-chart-card">
                 {completionDonutData.length ? (
                   <DonutChart
                     data={completionDonutData}
@@ -347,7 +347,7 @@ const PieceworkDashboard = () => {
               </Card>
             </Col>
             <Col xs={24} xl={16}>
-              <Card title="产能图" bordered={false} className="piecework-chart-card">
+              <Card title="产能图" variant="borderless" className="piecework-chart-card">
                 {capacityTrendAreaData.length ? (
                   <MonthlyAreaChart
                     data={capacityTrendAreaData}
@@ -362,7 +362,7 @@ const PieceworkDashboard = () => {
             </Col>
           </Row>
 
-          <Card title="订单超期" bordered={false} className="piecework-table-card">
+          <Card title="订单超期" variant="borderless" className="piecework-table-card">
             <Table
               rowKey="id"
               dataSource={overdueOrders}

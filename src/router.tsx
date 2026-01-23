@@ -54,11 +54,11 @@ import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetai
 import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
 import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
 import QualityControlManagement from './views/QualityControlManagement';
+import OperationGuide from './views/OperationGuide';
+import GuideSectionPage from './views/guide/GuideSectionPage';
 import {
   ActionLogPage,
   CompanySettings,
-  CredentialsPage,
-  JoinApplicationsPage,
   OrganizationSettings,
   PreferencesPage,
   ProfileSettings,
@@ -110,9 +110,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/roles' &&
     n.key !== '/settings/audit' &&
     n.key !== '/settings/preferences' &&
-    n.key !== '/settings/user/users' &&
-    n.key !== '/settings/user/onboarding' &&
-    n.key !== '/settings/user/keys' &&
+    n.key !== '/guide' &&
     n.key !== '/piecework/cutting/pending' &&
     n.key !== '/piecework/cutting/done' &&
     n.key !== '/piecework/cutting/report' &&
@@ -199,8 +197,6 @@ const router = createBrowserRouter([
       { path: 'settings/roles', element: React.createElement(RolesSettings) },
       { path: 'settings/preferences', element: React.createElement(PreferencesPage) },
       { path: 'settings/audit', element: React.createElement(ActionLogPage) },
-      { path: 'settings/user/onboarding', element: React.createElement(JoinApplicationsPage) },
-      { path: 'settings/user/keys', element: React.createElement(CredentialsPage) },
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
       { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
@@ -230,7 +226,8 @@ const router = createBrowserRouter([
       { path: 'appstore', element: createPlaceholderElement('应用商店') },
       { path: 'basic', element: createPlaceholderElement('基础资料') },
       { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
-      { path: 'guide', element: createPlaceholderElement('操作指南') },
+      { path: 'guide', element: React.createElement(OperationGuide) },
+      { path: 'guide/:sectionId', element: React.createElement(GuideSectionPage) },
     ],
   },
 ]);

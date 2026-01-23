@@ -1,22 +1,10 @@
 import { Col, Row } from 'antd';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import '../styles/workplace.css';
 
-// 引入类型定义
-import type { 
-  DeliveryItem, 
-  WorkplaceStats, 
-  Announcement 
-} from '../types/workplace';
-
-// 引入模拟数据
-import { 
-  quickActions, 
-  generateWorkplaceStats,
-  generateCustomerDeliveryList,
-  generateFactoryDeliveryList,
-  generateAnnouncements
-} from '../mock/workplace';
+import type { Announcement, DeliveryItem, WorkplaceStats } from '../types/workplace';
+import { workplaceQuickActions } from '../data/workplace';
+import { workplaceApi } from '../api/workplace';
 
 // 引入模块化组件
 import {
@@ -38,9 +26,6 @@ const Workplace = () => {
     inProduction: 0,
     shipped: 0
   });
-  const [allCustomerDeliveries, setAllCustomerDeliveries] = useState<DeliveryItem[]>([]);
-  const [allFactoryDeliveries, setAllFactoryDeliveries] = useState<DeliveryItem[]>([]);
-  const [allAnnouncements, setAllAnnouncements] = useState<Announcement[]>([]);
   const [customerDeliveries, setCustomerDeliveries] = useState<DeliveryItem[]>([]);
   const [factoryDeliveries, setFactoryDeliveries] = useState<DeliveryItem[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -65,90 +50,117 @@ const Workplace = () => {
     factoryData: true,
     announcements: true
   });
+  const customerPage = customerPagination.current;
+  const customerPageSize = customerPagination.pageSize;
+  const factoryPage = factoryPagination.current;
+  const factoryPageSize = factoryPagination.pageSize;
+  const announcementPage = announcementPagination.current;
+  const announcementPageSize = announcementPagination.pageSize;
 
-  // 加载数据
-  useEffect(() => {
-    // 获取统计数据
-    setStats(generateWorkplaceStats());
-    setLoading(prev => ({ ...prev, stats: false }));
-
-    // 获取客户交货数据
-    setTimeout(() => {
-      const allCustomerData = generateCustomerDeliveryList(100);
-      setAllCustomerDeliveries(allCustomerData);
-      setCustomerPagination(prev => ({ ...prev, total: allCustomerData.length }));
-      // 初始显示第一页数据
-      const initialPageSize = 20;
-      const initialPageData = allCustomerData.slice(0, initialPageSize);
-      setCustomerDeliveries(initialPageData);
-      setLoading(prev => ({ ...prev, customerData: false }));
-    }, 100);
-
-    // 获取工厂交货数据
-    setTimeout(() => {
-      const allFactoryData = generateFactoryDeliveryList(100);
-      setAllFactoryDeliveries(allFactoryData);
-      setFactoryPagination(prev => ({ ...prev, total: allFactoryData.length }));
-      // 初始显示第一页数据
-      const initialPageSize = 20;
-      const initialPageData = allFactoryData.slice(0, initialPageSize);
-      setFactoryDeliveries(initialPageData);
-      setLoading(prev => ({ ...prev, factoryData: false }));
-    }, 200);
-
-    // 获取公告数据
-    setTimeout(() => {
-      const allAnnouncementData = generateAnnouncements(50);
-      setAllAnnouncements(allAnnouncementData);
-      setAnnouncementPagination(prev => ({ ...prev, total: allAnnouncementData.length }));
-      // 初始显示第一页数据
-      const initialPageSize = 12;
-      const initialPageData = allAnnouncementData.slice(0, initialPageSize);
-      setAnnouncements(initialPageData);
-      setLoading(prev => ({ ...prev, announcements: false }));
-    }, 150);
+  const loadStats = useCallback(async () => {
+    setLoading(prev => ({ ...prev, stats: true }));
+    try {
+      const response = await workplaceApi.getStats();
+      setStats(response);
+    } catch (error) {
+      console.error('failed to load workplace stats', error);
+    } finally {
+      setLoading(prev => ({ ...prev, stats: false }));
+    }
   }, []);
+
+  const loadCustomerDeliveries = useCallback(async (page: number, pageSize: number) => {
+    setLoading(prev => ({ ...prev, customerData: true }));
+    try {
+      const response = await workplaceApi.getCustomerDeliveries(page, pageSize);
+      setCustomerPagination({
+        current: response.page,
+        pageSize: response.pageSize,
+        total: response.total,
+      });
+      setCustomerDeliveries(response.list);
+    } catch (error) {
+      console.error('failed to load customer deliveries', error);
+    } finally {
+      setLoading(prev => ({ ...prev, customerData: false }));
+    }
+  }, []);
+
+  const loadFactoryDeliveries = useCallback(async (page: number, pageSize: number) => {
+    setLoading(prev => ({ ...prev, factoryData: true }));
+    try {
+      const response = await workplaceApi.getFactoryDeliveries(page, pageSize);
+      setFactoryPagination({
+        current: response.page,
+        pageSize: response.pageSize,
+        total: response.total,
+      });
+      setFactoryDeliveries(response.list);
+    } catch (error) {
+      console.error('failed to load factory deliveries', error);
+    } finally {
+      setLoading(prev => ({ ...prev, factoryData: false }));
+    }
+  }, []);
+
+  const loadAnnouncements = useCallback(async (page: number, pageSize: number) => {
+    setLoading(prev => ({ ...prev, announcements: true }));
+    try {
+      const response = await workplaceApi.getAnnouncements(page, pageSize);
+      setAnnouncementPagination({
+        current: response.page,
+        pageSize: response.pageSize,
+        total: response.total,
+      });
+      setAnnouncements(response.list);
+    } catch (error) {
+      console.error('failed to load announcements', error);
+    } finally {
+      setLoading(prev => ({ ...prev, announcements: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
+    loadCustomerDeliveries(customerPage, customerPageSize);
+  }, [customerPage, customerPageSize, loadCustomerDeliveries]);
+
+  useEffect(() => {
+    loadFactoryDeliveries(factoryPage, factoryPageSize);
+  }, [factoryPage, factoryPageSize, loadFactoryDeliveries]);
+
+  useEffect(() => {
+    loadAnnouncements(announcementPage, announcementPageSize);
+  }, [announcementPage, announcementPageSize, loadAnnouncements]);
 
   // 客户表格分页处理
   const handleCustomerPaginationChange = (page: number, pageSize: number) => {
-    const total = allCustomerDeliveries.length;
-    const maxPage = Math.max(1, Math.ceil(total / pageSize));
-    const adjustedPage = Math.min(page, maxPage);
-    
-    const newPagination = { current: adjustedPage, pageSize, total };
-    setCustomerPagination(newPagination);
-    
-    const startIndex = (adjustedPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    setCustomerDeliveries(allCustomerDeliveries.slice(startIndex, endIndex));
+    setCustomerPagination((prev) => ({
+      ...prev,
+      current: page,
+      pageSize,
+    }));
   };
 
   // 工厂表格分页处理
   const handleFactoryPaginationChange = (page: number, pageSize: number) => {
-    const total = allFactoryDeliveries.length;
-    const maxPage = Math.max(1, Math.ceil(total / pageSize));
-    const adjustedPage = Math.min(page, maxPage);
-    
-    const newPagination = { current: adjustedPage, pageSize, total };
-    setFactoryPagination(newPagination);
-    
-    const startIndex = (adjustedPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    setFactoryDeliveries(allFactoryDeliveries.slice(startIndex, endIndex));
+    setFactoryPagination((prev) => ({
+      ...prev,
+      current: page,
+      pageSize,
+    }));
   };
 
   // 公告列表分页处理
   const handleAnnouncementPaginationChange = (page: number, pageSize: number) => {
-    const total = allAnnouncements.length;
-    const maxPage = Math.max(1, Math.ceil(total / pageSize));
-    const adjustedPage = Math.min(page, maxPage);
-    
-    const newPagination = { current: adjustedPage, pageSize, total };
-    setAnnouncementPagination(newPagination);
-    
-    const startIndex = (adjustedPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    setAnnouncements(allAnnouncements.slice(startIndex, endIndex));
+    setAnnouncementPagination((prev) => ({
+      ...prev,
+      current: page,
+      pageSize,
+    }));
   };
 
   // 发布公告按钮处理
@@ -162,7 +174,7 @@ const Workplace = () => {
       <StatisticsSection stats={stats} loading={loading.stats} />
 
       {/* 快速入口 */}
-      <QuickActionsSection quickActions={quickActions} />
+      <QuickActionsSection quickActions={workplaceQuickActions} />
 
       {/* 三个表格区域横向排列 */}
       <Row gutter={[24, 24]}>
@@ -206,5 +218,3 @@ const Workplace = () => {
 };
 
 export default Workplace;
-
-

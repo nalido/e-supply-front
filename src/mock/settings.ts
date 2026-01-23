@@ -2,16 +2,9 @@ import type {
   ActionLogEntry,
   ActionLogQuery,
   AvatarUpdatePayload,
-  BulkAssignRolePayload,
   CompanyOverview,
-  CreateCredentialPayload,
   CreateOrgMemberPayload,
   CreateRolePayload,
-  CreateUserPayload,
-  CredentialItem,
-  InviteMemberPayload,
-  JoinApplication,
-  JoinApplicationStatus,
   OrgMember,
   OrgMemberQuery,
   PermissionTreeNode,
@@ -21,14 +14,11 @@ import type {
   TenantSummary,
   UpdatePreferencePayload,
   UpdateRolePayload,
-  UpdateUserPayload,
-  TransferTenantPayload,
-  UserAccount,
-  UserListQuery,
   UserProfile,
   UpdateOrgMemberPayload,
 } from '../types';
-import type { Paginated } from '../api/mock';
+import type { Paginated } from '../types/pagination';
+import { preferenceGroupTemplates } from '../constants/preferences';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const wait = (ms = 160) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -197,202 +187,13 @@ const actionLogStore: ActionLogEntry[] = Array.from({ length: 28 }).map((_, inde
   };
 });
 
-const preferenceGroupsStore: PreferenceGroup[] = [
-  {
-    key: 'production',
-    title: '生产流程',
-    items: [
-      { key: 'ordered-production', label: '按顺序生产', type: 'switch', value: true },
-      { key: 'scan-by-section', label: '按部位扫菲', type: 'switch', value: false },
-      {
-        key: 'hide-completed-steps',
-        label: '扫菲时自动隐藏已完成工序',
-        type: 'switch',
-        value: true,
-      },
-      { key: 'auto-bed-generate', label: '自动生成床次', type: 'switch', value: true },
-      {
-        key: 'bulk-material-cost-source',
-        label: '大货物料成本来源',
-        type: 'select',
-        value: 'plan',
-        options: [
-          { label: '按用量计划', value: 'plan' },
-          { label: '按实耗记录', value: 'actual' },
-        ],
-      },
-      {
-        key: 'bulk-cost-quantity-source',
-        label: '大货成本核算数量来源',
-        type: 'select',
-        value: 'cutting',
-        options: [
-          { label: '按剪裁数量', value: 'cutting' },
-          { label: '按完工数量', value: 'finished' },
-        ],
-      },
-      {
-        key: 'bom-auto-purchase-qty',
-        label: '物料清单自动设置采购数',
-        type: 'switch',
-        value: true,
-      },
-    ],
-  },
-  {
-    key: 'mobile',
-    title: '移动端与可见性',
-    items: [
-      { key: 'hide-app-stat', label: '隐藏APP个人统计模块', type: 'switch', value: false },
-      {
-        key: 'hide-app-salary-complete',
-        label: 'APP薪资明细不显示已结算薪资的单价和金额',
-        type: 'switch',
-        value: true,
-      },
-      {
-        key: 'notify-quantity-change',
-        label: '发送登记数量更改通知',
-        type: 'switch',
-        value: true,
-      },
-    ],
-  },
-  {
-    key: 'material',
-    title: '物料设置',
-    items: [
-      { key: 'only-reference-material', label: '仅引用物料档案', type: 'switch', value: false },
-      {
-        key: 'default-process-type',
-        label: '物料自动出仓默认加工类型',
-        type: 'select',
-        value: '外发加工',
-        options: [
-          { label: '内加工', value: '内加工' },
-          { label: '外发加工', value: '外发加工' },
-        ],
-      },
-      {
-        key: 'factory-progress-ref',
-        label: '工厂订单百分比进度参照裁剪数量',
-        type: 'switch',
-        value: true,
-      },
-      {
-        key: 'factory-material-follow',
-        label: '工厂订单显示物料跟进节点',
-        type: 'switch',
-        value: true,
-      },
-      {
-        key: 'material-follow-precut',
-        label: '物料跟进节点预裁数取值方式',
-        type: 'select',
-        value: 'cutting-plan',
-        options: [
-          { label: '裁剪计划数', value: 'cutting-plan' },
-          { label: '仓库发料数', value: 'warehouse-issued' },
-        ],
-      },
-      { key: 'workflow-ordering', label: '按流程下板下订单', type: 'switch', value: false },
-    ],
-  },
-  {
-    key: 'workshop',
-    title: '车间计件',
-    items: [
-      {
-        key: 'piecework-progress-sync',
-        label: '车间扫码完成后同步进度',
-        type: 'switch',
-        value: true,
-      },
-      {
-        key: 'piecework-auto-close',
-        label: '达到计件阈值自动完结',
-        type: 'switch',
-        value: false,
-      },
-      {
-        key: 'piecework-hide-finished',
-        label: '车间端隐藏已完成工序',
-        type: 'switch',
-        value: true,
-      },
-    ],
-  },
-];
+const clonePreferenceGroups = (): PreferenceGroup[] =>
+  preferenceGroupTemplates.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item })),
+  }));
 
-let usersStore: UserAccount[] = [
-  {
-    id: 'user-001',
-    avatar: 'https://i.pravatar.cc/80?u=user-001',
-    name: '张敏',
-    username: 'zhangmin',
-    phone: '13856981208',
-    role: '系统管理员',
-    status: 'active',
-    createdAt: '2024-06-12 10:25',
-  },
-  {
-    id: 'user-002',
-    avatar: 'https://i.pravatar.cc/80?u=user-002',
-    name: '李倩',
-    username: 'li.qian',
-    phone: '13856984567',
-    role: '生产计划',
-    status: 'active',
-    createdAt: '2024-07-02 13:16',
-  },
-  {
-    id: 'user-003',
-    avatar: 'https://i.pravatar.cc/80?u=user-003',
-    name: '王磊',
-    username: 'wanglei',
-    phone: '13917890023',
-    role: '质检主管',
-    status: 'inactive',
-    createdAt: '2024-07-28 09:48',
-  },
-  {
-    id: 'user-004',
-    avatar: 'https://i.pravatar.cc/80?u=user-004',
-    name: '陈晨',
-    username: 'chenchen',
-    phone: '13678903210',
-    role: '采购专员',
-    status: 'active',
-    createdAt: '2024-08-18 15:02',
-  },
-  {
-    id: 'user-005',
-    avatar: 'https://i.pravatar.cc/80?u=user-005',
-    name: '赵静',
-    username: 'zhaojing',
-    phone: '13756782345',
-    role: '财务主管',
-    status: 'pending',
-    createdAt: '2024-11-05 17:24',
-  },
-];
-
-let joinApplicationsStore: JoinApplication[] = [
-  { id: 'apply-001', name: '刘青', phone: '13900001111', status: 'pending', appliedAt: '2025-03-12 09:36' },
-  { id: 'apply-002', name: '孙明', phone: '13722223333', status: 'approved', appliedAt: '2025-03-08 14:12', handledAt: '2025-03-08 15:20' },
-  { id: 'apply-003', name: '周萍', phone: '13666667777', status: 'rejected', appliedAt: '2025-03-06 10:45', handledAt: '2025-03-06 11:02' },
-];
-
-let credentialStore: CredentialItem[] = [
-  {
-    id: 'cred-001',
-    userId: 'user-001',
-    userName: '张敏',
-    secretId: 'AKID5678XZ',
-    secretKey: 'sk-8123-3891-XYZA',
-    createdAt: '2025-02-28 09:36',
-  },
-];
+const preferenceGroupsStore: PreferenceGroup[] = clonePreferenceGroups();
 
 const findTenant = (tenantId: string): TenantSummary | undefined =>
   companyOverviewStore.tenants.find((tenant) => tenant.id === tenantId);
@@ -428,27 +229,6 @@ export const resetUserPassword = async (): Promise<boolean> => {
 export const fetchCompanyOverview = async (): Promise<CompanyOverview> => {
   await wait();
   return clone(companyOverviewStore);
-};
-
-export const inviteCompanyMember = async (payload: InviteMemberPayload): Promise<boolean> => {
-  await wait();
-  joinApplicationsStore = [
-    {
-      id: `apply-${Date.now()}`,
-      name: payload.remark || `待实名-${payload.phone.slice(-4)}`,
-      phone: payload.phone,
-      status: 'pending',
-      appliedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-    },
-    ...joinApplicationsStore,
-  ];
-  return true;
-};
-
-export const transferCompany = async (payload: TransferTenantPayload): Promise<boolean> => {
-  await wait();
-  void payload;
-  return true;
 };
 
 export const switchTenant = async (tenantId: string): Promise<CompanyOverview> => {
@@ -621,170 +401,4 @@ export const updatePreference = async (payload: UpdatePreferencePayload): Promis
       : pref,
   );
   return true;
-};
-
-const filterUsers = (query: UserListQuery): UserAccount[] => {
-  const { keyword, status } = query;
-  let data = usersStore;
-  if (keyword) {
-    const lower = keyword.toLowerCase();
-    data = data.filter(
-      (user) =>
-        user.name.toLowerCase().includes(lower) ||
-        user.username.toLowerCase().includes(lower) ||
-        user.phone.includes(keyword),
-    );
-  }
-  if (status && status !== 'all') {
-    data = data.filter((user) => user.status === status);
-  }
-  return data;
-};
-
-export const listUsers = async (query: UserListQuery = {}): Promise<Paginated<UserAccount>> => {
-  await wait();
-  const page = query.page ?? 1;
-  const pageSize = query.pageSize ?? 10;
-  const filtered = filterUsers(query);
-  const start = (page - 1) * pageSize;
-  const end = start + pageSize;
-  return {
-    list: clone(filtered.slice(start, end)),
-    total: filtered.length,
-  };
-};
-
-export const createUser = async (payload: CreateUserPayload): Promise<UserAccount> => {
-  await wait();
-  const next: UserAccount = {
-    id: `user-${Date.now()}`,
-    avatar: `https://i.pravatar.cc/80?u=${payload.username}`,
-    status: 'active',
-    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-    ...payload,
-  };
-  usersStore = [next, ...usersStore];
-  return clone(next);
-};
-
-export const updateUser = async (id: string, payload: UpdateUserPayload): Promise<UserAccount | undefined> => {
-  await wait();
-  const index = usersStore.findIndex((user) => user.id === id);
-  if (index === -1) {
-    return undefined;
-  }
-  const updated: UserAccount = {
-    ...usersStore[index],
-    ...payload,
-  };
-  usersStore[index] = updated;
-  return clone(updated);
-};
-
-export const removeUser = async (id: string): Promise<boolean> => {
-  await wait();
-  const before = usersStore.length;
-  usersStore = usersStore.filter((user) => user.id !== id);
-  return before !== usersStore.length;
-};
-
-export const bulkAssignRole = async (payload: BulkAssignRolePayload): Promise<number> => {
-  await wait();
-  let affected = 0;
-  usersStore = usersStore.map((user) => {
-    if (payload.userIds.includes(user.id)) {
-      affected += 1;
-      return {
-        ...user,
-        role: payload.role,
-      };
-    }
-    return user;
-  });
-  return affected;
-};
-
-export const exportUsers = async (): Promise<Blob> => {
-  await wait();
-  const header = '用户名,登录账号,手机号,岗位,状态,创建时间\n';
-  const rows = usersStore
-    .map((user) => `${user.name},${user.username},${user.phone},${user.role},${user.status},${user.createdAt}`)
-    .join('\n');
-  return new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
-};
-
-export const listJoinApplications = async (
-  query: Partial<{ keyword: string; status: JoinApplicationStatus | 'all' }> = {},
-): Promise<JoinApplication[]> => {
-  await wait();
-  const { keyword, status } = query;
-  let data = joinApplicationsStore;
-  if (keyword) {
-    const lower = keyword.toLowerCase();
-    data = data.filter(
-      (item) => item.name.toLowerCase().includes(lower) || item.phone.includes(keyword),
-    );
-  }
-  if (status && status !== 'all') {
-    data = data.filter((item) => item.status === status);
-  }
-  return clone(data);
-};
-
-export const approveJoinApplication = async (id: string): Promise<boolean> => {
-  await wait();
-  const target = joinApplicationsStore.find((item) => item.id === id);
-  if (!target || target.status !== 'pending') {
-    return false;
-  }
-  target.status = 'approved';
-  target.handledAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
-  return true;
-};
-
-export const rejectJoinApplication = async (id: string): Promise<boolean> => {
-  await wait();
-  const target = joinApplicationsStore.find((item) => item.id === id);
-  if (!target || target.status !== 'pending') {
-    return false;
-  }
-  target.status = 'rejected';
-  target.handledAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
-  return true;
-};
-
-export const listCredentials = async (): Promise<CredentialItem[]> => {
-  await wait();
-  return clone(credentialStore);
-};
-
-const randomString = (length: number) => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  let result = '';
-  for (let i = 0; i < length; i += 1) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-};
-
-export const createCredential = async (payload: CreateCredentialPayload): Promise<CredentialItem> => {
-  await wait();
-  const user = usersStore.find((item) => item.id === payload.userId);
-  const next: CredentialItem = {
-    id: `cred-${Date.now()}`,
-    userId: payload.userId,
-    userName: user?.name ?? '未知用户',
-    secretId: `AKID${randomString(8)}`,
-    secretKey: `sk-${randomString(4)}-${randomString(4)}-${randomString(4)}`,
-    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-  };
-  credentialStore = [next, ...credentialStore];
-  return clone(next);
-};
-
-export const removeCredential = async (id: string): Promise<boolean> => {
-  await wait();
-  const before = credentialStore.length;
-  credentialStore = credentialStore.filter((item) => item.id !== id);
-  return before !== credentialStore.length;
 };

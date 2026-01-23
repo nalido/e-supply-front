@@ -12,6 +12,10 @@ export interface DeliveryItem {
   qty: number;
   type?: string;
   image?: string;
+  price?: number;
+  amount?: number;
+  status?: string;
+  remark?: string;
 }
 
 /**

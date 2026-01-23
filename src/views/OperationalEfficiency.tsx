@@ -26,7 +26,7 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { operationalEfficiencyService } from '../api/mock';
+import { operationalEfficiencyService } from '../api/operational-efficiency';
 import type {
   OperationalEfficiencyListItem,
   OperationalEfficiencyMeta,
@@ -351,7 +351,7 @@ const OperationalEfficiency = () => {
   ], [defaultUpdatingId, handleDefaultChange, handleDelete, handleEdit, page, pageSize]);
 
   return (
-    <Card title="作业时效模板" bodyStyle={{ padding: 24 }}>
+    <Card title="作业时效模板" styles={{ body: { padding: 24 } }}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <Space size={8} wrap>
@@ -394,7 +394,7 @@ const OperationalEfficiency = () => {
         onCancel={closeModal}
         onOk={handleSubmit}
         confirmLoading={modalState.submitting}
-        destroyOnClose
+        destroyOnHidden
         width={720}
       >
         <Form form={form} layout="vertical">
