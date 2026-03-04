@@ -55,7 +55,13 @@ jobs:
 
       - name: Install aliyun cli
         run: |
-          curl -fsSL https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz -o aliyun.tgz
+          ARCH="$(uname -m)"
+          if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            CLI_URL="https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-arm64.tgz"
+          else
+            CLI_URL="https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz"
+          fi
+          curl -fsSL "$CLI_URL" -o aliyun.tgz
           tar -xzf aliyun.tgz
           sudo mv aliyun /usr/local/bin/aliyun
 
