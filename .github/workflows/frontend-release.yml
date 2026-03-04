@@ -48,7 +48,11 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          test -n "$VITE_CLERK_PUBLISHABLE_KEY"
+          npm run build
 
       - name: Pack dist
         run: tar -czf e-supply-front.tgz -C dist .
