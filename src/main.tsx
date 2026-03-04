@@ -16,7 +16,12 @@ if (!publishableKey) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={publishableKey} afterSignOutUrl="/">
+    <ClerkProvider
+      publishableKey={publishableKey}
+      afterSignOutUrl="/"
+      signInForceRedirectUrl="/dashboard/workplace"
+      signInFallbackRedirectUrl="/dashboard/workplace"
+    >
       <ConfigProvider
         locale={zhCN}
         theme={{

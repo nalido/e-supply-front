@@ -34,6 +34,7 @@ export type FinishedGoodsPendingReceiptRecord = {
   color: string;
   size: string;
   sku: string;
+  unitPrice?: number;
   orderedQty: number;
   producedQty: number;
   pendingQty: number;
@@ -64,6 +65,7 @@ export type FinishedGoodsPendingReceiptMeta = {
 export type FinishedGoodsPendingReceiptReceiveItem = {
   id: string;
   receiptQty: number;
+  unitPrice?: number;
 };
 
 export type FinishedGoodsPendingReceiptReceivePayload = {

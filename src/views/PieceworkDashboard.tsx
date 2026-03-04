@@ -215,9 +215,7 @@ const PieceworkDashboard = () => {
       title: '订单号',
       dataIndex: 'orderNo',
       key: 'orderNo',
-      render: (value: string) => (
-        <Typography.Link onClick={() => {}}>{value}</Typography.Link>
-      ),
+      render: (value: string) => <Text>{value}</Text>,
     },
     {
       title: '客户',

@@ -79,7 +79,7 @@ const SampleType: React.FC = () => {
   // 删除类型
   const handleDelete = async (record: SampleTypeItem) => {
     try {
-      await sampleSettingsApi.sampleTypes.delete(record.id);
+      await sampleSettingsApi.sampleTypes.delete(Number(record.id));
       message.success('删除成功');
       loadData();
     } catch {
@@ -94,7 +94,7 @@ const SampleType: React.FC = () => {
       setModalLoading(true);
       
       if (editingRecord) {
-        await sampleSettingsApi.sampleTypes.update(editingRecord.id, values);
+        await sampleSettingsApi.sampleTypes.update(Number(editingRecord.id), values);
         message.success('更新成功');
       } else {
         await sampleSettingsApi.sampleTypes.create(values);

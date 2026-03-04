@@ -22,7 +22,6 @@ import type { MenuProps } from 'antd';
 import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
-  PrinterOutlined,
   ReloadOutlined,
   SettingOutlined,
   SnippetsOutlined,
@@ -323,7 +322,6 @@ const OutsourceOrders = () => {
           <Button type="link" onClick={() => openReceiptModal([record.id])}>
             确认收货
           </Button>
-          <Button type="link" icon={<PrinterOutlined />} onClick={() => message.info('已生成打印任务')}>打印</Button>
         </Space>
       ),
     },

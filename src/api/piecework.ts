@@ -362,7 +362,7 @@ const adaptWorkshopProgress = (
   orders: payload.orders ?? [],
   total: payload.total ?? (payload.orders?.length ?? 0),
   page: (payload.page ?? Math.max(fallbackPage - 1, 0)) + 1,
-  pageSize: payload.size ?? fallbackSize,
+  pageSize: payload.pageSize ?? fallbackSize,
 });
 
 const adaptQualityRecord = (payload: QualityRecordPayload): QualityControlRecord => ({

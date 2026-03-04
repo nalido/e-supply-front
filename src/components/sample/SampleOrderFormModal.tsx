@@ -84,6 +84,7 @@ interface SampleOrderFormModalProps {
   visible: boolean;
   mode?: 'create' | 'edit';
   orderId?: string;
+  initialStyle?: StyleData;
   onCancel: () => void;
   onOk: (result: { mode: 'create' | 'edit'; orderId?: string }) => void;
   initialSection?: SampleOrderFormSection;
@@ -96,6 +97,7 @@ interface SampleOrderFormValues {
   unit: string;
   orderNo?: string;
   sampleTypeId?: string;
+  followTemplateId?: string;
   customerId?: string;
   patternPrice?: number;
   orderDate?: Dayjs;
@@ -673,6 +675,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   visible,
   mode = 'create',
   orderId,
+  initialStyle,
   onCancel,
   onOk,
   initialSection,
@@ -1011,6 +1014,33 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           }
         } else {
           resetForm();
+          if (initialStyle) {
+            const initialColors = initialStyle.colors?.length ? initialStyle.colors : [];
+            const initialSizes = initialStyle.sizes?.length ? initialStyle.sizes : [];
+            setColors(initialColors);
+            setSizes(initialSizes);
+            setMatrix(buildQuantityMatrix(initialColors, initialSizes));
+            const presetValues: Partial<SampleOrderFormValues> = {
+              styleId: initialStyle.id,
+              styleCode: initialStyle.styleNo,
+              styleName: initialStyle.styleName,
+            };
+            if (initialStyle.defaultUnit) {
+              presetValues.unit = initialStyle.defaultUnit;
+            }
+            form.setFieldsValue(presetValues);
+            if (initialStyle.image) {
+              setAttachments([
+                {
+                  id: generateId(),
+                  url: initialStyle.image,
+                  name: initialStyle.styleName ? `${initialStyle.styleName}主图` : extractFileNameFromUrl(initialStyle.image),
+                  isMain: true,
+                  createdAt: new Date().toISOString(),
+                },
+              ]);
+            }
+          }
         }
       } catch (error) {
         console.error(error);
@@ -1027,7 +1057,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel]);
+  }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel, initialStyle, form]);
 
   useEffect(() => {
     if (!visible || isEditMode || !defaultFollowTemplateId) {
@@ -1375,11 +1405,15 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
-    form.setFieldsValue({
+    const presetValues: Partial<SampleOrderFormValues> = {
       styleId: style.id,
       styleCode: style.styleNo,
       styleName: style.styleName,
-    });
+    };
+    if (style.defaultUnit) {
+      presetValues.unit = style.defaultUnit;
+    }
+    form.setFieldsValue(presetValues);
     handleColorsUpdate(style.colors?.length ? style.colors : []);
     handleSizesUpdate(style.sizes?.length ? style.sizes : []);
     setColorImageMap({});
@@ -1402,6 +1436,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         }
         if (detail.sizes?.length) {
           handleSizesUpdate(detail.sizes);
+        }
+        if (detail.defaultUnit) {
+          form.setFieldsValue({ unit: detail.defaultUnit });
         }
         const images = detail.colorImages ?? {};
         setColorImageMap(images);

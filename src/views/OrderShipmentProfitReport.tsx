@@ -5,8 +5,10 @@ import {
   Card,
   Col,
   Collapse,
+  Descriptions,
   Grid,
   Input,
+  Modal,
   Row,
   Space,
   Table,
@@ -67,6 +69,7 @@ const OrderShipmentProfitReport = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [exporting, setExporting] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<OrderShipmentProfitRecord | null>(null);
 
   const loadAggregation = useCallback(async () => {
     setAggregationLoading(true);
@@ -228,8 +231,8 @@ const OrderShipmentProfitReport = () => {
         key: 'action',
         width: 150,
         fixed: 'right',
-        render: () => (
-          <Button type="link" onClick={() => message.info('成本明细功能将在后续版本开放')}>
+        render: (_value, record) => (
+          <Button type="link" onClick={() => setDetailRecord(record)}>
             查看成本明细
           </Button>
         ),
@@ -394,6 +397,33 @@ const OrderShipmentProfitReport = () => {
           scroll={{ x: 1200 }}
         />
       </Card>
+
+      <Modal
+        title={detailRecord ? `成本明细 - ${detailRecord.orderNumber}` : '成本明细'}
+        open={Boolean(detailRecord)}
+        footer={null}
+        onCancel={() => setDetailRecord(null)}
+        width={760}
+      >
+        {detailRecord ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="工厂订单">{detailRecord.orderNumber}</Descriptions.Item>
+              <Descriptions.Item label="客户">{detailRecord.customer || '-'}</Descriptions.Item>
+              <Descriptions.Item label="款号">{detailRecord.styleNumber || '-'}</Descriptions.Item>
+              <Descriptions.Item label="款名">{detailRecord.styleName || '-'}</Descriptions.Item>
+              <Descriptions.Item label="出货日期">{detailRecord.shipmentDate || '-'}</Descriptions.Item>
+              <Descriptions.Item label="出货数量">{renderQuantity(detailRecord.shippedQty)}</Descriptions.Item>
+            </Descriptions>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="出货金额">{renderAmount(detailRecord.shipmentAmount)}</Descriptions.Item>
+              <Descriptions.Item label="大货成本">{renderAmount(detailRecord.cost)}</Descriptions.Item>
+              <Descriptions.Item label="利润总额">{renderAmount(detailRecord.profit)}</Descriptions.Item>
+              <Descriptions.Item label="利润率">{renderMargin(detailRecord.profitMargin)}</Descriptions.Item>
+            </Descriptions>
+          </Space>
+        ) : null}
+      </Modal>
     </Space>
   );
 };

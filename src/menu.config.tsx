@@ -158,7 +158,6 @@ export const menuTree: MenuNode[] = [
       },
     ],
   },
-  { key: '/appstore', icon: <AppstoreOutlined />, label: <Link to="/appstore">应用商店</Link> },
   {
     key: '/basic',
     icon: <AppstoreOutlined />,

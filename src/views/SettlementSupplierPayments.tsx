@@ -245,12 +245,6 @@ const SettlementSupplierPayments = () => {
           <Button type="link" onClick={() => openPaymentModal(record.supplierId)}>
             付款
           </Button>
-          <Button
-            type="link"
-            onClick={() => message.info('供应商对账单将在真实接口接入后提供')}
-          >
-            查看对账单
-          </Button>
         </Space>
       ),
     },

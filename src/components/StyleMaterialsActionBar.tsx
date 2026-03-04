@@ -7,8 +7,8 @@ type StyleMaterialsActionBarProps = {
   onKeywordChange: (value: string) => void;
   onSubmit: () => void;
   onNew: () => void;
-  onImport: () => void;
-  onExport: () => void;
+  onImport?: () => void;
+  onExport?: () => void;
 };
 
 const StyleMaterialsActionBar = ({
@@ -26,12 +26,16 @@ const StyleMaterialsActionBar = ({
         <Button type="primary" icon={<PlusOutlined />} onClick={onNew}>
           新建
         </Button>
-        <Button icon={<ImportOutlined />} onClick={onImport}>
-          导入
-        </Button>
-        <Button icon={<ExportOutlined />} onClick={onExport}>
-          导出
-        </Button>
+        {onImport ? (
+          <Button icon={<ImportOutlined />} onClick={onImport}>
+            导入
+          </Button>
+        ) : null}
+        {onExport ? (
+          <Button icon={<ExportOutlined />} onClick={onExport}>
+            导出
+          </Button>
+        ) : null}
       </Space>
       <Input.Search
         className="style-action-bar__search"

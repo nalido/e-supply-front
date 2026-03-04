@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, Key } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import type { SorterResult, SortOrder, TablePaginationConfig } from 'antd/es/table/interface';
+import type { SorterResult, TablePaginationConfig } from 'antd/es/table/interface';
 import {
   Avatar,
   Button,
@@ -64,9 +64,11 @@ const formatPercent = (value: number): string => PERCENT_FORMATTER.format(value 
 
 type SortField = 'owedQty' | 'completionRate' | 'defectRate';
 
+type ActiveSortOrder = 'ascend' | 'descend';
+
 type SortState = {
   field?: SortField;
-  order?: SortOrder;
+  order?: ActiveSortOrder;
 };
 
 type OrderStatusFilter = OutsourcingOrderStatus | '全部';
@@ -161,7 +163,7 @@ const OutsourcingProductionReport = () => {
       processTypeValue?: string | undefined;
       orderStatusValue?: OrderStatusFilter;
       sortField?: SortField;
-      sortOrder?: SortOrder;
+      sortOrder?: ActiveSortOrder;
     } = {},
   ) => {
     const nextPage = overrides.page ?? page;
@@ -266,7 +268,7 @@ const OutsourcingProductionReport = () => {
       const enabledFields: SortField[] = ['owedQty', 'completionRate', 'defectRate'];
       if (enabledFields.includes(candidate as SortField)) {
         const field = candidate as SortField;
-        const order = sorter.order ?? undefined;
+        const order = sorter.order === 'ascend' || sorter.order === 'descend' ? sorter.order : undefined;
         commitParams({
           page: current,
           pageSize: size,
@@ -289,7 +291,7 @@ const OutsourcingProductionReport = () => {
   }, [stats, subcontractorSearch]);
 
   const columns: ColumnsType<OutsourcingProductionReportListItem> = useMemo(() => {
-    const sortOrderFor = (field: SortField): SortOrder | undefined =>
+    const sortOrderFor = (field: SortField): ActiveSortOrder | undefined =>
       sortState.field === field ? sortState.order : undefined;
 
     return [

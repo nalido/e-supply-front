@@ -255,7 +255,7 @@ const ProcessTypePage = () => {
 
   const handleSubmitForm = async () => {
     try {
-      const values = await form.validateFields<ProcessTypeFormValues>();
+      const values = (await form.validateFields()) as ProcessTypeFormValues;
       setFormModal((prev) => ({ ...prev, submitting: true }));
       const payload: CreateProcessTypePayload = {
         name: values.name,

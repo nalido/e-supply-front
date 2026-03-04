@@ -6,6 +6,7 @@ import StyleMaterialsActionBar from '../components/StyleMaterialsActionBar';
 import { stylesApi } from '../api/styles';
 import type { PaginatedStyleData, StyleData } from '../types/style';
 import { useNavigate } from 'react-router-dom';
+import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import '../styles/style-materials.css';
 
 type PageState = {
@@ -39,6 +40,8 @@ const StyleMaterials = () => {
   const currentPageSize = pageState.pageSize;
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [sampleModalVisible, setSampleModalVisible] = useState(false);
+  const [sampleStyle, setSampleStyle] = useState<StyleData | undefined>(undefined);
 
   const debouncedKeyword = useDebouncedValue(keyword, 300);
 
@@ -73,12 +76,18 @@ const StyleMaterials = () => {
   }, []);
 
   const handleSample = useCallback((styleId: string) => {
-    message.info(`打板操作：${styleId}`);
-  }, []);
+    const style = records.find((item) => item.id === styleId);
+    if (!style) {
+      message.warning('未找到对应款式，请刷新后重试');
+      return;
+    }
+    setSampleStyle(style);
+    setSampleModalVisible(true);
+  }, [records]);
 
   const handleProduction = useCallback((styleId: string) => {
-    message.info(`下大货操作：${styleId}`);
-  }, []);
+    navigate(`/orders/factory?quickCreate=1&styleId=${encodeURIComponent(styleId)}`);
+  }, [navigate]);
 
   const handleEdit = useCallback(
     (style: StyleData) => {
@@ -118,17 +127,19 @@ const StyleMaterials = () => {
     navigate('/foundation/product/detail');
   }, [navigate]);
 
-  const handleImport = useCallback(() => {
-    message.info('导入功能开发中');
-  }, []);
-
-  const handleExport = useCallback(() => {
-    message.info('导出功能开发中');
-  }, []);
-
-  const handlePageChange: PaginationProps['onChange'] = useCallback((page, pageSize) => {
+  const handlePageChange: PaginationProps['onChange'] = useCallback((page: number, pageSize: number) => {
     fetchList(page, pageSize, keyword.trim());
   }, [fetchList, keyword]);
+
+  const handleSampleModalCancel = useCallback(() => {
+    setSampleModalVisible(false);
+    setSampleStyle(undefined);
+  }, []);
+
+  const handleSampleModalOk = useCallback(() => {
+    setSampleModalVisible(false);
+    setSampleStyle(undefined);
+  }, []);
 
   const emptyText = useMemo(() => (keyword.trim() ? '没有找到匹配的款式' : '暂无款式数据'), [keyword]);
 
@@ -140,8 +151,6 @@ const StyleMaterials = () => {
         onKeywordChange={handleKeywordChange}
         onSubmit={handleSubmitSearch}
         onNew={handleNew}
-        onImport={handleImport}
-        onExport={handleExport}
       />
       <Spin spinning={loading} tip="加载中...">
         <div className="style-grid">
@@ -171,6 +180,13 @@ const StyleMaterials = () => {
           onShowSizeChange={handlePageChange}
         />
       </div>
+      <SampleOrderFormModal
+        visible={sampleModalVisible}
+        mode="create"
+        initialStyle={sampleStyle}
+        onCancel={handleSampleModalCancel}
+        onOk={handleSampleModalOk}
+      />
     </div>
   );
 };

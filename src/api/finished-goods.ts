@@ -115,7 +115,11 @@ export const finishedGoodsPendingReceiptService = {
       {
         warehouseId: toNumber(payload.warehouseId),
         remark: payload.remark,
-        items: payload.items.map((item) => ({ id: item.id, receiptQty: item.receiptQty })),
+        items: payload.items.map((item) => ({
+          id: item.id,
+          receiptQty: item.receiptQty,
+          unitPrice: item.unitPrice,
+        })),
       },
       { params: { tenantId } },
     );

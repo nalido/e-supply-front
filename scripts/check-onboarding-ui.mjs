@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({headless:true});
+const context = await browser.newContext({ignoreHTTPSErrors:true});
+const page = await context.newPage();
+await page.goto('http://115.29.200.124/onboarding/register-enterprise',{waitUntil:'domcontentloaded',timeout:60000});
+await page.waitForTimeout(1500);
+const hasModeLabel = await page.getByText('管理员创建模式').count();
+const hasExisting = await page.getByText('使用当前已登录 Clerk 账号作为管理员').count();
+const hasCreate = await page.getByText('创建新的 Clerk 管理员账号').count();
+const hasHint = await page.getByText('将创建新的 Clerk 管理员账号。').count();
+await page.screenshot({path:'logs/onboarding-ui-check.png',fullPage:true});
+console.log(JSON.stringify({url:page.url(),hasModeLabel,hasExisting,hasCreate,hasHint},null,2));
+await browser.close();

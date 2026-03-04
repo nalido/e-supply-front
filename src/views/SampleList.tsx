@@ -27,6 +27,7 @@ import type { FilterValue, SorterResult } from 'antd/es/table/interface';
 import type { MenuProps } from 'antd';
 import {
   AppstoreOutlined,
+  CheckCircleOutlined,
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -37,6 +38,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   ShoppingCartOutlined,
+  StopOutlined,
   TableOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -109,6 +111,17 @@ type SortState = {
   field: SortableField;
   order: SortOrderType;
 } | null;
+
+type StatusAction = {
+  key: string;
+  label: string;
+  icon?: React.ReactNode;
+  targetStatus: SampleStatus;
+  note: string;
+  confirmTitle?: string;
+  confirmOkText?: string;
+  successMessage: (orderNo: string) => string;
+};
 
 const SORTABLE_FIELDS: SortableField[] = [
   'orderNo',
@@ -252,6 +265,77 @@ const CARD_MEDIA_STYLE: CSSProperties = {
   overflow: 'hidden',
 };
 
+const STATUS_ACTIONS: Record<SampleStatus, StatusAction[]> = {
+  [SampleStatusEnum.PENDING]: [
+    {
+      key: 'confirm',
+      label: '确认',
+      icon: <CheckCircleOutlined />,
+      targetStatus: SampleStatusEnum.CONFIRMED,
+      note: '样板单确认',
+      confirmTitle: '确认将该样板单状态更新为“已确认”吗？',
+      confirmOkText: '确认',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已确认`,
+    },
+    {
+      key: 'cancel',
+      label: '取消',
+      icon: <StopOutlined />,
+      targetStatus: SampleStatusEnum.CANCELLED,
+      note: '取消样板单',
+      confirmTitle: '确认取消该样板单吗？',
+      confirmOkText: '确认取消',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已取消`,
+    },
+  ],
+  [SampleStatusEnum.CONFIRMED]: [
+    {
+      key: 'produce',
+      label: '下大货',
+      icon: <ShoppingCartOutlined />,
+      targetStatus: SampleStatusEnum.PRODUCING,
+      note: '转大货生产',
+      confirmTitle: '确认将该样板单转为“生产中”吗？',
+      confirmOkText: '确认',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已进入大货生产`,
+    },
+    {
+      key: 'cancel',
+      label: '取消',
+      icon: <StopOutlined />,
+      targetStatus: SampleStatusEnum.CANCELLED,
+      note: '取消样板单',
+      confirmTitle: '确认取消该样板单吗？',
+      confirmOkText: '确认取消',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已取消`,
+    },
+  ],
+  [SampleStatusEnum.PRODUCING]: [
+    {
+      key: 'complete',
+      label: '完成',
+      icon: <CheckCircleOutlined />,
+      targetStatus: SampleStatusEnum.COMPLETED,
+      note: '样板单完成',
+      confirmTitle: '确认将该样板单标记为“已完成”吗？',
+      confirmOkText: '确认完成',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已完成`,
+    },
+    {
+      key: 'cancel',
+      label: '取消',
+      icon: <StopOutlined />,
+      targetStatus: SampleStatusEnum.CANCELLED,
+      note: '取消样板单',
+      confirmTitle: '确认取消该样板单吗？',
+      confirmOkText: '确认取消',
+      successMessage: (orderNo) => `样板单 ${orderNo} 已取消`,
+    },
+  ],
+  [SampleStatusEnum.COMPLETED]: [],
+  [SampleStatusEnum.CANCELLED]: [],
+};
+
 const CARD_INFO_STYLE: CSSProperties = {
   flex: 1,
   display: 'flex',
@@ -368,6 +452,7 @@ const SampleList: React.FC = () => {
   const [creationMeta, setCreationMeta] = useState<SampleCreationMeta | null>(null);
   const [editingNode, setEditingNode] = useState<{ order: SampleOrder; node: SampleFollowProgressNode } | null>(null);
   const [nodeModalLoading, setNodeModalLoading] = useState(false);
+  const [statusLoadingOrderId, setStatusLoadingOrderId] = useState<string | null>(null);
   useEffect(() => {
     let mounted = true;
     sampleOrderApi
@@ -689,26 +774,42 @@ const SampleList: React.FC = () => {
     }
   }, [loadData, loadStats]);
 
-  const handleBulkOrder = useCallback(
-    (order: SampleOrder) => {
-      Modal.confirm({
-        title: `确认将样板单「${order.orderNo}」转为大货生产吗？`,
-        okText: '确认',
-        cancelText: '取消',
-        onOk: async () => {
-          try {
-            await sampleOrderApi.updateStatus(order.id, SampleStatusEnum.PRODUCING, '转大货生产');
-            message.success(`样板单 ${order.orderNo} 已进入大货生产`);
-            void loadData();
-            void loadStats();
-          } catch (error) {
-            console.error('Failed to update sample order status', error);
-            message.error('操作失败，请稍后重试');
-          }
-        },
-      });
+  const handleStatusChange = useCallback(
+    async (order: SampleOrder, action: StatusAction) => {
+      if (statusLoadingOrderId) {
+        return;
+      }
+      setStatusLoadingOrderId(order.id);
+      try {
+        await sampleOrderApi.updateStatus(order.id, action.targetStatus, action.note);
+        message.success(action.successMessage(order.orderNo));
+        void loadData();
+        void loadStats();
+      } catch (error) {
+        console.error('Failed to update sample order status', error);
+        message.error('操作失败，请稍后重试');
+      } finally {
+        setStatusLoadingOrderId(null);
+      }
     },
-    [loadData, loadStats],
+    [loadData, loadStats, statusLoadingOrderId],
+  );
+
+  const handleStatusAction = useCallback(
+    (order: SampleOrder, action: StatusAction) => {
+      const execute = () => handleStatusChange(order, action);
+      if (action.confirmTitle) {
+        Modal.confirm({
+          title: action.confirmTitle,
+          okText: action.confirmOkText ?? '确认',
+          cancelText: '取消',
+          onOk: execute,
+        });
+        return;
+      }
+      void execute();
+    },
+    [handleStatusChange],
   );
 
   const handleDelete = useCallback(async (order: SampleOrder) => {
@@ -841,6 +942,17 @@ const SampleList: React.FC = () => {
               onClick={() => handleEdit(record)}
             />
           </Tooltip>
+          {STATUS_ACTIONS[record.status]?.map((action) => (
+            <Tooltip key={action.key} title={action.label}>
+              <Button
+                type="text"
+                size="small"
+                icon={action.icon}
+                loading={statusLoadingOrderId === record.id}
+                onClick={() => handleStatusAction(record, action)}
+              />
+            </Tooltip>
+          ))}
           <Popconfirm
             title="确认删除该样板单？"
             onConfirm={() => handleDelete(record)}
@@ -857,7 +969,7 @@ const SampleList: React.FC = () => {
         </Space>
       ),
     },
-  ], [handleDelete, handleEdit, handleView, handleProgressNodeClick, sortState]);
+  ], [handleDelete, handleEdit, handleStatusAction, handleView, handleProgressNodeClick, sortState, statusLoadingOrderId]);
 
 
   const viewOptions = useMemo(() => [
@@ -867,15 +979,25 @@ const SampleList: React.FC = () => {
 
   const renderCard = useCallback((order: SampleOrder) => {
     const overdue = dayjs(order.deadline).isBefore(dayjs(), 'day');
+    const statusMenuItems = STATUS_ACTIONS[order.status].map((action) => ({
+      key: action.key,
+      label: action.label,
+      icon: action.icon,
+    }));
     const menu: MenuProps = {
       items: [
+        ...statusMenuItems,
+        ...(statusMenuItems.length > 0 ? [{ type: 'divider' as const }] : []),
         { key: 'view', label: '查看详情' },
         { key: 'edit', label: '编辑' },
         { key: 'delete', label: <span style={{ color: '#ff4d4f' }}>删除</span> },
       ],
       onClick: ({ key, domEvent }) => {
         domEvent?.stopPropagation();
-        if (key === 'view') {
+        const action = STATUS_ACTIONS[order.status].find((item) => item.key === key);
+        if (action) {
+          handleStatusAction(order, action);
+        } else if (key === 'view') {
           handleView(order);
         } else if (key === 'edit') {
           handleEdit(order);
@@ -945,18 +1067,22 @@ const SampleList: React.FC = () => {
               </div>
             </div>
             <div style={CARD_FOOTER_STYLE}>
-              <Space>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<ShoppingCartOutlined />}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleBulkOrder(order);
-                  }}
-                >
-                  下大货
-                </Button>
+              <Space wrap>
+                {STATUS_ACTIONS[order.status].map((action, index) => (
+                  <Button
+                    key={action.key}
+                    type={index === 0 ? 'primary' : 'default'}
+                    size="small"
+                    icon={action.icon}
+                    loading={statusLoadingOrderId === order.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleStatusAction(order, action);
+                    }}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
                 <Button
                   size="small"
                   icon={<CopyOutlined />}
@@ -980,7 +1106,7 @@ const SampleList: React.FC = () => {
         </div>
       </Card>
     );
-  }, [handleBulkOrder, handleCopy, handleDelete, handleEdit, handleView]);
+  }, [handleCopy, handleDelete, handleEdit, handleStatusAction, handleView, statusLoadingOrderId]);
 
   return (
     <div style={{ padding: '0 24px 24px' }}>
@@ -1106,7 +1232,13 @@ const SampleList: React.FC = () => {
                 </List.Item>
               )}
               pagination={{
-                ...pagination,
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                showSizeChanger: pagination.showSizeChanger,
+                showQuickJumper: pagination.showQuickJumper,
+                pageSizeOptions: pagination.pageSizeOptions,
+                showTotal: pagination.showTotal,
                 onChange: handlePaginationChange,
                 onShowSizeChange: handlePaginationChange,
               }}

@@ -17,7 +17,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import type { CheckboxValueType } from 'antd/es/checkbox/Group';
+import type { CheckboxChangeEvent } from 'antd/es/checkbox/Checkbox';
 import { DeleteOutlined, DownloadOutlined, EditOutlined, FlagOutlined, PrinterOutlined } from '@ant-design/icons';
 import { finishedGoodsDispatchService, finishedGoodsOutboundService } from '../api/finished-goods';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -167,11 +167,11 @@ const FinishedGoodsOutbound = () => {
     setSelectedRecords([]);
   }, [groupBy]);
 
-  const handleGroupingChange = (values: CheckboxValueType[]) => {
+  const handleGroupingChange = (values: Array<string | number>) => {
     setGroupBy(values as FinishedGoodsOutboundGrouping[]);
   };
 
-  const handleShowCompletedToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShowCompletedToggle = (event: CheckboxChangeEvent) => {
     setShowCompletedOrders(event.target.checked);
     setPage(1);
   };

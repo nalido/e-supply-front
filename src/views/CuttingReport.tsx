@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
-import { DatePicker, Input, Space, Table, Tag, Typography, Button, message } from 'antd';
+import { DatePicker, Input, Space, Table, Tag, Typography, Button, message, Modal, Descriptions } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import type { CuttingReportDataset, CuttingReportRecord } from '../types';
@@ -41,6 +41,7 @@ const CuttingReportPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [exporting, setExporting] = useState(false);
+  const [detailRecord, setDetailRecord] = useState<CuttingReportRecord | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,7 +241,7 @@ const CuttingReportPage = () => {
             size="small"
             onClick={(event) => {
               event.stopPropagation();
-              message.info(`查看裁床单详情：${record.orderCode} - ${record.bedNumber}`);
+              setDetailRecord(record);
             }}
           >
             查看详情
@@ -364,6 +365,56 @@ const CuttingReportPage = () => {
           )}
         />
       </section>
+
+      <Modal
+        title={detailRecord ? `裁床报表详情 - ${detailRecord.orderCode}` : '裁床报表详情'}
+        open={Boolean(detailRecord)}
+        footer={null}
+        onCancel={() => setDetailRecord(null)}
+        width={760}
+      >
+        {detailRecord ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="日期">{detailRecord.date}</Descriptions.Item>
+              <Descriptions.Item label="订单号">{detailRecord.orderCode}</Descriptions.Item>
+              <Descriptions.Item label="款号">{detailRecord.styleCode}</Descriptions.Item>
+              <Descriptions.Item label="款名">{detailRecord.styleName}</Descriptions.Item>
+              <Descriptions.Item label="床次">{detailRecord.bedNumber}</Descriptions.Item>
+              <Descriptions.Item label="裁剪人">{detailRecord.cutter}</Descriptions.Item>
+              <Descriptions.Item label="订单数量">{toNumber(detailRecord.orderQuantity)} 件</Descriptions.Item>
+              <Descriptions.Item label="裁床数量">{toNumber(detailRecord.cuttingQuantity)} 件</Descriptions.Item>
+              <Descriptions.Item label="菲票数量">{toNumber(detailRecord.ticketQuantity)} 张</Descriptions.Item>
+              <Descriptions.Item label="订单备注">{detailRecord.orderRemark ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="裁床备注" span={2}>{detailRecord.cuttingRemark ?? '-'}</Descriptions.Item>
+            </Descriptions>
+            <div>
+              <Text type="secondary">颜色明细</Text>
+              <div style={{ marginTop: 8 }}>
+                <Space size={[8, 8]} wrap>
+                  {detailRecord.colorDetails.map((detail) => (
+                    <Tag key={`${detailRecord.id}-detail-color-${detail.name}`} color="geekblue">
+                      {detail.name} {toNumber(detail.quantity)} 件
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </div>
+            <div>
+              <Text type="secondary">尺码明细</Text>
+              <div style={{ marginTop: 8 }}>
+                <Space size={[8, 8]} wrap>
+                  {detailRecord.sizeDetails.map((detail) => (
+                    <Tag key={`${detailRecord.id}-detail-size-${detail.size}`} color="purple">
+                      {detail.size}：{toNumber(detail.quantity)}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </div>
+          </Space>
+        ) : null}
+      </Modal>
     </div>
   );
 };

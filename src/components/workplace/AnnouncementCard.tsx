@@ -33,13 +33,15 @@ const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
           <Typography.Title level={5} style={{ margin: 0 }}>
             <NotificationOutlined /> 公告
           </Typography.Title>
-          <Button 
-            type="primary" 
-            size="small"
-            onClick={onPublishClick}
-          >
-            发布
-          </Button>
+          {onPublishClick ? (
+            <Button
+              type="primary"
+              size="small"
+              onClick={onPublishClick}
+            >
+              发布
+            </Button>
+          ) : null}
         </Space>
       }
       style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}

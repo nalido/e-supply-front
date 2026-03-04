@@ -22,7 +22,7 @@ export type KeywordDateFilterProps = {
   exportLabel?: string;
   extraActions?: ReactNode;
   keywordInputProps?: Partial<InputProps>;
-  rangePickerProps?: Partial<RangePickerProps<Dayjs>>;
+  rangePickerProps?: Partial<RangePickerProps>;
   cardProps?: CardProps;
 };
 

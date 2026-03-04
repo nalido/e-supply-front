@@ -245,12 +245,6 @@ const SettlementFactoryPayments = () => {
           <Button type="link" onClick={() => openPaymentModal(record.factoryId)}>
             付款
           </Button>
-          <Button
-            type="link"
-            onClick={() => message.info('加工厂对账单将在真实接口接入后提供')}
-          >
-            查看对账单
-          </Button>
         </Space>
       ),
     },

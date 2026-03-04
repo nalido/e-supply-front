@@ -27,22 +27,12 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({ quickActions 
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '16px',
-                cursor: 'pointer',
+                cursor: 'default',
                 borderRadius: '8px',
                 transition: 'all 0.3s',
                 background: '#fff'
               }}
               className="quick-action-item"
-              onMouseEnter={(e) => {
-                const target = e.currentTarget;
-                target.style.transform = 'translateY(-2px)';
-                target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                const target = e.currentTarget;
-                target.style.transform = 'translateY(0)';
-                target.style.boxShadow = 'none';
-              }}
             >
               <div 
                 className="quick-action-icon"

@@ -21,7 +21,7 @@ import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
 import { bulkCostReportService } from '../api/bulk-cost-report';
-import type { BulkCostAggregation, BulkCostOrderItem } from '../types/bulk-cost-report';
+import type { BulkCostAggregation, BulkCostDetailValue, BulkCostOrderItem } from '../types/bulk-cost-report';
 import '../styles/bulk-cost-report.css';
 import ListImage from '../components/common/ListImage';
 

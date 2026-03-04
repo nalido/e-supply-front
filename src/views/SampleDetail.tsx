@@ -28,12 +28,12 @@ import {
   DownloadOutlined,
   EditOutlined,
   FileOutlined,
-  PrinterOutlined,
   ReloadOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import type {
   SampleAttachment,
+  SampleDevelopmentCostItem,
   SampleMaterialItem,
   SampleOrderDetail,
   SampleOtherCostItem,
@@ -140,9 +140,9 @@ const SampleDetail = () => {
   }, [loadDetail]);
 
   const handleScrollTo = useCallback((section: SectionKey) => {
-    const tabSections = new Set<SectionKey>(['bom', 'process', 'size', 'other', 'attachments']);
-    if (tabSections.has(section)) {
-      setActiveDetailTab(section);
+    const tabSections = new Set<DetailTabKey>(['bom', 'process', 'size', 'other', 'attachments']);
+    if (tabSections.has(section as DetailTabKey)) {
+      setActiveDetailTab(section as DetailTabKey);
     }
     const targetId = section === 'base'
       ? SECTION_IDS.base
@@ -154,7 +154,7 @@ const SampleDetail = () => {
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, tabSections.has(section) ? 120 : 0);
+    }, tabSections.has(section as DetailTabKey) ? 120 : 0);
   }, []);
 
   const openEditModal = useCallback((section: SampleOrderFormSection = 'core') => {
@@ -329,7 +329,7 @@ const SampleDetail = () => {
     { dataIndex: 'remark', title: '备注' },
   ], []);
 
-  const developmentColumns = useMemo(() => [
+  const developmentColumns = useMemo<ColumnsType<SampleDevelopmentCostItem>>(() => [
     { dataIndex: 'name', title: '费用项目', width: 180 },
     {
       dataIndex: 'amount',
@@ -816,10 +816,6 @@ const SampleDetail = () => {
                 </Button>
               ))}
             </Space>
-            <Divider type="vertical" style={{ height: 24, margin: 0 }} />
-            <Button type="primary" icon={<PrinterOutlined />} onClick={() => message.info('即将打开打印预览')}>
-              打印
-            </Button>
           </Card>
         </Affix>
       )}

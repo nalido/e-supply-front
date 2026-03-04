@@ -245,12 +245,6 @@ const SettlementCustomerReceipts = () => {
           <Button type="link" onClick={() => openReceiptModal(record.customerId)}>
             收款
           </Button>
-          <Button
-            type="link"
-            onClick={() => message.info('客户对账单详情将在真实接口接入后提供')}
-          >
-            查看对账单
-          </Button>
         </Space>
       ),
     },

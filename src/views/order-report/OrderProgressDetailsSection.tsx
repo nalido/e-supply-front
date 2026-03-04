@@ -34,6 +34,16 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 type RangeValue = [Dayjs | null, Dayjs | null] | null;
 
+const formatRangeValue = (range: RangeValue): { startDate?: string; endDate?: string } => {
+  if (!range || !range[0] || !range[1]) {
+    return {};
+  }
+  return {
+    startDate: range[0].format('YYYY-MM-DD'),
+    endDate: range[1].format('YYYY-MM-DD'),
+  };
+};
+
 type TrendIconKey = NonNullable<OrderProgressDetailsRecord['progressTrend']>;
 
 type TrendMeta = {

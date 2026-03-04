@@ -82,7 +82,7 @@ export interface SampleQueryParams {
   customer?: string; // 客户筛选
   season?: string; // 季节筛选
   category?: string; // 品类筛选
-  priority?: string; // 优先级筛选
+  priority?: SampleOrder['priority']; // 优先级筛选
   startDate?: string; // 开始日期
   endDate?: string; // 结束日期
   page?: number;

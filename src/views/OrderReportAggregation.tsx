@@ -32,7 +32,7 @@ const OrderReportAggregation = () => {
   };
 
   const resolvedKey = useMemo(() => {
-    const keys = new Set(Object.values(TAB_KEYS));
+    const keys = new Set<string>(Object.values(TAB_KEYS));
     return keys.has(activeKey) ? activeKey : DEFAULT_KEY;
   }, [activeKey]);
 

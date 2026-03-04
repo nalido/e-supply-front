@@ -1,7 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import {
   Button,
   Card,
@@ -16,7 +15,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { DownloadOutlined, ExportOutlined, ProfileOutlined, SwapOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ExportOutlined, SwapOutlined } from '@ant-design/icons';
 import { finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
 import type {
   FinishedGoodsStockGrouping,
@@ -149,7 +148,7 @@ const FinishedGoodsStock = () => {
     setPage(1);
   };
 
-  const handleGroupingChange = (values: CheckboxValueType[]) => {
+  const handleGroupingChange = (values: Array<string | number>) => {
     setGroupBy(sanitizeGroupingValues(values as FinishedGoodsStockGrouping[]));
     setPage(1);
     setSelectedRowKeys([]);
@@ -293,7 +292,6 @@ const FinishedGoodsStock = () => {
   }, [meta]);
 
   const hasSelection = selectedRowKeys.length > 0;
-  const canShowDetails = selectedRowKeys.length === 1;
 
   const handleOutbound = () => {
     if (!hasSelection) {
@@ -321,15 +319,6 @@ const FinishedGoodsStock = () => {
     }
     setDispatchRecords(selectedRows);
     setDispatchModalOpen(true);
-  };
-
-  const handleShowDetails = () => {
-    if (!canShowDetails) {
-      return;
-    }
-    const record = selectedRows[0];
-    const title = record.sku ?? record.factoryOrderNo ?? record.customerName ?? '库存记录';
-    message.info(`${title} 的进出明细将在后续版本提供`);
   };
 
   const handleAdjustWarehouse = () => {
@@ -369,9 +358,6 @@ const FinishedGoodsStock = () => {
                 onClick={handleOutbound}
               >
                 出库
-              </Button>
-              <Button icon={<ProfileOutlined />} disabled={!canShowDetails} onClick={handleShowDetails}>
-                显示进出明细
               </Button>
               <Button icon={<SwapOutlined />} disabled={!hasSelection} onClick={handleAdjustWarehouse}>
                 调整仓库

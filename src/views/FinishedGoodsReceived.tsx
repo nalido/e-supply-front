@@ -20,6 +20,7 @@ import {
   message,
 } from 'antd';
 import { DeleteOutlined, DownloadOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import type { RadioChangeEvent } from 'antd/es/radio';
 import { finishedGoodsReceivedService } from '../api/finished-goods';
 import StyleInfo from '../components/common/StyleInfo';
 import ListImage from '../components/common/ListImage';
@@ -142,7 +143,7 @@ const FinishedGoodsReceived = () => {
     loadList();
   }, [loadList]);
 
-  const handleViewModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleViewModeChange = (event: RadioChangeEvent) => {
     const nextMode = event.target.value as FinishedGoodsReceivedViewMode;
     setViewMode(nextMode);
     setPage(1);

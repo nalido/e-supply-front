@@ -85,9 +85,9 @@ const MaterialMovementsModal = ({ open, material, onClose }: MaterialMovementsMo
     void fetchMovements();
   }, [fetchMovements]);
 
-  const handleRangeChange = (value: null | [Dayjs, Dayjs]) => {
-    if (value) {
-      setDateRange(value);
+  const handleRangeChange = (value: [Dayjs | null, Dayjs | null] | null) => {
+    if (value?.[0] && value?.[1]) {
+      setDateRange([value[0], value[1]]);
     } else {
       setDateRange(buildDefaultRange());
     }

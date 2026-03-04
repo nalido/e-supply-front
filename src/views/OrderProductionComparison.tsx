@@ -316,7 +316,7 @@ const OrderProductionComparison = () => {
               value = summary.orderQty;
             } else if (key === 'plannedCutQty') {
               value = summary.plannedCutQty;
-            } else if (key && key.startsWith('progress.')) {
+            } else if (typeof key === 'string' && key.startsWith('progress.')) {
               const progressKey = key.split('.')[1];
               value = summary.progress[progressKey] ?? 0;
             } else if (key === 'warehousingQty') {

@@ -78,6 +78,47 @@ export type FactoryOrderExportResult = {
   exported: number;
 };
 
+export type FactoryOrderCostSummary = {
+  material: number;
+  processing: number;
+  outsourcing: number;
+  fee: number;
+  total: number;
+};
+
+export type FactoryOrderCostEntry = {
+  entryType: string;
+  costCategory: string;
+  amount: number;
+  referenceNo?: string;
+  recordedAt?: string;
+};
+
+export type FactoryOrderCostDetail = {
+  orderId: number;
+  orderNo: string;
+  totalQuantity: number;
+  estimatedCost: FactoryOrderCostSummary;
+  actualCost: FactoryOrderCostSummary;
+  estimatedUnitCost: FactoryOrderCostSummary;
+  actualUnitCost: FactoryOrderCostSummary;
+  entries: FactoryOrderCostEntry[];
+};
+
+export type FactoryOrderCreatePayload = {
+  orderNo?: string;
+  styleId: number;
+  customerId: number;
+  totalQuantity: number;
+  unitPrice?: number;
+  expectedDelivery?: string;
+  status?: string;
+  materialStatus?: string;
+  merchandiserId?: number;
+  factoryId?: number;
+  remarks?: string;
+};
+
 type BackendFactoryOrderSummary = {
   metrics?: BackendFactoryOrderMetric[];
   statusTabs?: BackendFactoryOrderStatusTab[];
@@ -153,6 +194,33 @@ type BackendFactoryOrderTableRow = CompletionFlag & {
 };
 
 type BackendFactoryOrderStatusTab = FactoryOrderStatusSummary;
+
+type BackendFactoryOrderCostSummary = {
+  material?: string | number;
+  processing?: string | number;
+  outsourcing?: string | number;
+  fee?: string | number;
+  total?: string | number;
+};
+
+type BackendFactoryOrderCostEntry = {
+  entryType?: string;
+  costCategory?: string;
+  amount?: string | number;
+  referenceNo?: string;
+  recordedAt?: string;
+};
+
+type BackendFactoryOrderCostDetail = {
+  orderId?: number;
+  orderNo?: string;
+  totalQuantity?: number;
+  estimatedCost?: BackendFactoryOrderCostSummary;
+  actualCost?: BackendFactoryOrderCostSummary;
+  estimatedUnitCost?: BackendFactoryOrderCostSummary;
+  actualUnitCost?: BackendFactoryOrderCostSummary;
+  entries?: BackendFactoryOrderCostEntry[];
+};
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -246,6 +314,42 @@ const adaptSummary = (payload: BackendFactoryOrderSummary): FactoryOrderSummary 
   statusTabs: payload.statusTabs ?? [],
 });
 
+const parseAmount = (value?: string | number): number => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const adaptCostSummary = (payload?: BackendFactoryOrderCostSummary): FactoryOrderCostSummary => ({
+  material: parseAmount(payload?.material),
+  processing: parseAmount(payload?.processing),
+  outsourcing: parseAmount(payload?.outsourcing),
+  fee: parseAmount(payload?.fee),
+  total: parseAmount(payload?.total),
+});
+
+const adaptCostDetail = (payload: BackendFactoryOrderCostDetail): FactoryOrderCostDetail => ({
+  orderId: payload.orderId ?? 0,
+  orderNo: payload.orderNo ?? '',
+  totalQuantity: payload.totalQuantity ?? 0,
+  estimatedCost: adaptCostSummary(payload.estimatedCost),
+  actualCost: adaptCostSummary(payload.actualCost),
+  estimatedUnitCost: adaptCostSummary(payload.estimatedUnitCost),
+  actualUnitCost: adaptCostSummary(payload.actualUnitCost),
+  entries: (payload.entries ?? []).map((entry) => ({
+    entryType: entry.entryType ?? '',
+    costCategory: entry.costCategory ?? '',
+    amount: parseAmount(entry.amount),
+    referenceNo: entry.referenceNo,
+    recordedAt: entry.recordedAt,
+  })),
+});
+
 const adaptCardPage = (payload: BackendFactoryOrderCardPage): FactoryOrderCardPage => ({
   list: (payload.list ?? []).map(adaptCard),
   total: payload.total ?? payload.list?.length ?? 0,
@@ -310,6 +414,14 @@ export const factoryOrdersApi = {
     return adaptTablePage(data);
   },
 
+  async getCostDetail(orderId: string | number): Promise<FactoryOrderCostDetail> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<BackendFactoryOrderCostDetail>(`/api/v1/production-orders/${orderId}/cost-detail`, {
+      params: { tenantId },
+    });
+    return adaptCostDetail(data);
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
     const tenantId = ensureTenantId();
     const requestBody = {
@@ -362,5 +474,32 @@ export const factoryOrdersApi = {
     };
     const { data } = await http.post<FactoryOrderExportResult>('/api/v1/production-orders/export', body);
     return data;
+  },
+
+  async createOrder(payload: FactoryOrderCreatePayload): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post('/api/v1/production-orders', {
+      tenantId,
+      orderNo: payload.orderNo?.trim() || undefined,
+      styleId: Number(payload.styleId),
+      customerId: Number(payload.customerId),
+      expectedDelivery: payload.expectedDelivery,
+      status: payload.status,
+      materialStatus: payload.materialStatus,
+      totalAmount: 0,
+      completedQuantity: 0,
+      merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
+      factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,
+      remarks: payload.remarks,
+      lines: [
+        {
+          quantity: Number(payload.totalQuantity),
+          unitPrice:
+            typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
+              ? Number(payload.unitPrice)
+              : undefined,
+        },
+      ],
+    });
   },
 };

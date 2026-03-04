@@ -285,12 +285,6 @@ const SettlementCashierAccounts = () => {
           >
             删除
           </Button>
-          <Button
-            type="link"
-            onClick={() => message.info('流水明细将在真实接口接入后开放')}
-          >
-            查看流水
-          </Button>
         </Space>
       ),
     },

@@ -4,6 +4,7 @@ import type { Dayjs } from 'dayjs';
 import {
   Button,
   Card,
+  Descriptions,
   DatePicker,
   Form,
   Input,
@@ -90,6 +91,7 @@ const SettlementReportReconciliationDetails = () => {
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [detailRecord, setDetailRecord] = useState<ReconciliationDetailsRecord | null>(null);
 
   const loadMeta = useCallback(async () => {
     setMetaLoading(true);
@@ -213,6 +215,10 @@ const SettlementReportReconciliationDetails = () => {
     });
   };
 
+  const handleViewStatement = useCallback((record: ReconciliationDetailsRecord) => {
+    setDetailRecord(record);
+  }, []);
+
   const tableColumns: ColumnsType<ReconciliationDetailsRecord> = useMemo(() => [
     {
       title: '对账单号',
@@ -274,14 +280,14 @@ const SettlementReportReconciliationDetails = () => {
         <Space size="small">
           <Button
             type="link"
-            onClick={() => message.info(`将打开对账单 ${record.statementNo} 的详情`)}
+            onClick={() => handleViewStatement(record)}
           >
             查看
           </Button>
         </Space>
       ),
     },
-  ], []);
+  ], [handleViewStatement]);
 
   const partnerPlaceholder = useMemo(() => {
     switch (partnerType) {
@@ -430,6 +436,35 @@ const SettlementReportReconciliationDetails = () => {
           scroll={{ x: 1100 }}
         />
       </Card>
+
+      <Modal
+        title={detailRecord ? `对账明细 - ${detailRecord.statementNo}` : '对账明细'}
+        open={Boolean(detailRecord)}
+        footer={null}
+        onCancel={() => setDetailRecord(null)}
+        width={760}
+      >
+        {detailRecord ? (
+          <Descriptions bordered column={2} size="small">
+            <Descriptions.Item label="对账单号">{detailRecord.statementNo}</Descriptions.Item>
+            <Descriptions.Item label="状态">
+              <Tag color={statusTextMap[detailRecord.status].color}>
+                {statusTextMap[detailRecord.status].text}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="往来单位类型">
+              {partnerTypeOptions.find((option) => option.value === detailRecord.partnerType)?.label ?? detailRecord.partnerType}
+            </Descriptions.Item>
+            <Descriptions.Item label="往来单位">{detailRecord.partnerName}</Descriptions.Item>
+            <Descriptions.Item label="单据类型">{detailRecord.documentType}</Descriptions.Item>
+            <Descriptions.Item label="单据号">{detailRecord.documentNo}</Descriptions.Item>
+            <Descriptions.Item label="金额">{currencyFormatter.format(detailRecord.amount ?? 0)}</Descriptions.Item>
+            <Descriptions.Item label="发货日期">{detailRecord.shipmentDate ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="对账日期">{detailRecord.reconciliationDate ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="款式信息">{detailRecord.styleInfo ?? '-'}</Descriptions.Item>
+          </Descriptions>
+        ) : null}
+      </Modal>
     </Space>
   );
 };

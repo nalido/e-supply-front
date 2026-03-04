@@ -56,6 +56,8 @@ import SettlementReportReconciliationDetails from './views/SettlementReportRecon
 import QualityControlManagement from './views/QualityControlManagement';
 import OperationGuide from './views/OperationGuide';
 import GuideSectionPage from './views/guide/GuideSectionPage';
+import RegisterEnterprise from './views/auth/RegisterEnterprise';
+import Welcome from './views/auth/Welcome';
 import {
   ActionLogPage,
   CompanySettings,
@@ -152,10 +154,19 @@ const autoChildren = flattenMenu(menuTree)
 
 const router = createBrowserRouter([
   {
+    path: '/welcome',
+    element: React.createElement(Welcome),
+  },
+  {
+    path: '/onboarding/register-enterprise',
+    element: React.createElement(RegisterEnterprise),
+  },
+  {
     path: '/',
     element: React.createElement(ProtectedLayout),
     children: [
       { index: true, element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
+      { path: 'dashboard', element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
       { path: 'dashboard/workplace', element: React.createElement(Workplace) },
       { path: 'sample', element: React.createElement(SampleDashboard) },
       { path: 'sample/list', element: React.createElement(SampleList) },
@@ -223,7 +234,6 @@ const router = createBrowserRouter([
       { path: 'product', element: createPlaceholderElement('成品进销存') },
       { path: 'collab', element: createPlaceholderElement('协同中心') },
       { path: 'settlement', element: createPlaceholderElement('对账结算') },
-      { path: 'appstore', element: createPlaceholderElement('应用商店') },
       { path: 'basic', element: createPlaceholderElement('基础资料') },
       { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
       { path: 'guide', element: React.createElement(OperationGuide) },

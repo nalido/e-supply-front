@@ -776,10 +776,6 @@ const SalaryManagement = () => {
     }
   };
 
-  const handleSalaryItems = () => {
-    message.info('薪资条目配置将在接入正式接口时开放');
-  };
-
   const handleTicketStatusChange = (value: TicketStatusFilter) => {
     setTicketStatus(value);
     setTicketPage(1);
@@ -1177,9 +1173,6 @@ const SalaryManagement = () => {
             </Button>
             <Button icon={<FormOutlined />} onClick={handleBatchAdjust}>
               批量修改
-            </Button>
-            <Button icon={<SearchOutlined />} onClick={handleSalaryItems}>
-              薪资条目
             </Button>
           </Space>
         }

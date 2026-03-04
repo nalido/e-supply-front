@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import { chromium } from 'playwright';
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1600,height:1100}});
+const page=await context.newPage();
+await page.goto('http://115.29.200.124/welcome',{waitUntil:'domcontentloaded'});
+await page.getByRole('button',{name:/登录系统|登录|sign in/i}).first().click();
+await page.locator('input[name="identifier"],input[type="email"]').first().waitFor({timeout:30000});
+await page.locator('input[name="identifier"],input[type="email"]').first().fill('jambin');
+await page.locator('input[name="password"],input[type="password"]').first().fill('Jambin288416');
+await page.getByRole('button',{name:/继续|continue|sign in|登录|下一步/i}).first().click();
+await page.waitForURL(/\/dashboard\//,{timeout:30000});
+await page.waitForTimeout(1500);
+const html=await page.locator('.ant-layout-sider').innerHTML();
+fs.writeFileSync('logs/sidebar.html',html);
+await page.screenshot({path:'logs/sidebar-debug.png',fullPage:true});
+console.log('wrote');
+await browser.close();

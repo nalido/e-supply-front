@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Descriptions,
   Dropdown,
   Empty,
   Input,
@@ -45,6 +46,11 @@ type ColorPreviewState = {
   task?: CuttingTask;
 };
 
+type DetailModalState = {
+  open: boolean;
+  task?: CuttingTask;
+};
+
 type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
 const CuttingPendingPage = () => {
@@ -56,6 +62,7 @@ const CuttingPendingPage = () => {
   const [page, setPage] = useState(initialDataset.page);
   const [pageSize, setPageSize] = useState(initialDataset.pageSize);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
+  const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +119,10 @@ const CuttingPendingPage = () => {
     setPreviewState({ open: true, task });
   };
 
+  const handleViewDetail = (task: CuttingTask) => {
+    setDetailState({ open: true, task });
+  };
+
   const handleMenuClick = (task: CuttingTask) => (event: MenuClickEvent) => {
     if (event.key === 'create-sheet') {
       message.info(`即将跳转至新建裁床单页面：${task.orderCode}`);
@@ -122,7 +133,7 @@ const CuttingPendingPage = () => {
       return;
     }
     if (event.key === 'view') {
-      message.info(`查看工厂订单详情：${task.orderCode}`);
+      handleViewDetail(task);
     }
   };
 
@@ -319,6 +330,50 @@ const CuttingPendingPage = () => {
               </div>
             ))}
           </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={detailState.task ? `裁床任务详情 - ${detailState.task.orderCode}` : '裁床任务详情'}
+        open={detailState.open}
+        footer={null}
+        onCancel={() => setDetailState({ open: false })}
+        width={720}
+      >
+        {detailState.task ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="订单号">{detailState.task.orderCode}</Descriptions.Item>
+              <Descriptions.Item label="款号">{detailState.task.styleCode}</Descriptions.Item>
+              <Descriptions.Item label="款名">{detailState.task.styleName}</Descriptions.Item>
+              <Descriptions.Item label="客户">{detailState.task.customer || '-'}</Descriptions.Item>
+              <Descriptions.Item label="下单日期">{detailState.task.orderDate}</Descriptions.Item>
+              <Descriptions.Item label="计划排床">{detailState.task.scheduleDate || '-'}</Descriptions.Item>
+              <Descriptions.Item label="下单数量">
+                {detailState.task.orderedQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="已裁数量">
+                {detailState.task.cutQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="待裁数量">
+                {detailState.task.pendingQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="面料">{detailState.task.fabricSummary || '-'}</Descriptions.Item>
+              <Descriptions.Item label="备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
+            </Descriptions>
+            <div>
+              <Text type="secondary">颜色明细</Text>
+              <div style={{ marginTop: 8 }}>
+                <Space size={[8, 8]} wrap>
+                  {detailState.task.colors.map((color) => (
+                    <Tag key={`${detailState.task?.id}-${color.name}`} color="geekblue">
+                      {color.name}{color.fabric ? ` (${color.fabric})` : ''}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </div>
+          </Space>
         ) : null}
       </Modal>
     </div>

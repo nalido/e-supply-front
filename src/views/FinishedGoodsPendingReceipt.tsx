@@ -18,7 +18,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import type { CheckboxValueType } from 'antd/es/checkbox/Group';
+import type { CheckboxChangeEvent } from 'antd/es/checkbox/Checkbox';
 import { DownloadOutlined, InboxOutlined, SearchOutlined } from '@ant-design/icons';
 import { finishedGoodsPendingReceiptService } from '../api/finished-goods';
 import StyleInfo from '../components/common/StyleInfo';
@@ -47,7 +47,7 @@ const groupingOptions: { label: string; value: FinishedGoodsPendingReceiptGroupi
 type ReceiveFormValues = {
   warehouseId?: string;
   remark?: string;
-  items: { id: string; receiptQty?: number }[];
+  items: { id: string; receiptQty?: number; unitPrice?: number }[];
 };
 
 type ReceiveModalState = {
@@ -88,7 +88,7 @@ const FinishedGoodsPendingReceipt = () => {
   const [listState, setListState] = useState<ListState>(initialListState);
   const [tableLoading, setTableLoading] = useState(false);
   const [includeCompleted, setIncludeCompleted] = useState(false);
-  const [orderTypeFilter, setOrderTypeFilter] = useState<string | undefined>();
+  const [orderTypeFilter, setOrderTypeFilter] = useState<FinishedGoodsPendingReceiptRecord['orderType'] | undefined>();
   const [groupBy, setGroupBy] = useState<FinishedGoodsPendingReceiptGrouping[]>([]);
   const [orderKeyword, setOrderKeyword] = useState('');
   const [customerKeyword, setCustomerKeyword] = useState('');
@@ -149,17 +149,17 @@ const FinishedGoodsPendingReceipt = () => {
     loadList();
   }, [loadList]);
 
-  const handleIncludeCompletedChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIncludeCompletedChange = (event: CheckboxChangeEvent) => {
     setIncludeCompleted(event.target.checked);
     setPage(1);
   };
 
-  const handleOrderTypeChange = (value?: string) => {
+  const handleOrderTypeChange = (value?: FinishedGoodsPendingReceiptRecord['orderType']) => {
     setOrderTypeFilter(value);
     setPage(1);
   };
 
-  const handleGroupingChange = (values: CheckboxValueType[]) => {
+  const handleGroupingChange = (values: Array<string | number>) => {
     setGroupBy(values as FinishedGoodsPendingReceiptGrouping[]);
     setSelectedRowKeys([]);
     setSelectedRows([]);
@@ -282,6 +282,14 @@ const FinishedGoodsPendingReceipt = () => {
       render: (value: number) => quantityFormatter(value),
     };
 
+    const unitPriceColumn: ColumnsType<TableRecord>[number] = {
+      title: '默认单价',
+      dataIndex: 'unitPrice',
+      width: 108,
+      align: 'right',
+      render: (value?: number) => (typeof value === 'number' ? `¥${value.toFixed(2)}` : '¥0.00'),
+    };
+
     if (groupBy.length) {
       const groupColumns: ColumnsType<TableRecord>[number][] = [];
       if (groupBy.includes('order')) {
@@ -362,6 +370,7 @@ const FinishedGoodsPendingReceipt = () => {
       { title: '颜色', dataIndex: 'color', width: 92 },
       { title: '尺码', dataIndex: 'size', width: 88 },
       { title: 'SKU', dataIndex: 'sku', width: 184 },
+      unitPriceColumn,
       orderedColumn,
       producedColumn,
       pendingColumn,
@@ -417,13 +426,31 @@ const FinishedGoodsPendingReceipt = () => {
     form.setFieldsValue({
       warehouseId: defaultWarehouse,
       remark: undefined,
-      items: selectedRows.map((item) => ({ id: item.id, receiptQty: item.pendingQty })),
+      items: selectedRows.map((item) => ({
+        id: item.id,
+        receiptQty: item.pendingQty,
+        unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
+      })),
     });
     setReceiveModalState({ open: true, submitting: false });
   };
 
   const closeReceiveModal = () => {
     setReceiveModalState((prev) => ({ ...prev, open: false }));
+  };
+
+  const handleFillUnitPriceFromDefault = () => {
+    const currentItems = form.getFieldValue('items') as ReceiveFormValues['items'] | undefined;
+    if (!currentItems?.length) {
+      return;
+    }
+    form.setFieldsValue({
+      items: currentItems.map((item, index) => ({
+        ...item,
+        unitPrice: typeof selectedRows[index]?.unitPrice === 'number' ? selectedRows[index].unitPrice : 0,
+      })),
+    });
+    message.success('已按默认单价批量填充');
   };
 
   const handleReceiveSubmit = async () => {
@@ -438,7 +465,11 @@ const FinishedGoodsPendingReceipt = () => {
         remark: values.remark,
         items: values.items
           .filter((item) => item.receiptQty && item.receiptQty > 0)
-          .map((item) => ({ id: item.id, receiptQty: Math.floor(item.receiptQty ?? 0) })),
+          .map((item) => ({
+            id: item.id,
+            receiptQty: Math.floor(item.receiptQty ?? 0),
+            unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
+          })),
       };
       if (!payload.items.length) {
         message.warning('请填写本次收货数量');
@@ -599,7 +630,13 @@ const FinishedGoodsPendingReceipt = () => {
               <Space direction="vertical" size={12} style={{ width: '100%' }}>
                 {fields.length === 0 ? (
                   <Text type="secondary">请在列表中选择待收货记录</Text>
-                ) : null}
+                ) : (
+                  <div style={{ textAlign: 'right' }}>
+                    <Button size="small" onClick={handleFillUnitPriceFromDefault}>
+                      按默认单价填充
+                    </Button>
+                  </div>
+                )}
                 {fields.map((field) => {
                   const index = Number(field.name);
                   const record = selectedRows[index];
@@ -615,11 +652,14 @@ const FinishedGoodsPendingReceipt = () => {
                         <Text type="secondary">
                           {record?.factoryOrderNo} · {record?.color} · {record?.size}
                         </Text>
+                        <Text type="secondary">
+                          默认单价：{typeof record?.unitPrice === 'number' ? `¥${record.unitPrice.toFixed(2)}` : '¥0.00'}
+                        </Text>
                         <Row gutter={16}>
-                          <Col span={12}>
+                          <Col span={8}>
                             <Text type="secondary">待收货：{quantityFormatter(record?.pendingQty ?? 0)}</Text>
                           </Col>
-                          <Col span={12} style={{ textAlign: 'right' }}>
+                          <Col span={8}>
                             <Form.Item
                               label="本次收货数量"
                               name={[field.name, 'receiptQty']}
@@ -630,6 +670,20 @@ const FinishedGoodsPendingReceipt = () => {
                                 max={record?.pendingQty ?? undefined}
                                 precision={0}
                                 placeholder="数量"
+                                style={{ width: '100%' }}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <Form.Item
+                              label="收货单价（元）"
+                              name={[field.name, 'unitPrice']}
+                              rules={[{ required: true, message: '请输入收货单价' }]}
+                            >
+                              <InputNumber
+                                min={0}
+                                precision={2}
+                                placeholder="单价"
                                 style={{ width: '100%' }}
                               />
                             </Form.Item>

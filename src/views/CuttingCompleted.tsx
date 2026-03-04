@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Descriptions,
   Empty,
   Input,
   Modal,
@@ -40,6 +41,11 @@ type ColorPreviewState = {
   task?: CuttingTask;
 };
 
+type DetailModalState = {
+  open: boolean;
+  task?: CuttingTask;
+};
+
 const renderMetric = (metric: CuttingTaskMetric) => (
   <Card
     key={metric.key}
@@ -61,6 +67,7 @@ const CuttingCompletedPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
+  const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +118,7 @@ const CuttingCompletedPage = () => {
   };
 
   const handleViewDetail = (task: CuttingTask) => {
-    message.info(`跳转裁床单详情：${task.orderCode}`);
+    setDetailState({ open: true, task });
   };
 
   return (
@@ -295,6 +302,49 @@ const CuttingCompletedPage = () => {
               </div>
             ))}
           </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        title={detailState.task ? `裁床任务详情 - ${detailState.task.orderCode}` : '裁床任务详情'}
+        open={detailState.open}
+        footer={null}
+        onCancel={() => setDetailState({ open: false })}
+        width={720}
+      >
+        {detailState.task ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="订单号">{detailState.task.orderCode}</Descriptions.Item>
+              <Descriptions.Item label="款号">{detailState.task.styleCode}</Descriptions.Item>
+              <Descriptions.Item label="款名">{detailState.task.styleName}</Descriptions.Item>
+              <Descriptions.Item label="客户">{detailState.task.customer || '-'}</Descriptions.Item>
+              <Descriptions.Item label="下单日期">{detailState.task.orderDate}</Descriptions.Item>
+              <Descriptions.Item label="面料">{detailState.task.fabricSummary || '-'}</Descriptions.Item>
+              <Descriptions.Item label="下单数量">
+                {detailState.task.orderedQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="已裁数量">
+                {detailState.task.cutQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="待裁数量">
+                {detailState.task.pendingQuantity.toLocaleString()} {detailState.task.unit}
+              </Descriptions.Item>
+              <Descriptions.Item label="备注">{detailState.task.remarks || '-'}</Descriptions.Item>
+            </Descriptions>
+            <div>
+              <Text type="secondary">颜色明细</Text>
+              <div style={{ marginTop: 8 }}>
+                <Space size={[8, 8]} wrap>
+                  {detailState.task.colors.map((color) => (
+                    <Tag key={`${detailState.task?.id}-${color.name}`} color="geekblue">
+                      {color.name}{color.fabric ? ` (${color.fabric})` : ''}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </div>
+          </Space>
         ) : null}
       </Modal>
     </div>

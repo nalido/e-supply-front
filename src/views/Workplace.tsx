@@ -3,13 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 import '../styles/workplace.css';
 
 import type { Announcement, DeliveryItem, WorkplaceStats } from '../types/workplace';
-import { workplaceQuickActions } from '../data/workplace';
 import { workplaceApi } from '../api/workplace';
 
 // 引入模块化组件
 import {
   StatisticsSection,
-  QuickActionsSection,
   DeliveryTableCard,
   AnnouncementCard
 } from '../components/workplace';
@@ -163,18 +161,12 @@ const Workplace = () => {
     }));
   };
 
-  // 发布公告按钮处理
-  const handlePublishClick = () => {
-    console.log('发布公告');
-  };
-
   return (
-    <div style={{ padding: '0 24px 24px' }}>
+    <div style={{ padding: '8px 24px 24px' }}>
       {/* 顶部统计显示 */}
-      <StatisticsSection stats={stats} loading={loading.stats} />
-
-      {/* 快速入口 */}
-      <QuickActionsSection quickActions={workplaceQuickActions} />
+      <div style={{ marginBottom: 20 }}>
+        <StatisticsSection stats={stats} loading={loading.stats} />
+      </div>
 
       {/* 三个表格区域横向排列 */}
       <Row gutter={[24, 24]}>
@@ -209,7 +201,6 @@ const Workplace = () => {
             loading={loading.announcements}
             pagination={announcementPagination}
             onPaginationChange={handleAnnouncementPaginationChange}
-            onPublishClick={handlePublishClick}
           />
         </Col>
       </Row>

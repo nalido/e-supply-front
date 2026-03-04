@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import type { CheckboxValueType } from 'antd/es/checkbox/Group';
 import { Button, Card, Checkbox, Space, Table, Typography, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { outsourcingCuttingDetailReportService } from '../api/outsourcing-cutting-detail-report';
@@ -111,7 +110,7 @@ const OrderOutsourcingCuttingDetailReport = () => {
     void loadList();
   }, [loadList]);
 
-  const handleGroupChange = (values: CheckboxValueType[]) => {
+  const handleGroupChange = (values: Array<string | number>) => {
     const valueSet = new Set(values.map(String));
     const normalized = groupOptions
       .map((option) => option.value)
@@ -223,11 +222,12 @@ const OrderOutsourcingCuttingDetailReport = () => {
   }, [groupBy]);
 
   const columns: ColumnsType<TableRow> = useMemo(() => {
-    const createTextCell = (value: string | undefined, bold: boolean) => {
-      if (!value) {
+    const createTextCell = (value: string | number | undefined, bold: boolean) => {
+      if (value === undefined || value === null || value === '') {
         return null;
       }
-      return bold ? <Text strong>{value}</Text> : value;
+      const text = String(value);
+      return bold ? <Text strong>{text}</Text> : text;
     };
 
     const renderText = (field: keyof AggregateRow & keyof OutsourcingCuttingDetailRecord) =>

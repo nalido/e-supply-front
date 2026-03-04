@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import type { ProgressProps } from 'antd/es/progress';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -7,6 +8,7 @@ import {
   Alert,
   Button,
   Checkbox,
+  Descriptions,
   Empty,
   Form,
   Input,
@@ -41,7 +43,10 @@ import type {
   FactoryOrderStatusSummary,
   FactoryOrderTableRow,
 } from '../types';
-import { factoryOrdersApi } from '../api/factory-orders';
+import { factoryOrdersApi, type FactoryOrderCostDetail } from '../api/factory-orders';
+import { stylesApi } from '../api/styles';
+import { partnersApi } from '../api/partners';
+import sampleOrderApi from '../api/sample-order';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
 
@@ -77,6 +82,11 @@ const getMaterialTagColor = (status: string) => {
 
 const { Paragraph, Text } = Typography;
 
+type SelectOption = {
+  label: string;
+  value: number;
+};
+
 type ImportRecord = {
   orderNo: string;
   styleId: number;
@@ -90,11 +100,32 @@ type ImportRecord = {
   remarks?: string;
 };
 
+type OrderActionSnapshot = {
+  orderId: string;
+  orderCode: string;
+  customer?: string;
+  styleCode?: string;
+  styleName?: string;
+  expectedDelivery?: string;
+  materialStatus?: string;
+  orderQuantity?: number;
+  productionStage?: string;
+};
+
 const statusOptionsList = [
+  { label: '草稿', value: 'DRAFT' },
   { label: '待排产', value: 'RELEASED' },
   { label: '生产中', value: 'IN_PROGRESS' },
   { label: '已完工', value: 'COMPLETED' },
   { label: '已取消', value: 'CANCELLED' },
+];
+
+const statusTabDefaults: Array<{ key: string; label: string }> = [
+  { key: 'DRAFT', label: '草稿' },
+  { key: 'RELEASED', label: '已下发' },
+  { key: 'IN_PROGRESS', label: '生产中' },
+  { key: 'COMPLETED', label: '已完工' },
+  { key: 'CANCELLED', label: '已取消' },
 ];
 
 const materialStatusOptions = [
@@ -105,6 +136,7 @@ const materialStatusOptions = [
 ];
 
 const FactoryOrders = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [metrics, setMetrics] = useState<FactoryOrderMetric[]>([]);
   const [statusTabs, setStatusTabs] = useState<FactoryOrderStatusSummary[]>([]);
   const [cardOrders, setCardOrders] = useState<FactoryOrderItem[]>([]);
@@ -137,6 +169,18 @@ const FactoryOrders = () => {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [statusForm] = Form.useForm();
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createForm] = Form.useForm();
+  const [createOptionsLoading, setCreateOptionsLoading] = useState(false);
+  const [styleOptions, setStyleOptions] = useState<SelectOption[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<SelectOption[]>([]);
+  const [factoryOptions, setFactoryOptions] = useState<SelectOption[]>([]);
+  const [merchandiserOptions, setMerchandiserOptions] = useState<SelectOption[]>([]);
+  const [costDetailRecord, setCostDetailRecord] = useState<OrderActionSnapshot | null>(null);
+  const [costDetailLoading, setCostDetailLoading] = useState(false);
+  const [costDetailData, setCostDetailData] = useState<FactoryOrderCostDetail | null>(null);
+  const [printPreviewRecord, setPrintPreviewRecord] = useState<OrderActionSnapshot | null>(null);
 
   const fetchSummary = useCallback(() => {
     let cancelled = false;
@@ -149,9 +193,12 @@ const FactoryOrders = () => {
         }
         setMetrics(data.metrics);
         setStatusTabs(data.statusTabs);
-        if (data.statusTabs.length > 0) {
+        const availableKeys = (data.statusTabs.length > 0
+          ? data.statusTabs.map((tab) => tab.key)
+          : statusTabDefaults.map((tab) => tab.key));
+        if (availableKeys.length > 0) {
           setActiveStatus((prev) =>
-            data.statusTabs.some((tab) => tab.key === prev) ? prev : data.statusTabs[0].key,
+            availableKeys.includes(prev) ? prev : availableKeys[0],
           );
         }
       } catch (err) {
@@ -332,6 +379,255 @@ const FactoryOrders = () => {
     }
   };
 
+  const loadCreateOptions = useCallback(async () => {
+    setCreateOptionsLoading(true);
+    try {
+      const [stylesResponse, customersResponse, factoriesResponse, sampleMeta] = await Promise.all([
+        stylesApi.list({ page: 1, pageSize: 200 }),
+        partnersApi.list({ type: 'customer', page: 1, pageSize: 200 }),
+        partnersApi.list({ type: 'factory', page: 1, pageSize: 200 }),
+        sampleOrderApi.getMeta().catch(() => undefined),
+      ]);
+
+      setStyleOptions((stylesResponse.list ?? []).map((item) => ({
+        value: Number(item.id),
+        label: `${item.styleNo} / ${item.styleName}`,
+      })));
+      setCustomerOptions((customersResponse.list ?? []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })));
+      setFactoryOptions((factoriesResponse.list ?? []).map((item) => ({
+        value: Number(item.id),
+        label: item.name,
+      })));
+      setMerchandiserOptions((sampleMeta?.merchandisers ?? []).map((item) => ({
+        value: Number(item.id),
+        label: item.title ? `${item.name}（${item.title}）` : item.name,
+      })));
+    } catch (error) {
+      console.error('failed to fetch create-order options', error);
+      message.error(error instanceof Error ? error.message : '加载下拉选项失败，请稍后重试');
+      setStyleOptions([]);
+      setCustomerOptions([]);
+      setFactoryOptions([]);
+      setMerchandiserOptions([]);
+    } finally {
+      setCreateOptionsLoading(false);
+    }
+  }, []);
+
+  const handleOpenCreate = useCallback((presetStyleId?: number) => {
+    setCreateModalOpen(true);
+    if (presetStyleId && Number.isFinite(presetStyleId)) {
+      createForm.setFieldsValue({ styleId: presetStyleId });
+    }
+    void loadCreateOptions();
+  }, [createForm, loadCreateOptions]);
+
+  const handleCloseCreate = () => {
+    setCreateModalOpen(false);
+    createForm.resetFields();
+  };
+
+  const handleOpenCostDetail = useCallback(async (record: OrderActionSnapshot) => {
+    setCostDetailRecord(record);
+    setCostDetailLoading(true);
+    try {
+      const detail = await factoryOrdersApi.getCostDetail(record.orderId);
+      setCostDetailData(detail);
+    } catch (error) {
+      console.error('failed to fetch factory order cost detail', error);
+      setCostDetailData(null);
+      message.error('获取大货成本明细失败，请稍后重试');
+    } finally {
+      setCostDetailLoading(false);
+    }
+  }, []);
+
+  const handleOpenPrintPreview = useCallback((record: OrderActionSnapshot) => {
+    setPrintPreviewRecord(record);
+  }, []);
+
+  const escapeHtml = (value?: string) => {
+    if (!value) {
+      return '-';
+    }
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  };
+
+  const handlePrintInBrowser = useCallback(() => {
+    if (!printPreviewRecord) {
+      return;
+    }
+    const rows = [
+      ['订单号', printPreviewRecord.orderCode],
+      ['客户', printPreviewRecord.customer ?? '-'],
+      ['款号', printPreviewRecord.styleCode ?? '-'],
+      ['款名', printPreviewRecord.styleName ?? '-'],
+      [
+        '下单数量',
+        typeof printPreviewRecord.orderQuantity === 'number'
+          ? `${printPreviewRecord.orderQuantity.toLocaleString()} 件`
+          : '-',
+      ],
+      ['预计交货', printPreviewRecord.expectedDelivery ?? '-'],
+      ['物料状态', printPreviewRecord.materialStatus ?? '-'],
+      ['生产阶段', printPreviewRecord.productionStage ?? '-'],
+    ];
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>工厂订单打印 - ${escapeHtml(printPreviewRecord.orderCode)}</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 24px;
+        color: #111827;
+        font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", sans-serif;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid #e5e7eb;
+      }
+      th, td {
+        border: 1px solid #e5e7eb;
+        padding: 10px 12px;
+        text-align: left;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      th {
+        width: 160px;
+        background: #f9fafb;
+        font-weight: 600;
+      }
+      @media print {
+        body { margin: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>工厂订单打印预览</h1>
+    <table>
+      <tbody>
+        ${rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </body>
+</html>`;
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        window.setTimeout(() => {
+          iframe.remove();
+        }, 800);
+      };
+
+      const triggerPrint = () => {
+        const frameWindow = iframe.contentWindow;
+        if (!frameWindow) {
+          cleanup();
+          message.error('打印失败，请稍后重试');
+          return;
+        }
+        frameWindow.focus();
+        frameWindow.print();
+        cleanup();
+      };
+
+      iframe.onload = () => {
+        window.setTimeout(triggerPrint, 120);
+      };
+
+      iframe.srcdoc = html;
+    } catch (error) {
+      console.error('failed to print factory order', error);
+      message.error('打印失败，请稍后重试');
+    }
+  }, [printPreviewRecord]);
+
+  const handleCopyOrder = useCallback(async (record: OrderActionSnapshot) => {
+    setCreateModalOpen(true);
+    await loadCreateOptions();
+    createForm.setFieldsValue({
+      orderNo: undefined,
+      totalQuantity: record.orderQuantity,
+      expectedDelivery: record.expectedDelivery,
+      remarks: `复制自订单 ${record.orderCode}`,
+    });
+    message.success(`已打开复制创建弹窗：${record.orderCode}`);
+  }, [createForm, loadCreateOptions]);
+
+  useEffect(() => {
+    if (searchParams.get('quickCreate') !== '1') {
+      return;
+    }
+    const styleIdRaw = searchParams.get('styleId');
+    const parsedStyleId = styleIdRaw ? Number(styleIdRaw) : NaN;
+    const presetStyleId = Number.isFinite(parsedStyleId) && parsedStyleId > 0 ? parsedStyleId : undefined;
+    handleOpenCreate(presetStyleId);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('quickCreate');
+    nextParams.delete('styleId');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, handleOpenCreate]);
+
+  const handleSubmitCreate = async () => {
+    try {
+      const values = await createForm.validateFields();
+      setCreateSubmitting(true);
+      await factoryOrdersApi.createOrder({
+        orderNo: values.orderNo,
+        styleId: values.styleId,
+        customerId: values.customerId,
+        totalQuantity: values.totalQuantity,
+        unitPrice: values.unitPrice,
+        expectedDelivery: values.expectedDelivery,
+        status: values.status,
+        materialStatus: values.materialStatus,
+        merchandiserId: values.merchandiserId,
+        factoryId: values.factoryId,
+        remarks: values.remarks,
+      });
+      message.success('工厂订单创建成功');
+      handleCloseCreate();
+      triggerReload();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        return;
+      }
+      const errMsg = error instanceof Error ? error.message : '创建失败，请稍后重试';
+      message.error(errMsg);
+      console.error('failed to create factory order', error);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
   const handleOpenImport = () => {
     setImportModal((prev) => ({ ...prev, open: true }));
   };
@@ -452,7 +748,21 @@ const FactoryOrders = () => {
     });
   }, [cardOrders, tableOrders, loadingCards, loadingTable]);
 
-  const tabItems = statusTabs.map((tab: FactoryOrderStatusSummary) => ({
+  const mergedStatusTabs = useMemo<FactoryOrderStatusSummary[]>(
+    () => statusTabDefaults.map((defaultTab) => {
+      const tab = statusTabs.find((item) => item.key === defaultTab.key);
+      return tab ?? {
+        key: defaultTab.key,
+        label: defaultTab.label,
+        styles: 0,
+        orders: 0,
+        quantity: 0,
+      };
+    }),
+    [statusTabs],
+  );
+
+  const tabItems = mergedStatusTabs.map((tab: FactoryOrderStatusSummary) => ({
     key: tab.key,
     label: (
       <div className="factory-orders-tab-label">
@@ -517,28 +827,58 @@ const FactoryOrders = () => {
           <Button
             type="link"
             size="small"
-            onClick={() => message.info(`查看大货成本：${record.orderCode}`)}
+            onClick={() => void handleOpenCostDetail({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              customer: record.customer,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+            })}
           >
             大货成本
           </Button>
           <Button
             type="link"
             size="small"
-            onClick={() => message.success(`已复制订单：${record.orderCode}`)}
+            onClick={() => void handleCopyOrder({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              customer: record.customer,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+            })}
           >
             复制
           </Button>
           <Button
             type="link"
             size="small"
-            onClick={() => message.info(`准备打印订单：${record.orderCode}`)}
+            onClick={() => handleOpenPrintPreview({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              customer: record.customer,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+            })}
           >
             打印
           </Button>
         </Space>
       ),
     },
-  ], []);
+  ], [handleCopyOrder, handleOpenCostDetail, handleOpenPrintPreview]);
 
   const rowSelection = useMemo(() => ({
     selectedRowKeys: selectedOrderIds,
@@ -617,21 +957,42 @@ const FactoryOrders = () => {
                       <Button
                         size="small"
                         type="text"
-                        onClick={() => message.info(`查看大货成本：${order.code}`)}
+                        onClick={() => void handleOpenCostDetail({
+                          orderId: order.id,
+                          orderCode: order.code,
+                          customer: order.customer,
+                          styleName: order.name,
+                          expectedDelivery: order.expectedDelivery,
+                          materialStatus: order.materialStatus,
+                        })}
                       >
                         大货成本
                       </Button>
                       <Button
                         size="small"
                         type="text"
-                        onClick={() => message.success(`已复制订单：${order.code}`)}
+                        onClick={() => void handleCopyOrder({
+                          orderId: order.id,
+                          orderCode: order.code,
+                          customer: order.customer,
+                          styleName: order.name,
+                          expectedDelivery: order.expectedDelivery,
+                          materialStatus: order.materialStatus,
+                        })}
                       >
                         复制
                       </Button>
                       <Button
                         size="small"
                         type="text"
-                        onClick={() => message.info(`准备打印订单：${order.code}`)}
+                        onClick={() => handleOpenPrintPreview({
+                          orderId: order.id,
+                          orderCode: order.code,
+                          customer: order.customer,
+                          styleName: order.name,
+                          expectedDelivery: order.expectedDelivery,
+                          materialStatus: order.materialStatus,
+                        })}
                       >
                         打印
                       </Button>
@@ -739,17 +1100,6 @@ const FactoryOrders = () => {
 
   return (
     <div className="factory-orders-page">
-      <section className="factory-orders-status-tabs">
-        <Tabs
-          activeKey={activeStatus}
-          items={tabItems}
-          onChange={(key) => {
-            setActiveStatus(key);
-            resetPagination();
-          }}
-        />
-      </section>
-
       <section className="factory-orders-toolbar">
         <div className="factory-orders-toolbar-left">
           <div className="factory-orders-metrics">
@@ -774,7 +1124,7 @@ const FactoryOrders = () => {
 
         <div className="factory-orders-toolbar-right">
           <Space size={12} wrap>
-            <Button type="primary" icon={<PlusOutlined />}>新建</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenCreate()}>新建</Button>
             <Button icon={<ImportOutlined />} onClick={handleOpenImport}>导入</Button>
             <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => handleExport(false)}>
               导出
@@ -785,6 +1135,17 @@ const FactoryOrders = () => {
             <Button icon={<SettingOutlined />} onClick={handleOpenStatusModal}>设置状态</Button>
           </Space>
         </div>
+      </section>
+
+      <section className="factory-orders-status-tabs">
+        <Tabs
+          activeKey={activeStatus}
+          items={tabItems}
+          onChange={(key) => {
+            setActiveStatus(key);
+            resetPagination();
+          }}
+        />
       </section>
 
       <section className="factory-orders-control-row">
@@ -838,6 +1199,81 @@ const FactoryOrders = () => {
           已展示包含已完工订单的数据，关闭后仅查看「已下发 / 生产中」状态下的记录。
         </Paragraph>
       ) : null}
+
+      <Modal
+        open={createModalOpen}
+        title="新建工厂订单"
+        onCancel={handleCloseCreate}
+        onOk={handleSubmitCreate}
+        confirmLoading={createSubmitting}
+        destroyOnHidden
+      >
+        <Form form={createForm} layout="vertical">
+          <Form.Item label="订单号" name="orderNo">
+            <Input placeholder="留空自动生成（可手动覆盖）" />
+          </Form.Item>
+          <Form.Item label="款式" name="styleId" rules={[{ required: true, message: '请选择款式' }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              loading={createOptionsLoading}
+              options={styleOptions}
+              placeholder="请选择款式"
+              notFoundContent={createOptionsLoading ? '加载中...' : '暂无款式数据'}
+            />
+          </Form.Item>
+          <Form.Item label="客户" name="customerId" rules={[{ required: true, message: '请选择客户' }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              loading={createOptionsLoading}
+              options={customerOptions}
+              placeholder="请选择客户"
+              notFoundContent={createOptionsLoading ? '加载中...' : '暂无客户数据'}
+            />
+          </Form.Item>
+          <Form.Item label="下单数量" name="totalQuantity" rules={[{ required: true, message: '请输入下单数量' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="请输入下单数量" />
+          </Form.Item>
+          <Form.Item label="单价（元/件）" name="unitPrice">
+            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="可选，不填按 0 处理" />
+          </Form.Item>
+          <Form.Item label="预计交货日期" name="expectedDelivery">
+            <Input placeholder="格式：YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item label="工厂" name="factoryId">
+            <Select
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              loading={createOptionsLoading}
+              options={factoryOptions}
+              placeholder="可选"
+              notFoundContent={createOptionsLoading ? '加载中...' : '暂无工厂数据'}
+            />
+          </Form.Item>
+          <Form.Item label="跟单员" name="merchandiserId">
+            <Select
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              loading={createOptionsLoading}
+              options={merchandiserOptions}
+              placeholder="可选"
+              notFoundContent={createOptionsLoading ? '加载中...' : '暂无跟单员数据'}
+            />
+          </Form.Item>
+          <Form.Item label="订单状态" name="status">
+            <Select allowClear options={statusOptionsList} placeholder="可选" />
+          </Form.Item>
+          <Form.Item label="物料状态" name="materialStatus">
+            <Select allowClear options={materialStatusOptions} placeholder="可选" />
+          </Form.Item>
+          <Form.Item label="备注" name="remarks">
+            <Input.TextArea rows={3} placeholder="可选" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         open={importModal.open}
@@ -910,6 +1346,156 @@ const FactoryOrders = () => {
             <Input.TextArea rows={3} placeholder="可选，方便记录操作人" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        open={Boolean(costDetailRecord)}
+        title={costDetailRecord ? `大货成本明细 - ${costDetailRecord.orderCode}` : '大货成本明细'}
+        footer={null}
+        onCancel={() => {
+          setCostDetailRecord(null);
+          setCostDetailData(null);
+          setCostDetailLoading(false);
+        }}
+        destroyOnHidden
+        width={900}
+      >
+        {costDetailRecord ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="订单号">{costDetailRecord.orderCode}</Descriptions.Item>
+              <Descriptions.Item label="客户">{costDetailRecord.customer ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="款号">{costDetailRecord.styleCode ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="款名">{costDetailRecord.styleName ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="下单数量">
+                {typeof costDetailRecord.orderQuantity === 'number' ? `${costDetailRecord.orderQuantity.toLocaleString()} 件` : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="预计交货">{costDetailRecord.expectedDelivery ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="物料状态">{costDetailRecord.materialStatus ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="生产阶段">{costDetailRecord.productionStage ?? '-'}</Descriptions.Item>
+            </Descriptions>
+            <Table
+              size="small"
+              bordered
+              loading={costDetailLoading}
+              pagination={false}
+              rowKey="key"
+              dataSource={costDetailData ? [
+                {
+                  key: 'estimated',
+                  label: '预计总成本',
+                  material: costDetailData.estimatedCost.material,
+                  processing: costDetailData.estimatedCost.processing,
+                  outsourcing: costDetailData.estimatedCost.outsourcing,
+                  fee: costDetailData.estimatedCost.fee,
+                  total: costDetailData.estimatedCost.total,
+                },
+                {
+                  key: 'actual',
+                  label: '实际总成本',
+                  material: costDetailData.actualCost.material,
+                  processing: costDetailData.actualCost.processing,
+                  outsourcing: costDetailData.actualCost.outsourcing,
+                  fee: costDetailData.actualCost.fee,
+                  total: costDetailData.actualCost.total,
+                },
+                {
+                  key: 'estimated-unit',
+                  label: '预计单件成本',
+                  material: costDetailData.estimatedUnitCost.material,
+                  processing: costDetailData.estimatedUnitCost.processing,
+                  outsourcing: costDetailData.estimatedUnitCost.outsourcing,
+                  fee: costDetailData.estimatedUnitCost.fee,
+                  total: costDetailData.estimatedUnitCost.total,
+                },
+                {
+                  key: 'actual-unit',
+                  label: '实际单件成本',
+                  material: costDetailData.actualUnitCost.material,
+                  processing: costDetailData.actualUnitCost.processing,
+                  outsourcing: costDetailData.actualUnitCost.outsourcing,
+                  fee: costDetailData.actualUnitCost.fee,
+                  total: costDetailData.actualUnitCost.total,
+                },
+              ] : []}
+              columns={[
+                { title: '成本类型', dataIndex: 'label', width: 140 },
+                { title: '物料', dataIndex: 'material', align: 'right', render: (value: number) => value.toFixed(2) },
+                { title: '加工', dataIndex: 'processing', align: 'right', render: (value: number) => value.toFixed(2) },
+                { title: '外协', dataIndex: 'outsourcing', align: 'right', render: (value: number) => value.toFixed(2) },
+                { title: '费用', dataIndex: 'fee', align: 'right', render: (value: number) => value.toFixed(2) },
+                { title: '合计', dataIndex: 'total', align: 'right', render: (value: number) => value.toFixed(2) },
+              ]}
+            />
+            <Table
+              size="small"
+              bordered
+              pagination={{ pageSize: 5, showSizeChanger: false }}
+              rowKey={(_record, index) => `entry-${index}`}
+              dataSource={costDetailData?.entries ?? []}
+              columns={[
+                {
+                  title: '类型',
+                  dataIndex: 'entryType',
+                  width: 100,
+                  render: (value: string) => (value === 'ESTIMATED' ? '预计' : value === 'ACTUAL' ? '实际' : value || '-'),
+                },
+                {
+                  title: '类别',
+                  dataIndex: 'costCategory',
+                  width: 120,
+                  render: (value: string) => ({
+                    MATERIAL: '物料',
+                    PROCESSING: '加工',
+                    OUTSOURCING: '外协',
+                    FEE: '费用',
+                  }[value] ?? value ?? '-'),
+                },
+                {
+                  title: '金额',
+                  dataIndex: 'amount',
+                  width: 120,
+                  align: 'right',
+                  render: (value: number) => value.toFixed(2),
+                },
+                {
+                  title: '引用单号',
+                  dataIndex: 'referenceNo',
+                  render: (value: string | undefined) => value || '-',
+                },
+                {
+                  title: '记录时间',
+                  dataIndex: 'recordedAt',
+                  width: 190,
+                  render: (value: string | undefined) => value || '-',
+                },
+              ]}
+            />
+          </Space>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(printPreviewRecord)}
+        title={printPreviewRecord ? `打印预览 - ${printPreviewRecord.orderCode}` : '打印预览'}
+        onCancel={() => setPrintPreviewRecord(null)}
+        onOk={handlePrintInBrowser}
+        okText="打印"
+        cancelText="关闭"
+        destroyOnHidden
+      >
+        {printPreviewRecord ? (
+          <Descriptions bordered size="small" column={2}>
+            <Descriptions.Item label="订单号">{printPreviewRecord.orderCode}</Descriptions.Item>
+            <Descriptions.Item label="客户">{printPreviewRecord.customer ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="款号">{printPreviewRecord.styleCode ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="款名">{printPreviewRecord.styleName ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="下单数量">
+              {typeof printPreviewRecord.orderQuantity === 'number' ? `${printPreviewRecord.orderQuantity.toLocaleString()} 件` : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="预计交货">{printPreviewRecord.expectedDelivery ?? '-'}</Descriptions.Item>
+          </Descriptions>
+        ) : null}
       </Modal>
     </div>
   );
