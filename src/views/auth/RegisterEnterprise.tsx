@@ -3,6 +3,7 @@ import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import { onboardingApi, type RegisterEnterprisePayload } from '../../api/onboarding';
+import { buildFriendlyError } from '../../utils/friendly-error';
 
 const RegisterEnterprise = () => {
   const [form] = Form.useForm<RegisterEnterprisePayload>();
@@ -43,7 +44,15 @@ const RegisterEnterprise = () => {
       navigate('/dashboard/workplace', { replace: true });
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建企业失败');
+      const status =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? Number((err as { response?: { status?: number } }).response?.status)
+          : undefined;
+      const backendMessage =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setError(buildFriendlyError(backendMessage, Number.isNaN(status) ? undefined : status).description ?? '创建企业失败');
     } finally {
       setLoading(false);
     }
