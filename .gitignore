@@ -28,3 +28,7 @@ dist-ssr
 prds/
 
 .pw-browsers/
+
+# local runtime artifacts
+.logs/
+test-results/
