@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
+import { zhCN as clerkZhCN } from '@clerk/localizations'
 import 'antd/dist/reset.css'
 import './styles/global.css'
 import { ConfigProvider, theme } from 'antd'
@@ -18,7 +19,10 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={publishableKey}
+      localization={clerkZhCN}
       afterSignOutUrl="/"
+      signInUrl="/sign-in"
+      signUpUrl="/onboarding/register-enterprise"
       signInForceRedirectUrl="/dashboard/workplace"
       signInFallbackRedirectUrl="/dashboard/workplace"
     >

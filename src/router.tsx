@@ -58,6 +58,7 @@ import OperationGuide from './views/OperationGuide';
 import GuideSectionPage from './views/guide/GuideSectionPage';
 import RegisterEnterprise from './views/auth/RegisterEnterprise';
 import Welcome from './views/auth/Welcome';
+import SignInPage from './views/auth/SignInPage';
 import {
   ActionLogPage,
   CompanySettings,
@@ -160,6 +161,10 @@ const router = createBrowserRouter([
   {
     path: '/onboarding/register-enterprise',
     element: React.createElement(RegisterEnterprise),
+  },
+  {
+    path: '/sign-in',
+    element: React.createElement(SignInPage),
   },
   {
     path: '/',

@@ -1,12 +1,11 @@
 import { Button, Card, Space, Typography } from 'antd';
-import { useAuth, useClerk } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 
 const Welcome = () => {
   const navigate = useNavigate();
   const { isLoaded, isSignedIn } = useAuth();
-  const { redirectToSignIn } = useClerk();
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
@@ -61,10 +60,7 @@ const Welcome = () => {
                   navigate('/dashboard/workplace');
                   return;
                 }
-                void redirectToSignIn({
-                  afterSignInUrl: '/dashboard/workplace',
-                  signInFallbackRedirectUrl: '/dashboard/workplace',
-                });
+                navigate('/sign-in');
               }}
             >
               登录系统
