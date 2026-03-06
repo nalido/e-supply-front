@@ -296,6 +296,17 @@ type CuttingTaskQueryParams = {
   includeSummary?: boolean;
 };
 
+type CuttingTaskCreateItem = {
+  workOrderId: number;
+  bedNumber: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+  cutAt?: string;
+  cutterId?: number;
+  remark?: string;
+};
+
 type CuttingReportQueryParams = {
   page?: number;
   pageSize?: number;
@@ -483,6 +494,26 @@ export const pieceworkService = {
       },
     });
     return adaptCuttingDataset(data);
+  },
+
+  async createCuttingTasks(tasks: CuttingTaskCreateItem[]): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      '/api/v1/cutting-tasks',
+      {
+        tasks: tasks.map((task) => ({
+          workOrderId: task.workOrderId,
+          bedNumber: task.bedNumber,
+          color: task.color,
+          size: task.size,
+          quantity: task.quantity,
+          cutAt: task.cutAt,
+          cutterId: task.cutterId,
+          remark: task.remark,
+        })),
+      },
+      { params: { tenantId } },
+    );
   },
 
   async getCuttingCompleted(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {

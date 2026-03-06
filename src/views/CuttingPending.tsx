@@ -25,6 +25,7 @@ import {
   SearchOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import type { CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
 import { pieceworkService } from '../api/piecework';
@@ -54,6 +55,7 @@ type DetailModalState = {
 type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
 const CuttingPendingPage = () => {
+  const navigate = useNavigate();
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -125,7 +127,7 @@ const CuttingPendingPage = () => {
 
   const handleMenuClick = (task: CuttingTask) => (event: MenuClickEvent) => {
     if (event.key === 'create-sheet') {
-      message.info(`即将跳转至新建裁床单页面：${task.orderCode}`);
+      navigate(`/piecework/cutting/create?orderId=${task.id}`);
       return;
     }
     if (event.key === 'edit') {

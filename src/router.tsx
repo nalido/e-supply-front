@@ -10,9 +10,8 @@ import SampleType from './views/SampleType';
 import SampleCostingReport from './views/SampleCostingReport';
 import SampleOrderComparisonReport from './views/SampleOrderComparisonReport';
 import FactoryOrders from './views/FactoryOrders';
-import CuttingPendingPage from './views/CuttingPending';
-import CuttingCompletedPage from './views/CuttingCompleted';
 import CuttingReportPage from './views/CuttingReport';
+import CuttingCreatePage from './views/CuttingCreate';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
@@ -114,8 +113,8 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/audit' &&
     n.key !== '/settings/preferences' &&
     n.key !== '/guide' &&
-    n.key !== '/piecework/cutting/pending' &&
-    n.key !== '/piecework/cutting/done' &&
+    n.key !== '/piecework/cutting/list' &&
+    n.key !== '/piecework/cutting/create' &&
     n.key !== '/piecework/cutting/report' &&
     n.key !== '/piecework/progress' &&
     n.key !== '/piecework/report' &&
@@ -213,8 +212,10 @@ const router = createBrowserRouter([
       { path: 'settings/roles', element: React.createElement(RolesSettings) },
       { path: 'settings/preferences', element: React.createElement(PreferencesPage) },
       { path: 'settings/audit', element: React.createElement(ActionLogPage) },
-      { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
-      { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
+      { path: 'piecework/cutting/list', element: React.createElement(CuttingReportPage) },
+      { path: 'piecework/cutting/create', element: React.createElement(CuttingCreatePage) },
+      { path: 'piecework/cutting/pending', element: React.createElement(Navigate, { to: '/piecework/cutting/create', replace: true }) },
+      { path: 'piecework/cutting/done', element: React.createElement(Navigate, { to: '/piecework/cutting/list', replace: true }) },
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },

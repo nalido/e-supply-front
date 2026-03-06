@@ -4,6 +4,7 @@ import type { RangeValue } from 'rc-picker/lib/interface';
 import { DatePicker, Input, Space, Table, Tag, Typography, Button, message, Modal, Descriptions } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import type { CuttingReportDataset, CuttingReportRecord } from '../types';
 import { pieceworkService } from '../api/piecework';
 import '../styles/cutting-report.css';
@@ -23,6 +24,7 @@ const initialDataset: CuttingReportDataset = {
 const toNumber = (value: number) => value.toLocaleString('zh-CN');
 
 const CuttingReportPage = () => {
+  const navigate = useNavigate();
   const [dataset, setDataset] = useState<CuttingReportDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [orderKeyword, setOrderKeyword] = useState('');
@@ -313,6 +315,9 @@ const CuttingReportPage = () => {
         </div>
         <div className="cutting-report-toolbar">
           <Space size={12} wrap>
+            <Button type="primary" onClick={() => navigate('/piecework/cutting/create')}>
+              新建裁床单
+            </Button>
             <Button type="primary" icon={<SearchOutlined />} onClick={handleApplyFilters}>
               查询
             </Button>

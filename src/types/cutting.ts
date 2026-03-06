@@ -8,6 +8,7 @@ export type CuttingTaskActionKey = 'create-sheet' | 'edit' | 'view';
 
 export type CuttingTask = {
   id: string;
+  workOrderId?: number;
   styleCode: string;
   styleName: string;
   orderCode: string;
