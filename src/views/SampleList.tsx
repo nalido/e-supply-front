@@ -146,6 +146,30 @@ type StatCardConfig = {
 
 const getCurrentMonthRange = (): [Dayjs, Dayjs] => [dayjs().startOf('month'), dayjs().endOf('month')];
 
+const toTimestamp = (value?: string): number => {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.valueOf() : Number.NEGATIVE_INFINITY;
+};
+
+const formatDateSafe = (value?: string, fallback = '-'): string => {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD') : fallback;
+};
+
+const isOverdueSafe = (deadline?: string): boolean => {
+  if (!deadline) {
+    return false;
+  }
+  const parsed = dayjs(deadline);
+  return parsed.isValid() && parsed.isBefore(dayjs(), 'day');
+};
+
 const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'total',
@@ -503,10 +527,10 @@ const SampleList: React.FC = () => {
           compare = a.totalAmount - b.totalAmount;
           break;
         case 'deadline':
-          compare = dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf();
+          compare = toTimestamp(a.deadline) - toTimestamp(b.deadline);
           break;
         case 'createTime':
-          compare = dayjs(a.createTime).valueOf() - dayjs(b.createTime).valueOf();
+          compare = toTimestamp(a.createTime) - toTimestamp(b.createTime);
           break;
         case 'priority':
           compare = PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority];
@@ -978,7 +1002,7 @@ const SampleList: React.FC = () => {
   ], []);
 
   const renderCard = useCallback((order: SampleOrder) => {
-    const overdue = dayjs(order.deadline).isBefore(dayjs(), 'day');
+    const overdue = isOverdueSafe(order.deadline);
     const statusMenuItems = STATUS_ACTIONS[order.status].map((action) => ({
       key: action.key,
       label: action.label,
@@ -1052,7 +1076,7 @@ const SampleList: React.FC = () => {
               <div style={{ ...INFO_ROW_STYLE, justifyContent: 'space-between' }}>
                 <div style={{ ...INFO_ROW_STYLE, flex: 1 }}>
                   <span style={INFO_LABEL_STYLE}>下单日期</span>
-                  <span style={INFO_VALUE_STYLE}>{dayjs(order.createTime).format('YYYY-MM-DD')}</span>
+                  <span style={INFO_VALUE_STYLE}>{formatDateSafe(order.createTime)}</span>
                 </div>
                 <div style={{ ...INFO_ROW_STYLE, flexShrink: 0 }}>
                   <span style={{ ...INFO_VALUE_STYLE, fontWeight: 600, flex: 'initial' }}>{order.quantity}</span>
@@ -1061,7 +1085,7 @@ const SampleList: React.FC = () => {
               <div style={INFO_ROW_STYLE}>
                 <span style={INFO_LABEL_STYLE}>交期</span>
                 <span style={{ ...INFO_VALUE_STYLE, color: overdue ? '#f5222d' : INFO_VALUE_STYLE.color }}>
-                  {dayjs(order.deadline).format('YYYY-MM-DD')}
+                  {formatDateSafe(order.deadline)}
                   {overdue && <Badge status="error" style={{ marginLeft: 4 }} />}
                 </span>
               </div>
