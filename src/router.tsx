@@ -163,7 +163,7 @@ const router = createBrowserRouter([
     element: React.createElement(RegisterEnterprise),
   },
   {
-    path: '/sign-in',
+    path: '/sign-in/*',
     element: React.createElement(SignInPage),
   },
   {

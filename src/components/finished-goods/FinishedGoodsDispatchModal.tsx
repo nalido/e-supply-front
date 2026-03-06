@@ -9,6 +9,8 @@ import type {
   FinishedGoodsOutboundMeta,
 } from '../../types/finished-goods-outbound';
 import { finishedGoodsDispatchService } from '../../api/finished-goods';
+import { SelectSetupHint } from '../common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -192,6 +194,12 @@ const FinishedGoodsDispatchModal = ({ open, records, meta, onClose, onDispatched
 
   const customerOptions = meta?.customers.map((customer) => ({ label: customer.name, value: customer.id }));
   const logisticsOptions = meta?.logistics.map((item) => ({ label: item.name, value: item.id }));
+  const customerSetup: SelectSetupConfig = {
+    entityLabel: '客户',
+    pageLabel: '往来单位',
+    buttonText: '去新建客户',
+    path: '/basic/partners?type=customer',
+  };
 
   return (
     <Modal
@@ -216,15 +224,19 @@ const FinishedGoodsDispatchModal = ({ open, records, meta, onClose, onDispatched
         />
         <Form<FormValues> layout="vertical" form={form}>
           <Space size={16} wrap style={{ width: '100%' }}>
-            <Form.Item label="客户（可选）" name="customerId" style={{ flex: '1 1 220px' }}>
-              <Select
-                showSearch
-                allowClear
-                placeholder="选择客户（可为空）"
-                optionFilterProp="label"
-                options={customerOptions ?? []}
-              />
-            </Form.Item>
+            <Space direction="vertical" size={4} style={{ flex: '1 1 220px' }}>
+              <Form.Item label="客户（可选）" name="customerId" style={{ marginBottom: 0 }}>
+                <Select
+                  showSearch
+                  allowClear
+                  placeholder="选择客户（可为空）"
+                  optionFilterProp="label"
+                  dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, customerSetup)}
+                  options={customerOptions ?? []}
+                />
+              </Form.Item>
+              <SelectSetupHint config={customerSetup} compact />
+            </Space>
             <Form.Item label="物流公司" name="logisticsProviderId" style={{ flex: '1 1 220px' }}>
               <Select placeholder="选择物流公司" allowClear options={logisticsOptions ?? []} />
             </Form.Item>

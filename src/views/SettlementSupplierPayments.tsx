@@ -24,6 +24,8 @@ import type {
   SupplierPaymentRecord,
 } from '../types/settlement-supplier-payments';
 import { supplierPaymentService } from '../api/settlement';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -253,6 +255,18 @@ const SettlementSupplierPayments = () => {
   const supplierOptions = meta?.suppliers ?? [];
   const paymentMethodOptions = meta?.paymentMethods ?? [];
   const accountOptions = meta?.cashierAccounts ?? [];
+  const supplierSetup: SelectSetupConfig = {
+    entityLabel: '供应商',
+    pageLabel: '往来单位',
+    buttonText: '去新建供应商',
+    path: '/basic/partners?type=supplier',
+  };
+  const accountSetup: SelectSetupConfig = {
+    entityLabel: '付款账户',
+    pageLabel: '出纳账户',
+    buttonText: '去新建账户',
+    path: '/settlement/cashier',
+  };
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -332,19 +346,23 @@ const SettlementSupplierPayments = () => {
         destroyOnHidden
       >
         <Form<SupplierPaymentFormValues> form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="supplierId"
-            label="供应商"
-            rules={[{ required: true, message: '请选择供应商' }]}
-          >
-            <Select
-              placeholder="请选择供应商"
-              options={supplierOptions}
-              showSearch
-              optionFilterProp="label"
-              disabled={Boolean(fixedSupplierId)}
-            />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="supplierId"
+              label="供应商"
+              rules={[{ required: true, message: '请选择供应商' }]}
+            >
+              <Select
+                placeholder="请选择供应商"
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, supplierSetup)}
+                options={supplierOptions}
+                showSearch
+                optionFilterProp="label"
+                disabled={Boolean(fixedSupplierId)}
+              />
+            </Form.Item>
+            <SelectSetupHint config={supplierSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item
             name="amount"
             label="付款金额"
@@ -372,13 +390,16 @@ const SettlementSupplierPayments = () => {
           >
             <Select options={paymentMethodOptions} placeholder="请选择" />
           </Form.Item>
-          <Form.Item
-            name="cashierAccountId"
-            label="付款账户"
-            rules={[{ required: true, message: '请选择付款账户' }]}
-          >
-            <Select options={accountOptions} placeholder="请选择" />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="cashierAccountId"
+              label="付款账户"
+              rules={[{ required: true, message: '请选择付款账户' }]}
+            >
+              <Select options={accountOptions} placeholder="请选择" dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, accountSetup)} />
+            </Form.Item>
+            <SelectSetupHint config={accountSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item name="reference" label="关联采购单">
             <Input placeholder="可填写采购单号" maxLength={50} />
           </Form.Item>

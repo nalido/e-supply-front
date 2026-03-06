@@ -28,6 +28,8 @@ import type {
 import type { Partner } from '../../types/partners';
 import type { Warehouse } from '../../types/warehouse';
 import type { MaterialItem } from '../../types/material';
+import { SelectSetupHint } from '../common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -39,7 +41,6 @@ export type StockingPurchaseCreateModalProps = {
 };
 
 const DEFAULT_PAGE_SIZE = 10;
-
 const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
   const [selectedMaterials, setSelectedMaterials] = useState<MaterialItem[]>([]);
@@ -56,6 +57,24 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
   const [materialDrawerInput, setMaterialDrawerInput] = useState('');
   const [materialDrawerLoading, setMaterialDrawerLoading] = useState(false);
   const [drawerSelectedRowKeys, setDrawerSelectedRowKeys] = useState<React.Key[]>([]);
+  const supplierSetup: SelectSetupConfig = {
+    entityLabel: '供应商',
+    pageLabel: '往来单位',
+    buttonText: '去新建供应商',
+    path: '/basic/partners?type=supplier',
+  };
+  const warehouseSetup: SelectSetupConfig = {
+    entityLabel: '仓库',
+    pageLabel: '仓库',
+    buttonText: '去新建仓库',
+    path: '/basic/warehouse',
+  };
+  const materialSetup: SelectSetupConfig = {
+    entityLabel: '物料',
+    pageLabel: '物料档案',
+    buttonText: '去新建物料',
+    path: '/basic/material',
+  };
 
   const resetState = () => {
     setSelectedMaterials([]);
@@ -318,32 +337,40 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
               width: '100%',
             }}
           >
-            <Form.Item
-              label="供应商"
-              name="supplierId"
-              rules={[{ required: true, message: '请选择供应商' }]}
-            >
-            <Select
-              loading={metaLoading}
-              placeholder="请选择供应商"
-              options={suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id }))}
-              showSearch
-              optionFilterProp="label"
-            />
-            </Form.Item>
-            <Form.Item
-              label="仓库"
-              name="warehouseId"
-              rules={[{ required: true, message: '请选择仓库' }]}
-            >
-            <Select
-              loading={metaLoading}
-              placeholder="请选择仓库"
-              options={warehouses.map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))}
-              showSearch
-              optionFilterProp="label"
-            />
-            </Form.Item>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Form.Item
+                label="供应商"
+                name="supplierId"
+                rules={[{ required: true, message: '请选择供应商' }]}
+              >
+              <Select
+                loading={metaLoading}
+                placeholder="请选择供应商"
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, supplierSetup)}
+                options={suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id }))}
+                showSearch
+                optionFilterProp="label"
+              />
+              </Form.Item>
+              <SelectSetupHint config={supplierSetup} marginTop={-18} marginBottom={8} />
+            </Space>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Form.Item
+                label="仓库"
+                name="warehouseId"
+                rules={[{ required: true, message: '请选择仓库' }]}
+              >
+              <Select
+                loading={metaLoading}
+                placeholder="请选择仓库"
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                options={warehouses.map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))}
+                showSearch
+                optionFilterProp="label"
+              />
+              </Form.Item>
+              <SelectSetupHint config={warehouseSetup} marginTop={-18} marginBottom={8} />
+            </Space>
             <Form.Item
               label="采购日期"
               name="orderDate"
@@ -369,6 +396,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
           }}>
             添加物料
           </Button>
+          <SelectSetupHint config={materialSetup} compact />
           <Text type="secondary">
             已添加的物料：<Text strong>{selectedMaterials.length}</Text> 项
           </Text>
@@ -400,6 +428,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
         }
       >
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <SelectSetupHint config={materialSetup} />
           <Input.Search
             allowClear
             placeholder="搜索物料名称/编码"

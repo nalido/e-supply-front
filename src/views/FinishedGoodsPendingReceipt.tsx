@@ -31,6 +31,8 @@ import type {
   FinishedGoodsPendingReceiptGrouping,
   FinishedGoodsPendingReceiptReceivePayload,
 } from '../types/finished-goods-pending-receipt';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -102,6 +104,12 @@ const FinishedGoodsPendingReceipt = () => {
   const [selectedRows, setSelectedRows] = useState<FinishedGoodsPendingReceiptRecord[]>([]);
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({ open: false, submitting: false });
   const [form] = Form.useForm<ReceiveFormValues>();
+  const warehouseSetup: SelectSetupConfig = {
+    entityLabel: '仓库',
+    pageLabel: '仓库',
+    buttonText: '去新建仓库',
+    path: '/basic/warehouse',
+  };
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -607,16 +615,20 @@ const FinishedGoodsPendingReceipt = () => {
         <Form form={form} layout="vertical" preserve={false}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item
-                label="入库仓库"
-                name="warehouseId"
-                rules={[{ required: true, message: '请选择入库仓库' }]}
-              >
-                <Select
-                  placeholder="选择仓库"
-                  options={meta?.warehouses?.map((item) => ({ value: item.id, label: item.name }))}
-                />
-              </Form.Item>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Form.Item
+                  label="入库仓库"
+                  name="warehouseId"
+                  rules={[{ required: true, message: '请选择入库仓库' }]}
+                >
+                  <Select
+                    placeholder="选择仓库"
+                    dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                    options={meta?.warehouses?.map((item) => ({ value: item.id, label: item.name }))}
+                  />
+                </Form.Item>
+                <SelectSetupHint config={warehouseSetup} marginTop={-18} marginBottom={8} />
+              </Space>
             </Col>
             <Col span={12}>
               <Form.Item label="备注" name="remark">

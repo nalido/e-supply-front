@@ -76,6 +76,8 @@ import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
 import ListImage from '../common/ListImage';
 import type { MaterialItem, MaterialBasicType } from '../../types/material';
+import { SelectSetupHint } from '../common/SelectSetupHint';
+import { openSetupPage, renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -428,20 +430,25 @@ const StaffSelect: React.FC<{
   role: StaffRole;
   label: string;
   options: StaffOption[];
-}> = ({ role, label, options }) => (
-  <Form.Item name={`${role}Id`} label={label}>
-    <Select
-      allowClear
-      showSearch
-      placeholder={`请选择${label}`}
-      optionFilterProp="label"
-      options={options.map((item) => ({
-        label: item.name,
-        value: item.id,
-        item,
-      }))}
-    />
-  </Form.Item>
+  setupEntry: SelectSetupConfig;
+}> = ({ role, label, options, setupEntry }) => (
+  <Space direction="vertical" size={4} style={{ width: '100%' }}>
+    <Form.Item name={`${role}Id`} label={label}>
+      <Select
+        allowClear
+        showSearch
+        placeholder={`请选择${label}`}
+        optionFilterProp="label"
+        dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntry)}
+        options={options.map((item) => ({
+          label: item.name,
+          value: item.id,
+          item,
+        }))}
+      />
+    </Form.Item>
+    <SelectSetupHint config={setupEntry} marginTop={-18} marginBottom={8} />
+  </Space>
 );
 
 const StyleSelectorDrawer: React.FC<{
@@ -450,7 +457,8 @@ const StyleSelectorDrawer: React.FC<{
   onClose: () => void;
   onSelect: (style: StyleData) => void;
   messageApi: MessageInstance;
-}> = ({ state, onStateChange, onClose, onSelect, messageApi }) => {
+  setupEntry: SelectSetupConfig;
+}> = ({ state, onStateChange, onClose, onSelect, messageApi, setupEntry }) => {
   const handleSearch = useCallback(
     async (nextKeyword: string, page: number = 1) => {
       onStateChange((prev) => ({ ...prev, loading: true, keyword: nextKeyword, page }));
@@ -491,6 +499,7 @@ const StyleSelectorDrawer: React.FC<{
       destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <SelectSetupHint config={setupEntry} />
         <Input.Search
           allowClear
           placeholder="输入款号或款名搜索"
@@ -556,7 +565,8 @@ const MaterialSelectorDrawer: React.FC<{
   onClose: () => void;
   onSelect: (material: MaterialItem) => void;
   messageApi: MessageInstance;
-}> = ({ open, materialType, onClose, onSelect, messageApi }) => {
+  setupEntry: SelectSetupConfig;
+}> = ({ open, materialType, onClose, onSelect, messageApi, setupEntry }) => {
   const [keyword, setKeyword] = useState('');
   const [list, setList] = useState<MaterialItem[]>([]);
   const [page, setPage] = useState(1);
@@ -621,6 +631,7 @@ const MaterialSelectorDrawer: React.FC<{
       destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <SelectSetupHint config={setupEntry} />
         <Input.Search
           placeholder="搜索物料名称或编号"
           allowClear
@@ -731,6 +742,50 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   });
   const [customProcessVisible, setCustomProcessVisible] = useState(false);
   const [customProcessForm] = Form.useForm();
+  const setupEntries = useMemo<Record<string, SelectSetupConfig>>(() => ({
+    sampleType: {
+      entityLabel: '样板类型',
+      pageLabel: '样板类型',
+      buttonText: '去新建样板类型',
+      path: '/sample/type',
+    },
+    followTemplate: {
+      entityLabel: '跟进模板',
+      pageLabel: '跟进模板',
+      buttonText: '去新建跟进模板',
+      path: '/sample/follow-template',
+    },
+    customer: {
+      entityLabel: '客户',
+      pageLabel: '往来单位',
+      buttonText: '去新建客户',
+      path: '/basic/partners?type=customer',
+    },
+    staff: {
+      entityLabel: '成员',
+      pageLabel: '组织架构',
+      buttonText: '去组织架构维护',
+      path: '/settings/org',
+    },
+    process: {
+      entityLabel: '工序',
+      pageLabel: '加工类型',
+      buttonText: '去新加工类型',
+      path: '/basic/process-type',
+    },
+    style: {
+      entityLabel: '款式',
+      pageLabel: '款式资料',
+      buttonText: '去新建款式',
+      path: '/basic/styles',
+    },
+    material: {
+      entityLabel: '物料',
+      pageLabel: '物料档案',
+      buttonText: '去新建物料',
+      path: '/basic/material',
+    },
+  }), []);
   const createUid = useCallback(() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
   const fabricBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'fabric'), [bomItems]);
   const accessoryBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'accessory'), [bomItems]);
@@ -1572,42 +1627,54 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       </Form.Item>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="sampleTypeId" label="板类">
-                        <Select
-                          allowClear
-                          placeholder="请选择板类"
-                          options={meta?.sampleTypes.map((item) => ({ label: item.name, value: String(item.id) }))}
-                        />
-                      </Form.Item>
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Form.Item name="sampleTypeId" label="板类">
+                          <Select
+                            allowClear
+                            placeholder="请选择板类"
+                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.sampleType)}
+                            options={meta?.sampleTypes.map((item) => ({ label: item.name, value: String(item.id) }))}
+                          />
+                        </Form.Item>
+                        <SelectSetupHint config={setupEntries.sampleType} marginTop={-18} marginBottom={8} />
+                      </Space>
                     </Col>
                     <Col span={12}>
-                      <Form.Item
-                        name="followTemplateId"
-                        label="跟进模板"
-                        rules={[{ required: true, message: '请选择跟进模板' }]}
-                      >
-                        <Select
-                          allowClear
-                          showSearch
-                          placeholder="请选择跟进模板"
-                          optionFilterProp="label"
-                          options={meta?.followTemplates?.map((item) => ({
-                            label: item.name,
-                            value: String(item.id),
-                          })) ?? []}
-                        />
-                      </Form.Item>
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Form.Item
+                          name="followTemplateId"
+                          label="跟进模板"
+                          rules={[{ required: true, message: '请选择跟进模板' }]}
+                        >
+                          <Select
+                            allowClear
+                            showSearch
+                            placeholder="请选择跟进模板"
+                            optionFilterProp="label"
+                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.followTemplate)}
+                            options={meta?.followTemplates?.map((item) => ({
+                              label: item.name,
+                              value: String(item.id),
+                            })) ?? []}
+                          />
+                        </Form.Item>
+                        <SelectSetupHint config={setupEntries.followTemplate} marginTop={-18} marginBottom={8} />
+                      </Space>
                     </Col>
                     <Col span={12}>
-                      <Form.Item name="customerId" label="客户">
-                        <Select
-                          allowClear
-                          showSearch
-                          placeholder="请选择客户"
-                          optionFilterProp="label"
-                          options={meta?.customers.map((item) => ({ label: item.name, value: String(item.id) }))}
-                        />
-                      </Form.Item>
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Form.Item name="customerId" label="客户">
+                          <Select
+                            allowClear
+                            showSearch
+                            placeholder="请选择客户"
+                            optionFilterProp="label"
+                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.customer)}
+                            options={meta?.customers.map((item) => ({ label: item.name, value: String(item.id) }))}
+                          />
+                        </Form.Item>
+                        <SelectSetupHint config={setupEntries.customer} marginTop={-18} marginBottom={8} />
+                      </Space>
                     </Col>
                     <Col span={24}>
                       <div
@@ -1722,10 +1789,20 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <StaffSelect role="merchandiser" label="跟单员" options={meta?.merchandisers ?? []} />
+                  <StaffSelect
+                    role="merchandiser"
+                    label="跟单员"
+                    options={meta?.merchandisers ?? []}
+                    setupEntry={setupEntries.staff}
+                  />
                 </Col>
                 <Col span={12}>
-                  <StaffSelect role="patternMaker" label="纸样师" options={meta?.patternMakers ?? []} />
+                  <StaffSelect
+                    role="patternMaker"
+                    label="纸样师"
+                    options={meta?.patternMakers ?? []}
+                    setupEntry={setupEntries.staff}
+                  />
                 </Col>
                 <Col span={12}>
                   <Form.Item name="patternNo" label="纸样号">
@@ -1733,7 +1810,12 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <StaffSelect role="sampleSewer" label="车板师" options={meta?.sampleSewers ?? []} />
+                  <StaffSelect
+                    role="sampleSewer"
+                    label="车板师"
+                    options={meta?.sampleSewers ?? []}
+                    setupEntry={setupEntries.staff}
+                  />
                 </Col>
                   <Col span={24}>
                     <Form.Item name="remarks" label="备注">
@@ -1745,6 +1827,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
 
               <div ref={registerSection('materials')} className={getSectionClassName('materials')}>
                 <Divider orientation="left">物料清单</Divider>
+                <SelectSetupHint config={setupEntries.material} marginBottom={12} />
                 <Row gutter={16}>
                   <Col span={24} lg={12}>
                     <Card
@@ -1771,8 +1854,19 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 <Divider orientation="left">加工流程</Divider>
                 <Row gutter={16}>
                   <Col span={10}>
-                    <Card size="small" title="可选工序" styles={{ body: { maxHeight: 320, overflow: 'auto' } }}>
+                    <Card
+                      size="small"
+                      title="可选工序"
+                      extra={(
+                        <Button type="link" size="small" onClick={() => openSetupPage(setupEntries.process.path)}>
+                          {setupEntries.process.buttonText}
+                        </Button>
+                      )}
+                      styles={{ body: { maxHeight: 320, overflow: 'auto' }}
+                    }
+                    >
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      <SelectSetupHint config={setupEntries.process} />
                       {meta?.processLibrary.map((process) => (
                         <Card
                           key={process.id}
@@ -1982,6 +2076,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         onClose={() => setStyleState((prev) => ({ ...prev, open: false }))}
         onSelect={handleStyleSelect}
         messageApi={messageApi}
+        setupEntry={setupEntries.style}
       />
 
       <MaterialSelectorDrawer
@@ -1990,6 +2085,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         onClose={handleMaterialPickerClose}
         onSelect={handleMaterialSelected}
         messageApi={messageApi}
+        setupEntry={setupEntries.material}
       />
 
       <Modal

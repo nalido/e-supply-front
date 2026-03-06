@@ -33,6 +33,8 @@ import type {
   FinishedGoodsReceivedUpdatePayload,
   FinishedGoodsReceivedViewMode,
 } from '../types/finished-goods-received';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -81,6 +83,12 @@ const FinishedGoodsReceived = () => {
   const [selectedRecords, setSelectedRecords] = useState<FinishedGoodsReceivedRecord[]>([]);
   const [modifyModal, setModifyModal] = useState<ModifyModalState>({ open: false, submitting: false });
   const [form] = Form.useForm<ModifyFormValues>();
+  const warehouseSetup: SelectSetupConfig = {
+    entityLabel: '仓库',
+    pageLabel: '仓库',
+    buttonText: '去新建仓库',
+    path: '/basic/warehouse',
+  };
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -474,14 +482,22 @@ const FinishedGoodsReceived = () => {
           </Col>
           <Col>
             <Space size={12} wrap>
-              <Select
-                allowClear
-                placeholder="仓库"
-                style={{ width: 160 }}
-                value={warehouseFilter}
-                options={meta?.warehouses.map((item) => ({ value: item.id, label: item.name }))}
-                onChange={handleWarehouseChange}
-              />
+              <Space direction="vertical" size={4}>
+                <Select
+                  allowClear
+                  placeholder="仓库"
+                  style={{ width: 160 }}
+                  value={warehouseFilter}
+                  dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                  options={meta?.warehouses.map((item) => ({ value: item.id, label: item.name }))}
+                  onChange={handleWarehouseChange}
+                />
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    若没有合适的{warehouseSetup.entityLabel}，可前往{warehouseSetup.pageLabel}新建。
+                  </Text>
+                </div>
+              </Space>
               <Input
                 allowClear
                 placeholder="订单/款式"
@@ -552,16 +568,20 @@ const FinishedGoodsReceived = () => {
         destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            label="仓库"
-            name="warehouseId"
-            rules={[{ required: true, message: '请选择仓库' }]}
-          >
-            <Select
-              placeholder="选择仓库"
-              options={meta?.warehouses.map((item) => ({ value: item.id, label: item.name }))}
-            />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              label="仓库"
+              name="warehouseId"
+              rules={[{ required: true, message: '请选择仓库' }]}
+            >
+              <Select
+                placeholder="选择仓库"
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                options={meta?.warehouses.map((item) => ({ value: item.id, label: item.name }))}
+              />
+            </Form.Item>
+            <SelectSetupHint config={warehouseSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item
             label="数量"
             name="quantity"

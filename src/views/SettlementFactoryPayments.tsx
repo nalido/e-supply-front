@@ -24,6 +24,8 @@ import type {
   FactoryPaymentRecord,
 } from '../types/settlement-factory-payments';
 import { factoryPaymentService } from '../api/settlement';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -253,6 +255,18 @@ const SettlementFactoryPayments = () => {
   const factoryOptions = meta?.factories ?? [];
   const paymentMethodOptions = meta?.paymentMethods ?? [];
   const accountOptions = meta?.cashierAccounts ?? [];
+  const factorySetup: SelectSetupConfig = {
+    entityLabel: '加工厂',
+    pageLabel: '往来单位',
+    buttonText: '去新建加工厂',
+    path: '/basic/partners?type=factory',
+  };
+  const accountSetup: SelectSetupConfig = {
+    entityLabel: '付款账户',
+    pageLabel: '出纳账户',
+    buttonText: '去新建账户',
+    path: '/settlement/cashier',
+  };
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -332,19 +346,23 @@ const SettlementFactoryPayments = () => {
         destroyOnHidden
       >
         <Form<PaymentFormValues> form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="factoryId"
-            label="加工厂"
-            rules={[{ required: true, message: '请选择加工厂' }]}
-          >
-            <Select
-              placeholder="请选择加工厂"
-              options={factoryOptions}
-              showSearch
-              optionFilterProp="label"
-              disabled={Boolean(fixedFactoryId)}
-            />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="factoryId"
+              label="加工厂"
+              rules={[{ required: true, message: '请选择加工厂' }]}
+            >
+              <Select
+                placeholder="请选择加工厂"
+                options={factoryOptions}
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, factorySetup)}
+                showSearch
+                optionFilterProp="label"
+                disabled={Boolean(fixedFactoryId)}
+              />
+            </Form.Item>
+            <SelectSetupHint config={factorySetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item
             name="amount"
             label="付款金额"
@@ -372,13 +390,16 @@ const SettlementFactoryPayments = () => {
           >
             <Select options={paymentMethodOptions} placeholder="请选择" />
           </Form.Item>
-          <Form.Item
-            name="cashierAccountId"
-            label="付款账户"
-            rules={[{ required: true, message: '请选择付款账户' }]}
-          >
-            <Select options={accountOptions} placeholder="请选择" />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="cashierAccountId"
+              label="付款账户"
+              rules={[{ required: true, message: '请选择付款账户' }]}
+            >
+              <Select options={accountOptions} placeholder="请选择" dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, accountSetup)} />
+            </Form.Item>
+            <SelectSetupHint config={accountSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item name="reference" label="关联加工单">
             <Input placeholder="可填写加工单号" maxLength={50} />
           </Form.Item>

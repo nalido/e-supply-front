@@ -33,6 +33,8 @@ import type {
   FinishedGoodsOtherInboundRecord,
   FinishedGoodsOtherInboundViewMode,
 } from '../types/finished-goods-other-inbound';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -110,6 +112,24 @@ const FinishedGoodsOtherInbound = () => {
   const [selectedRows, setSelectedRows] = useState<FinishedGoodsOtherInboundRecord[]>([]);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false, mode: 'create' });
   const [form] = Form.useForm<FormValues>();
+  const warehouseSetup: SelectSetupConfig = {
+    entityLabel: '仓库',
+    pageLabel: '仓库',
+    buttonText: '去新建仓库',
+    path: '/basic/warehouse',
+  };
+  const processorSetup: SelectSetupConfig = {
+    entityLabel: '加工厂',
+    pageLabel: '往来单位',
+    buttonText: '去新建加工厂',
+    path: '/basic/partners?type=factory',
+  };
+  const styleSetup: SelectSetupConfig = {
+    entityLabel: '款式',
+    pageLabel: '款式资料',
+    buttonText: '去新建款式',
+    path: '/basic/styles',
+  };
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -656,36 +676,48 @@ const FinishedGoodsOtherInbound = () => {
         <Form form={form} layout="vertical" initialValues={buildDefaultFormValues(meta)}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}
->
-                <Select
-                  placeholder="请选择仓库"
-                  loading={metaLoading}
-                  options={meta?.warehouses.map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))}
-                />
-              </Form.Item>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Form.Item name="warehouseId" label="仓库" rules={[{ required: true, message: '请选择仓库' }]}
+  >
+                  <Select
+                    placeholder="请选择仓库"
+                    loading={metaLoading}
+                    dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                    options={meta?.warehouses.map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))}
+                  />
+                </Form.Item>
+                <SelectSetupHint config={warehouseSetup} marginTop={-18} marginBottom={8} />
+              </Space>
             </Col>
             <Col span={12}>
-              <Form.Item name="processorId" label="加工厂" rules={[{ required: true, message: '请选择加工厂' }]}
->
-                <Select
-                  placeholder="请选择加工厂"
-                  loading={metaLoading}
-                  options={meta?.processors.map((processor) => ({ label: processor.name, value: processor.id }))}
-                />
-              </Form.Item>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Form.Item name="processorId" label="加工厂" rules={[{ required: true, message: '请选择加工厂' }]}
+  >
+                  <Select
+                    placeholder="请选择加工厂"
+                    loading={metaLoading}
+                    dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, processorSetup)}
+                    options={meta?.processors.map((processor) => ({ label: processor.name, value: processor.id }))}
+                  />
+                </Form.Item>
+                <SelectSetupHint config={processorSetup} marginTop={-18} marginBottom={8} />
+              </Space>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="styleId" label="款式" rules={[{ required: true, message: '请选择款式' }]}
->
-                <Select
-                  placeholder="请选择款式"
-                  loading={metaLoading}
-                  options={meta?.styles.map((style) => ({ label: `${style.styleNo} / ${style.styleName}`, value: style.id }))}
-                />
-              </Form.Item>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Form.Item name="styleId" label="款式" rules={[{ required: true, message: '请选择款式' }]}
+  >
+                  <Select
+                    placeholder="请选择款式"
+                    loading={metaLoading}
+                    dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, styleSetup)}
+                    options={meta?.styles.map((style) => ({ label: `${style.styleNo} / ${style.styleName}`, value: style.id }))}
+                  />
+                </Form.Item>
+                <SelectSetupHint config={styleSetup} marginTop={-18} marginBottom={8} />
+              </Space>
             </Col>
             <Col span={12}>
               <Form.Item name="color" label="颜色" rules={[{ required: true, message: '请选择颜色' }]}

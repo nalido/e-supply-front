@@ -30,6 +30,8 @@ import type {
 } from '../types/finished-goods-outbound';
 import StyleInfo from '../components/common/StyleInfo';
 import ListImage from '../components/common/ListImage';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
 
@@ -95,6 +97,18 @@ const FinishedGoodsOutbound = () => {
   const [editForm] = Form.useForm<EditFormValues>();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const customerSetup: SelectSetupConfig = {
+    entityLabel: '客户',
+    pageLabel: '往来单位',
+    buttonText: '去新建客户',
+    path: '/basic/partners?type=customer',
+  };
+  const warehouseSetup: SelectSetupConfig = {
+    entityLabel: '仓库',
+    pageLabel: '仓库',
+    buttonText: '去新建仓库',
+    path: '/basic/warehouse',
+  };
   const statusLabelMap = useMemo(
     () => ({
       draft: { label: '草稿', color: 'default' },
@@ -568,28 +582,36 @@ const FinishedGoodsOutbound = () => {
                   <Checkbox checked={showCompletedOrders} onChange={handleShowCompletedToggle}>
                     显示已完成订单
                   </Checkbox>
-                  <Form.Item label="客户" style={{ marginBottom: 0 }}>
-                    <Select
-                      allowClear
-                      placeholder="选择客户"
-                      style={{ width: 200 }}
-                      value={customerFilter}
-                      onChange={handleCustomerChange}
-                      loading={metaLoading}
-                      options={meta?.customers.map((item) => ({ label: item.name, value: item.id }))}
-                    />
-                  </Form.Item>
-                  <Form.Item label="仓库" style={{ marginBottom: 0 }}>
-                    <Select
-                      allowClear
-                      placeholder="选择仓库"
-                      style={{ width: 200 }}
-                      value={warehouseFilter}
-                      onChange={handleWarehouseChange}
-                      loading={metaLoading}
-                      options={meta?.warehouses.map((item) => ({ label: item.name, value: item.id }))}
-                    />
-                  </Form.Item>
+                  <Space direction="vertical" size={4}>
+                    <Form.Item label="客户" style={{ marginBottom: 0 }}>
+                      <Select
+                        allowClear
+                        placeholder="选择客户"
+                        style={{ width: 200 }}
+                        value={customerFilter}
+                        onChange={handleCustomerChange}
+                        loading={metaLoading}
+                        dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, customerSetup)}
+                        options={meta?.customers.map((item) => ({ label: item.name, value: item.id }))}
+                      />
+                    </Form.Item>
+                    <SelectSetupHint config={customerSetup} compact />
+                  </Space>
+                  <Space direction="vertical" size={4}>
+                    <Form.Item label="仓库" style={{ marginBottom: 0 }}>
+                      <Select
+                        allowClear
+                        placeholder="选择仓库"
+                        style={{ width: 200 }}
+                        value={warehouseFilter}
+                        onChange={handleWarehouseChange}
+                        loading={metaLoading}
+                        dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                        options={meta?.warehouses.map((item) => ({ label: item.name, value: item.id }))}
+                      />
+                    </Form.Item>
+                    <SelectSetupHint config={warehouseSetup} compact />
+                  </Space>
                   <Form.Item label="订单/款式/发货单" style={{ marginBottom: 0 }}>
                     <Input.Search
                       allowClear

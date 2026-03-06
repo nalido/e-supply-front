@@ -24,6 +24,8 @@ import type {
   CustomerReceiptRecord,
 } from '../types/settlement-customer-receipts';
 import { customerReceiptService } from '../api/settlement';
+import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -253,6 +255,18 @@ const SettlementCustomerReceipts = () => {
   const customerOptions = meta?.customers ?? [];
   const paymentMethodOptions = meta?.paymentMethods ?? [];
   const accountOptions = meta?.cashierAccounts ?? [];
+  const customerSetup: SelectSetupConfig = {
+    entityLabel: '客户',
+    pageLabel: '往来单位',
+    buttonText: '去新建客户',
+    path: '/basic/partners?type=customer',
+  };
+  const accountSetup: SelectSetupConfig = {
+    entityLabel: '收款账户',
+    pageLabel: '出纳账户',
+    buttonText: '去新建账户',
+    path: '/settlement/cashier',
+  };
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -337,19 +351,23 @@ const SettlementCustomerReceipts = () => {
         destroyOnHidden
       >
         <Form<ReceiptFormValues> form={form} layout="vertical" preserve={false}>
-          <Form.Item
-            name="customerId"
-            label="客户"
-            rules={[{ required: true, message: '请选择客户' }]}
-          >
-            <Select
-              placeholder="请选择客户"
-              options={customerOptions}
-              showSearch
-              optionFilterProp="label"
-              disabled={Boolean(fixedCustomerId)}
-            />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="customerId"
+              label="客户"
+              rules={[{ required: true, message: '请选择客户' }]}
+            >
+              <Select
+                placeholder="请选择客户"
+                options={customerOptions}
+                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, customerSetup)}
+                showSearch
+                optionFilterProp="label"
+                disabled={Boolean(fixedCustomerId)}
+              />
+            </Form.Item>
+            <SelectSetupHint config={customerSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item
             name="amount"
             label="收款金额"
@@ -377,13 +395,16 @@ const SettlementCustomerReceipts = () => {
           >
             <Select options={paymentMethodOptions} placeholder="请选择" />
           </Form.Item>
-          <Form.Item
-            name="cashierAccountId"
-            label="收款账户"
-            rules={[{ required: true, message: '请选择收款账户' }]}
-          >
-            <Select options={accountOptions} placeholder="请选择" />
-          </Form.Item>
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item
+              name="cashierAccountId"
+              label="收款账户"
+              rules={[{ required: true, message: '请选择收款账户' }]}
+            >
+              <Select options={accountOptions} placeholder="请选择" dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, accountSetup)} />
+            </Form.Item>
+            <SelectSetupHint config={accountSetup} marginTop={-18} marginBottom={8} />
+          </Space>
           <Form.Item name="reference" label="关联单据">
             <Input placeholder="可填写订单号/发票号" maxLength={50} />
           </Form.Item>
