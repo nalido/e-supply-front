@@ -13,6 +13,10 @@ on:
         required: false
         default: ''
         type: string
+      vite_clerk_publishable_key:
+        description: 'VITE_CLERK_PUBLISHABLE_KEY passed by deploy workflow (required)'
+        required: true
+        type: string
 
 jobs:
   release:
@@ -49,7 +53,7 @@ jobs:
 
       - name: Build
         env:
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ inputs.vite_clerk_publishable_key }}
         run: |
           test -n "$VITE_CLERK_PUBLISHABLE_KEY"
           npm run build
