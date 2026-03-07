@@ -73,6 +73,13 @@ const ensureTenantId = (): string => {
   return tenantId;
 };
 
+const toBackendPage = (page?: number): number => {
+  if (!page || Number.isNaN(page)) {
+    return 0;
+  }
+  return Math.max(page - 1, 0);
+};
+
 const incomingStatusToBackend: Record<IncomingOrderStatus, string> = {
   待接单: 'WAITING_ACCEPTANCE',
   生产中: 'IN_PRODUCTION',
@@ -248,7 +255,7 @@ export const collaborationApi = {
           status: toBackendIncomingStatus(params.status),
           clientName: params.clientName,
           keyword: params.keyword?.trim(),
-          page: params.page ?? 1,
+          page: toBackendPage(params.page),
           size: params.pageSize ?? 10,
         },
       },
@@ -291,7 +298,7 @@ export const collaborationApi = {
           tenantId,
           status: params.status && params.status !== '全部' ? toBackendOutsourceStatus(params.status) : undefined,
           keyword: params.keyword?.trim(),
-          page: params.page ?? 1,
+          page: toBackendPage(params.page),
           size: params.pageSize ?? 10,
         },
       },
