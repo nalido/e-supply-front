@@ -122,6 +122,7 @@ export const menuTree: MenuNode[] = [
         ],
       },
       { key: '/piecework/progress', label: <Link to="/piecework/progress">车间进度</Link> },
+      { key: '/piecework/mvp-actions', label: <Link to="/piecework/mvp-actions">MVP链路操作</Link> },
       { key: '/piecework/payroll', label: <Link to="/piecework/payroll">薪资管理</Link> },
       { key: '/piecework/outsource', label: <Link to="/piecework/outsource">外发管理</Link> },
       { key: '/piecework/quality', label: <Link to="/piecework/quality">质检管理</Link> },

@@ -53,6 +53,7 @@ import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetai
 import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
 import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
 import QualityControlManagement from './views/QualityControlManagement';
+import MvpChainActions from './views/MvpChainActions';
 import OperationGuide from './views/OperationGuide';
 import GuideSectionPage from './views/guide/GuideSectionPage';
 import RegisterEnterprise from './views/auth/RegisterEnterprise';
@@ -117,6 +118,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/piecework/cutting/create' &&
     n.key !== '/piecework/cutting/report' &&
     n.key !== '/piecework/progress' &&
+    n.key !== '/piecework/mvp-actions' &&
     n.key !== '/piecework/report' &&
     n.key !== '/piecework/outsource' &&
     n.key !== '/orders/report/profit' &&
@@ -218,6 +220,7 @@ const router = createBrowserRouter([
       { path: 'piecework/cutting/done', element: React.createElement(Navigate, { to: '/piecework/cutting/list', replace: true }) },
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
+      { path: 'piecework/mvp-actions', element: React.createElement(MvpChainActions) },
       { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },
       { path: 'piecework/report', element: React.createElement(OrderReportAggregation) },
       { path: 'piecework/quality', element: React.createElement(QualityControlManagement) },
