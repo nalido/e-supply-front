@@ -31,13 +31,6 @@ const ensureTenantId = (): string => {
   return tenantId;
 };
 
-const toBackendPage = (page?: number): number => {
-  if (!page || Number.isNaN(page)) {
-    return 0;
-  }
-  return Math.max(page - 1, 0);
-};
-
 const adaptOrderSummary = (data: BackendProcurementOrderSummary): ProcurementOrderSummary => ({
   id: data.id,
   orderNo: data.orderNo,
@@ -60,7 +53,7 @@ export const stockingPurchaseInboundService = {
         materialType: params.materialType,
         status: params.status,
         keyword: params.keyword,
-        page: toBackendPage(params.page),
+        page: params.page,
         size: params.pageSize,
       },
     });
