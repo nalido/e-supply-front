@@ -7,7 +7,9 @@ import {
   Col,
   DatePicker,
   Dropdown,
+  Form,
   Input,
+  InputNumber,
   List,
   Modal,
   message,
@@ -51,6 +53,7 @@ import type {
 } from '../types/sample';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import sampleOrderApi from '../api/sample-order';
+import { factoryOrdersApi } from '../api/factory-orders';
 import type { SampleCreationMeta } from '../types/sample-create';
 import { getSamplePriorityColor, getSamplePriorityLabel, getSampleStatusColor, getSampleStatusLabel } from '../utils/sample-labels';
 import { useNavigate } from 'react-router-dom';
@@ -121,6 +124,15 @@ type StatusAction = {
   confirmTitle?: string;
   confirmOkText?: string;
   successMessage: (orderNo: string) => string;
+};
+
+type ProduceModalState = {
+  open: boolean;
+  order?: SampleOrder;
+  styleId?: number;
+  customerId?: number;
+  defaultDelivery?: string;
+  submitting: boolean;
 };
 
 const SORTABLE_FIELDS: SortableField[] = [
@@ -477,6 +489,8 @@ const SampleList: React.FC = () => {
   const [editingNode, setEditingNode] = useState<{ order: SampleOrder; node: SampleFollowProgressNode } | null>(null);
   const [nodeModalLoading, setNodeModalLoading] = useState(false);
   const [statusLoadingOrderId, setStatusLoadingOrderId] = useState<string | null>(null);
+  const [produceModal, setProduceModal] = useState<ProduceModalState>({ open: false, submitting: false });
+  const [produceForm] = Form.useForm();
   useEffect(() => {
     let mounted = true;
     sampleOrderApi
@@ -798,6 +812,87 @@ const SampleList: React.FC = () => {
     }
   }, [loadData, loadStats]);
 
+  const handleOpenProduceModal = useCallback(async (order: SampleOrder) => {
+    try {
+      const detail = await sampleOrderApi.detailRaw(order.id);
+      const styleId = detail.styleId ? Number(detail.styleId) : undefined;
+      const customerId = detail.customerId ? Number(detail.customerId) : undefined;
+      if (!styleId || !customerId) {
+        message.error('样板单缺少款式或客户信息，无法下大货');
+        return;
+      }
+      const lines = (detail.skus ?? [])
+        .map((sku) => ({
+          color: sku.color,
+          size: sku.size,
+          quantity: Number(sku.quantity ?? 0),
+        }))
+        .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0);
+      setProduceModal({
+        open: true,
+        order,
+        styleId,
+        customerId,
+        defaultDelivery: detail.deadline ?? undefined,
+        submitting: false,
+      });
+      produceForm.setFieldsValue({
+        expectedDelivery: detail.deadline ? dayjs(detail.deadline) : undefined,
+        lines: lines.length ? lines : [{ quantity: Math.max(1, Number(order.quantity ?? 1)) }],
+      });
+    } catch (error) {
+      console.error('Failed to load sample detail for producing', error);
+      message.error('加载样板单明细失败，无法下大货');
+    }
+  }, [produceForm]);
+
+  const handleSubmitProduce = useCallback(async () => {
+    if (!produceModal.order || !produceModal.styleId || !produceModal.customerId) {
+      message.error('下大货参数不完整');
+      return;
+    }
+    try {
+      const values = await produceForm.validateFields();
+      const lines = (values.lines ?? [])
+        .map((item: { color?: string; size?: string; quantity?: number }) => ({
+          color: item.color,
+          size: item.size,
+          quantity: Number(item.quantity ?? 0),
+        }))
+        .filter((item: { quantity: number }) => Number.isFinite(item.quantity) && item.quantity > 0);
+      if (!lines.length) {
+        message.warning('请至少填写一条颜色/尺码数量');
+        return;
+      }
+      setProduceModal((prev) => ({ ...prev, submitting: true }));
+      await factoryOrdersApi.createOrder({
+        styleId: produceModal.styleId,
+        customerId: produceModal.customerId,
+        expectedDelivery: values.expectedDelivery ? values.expectedDelivery.format('YYYY-MM-DD') : produceModal.defaultDelivery,
+        remarks: `样板单 ${produceModal.order.orderNo} 下大货`,
+        lines,
+      });
+      await sampleOrderApi.updateStatus(
+        produceModal.order.id,
+        SampleStatusEnum.PRODUCING,
+        '转大货生产',
+      );
+      message.success(`样板单 ${produceModal.order.orderNo} 已进入大货生产`);
+      setProduceModal({ open: false, submitting: false });
+      produceForm.resetFields();
+      void loadData();
+      void loadStats();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        return;
+      }
+      console.error('Failed to create factory order from sample', error);
+      message.error(error instanceof Error ? error.message : '下大货失败，请稍后重试');
+    } finally {
+      setProduceModal((prev) => ({ ...prev, submitting: false }));
+    }
+  }, [loadData, loadStats, produceForm, produceModal]);
+
   const handleStatusChange = useCallback(
     async (order: SampleOrder, action: StatusAction) => {
       if (statusLoadingOrderId) {
@@ -821,6 +916,10 @@ const SampleList: React.FC = () => {
 
   const handleStatusAction = useCallback(
     (order: SampleOrder, action: StatusAction) => {
+      if (action.key === 'produce') {
+        void handleOpenProduceModal(order);
+        return;
+      }
       const execute = () => handleStatusChange(order, action);
       if (action.confirmTitle) {
         Modal.confirm({
@@ -833,7 +932,7 @@ const SampleList: React.FC = () => {
       }
       void execute();
     },
-    [handleStatusChange],
+    [handleOpenProduceModal, handleStatusChange],
   );
 
   const handleDelete = useCallback(async (order: SampleOrder) => {
@@ -1295,6 +1394,55 @@ const SampleList: React.FC = () => {
         onCancel={handleNodeModalCancel}
         onSubmit={handleNodeModalSubmit}
       />
+      <Modal
+        open={produceModal.open}
+        title={produceModal.order ? `下大货 - ${produceModal.order.orderNo}` : '下大货'}
+        onCancel={() => {
+          setProduceModal({ open: false, submitting: false });
+          produceForm.resetFields();
+        }}
+        onOk={handleSubmitProduce}
+        confirmLoading={produceModal.submitting}
+        destroyOnHidden
+      >
+        <Form form={produceForm} layout="vertical">
+          <Form.Item label="预计交货日期" name="expectedDelivery">
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.List name="lines" initialValue={[{ quantity: 1 }]}>
+            {(fields, { add, remove }) => (
+              <Form.Item label="下单明细（颜色/尺码）" required>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {fields.map((field) => (
+                    <Space key={field.key} align="baseline" wrap>
+                      <Form.Item {...field} name={[field.name, 'color']} style={{ marginBottom: 0 }}>
+                        <Input placeholder="颜色（可选）" />
+                      </Form.Item>
+                      <Form.Item {...field} name={[field.name, 'size']} style={{ marginBottom: 0 }}>
+                        <Input placeholder="尺码（可选）" />
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'quantity']}
+                        style={{ marginBottom: 0 }}
+                        rules={[{ required: true, message: '请输入数量' }]}
+                      >
+                        <InputNumber min={1} placeholder="数量" />
+                      </Form.Item>
+                      <Button type="text" danger onClick={() => remove(field.name)} disabled={fields.length <= 1}>
+                        删除
+                      </Button>
+                    </Space>
+                  ))}
+                  <Button type="dashed" onClick={() => add({ quantity: 1 })}>
+                    新增一行
+                  </Button>
+                </div>
+              </Form.Item>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
     </div>
   );
 };

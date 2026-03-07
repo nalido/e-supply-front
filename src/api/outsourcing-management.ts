@@ -300,7 +300,7 @@ export const outsourcingManagementApi = {
     return list.map((item: Record<string, unknown>) => ({
       id: String(item.id ?? ''),
       label: String(item.orderCode ?? item.orderNo ?? `订单#${item.id ?? '-'}`),
-    })).filter((item) => item.id && item.label);
+    })).filter((item: { id: string; label: string }) => item.id && item.label);
   },
 
   async listWorkOrderOptions(productionOrderId: string): Promise<Array<{ id: string; label: string }>> {

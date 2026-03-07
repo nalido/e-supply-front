@@ -105,11 +105,22 @@ export type FactoryOrderCostDetail = {
   entries: FactoryOrderCostEntry[];
 };
 
+export type FactoryOrderProgressNode = {
+  id: number;
+  nodeCode: string;
+  nodeName: string;
+  sequenceNo: number;
+  status: string;
+  completedAt?: string;
+  operatorId?: number;
+  payloadJson?: string;
+};
+
 export type FactoryOrderCreatePayload = {
   orderNo?: string;
   styleId: number;
   customerId: number;
-  totalQuantity: number;
+  totalQuantity?: number;
   unitPrice?: number;
   expectedDelivery?: string;
   status?: string;
@@ -117,6 +128,12 @@ export type FactoryOrderCreatePayload = {
   merchandiserId?: number;
   factoryId?: number;
   remarks?: string;
+  lines?: Array<{
+    color?: string;
+    size?: string;
+    quantity: number;
+    unitPrice?: number;
+  }>;
 };
 
 type BackendFactoryOrderSummary = {
@@ -220,6 +237,16 @@ type BackendFactoryOrderCostDetail = {
   estimatedUnitCost?: BackendFactoryOrderCostSummary;
   actualUnitCost?: BackendFactoryOrderCostSummary;
   entries?: BackendFactoryOrderCostEntry[];
+};
+
+const normalizeMaterialStatus = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  if (value === 'ISSUED') {
+    return 'ALLOCATED';
+  }
+  return value;
 };
 
 const ensureTenantId = (): number => {
@@ -370,7 +397,7 @@ const buildQueryParams = (params?: FactoryOrdersQuery) => {
   }
   return {
     status: params.status,
-    materialStatus: params.materialStatus,
+    materialStatus: normalizeMaterialStatus(params.materialStatus),
     startDelivery: params.startDelivery,
     endDelivery: params.endDelivery,
     keyword: params.keyword?.trim() || undefined,
@@ -422,6 +449,40 @@ export const factoryOrdersApi = {
     return adaptCostDetail(data);
   },
 
+  async getProgress(orderId: string | number): Promise<FactoryOrderProgressNode[]> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<FactoryOrderProgressNode[]>(
+      `/api/v1/production-orders/${orderId}/progress`,
+      { params: { tenantId } },
+    );
+    return data ?? [];
+  },
+
+  async completeProgress(
+    orderId: string | number,
+    nodeCode: string,
+    payload?: {
+      completedAt?: string;
+      operatorId?: number;
+      payload?: Record<string, unknown>;
+    },
+  ): Promise<FactoryOrderProgressNode[]> {
+    const tenantId = ensureTenantId();
+    const body = payload
+      ? {
+          completedAt: payload.completedAt,
+          operatorId: payload.operatorId,
+          payload: payload.payload,
+        }
+      : {};
+    const { data } = await http.post<FactoryOrderProgressNode[]>(
+      `/api/v1/production-orders/${orderId}/progress/${nodeCode}/complete`,
+      body,
+      { params: { tenantId } },
+    );
+    return data ?? [];
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
     const tenantId = ensureTenantId();
     const requestBody = {
@@ -435,7 +496,7 @@ export const factoryOrdersApi = {
         totalQuantity: Number(order.totalQuantity),
         expectedDelivery: order.expectedDelivery,
         status: order.status,
-        materialStatus: order.materialStatus,
+        materialStatus: normalizeMaterialStatus(order.materialStatus),
         completedQuantity: order.completedQuantity,
         remarks: order.remarks,
       })),
@@ -450,7 +511,7 @@ export const factoryOrdersApi = {
       tenantId,
       orderIds: payload.orderIds.map((id) => Number(id)),
       status: payload.status,
-      materialStatus: payload.materialStatus,
+      materialStatus: normalizeMaterialStatus(payload.materialStatus),
       completedQuantity: payload.completedQuantity,
       note: payload.note,
     };
@@ -478,6 +539,26 @@ export const factoryOrdersApi = {
 
   async createOrder(payload: FactoryOrderCreatePayload): Promise<void> {
     const tenantId = ensureTenantId();
+    const normalizedLines = (payload.lines ?? [])
+      .map((line) => ({
+        color: line.color?.trim() || undefined,
+        size: line.size?.trim() || undefined,
+        quantity: Number(line.quantity),
+        unitPrice:
+          typeof line.unitPrice === 'number' && Number.isFinite(line.unitPrice)
+            ? Number(line.unitPrice)
+            : typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
+              ? Number(payload.unitPrice)
+              : undefined,
+      }))
+      .filter((line) => Number.isFinite(line.quantity) && line.quantity > 0);
+
+    const fallbackQuantity = Number(payload.totalQuantity ?? 0);
+    const fallbackUnitPrice =
+      typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
+        ? Number(payload.unitPrice)
+        : undefined;
+
     await http.post('/api/v1/production-orders', {
       tenantId,
       orderNo: payload.orderNo?.trim() || undefined,
@@ -485,21 +566,20 @@ export const factoryOrdersApi = {
       customerId: Number(payload.customerId),
       expectedDelivery: payload.expectedDelivery,
       status: payload.status,
-      materialStatus: payload.materialStatus,
+      materialStatus: normalizeMaterialStatus(payload.materialStatus),
       totalAmount: 0,
       completedQuantity: 0,
       merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
       factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,
       remarks: payload.remarks,
-      lines: [
-        {
-          quantity: Number(payload.totalQuantity),
-          unitPrice:
-            typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
-              ? Number(payload.unitPrice)
-              : undefined,
-        },
-      ],
+      lines: normalizedLines.length
+        ? normalizedLines
+        : [
+            {
+              quantity: fallbackQuantity,
+              unitPrice: fallbackUnitPrice,
+            },
+          ],
     });
   },
 };

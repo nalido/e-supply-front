@@ -8,6 +8,7 @@ import {
   Alert,
   Button,
   Checkbox,
+  DatePicker,
   Descriptions,
   Empty,
   Form,
@@ -31,6 +32,7 @@ import {
   DownloadOutlined,
   ImportOutlined,
   InfoCircleOutlined,
+  MinusCircleOutlined,
   PlusOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -47,6 +49,7 @@ import { factoryOrdersApi, type FactoryOrderCostDetail } from '../api/factory-or
 import { stylesApi } from '../api/styles';
 import { partnersApi } from '../api/partners';
 import sampleOrderApi from '../api/sample-order';
+import dayjs from 'dayjs';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
 
@@ -131,9 +134,19 @@ const statusTabDefaults: Array<{ key: string; label: string }> = [
 const materialStatusOptions = [
   { label: '待齐备', value: 'PENDING' },
   { label: '齐备中', value: 'ALLOCATING' },
-  { label: '已齐备', value: 'ALLOCATED' },
-  { label: '已发料', value: 'ISSUED' },
+  { label: '已齐备（已发料）', value: 'ALLOCATED' },
 ];
+
+const progressNodeCodeMap: Record<string, string> = {
+  order_placed: 'ORDER_PLACED',
+  fabric_arrived: 'FABRIC_ARRIVED',
+  accessory_arrived: 'ACCESSORY_ARRIVED',
+  cutting: 'CUTTING',
+  sewing: 'SEWING',
+  inbound: 'INBOUND',
+  outbound: 'OUTBOUND',
+  completed: 'COMPLETED',
+};
 
 const FactoryOrders = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -181,6 +194,13 @@ const FactoryOrders = () => {
   const [costDetailLoading, setCostDetailLoading] = useState(false);
   const [costDetailData, setCostDetailData] = useState<FactoryOrderCostDetail | null>(null);
   const [printPreviewRecord, setPrintPreviewRecord] = useState<OrderActionSnapshot | null>(null);
+  const [progressActionModal, setProgressActionModal] = useState<{
+    open: boolean;
+    submitting: boolean;
+    order?: OrderActionSnapshot;
+    stage?: FactoryOrderProgress;
+  }>({ open: false, submitting: false });
+  const [progressActionForm] = Form.useForm();
 
   const fetchSummary = useCallback(() => {
     let cancelled = false;
@@ -574,12 +594,78 @@ const FactoryOrders = () => {
     await loadCreateOptions();
     createForm.setFieldsValue({
       orderNo: undefined,
-      totalQuantity: record.orderQuantity,
-      expectedDelivery: record.expectedDelivery,
+      expectedDelivery: record.expectedDelivery ? dayjs(record.expectedDelivery) : undefined,
+      lineItems: [{ quantity: record.orderQuantity }],
       remarks: `复制自订单 ${record.orderCode}`,
     });
     message.success(`已打开复制创建弹窗：${record.orderCode}`);
   }, [createForm, loadCreateOptions]);
+
+  const handleOpenProgressAction = useCallback((record: OrderActionSnapshot, stage: FactoryOrderProgress) => {
+    setProgressActionModal({ open: true, submitting: false, order: record, stage });
+    if (stage.key === 'fabric_arrived' || stage.key === 'accessory_arrived') {
+      progressActionForm.setFieldsValue({ arrivedAt: dayjs() });
+    } else if (stage.key === 'cutting' || stage.key === 'sewing') {
+      progressActionForm.setFieldsValue({
+        unitPrice: 0,
+        items: [{ quantity: 1 }],
+      });
+    } else {
+      progressActionForm.resetFields();
+    }
+  }, [progressActionForm]);
+
+  const handleSubmitProgressAction = useCallback(async () => {
+    if (!progressActionModal.order || !progressActionModal.stage) {
+      return;
+    }
+    const nodeCode = progressNodeCodeMap[progressActionModal.stage.key];
+    if (!nodeCode) {
+      message.warning('当前节点不支持直接执行');
+      return;
+    }
+    try {
+      const values = await progressActionForm.validateFields();
+      const payload: Record<string, unknown> = {};
+      if (nodeCode === 'FABRIC_ARRIVED' || nodeCode === 'ACCESSORY_ARRIVED') {
+        payload.arrivedAt = values.arrivedAt ? values.arrivedAt.toISOString() : dayjs().toISOString();
+      }
+      if (nodeCode === 'CUTTING' || nodeCode === 'SEWING') {
+        payload.subcontractorId = values.subcontractorId;
+        payload.unitPrice = values.unitPrice ?? 0;
+        payload.items = (values.items ?? [])
+          .map((item: { color?: string; size?: string; quantity?: number }) => ({
+            color: item.color,
+            size: item.size,
+            quantity: Number(item.quantity ?? 0),
+          }))
+          .filter((item: { quantity: number }) => Number.isFinite(item.quantity) && item.quantity > 0);
+      }
+      if (nodeCode === 'INBOUND' || nodeCode === 'OUTBOUND') {
+        payload.warehouseId = values.warehouseId;
+        payload.remark = values.remark;
+      }
+
+      setProgressActionModal((prev) => ({ ...prev, submitting: true }));
+      await factoryOrdersApi.completeProgress(
+        progressActionModal.order.orderId,
+        nodeCode,
+        { payload },
+      );
+      message.success(`${progressActionModal.stage.label} 已执行`);
+      setProgressActionModal({ open: false, submitting: false });
+      progressActionForm.resetFields();
+      triggerReload();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        return;
+      }
+      console.error('failed to complete progress node', error);
+      message.error(error instanceof Error ? error.message : '节点执行失败');
+    } finally {
+      setProgressActionModal((prev) => ({ ...prev, submitting: false }));
+    }
+  }, [progressActionForm, progressActionModal]);
 
   useEffect(() => {
     if (searchParams.get('quickCreate') !== '1') {
@@ -599,19 +685,36 @@ const FactoryOrders = () => {
   const handleSubmitCreate = async () => {
     try {
       const values = await createForm.validateFields();
+      const lineItems = (values.lineItems ?? [])
+        .map((item: { color?: string; size?: string; quantity?: number; unitPrice?: number }) => ({
+          color: item.color,
+          size: item.size,
+          quantity: Number(item.quantity ?? 0),
+          unitPrice: item.unitPrice,
+        }))
+        .filter((item: { quantity: number }) => Number.isFinite(item.quantity) && item.quantity > 0);
+      const totalQuantity = lineItems.reduce(
+        (sum: number, item: { quantity: number }) => sum + item.quantity,
+        0,
+      );
+      if (!lineItems.length || totalQuantity <= 0) {
+        message.warning('请至少录入一条颜色/尺码数量明细');
+        return;
+      }
       setCreateSubmitting(true);
       await factoryOrdersApi.createOrder({
         orderNo: values.orderNo,
         styleId: values.styleId,
         customerId: values.customerId,
-        totalQuantity: values.totalQuantity,
+        totalQuantity,
         unitPrice: values.unitPrice,
-        expectedDelivery: values.expectedDelivery,
+        expectedDelivery: values.expectedDelivery ? values.expectedDelivery.format('YYYY-MM-DD') : undefined,
         status: values.status,
         materialStatus: values.materialStatus,
         merchandiserId: values.merchandiserId,
         factoryId: values.factoryId,
         remarks: values.remarks,
+        lines: lineItems,
       });
       message.success('工厂订单创建成功');
       handleCloseCreate();
@@ -1033,6 +1136,24 @@ const FactoryOrders = () => {
                           ) : (
                             <div className="progress-value">{stage.value}</div>
                           )}
+                          {progressNodeCodeMap[stage.key] && status !== 'success' ? (
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingInline: 0, marginTop: 4 }}
+                              onClick={() => handleOpenProgressAction({
+                                orderId: order.id,
+                                orderCode: order.code,
+                                customer: order.customer,
+                                styleName: order.name,
+                                expectedDelivery: order.expectedDelivery,
+                                materialStatus: order.materialStatus,
+                                orderQuantity: Number(order.quantityValue),
+                              }, stage)}
+                            >
+                              执行
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1232,15 +1353,56 @@ const FactoryOrders = () => {
               notFoundContent={createOptionsLoading ? '加载中...' : '暂无客户数据'}
             />
           </Form.Item>
-          <Form.Item label="下单数量" name="totalQuantity" rules={[{ required: true, message: '请输入下单数量' }]}>
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="请输入下单数量" />
-          </Form.Item>
           <Form.Item label="单价（元/件）" name="unitPrice">
             <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="可选，不填按 0 处理" />
           </Form.Item>
           <Form.Item label="预计交货日期" name="expectedDelivery">
-            <Input placeholder="格式：YYYY-MM-DD" />
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="请选择预计交货日期" />
           </Form.Item>
+          <Form.List name="lineItems" initialValue={[{ quantity: 1 }]}>
+            {(fields, { add, remove }) => (
+              <Form.Item label="下单明细（颜色/尺码）" required>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {fields.map((field) => (
+                    <Space key={field.key} align="baseline" wrap>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'color']}
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input placeholder="颜色（可选）" />
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'size']}
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input placeholder="尺码（可选）" />
+                      </Form.Item>
+                      <Form.Item
+                        {...field}
+                        name={[field.name, 'quantity']}
+                        style={{ marginBottom: 0 }}
+                        rules={[{ required: true, message: '请输入数量' }]}
+                      >
+                        <InputNumber min={1} placeholder="数量" />
+                      </Form.Item>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<MinusCircleOutlined />}
+                        onClick={() => remove(field.name)}
+                        disabled={fields.length <= 1}
+                      />
+                    </Space>
+                  ))}
+                  <Button type="dashed" onClick={() => add({ quantity: 1 })} icon={<PlusOutlined />}>
+                    添加明细行
+                  </Button>
+                </div>
+              </Form.Item>
+            )}
+          </Form.List>
           <Form.Item label="工厂" name="factoryId">
             <Select
               showSearch
@@ -1322,6 +1484,81 @@ const FactoryOrders = () => {
             ]}
           />
         ) : null}
+      </Modal>
+
+      <Modal
+        open={progressActionModal.open}
+        title={progressActionModal.stage ? `执行节点：${progressActionModal.stage.label}` : '执行节点'}
+        onCancel={() => {
+          setProgressActionModal({ open: false, submitting: false });
+          progressActionForm.resetFields();
+        }}
+        onOk={handleSubmitProgressAction}
+        confirmLoading={progressActionModal.submitting}
+        destroyOnHidden
+      >
+        <Form form={progressActionForm} layout="vertical">
+          {progressActionModal.stage?.key === 'fabric_arrived' || progressActionModal.stage?.key === 'accessory_arrived' ? (
+            <Form.Item label="到货时间" name="arrivedAt" rules={[{ required: true, message: '请选择到货时间' }]}>
+              <DatePicker showTime style={{ width: '100%' }} />
+            </Form.Item>
+          ) : null}
+          {progressActionModal.stage?.key === 'cutting' || progressActionModal.stage?.key === 'sewing' ? (
+            <>
+              <Form.Item label="委外工厂" name="subcontractorId" rules={[{ required: true, message: '请选择委外工厂' }]}>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={factoryOptions}
+                  placeholder="请选择委外工厂"
+                />
+              </Form.Item>
+              <Form.Item label="工价（元/件）" name="unitPrice">
+                <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.List name="items" initialValue={[{ quantity: 1 }]}>
+                {(fields, { add, remove }) => (
+                  <Form.Item label="颜色/尺码数量汇总" required>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {fields.map((field) => (
+                        <Space key={field.key} align="baseline" wrap>
+                          <Form.Item {...field} name={[field.name, 'color']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="颜色（可选）" />
+                          </Form.Item>
+                          <Form.Item {...field} name={[field.name, 'size']} style={{ marginBottom: 0 }}>
+                            <Input placeholder="尺码（可选）" />
+                          </Form.Item>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, 'quantity']}
+                            style={{ marginBottom: 0 }}
+                            rules={[{ required: true, message: '请输入数量' }]}
+                          >
+                            <InputNumber min={1} placeholder="数量" />
+                          </Form.Item>
+                          <Button type="text" danger onClick={() => remove(field.name)} disabled={fields.length <= 1}>
+                            删除
+                          </Button>
+                        </Space>
+                      ))}
+                      <Button type="dashed" onClick={() => add({ quantity: 1 })}>新增一行</Button>
+                    </div>
+                  </Form.Item>
+                )}
+              </Form.List>
+            </>
+          ) : null}
+          {progressActionModal.stage?.key === 'inbound' || progressActionModal.stage?.key === 'outbound' ? (
+            <>
+              <Form.Item label="仓库ID（可选）" name="warehouseId">
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="留空默认第一个仓库" />
+              </Form.Item>
+              <Form.Item label="备注" name="remark">
+                <Input.TextArea rows={2} placeholder="可选" />
+              </Form.Item>
+            </>
+          ) : null}
+        </Form>
       </Modal>
 
       <Modal
