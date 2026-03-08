@@ -43,7 +43,6 @@ export type FactoryOrderTablePage = {
 export type FactoryOrderImportRecord = {
   orderNo: string;
   styleId: number;
-  customerId: number;
   merchandiserId?: number;
   factoryId?: number;
   totalQuantity: number;
@@ -116,10 +115,20 @@ export type FactoryOrderProgressNode = {
   payloadJson?: string;
 };
 
+export type FactoryOrderDetailLine = {
+  id: number;
+  color?: string;
+  size?: string;
+  orderedQty?: number;
+};
+
+export type FactoryOrderDetail = {
+  lines: FactoryOrderDetailLine[];
+};
+
 export type FactoryOrderCreatePayload = {
   orderNo?: string;
   styleId: number;
-  customerId: number;
   totalQuantity?: number;
   unitPrice?: number;
   expectedDelivery?: string;
@@ -182,7 +191,6 @@ type BackendFactoryOrderCard = CompletionFlag & {
   code: string;
   name: string;
   thumbnail: string;
-  customer?: string;
   materialStatus?: string;
   expectedDelivery?: string;
   orderDate?: string;
@@ -197,7 +205,6 @@ type BackendFactoryOrderCard = CompletionFlag & {
 type BackendFactoryOrderTableRow = CompletionFlag & {
   id: number;
   orderCode: string;
-  customer: string;
   styleCode: string;
   styleName: string;
   orderQuantity: number;
@@ -280,6 +287,9 @@ const normalizeProgressStatus = (status?: string): FactoryOrderProgress['status'
     case 'completed':
     case 'success':
       return 'success';
+    case 'warning':
+    case 'partial':
+      return 'warning';
     case 'in_progress':
     case 'processing':
       return 'warning';
@@ -306,7 +316,6 @@ const adaptCard = (card: BackendFactoryOrderCard): FactoryOrderItem => ({
   code: card.code,
   name: card.name,
   thumbnail: card.thumbnail,
-  customer: card.customer,
   materialStatus: card.materialStatus,
   expectedDelivery: card.expectedDelivery,
   orderDate: card.orderDate,
@@ -322,7 +331,6 @@ const adaptCard = (card: BackendFactoryOrderCard): FactoryOrderItem => ({
 const adaptTableRow = (row: BackendFactoryOrderTableRow): FactoryOrderTableRow => ({
   id: String(row.id),
   orderCode: row.orderCode,
-  customer: row.customer,
   styleCode: row.styleCode,
   styleName: row.styleName,
   orderQuantity: row.orderQuantity,
@@ -458,6 +466,15 @@ export const factoryOrdersApi = {
     return data ?? [];
   },
 
+  async getDetail(orderId: string | number): Promise<FactoryOrderDetail> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<{ lines?: FactoryOrderDetailLine[] }>(
+      `/api/v1/production-orders/${orderId}`,
+      { params: { tenantId } },
+    );
+    return { lines: data?.lines ?? [] };
+  },
+
   async completeProgress(
     orderId: string | number,
     nodeCode: string,
@@ -490,7 +507,6 @@ export const factoryOrdersApi = {
       orders: payload.orders.map((order) => ({
         orderNo: order.orderNo,
         styleId: Number(order.styleId),
-        customerId: Number(order.customerId),
         merchandiserId: order.merchandiserId ? Number(order.merchandiserId) : undefined,
         factoryId: order.factoryId ? Number(order.factoryId) : undefined,
         totalQuantity: Number(order.totalQuantity),
@@ -563,7 +579,6 @@ export const factoryOrdersApi = {
       tenantId,
       orderNo: payload.orderNo?.trim() || undefined,
       styleId: Number(payload.styleId),
-      customerId: Number(payload.customerId),
       expectedDelivery: payload.expectedDelivery,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),

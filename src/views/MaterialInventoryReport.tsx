@@ -22,6 +22,7 @@ import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/ic
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
 import { materialInventoryReportService } from '../api/material-inventory';
+import { useSearchParams } from 'react-router-dom';
 import ListImage from '../components/common/ListImage';
 import type {
   MaterialInboundRatioItem,
@@ -123,7 +124,8 @@ const mapRatioToSlices = (ratio: MaterialInboundRatioItem[]) =>
   });
 
 const MaterialInventoryReport = () => {
-  const [keyword, setKeyword] = useState('');
+  const [searchParams] = useSearchParams();
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '');
   const [materialType, setMaterialType] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>(null);
   const [filters, setFilters] = useState<MaterialInventoryQueryParams>({});
@@ -249,9 +251,31 @@ const MaterialInventoryReport = () => {
       ),
     },
     {
+      title: '日期',
+      dataIndex: 'transactionDate',
+      width: 120,
+    },
+    {
+      title: '方向',
+      dataIndex: 'direction',
+      width: 88,
+      align: 'center',
+    },
+    {
+      title: '类型',
+      dataIndex: 'movementLabel',
+      width: 120,
+    },
+    {
+      title: '单据',
+      dataIndex: 'documentNo',
+      width: 180,
+      ellipsis: true,
+    },
+    {
       title: '物料名称',
       dataIndex: 'materialName',
-      width: 220,
+      width: 180,
       ellipsis: true,
     },
     {
@@ -260,11 +284,11 @@ const MaterialInventoryReport = () => {
       width: 120,
     },
     {
-      title: '当前库存',
-      dataIndex: 'currentStock',
-      width: 140,
+      title: '变动数量',
+      dataIndex: 'quantity',
+      width: 120,
       align: 'right',
-      render: (value: number) => formatQuantity(value),
+      render: (_value: number, record) => formatQuantity(record.quantity),
     },
     {
       title: '入库数',
@@ -293,6 +317,12 @@ const MaterialInventoryReport = () => {
       width: 140,
       align: 'right',
       render: (value: number) => formatQuantity(value),
+    },
+    {
+      title: '仓库',
+      dataIndex: 'warehouseName',
+      width: 140,
+      ellipsis: true,
     },
     {
       title: '颜色',
@@ -450,26 +480,28 @@ const MaterialInventoryReport = () => {
             },
             showTotal: (value) => `共 ${value} 条`,
           }}
-          scroll={{ x: 1180 }}
+          scroll={{ x: 1650 }}
           summary={() => (
             <Table.Summary fixed>
               <Table.Summary.Row>
-                <Table.Summary.Cell index={0} colSpan={7}>
+                <Table.Summary.Cell index={0} colSpan={11}>
                   <Text strong>合计</Text>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={7} align="right">
+                <Table.Summary.Cell index={11} align="right">
                   {formatQuantity(listSummary.inboundQtyTotal)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={8} align="right">
+                <Table.Summary.Cell index={12} align="right">
                   {formatQuantity(listSummary.issuedQtyTotal)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={9} align="right">
+                <Table.Summary.Cell index={13} align="right">
                   {formatQuantity(listSummary.returnQtyTotal)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={10} align="right">
+                <Table.Summary.Cell index={14} align="right">
                   {formatQuantity(listSummary.otherOutboundQtyTotal)}
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={11} align="right">--</Table.Summary.Cell>
+                <Table.Summary.Cell index={15} align="right">--</Table.Summary.Cell>
+                <Table.Summary.Cell index={16} align="right">--</Table.Summary.Cell>
+                <Table.Summary.Cell index={17} align="right">--</Table.Summary.Cell>
               </Table.Summary.Row>
             </Table.Summary>
           )}

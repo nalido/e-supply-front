@@ -46,6 +46,7 @@ import {
 import dayjs, { type Dayjs } from 'dayjs';
 import type {
   SampleFollowProgressNode,
+  SampleOverallStatus,
   SampleOrder,
   SampleQueryParams,
   SampleStats,
@@ -55,7 +56,7 @@ import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import sampleOrderApi from '../api/sample-order';
 import { factoryOrdersApi } from '../api/factory-orders';
 import type { SampleCreationMeta } from '../types/sample-create';
-import { getSamplePriorityColor, getSamplePriorityLabel, getSampleStatusColor, getSampleStatusLabel } from '../utils/sample-labels';
+import { getSamplePriorityColor, getSamplePriorityLabel } from '../utils/sample-labels';
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import SampleFollowProgress from '../components/sample/SampleFollowProgress';
@@ -69,25 +70,17 @@ const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
 type ViewMode = 'card' | 'table';
-type StatCardKey = 'total' | 'pending' | 'confirmed' | 'producing' | 'completed' | 'cancelled' | 'thisMonth' | 'urgent';
+type StatCardKey = 'total' | 'unfinished' | 'completed' | 'thisMonth' | 'urgent';
 
 type SampleListFilters = {
   keyword: string;
-  status?: SampleStatus;
+  overallStatus: SampleOverallStatus;
   customer?: string;
   priority?: SampleOrder['priority'];
   dateRange?: [Dayjs, Dayjs];
 };
 
-type StatsFilterState = Omit<SampleListFilters, 'status'>;
-
-const STATUS_TO_CARD: Record<SampleStatus, StatCardKey> = {
-  [SampleStatusEnum.PENDING]: 'pending',
-  [SampleStatusEnum.CONFIRMED]: 'confirmed',
-  [SampleStatusEnum.PRODUCING]: 'producing',
-  [SampleStatusEnum.COMPLETED]: 'completed',
-  [SampleStatusEnum.CANCELLED]: 'cancelled',
-};
+type StatsFilterState = Omit<SampleListFilters, 'overallStatus'>;
 
 const PRIORITY_OPTIONS: SampleOrder['priority'][] = ['urgent', 'high', 'medium', 'low'];
 
@@ -130,7 +123,6 @@ type ProduceModalState = {
   open: boolean;
   order?: SampleOrder;
   styleId?: number;
-  customerId?: number;
   defaultDelivery?: string;
   submitting: boolean;
 };
@@ -150,7 +142,7 @@ const SORTABLE_FIELDS: SortableField[] = [
 type StatCardConfig = {
   key: StatCardKey;
   title: string;
-  valueKey: keyof SampleStats;
+  valueGetter: (stats?: SampleStats | null) => number;
   color: string;
   apply: (prev: SampleListFilters) => SampleListFilters;
   description?: string;
@@ -182,51 +174,36 @@ const isOverdueSafe = (deadline?: string): boolean => {
   return parsed.isValid() && parsed.isBefore(dayjs(), 'day');
 };
 
+const isOrderCompleted = (status: SampleStatus): boolean =>
+  status === SampleStatusEnum.COMPLETED || status === SampleStatusEnum.CANCELLED;
+
+const getOverallStatusLabel = (status: SampleStatus): string =>
+  isOrderCompleted(status) ? '已完成' : '未完成';
+
+const getOverallStatusColor = (status: SampleStatus): string =>
+  isOrderCompleted(status) ? 'green' : 'blue';
+
 const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'total',
     title: '总计',
-    valueKey: 'total',
+    valueGetter: (value) => value?.total ?? 0,
     color: '#1677ff',
     apply: (prev) => ({
       ...prev,
-      status: undefined,
+      overallStatus: 'unfinished',
       priority: undefined,
       dateRange: undefined,
     }),
   },
   {
-    key: 'pending',
-    title: '待确认',
-    valueKey: 'pending',
-    color: '#fa8c16',
-    apply: (prev) => ({
-      ...prev,
-      status: SampleStatusEnum.PENDING,
-      priority: undefined,
-      dateRange: undefined,
-    }),
-  },
-  {
-    key: 'confirmed',
-    title: '已确认',
-    valueKey: 'confirmed',
+    key: 'unfinished',
+    title: '未完成',
+    valueGetter: (value) => (value?.pending ?? 0) + (value?.confirmed ?? 0) + (value?.producing ?? 0),
     color: '#1890ff',
     apply: (prev) => ({
       ...prev,
-      status: SampleStatusEnum.CONFIRMED,
-      priority: undefined,
-      dateRange: undefined,
-    }),
-  },
-  {
-    key: 'producing',
-    title: '生产中',
-    valueKey: 'producing',
-    color: '#722ed1',
-    apply: (prev) => ({
-      ...prev,
-      status: SampleStatusEnum.PRODUCING,
+      overallStatus: 'unfinished',
       priority: undefined,
       dateRange: undefined,
     }),
@@ -234,23 +211,11 @@ const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'completed',
     title: '已完成',
-    valueKey: 'completed',
+    valueGetter: (value) => (value?.completed ?? 0) + (value?.cancelled ?? 0),
     color: '#52c41a',
     apply: (prev) => ({
       ...prev,
-      status: SampleStatusEnum.COMPLETED,
-      priority: undefined,
-      dateRange: undefined,
-    }),
-  },
-  {
-    key: 'cancelled',
-    title: '已取消',
-    valueKey: 'cancelled',
-    color: '#ff4d4f',
-    apply: (prev) => ({
-      ...prev,
-      status: SampleStatusEnum.CANCELLED,
+      overallStatus: 'completed',
       priority: undefined,
       dateRange: undefined,
     }),
@@ -258,11 +223,11 @@ const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'thisMonth',
     title: '本月新增',
-    valueKey: 'thisMonth',
+    valueGetter: (value) => value?.thisMonth ?? 0,
     color: '#13c2c2',
     apply: (prev) => ({
       ...prev,
-      status: undefined,
+      overallStatus: 'unfinished',
       priority: undefined,
       dateRange: getCurrentMonthRange(),
     }),
@@ -270,11 +235,11 @@ const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'urgent',
     title: '紧急',
-    valueKey: 'urgent',
+    valueGetter: (value) => value?.urgent ?? 0,
     color: '#f5222d',
     apply: (prev) => ({
       ...prev,
-      status: undefined,
+      overallStatus: 'unfinished',
       priority: 'urgent',
       dateRange: undefined,
     }),
@@ -457,7 +422,7 @@ const SampleList: React.FC = () => {
   });
   const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
-    status: undefined,
+    overallStatus: 'unfinished',
     customer: undefined,
     priority: undefined,
     dateRange: undefined,
@@ -468,7 +433,7 @@ const SampleList: React.FC = () => {
     priority: undefined,
     dateRange: undefined,
   });
-  const [activeCardKey, setActiveCardKey] = useState<StatCardKey | null>('total');
+  const [activeCardKey, setActiveCardKey] = useState<StatCardKey | null>('unfinished');
   const [rawData, setRawData] = useState<SampleOrder[]>([]);
   const [dataSource, setDataSource] = useState<SampleOrder[]>([]);
   const [sortState, setSortState] = useState<SortState>(null);
@@ -562,8 +527,11 @@ const SampleList: React.FC = () => {
   }, []);
 
   const resolveActiveKey = useCallback((nextFilters: SampleListFilters): StatCardKey | null => {
-    if (nextFilters.status) {
-      return STATUS_TO_CARD[nextFilters.status];
+    if (nextFilters.overallStatus === 'completed') {
+      return 'completed';
+    }
+    if (nextFilters.overallStatus === 'unfinished') {
+      return 'unfinished';
     }
     if (nextFilters.priority === 'urgent') {
       return 'urgent';
@@ -581,7 +549,7 @@ const SampleList: React.FC = () => {
   const buildListQueryParams = useCallback((overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
     const base: SampleQueryParams = {
       keyword: filters.keyword || undefined,
-      status: filters.status,
+      overallStatus: filters.overallStatus,
       customer: filters.customer,
       priority: filters.priority,
       startDate: filters.dateRange ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
@@ -594,7 +562,6 @@ const SampleList: React.FC = () => {
     (overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
       const base: SampleQueryParams = {
         keyword: statsFilters.keyword || undefined,
-        status: undefined,
         customer: statsFilters.customer,
         priority: statsFilters.priority,
         startDate: statsFilters.dateRange ? statsFilters.dateRange[0].format('YYYY-MM-DD') : undefined,
@@ -663,7 +630,7 @@ const SampleList: React.FC = () => {
       setActiveCardKey(resolveActiveKey(next));
       return next;
     });
-    if (key !== 'status') {
+    if (key !== 'overallStatus') {
       setStatsFilters((prev) => ({ ...prev, [key]: value } as StatsFilterState));
     }
     setPagination((prev) => ({ ...prev, current: 1 }));
@@ -680,7 +647,7 @@ const SampleList: React.FC = () => {
   const handleReset = useCallback(() => {
     setFilters({
       keyword: '',
-      status: undefined,
+      overallStatus: 'unfinished',
       customer: undefined,
       priority: undefined,
       dateRange: undefined,
@@ -691,7 +658,7 @@ const SampleList: React.FC = () => {
       priority: undefined,
       dateRange: undefined,
     });
-    setActiveCardKey('total');
+    setActiveCardKey('unfinished');
     setSortState(null);
     setPagination((prev) => ({ ...prev, current: 1 }));
   }, []);
@@ -775,7 +742,6 @@ const SampleList: React.FC = () => {
       const params = buildListQueryParams();
       await sampleOrderApi.exportList({
         keyword: params.keyword,
-        status: params.status,
         priority: params.priority as SampleOrder['priority'] | undefined,
         startDate: params.startDate,
         endDate: params.endDate,
@@ -816,9 +782,8 @@ const SampleList: React.FC = () => {
     try {
       const detail = await sampleOrderApi.detailRaw(order.id);
       const styleId = detail.styleId ? Number(detail.styleId) : undefined;
-      const customerId = detail.customerId ? Number(detail.customerId) : undefined;
-      if (!styleId || !customerId) {
-        message.error('样板单缺少款式或客户信息，无法下大货');
+      if (!styleId) {
+        message.error('样板单缺少款式信息，无法下大货');
         return;
       }
       const lines = (detail.skus ?? [])
@@ -832,7 +797,6 @@ const SampleList: React.FC = () => {
         open: true,
         order,
         styleId,
-        customerId,
         defaultDelivery: detail.deadline ?? undefined,
         submitting: false,
       });
@@ -847,7 +811,7 @@ const SampleList: React.FC = () => {
   }, [produceForm]);
 
   const handleSubmitProduce = useCallback(async () => {
-    if (!produceModal.order || !produceModal.styleId || !produceModal.customerId) {
+    if (!produceModal.order || !produceModal.styleId) {
       message.error('下大货参数不完整');
       return;
     }
@@ -867,7 +831,6 @@ const SampleList: React.FC = () => {
       setProduceModal((prev) => ({ ...prev, submitting: true }));
       await factoryOrdersApi.createOrder({
         styleId: produceModal.styleId,
-        customerId: produceModal.customerId,
         expectedDelivery: values.expectedDelivery ? values.expectedDelivery.format('YYYY-MM-DD') : produceModal.defaultDelivery,
         remarks: `样板单 ${produceModal.order.orderNo} 下大货`,
         lines,
@@ -1155,8 +1118,8 @@ const SampleList: React.FC = () => {
                 <Text type="secondary">款号：{order.styleCode}</Text>
               </div>
               <Space size={6}>
-                <Tag color={getSampleStatusColor(order.status)}>
-                  {getSampleStatusLabel(order.status)}
+                <Tag color={getOverallStatusColor(order.status)}>
+                  {getOverallStatusLabel(order.status)}
                 </Tag>
                 <Tag color={getSamplePriorityColor(order.priority)}>
                   {getSamplePriorityLabel(order.priority)}
@@ -1249,7 +1212,7 @@ const SampleList: React.FC = () => {
             >
               <Statistic
                 title={card.title}
-                value={stats?.[card.valueKey] ?? 0}
+                value={card.valueGetter(stats)}
                 valueStyle={{ color: card.color, fontWeight: 600 }}
                 suffix="单"
               />
@@ -1279,15 +1242,12 @@ const SampleList: React.FC = () => {
             <Select
               allowClear
               placeholder="状态"
-              value={filters.status}
+              value={filters.overallStatus}
               style={{ width: 140 }}
-              onChange={(value) => handleFilterChange('status', value as SampleStatus | undefined)}
+              onChange={(value) => handleFilterChange('overallStatus', (value || 'unfinished') as SampleOverallStatus)}
             >
-              <Option value={SampleStatusEnum.PENDING}>待确认</Option>
-              <Option value={SampleStatusEnum.CONFIRMED}>已确认</Option>
-              <Option value={SampleStatusEnum.PRODUCING}>生产中</Option>
-              <Option value={SampleStatusEnum.COMPLETED}>已完成</Option>
-              <Option value={SampleStatusEnum.CANCELLED}>已取消</Option>
+              <Option value="unfinished">未完成</Option>
+              <Option value="completed">已完成</Option>
             </Select>
             <Select
               allowClear

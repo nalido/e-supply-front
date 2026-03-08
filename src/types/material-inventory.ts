@@ -31,12 +31,19 @@ export type MaterialInventoryAggregation = {
 
 export type MaterialInventoryListItem = {
   id: string;
+  transactionDate: string;
+  direction: string;
+  movementType: string;
+  movementLabel: string;
+  documentNo: string;
   imageUrl: string;
   materialType: string;
   materialName: string;
+  warehouseName: string;
   color: string;
   spec: string;
   unit: string;
+  quantity: number;
   inboundQty: number;
   issuedQty: number;
   returnQty: number;

@@ -46,12 +46,14 @@ type MaterialRequestFormFields = OutsourceMaterialRequestPayload;
 const statusOptions: Array<{ label: string; value: OutsourceStatusFilter }> = [
   { label: '全部', value: '全部' },
   { label: '待发出', value: '待发出' },
+  { label: '进行中', value: '进行中' },
   { label: '已完结', value: '已完结' },
   { label: '已取消', value: '已取消' },
 ];
 
 const statusColorMap: Record<OutsourceOrderStatus, string> = {
   待发出: 'processing',
+  进行中: 'warning',
   已完结: 'success',
   已取消: 'error',
 };

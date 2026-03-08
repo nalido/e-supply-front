@@ -91,12 +91,15 @@ const incomingStatusFromBackend: Record<string, IncomingOrderStatus> = {
 
 const outsourceStatusToBackend: Record<OutsourceOrderStatus, string> = {
   待发出: 'PENDING_DISPATCH',
+  进行中: 'IN_PROGRESS',
   已完结: 'COMPLETED',
   已取消: 'CANCELLED',
 };
 
 const outsourceStatusFromBackend: Record<string, OutsourceOrderStatus> = {
   PENDING_DISPATCH: '待发出',
+  DISPATCHED: '进行中',
+  RECEIVED: '进行中',
   COMPLETED: '已完结',
   SETTLED: '已完结',
   CANCELLED: '已取消',

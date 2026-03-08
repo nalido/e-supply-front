@@ -3,6 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Input, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons';
 import { materialIssueService } from '../api/material-inventory';
+import { useSearchParams } from 'react-router-dom';
 import ListImage from '../components/common/ListImage';
 import type {
   MaterialIssueListParams,
@@ -30,9 +31,10 @@ const formatCurrency = (value?: number): string => {
 };
 
 const MaterialIssueDetails = () => {
+  const [searchParams] = useSearchParams();
   const [meta, setMeta] = useState<MaterialIssueMeta | null>(null);
   const [materialType, setMaterialType] = useState<MaterialIssueType>('fabric');
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '');
   const [records, setRecords] = useState<MaterialIssueRecord[]>([]);
   const [tableLoading, setTableLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);

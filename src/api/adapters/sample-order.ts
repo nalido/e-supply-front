@@ -426,6 +426,7 @@ export const buildListQuery = (params: SampleQueryParams = {}): Record<string, u
   const query: Record<string, unknown> = {
     keyword: params.keyword,
     status: mapStatusToBackend(params.status),
+    overallStatus: params.overallStatus,
     priority: mapPriorityToBackend(safePriority),
     startDeadline: params.startDate,
     endDeadline: params.endDate,

@@ -9,6 +9,8 @@ export type CuttingTaskActionKey = 'create-sheet' | 'edit' | 'view';
 export type CuttingTask = {
   id: string;
   workOrderId?: number;
+  workOrderStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | string;
+  bedNumber?: string;
   styleCode: string;
   styleName: string;
   orderCode: string;
@@ -32,6 +34,57 @@ export type CuttingTaskMetric = {
   value: string;
   description?: string;
   tone?: 'default' | 'warning';
+};
+
+export type CuttingSheetCell = {
+  size: string;
+  orderedQty: number;
+  completedQty: number;
+  pendingQty: number;
+};
+
+export type CuttingSheetColorRow = {
+  color: string;
+  cells: CuttingSheetCell[];
+  orderedSubtotal: number;
+  completedSubtotal: number;
+  pendingSubtotal: number;
+};
+
+export type CuttingSheetDetail = {
+  workOrderId: number;
+  productionOrderId: number;
+  orderCode: string;
+  styleCode?: string;
+  styleName?: string;
+  customer?: string;
+  status: string;
+  bedNumber?: string;
+  cutterId?: number;
+  plannedFabricQty?: number;
+  warehouseId?: number;
+  warehouseName?: string;
+  materialId?: number;
+  materialCode?: string;
+  materialName?: string;
+  materialUnit?: string;
+  startActualFabricQty?: number;
+  completeActualFabricQty?: number;
+  startedAt?: string;
+  completedAt?: string;
+  plannedQty: number;
+  completedQty: number;
+  sizes: string[];
+  rows: CuttingSheetColorRow[];
+  materialDocuments?: Array<{
+    documentCategory: 'ISSUE' | 'RETURN' | string;
+    documentId: number;
+    documentNo: string;
+    documentTypeLabel: string;
+    quantity: number;
+    issuedAt?: string;
+    jumpPath?: string;
+  }>;
 };
 
 export type CuttingTaskDataset = {

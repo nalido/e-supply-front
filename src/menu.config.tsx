@@ -116,8 +116,8 @@ export const menuTree: MenuNode[] = [
         key: '/piecework/cutting',
         label: '裁床单',
         children: [
-          { key: '/piecework/cutting/list', label: <Link to="/piecework/cutting/list">裁床单列表</Link> },
-          { key: '/piecework/cutting/create', label: <Link to="/piecework/cutting/create">新建裁床单</Link> },
+          { key: '/piecework/cutting/pending', label: <Link to="/piecework/cutting/pending">待裁</Link> },
+          { key: '/piecework/cutting/done', label: <Link to="/piecework/cutting/done">已裁</Link> },
           { key: '/piecework/cutting/report', label: <Link to="/piecework/cutting/report">裁床报表</Link> },
         ],
       },

@@ -125,6 +125,69 @@
   margin-top: 16px;
 }
 
+.factory-create-matrix-wrap {
+  width: 100%;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 8px;
+}
+
+.factory-create-style-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.factory-allocation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-allocation-summary-title {
+  margin-bottom: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: #1f1f1f;
+}
+
+.factory-create-matrix-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.factory-create-matrix-table th,
+.factory-create-matrix-table td {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  padding: 8px;
+  text-align: center;
+}
+
+.factory-create-matrix-table th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+.factory-create-matrix-table td:first-child,
+.factory-create-matrix-table th:first-child {
+  width: 120px;
+  text-align: left;
+}
+
+.factory-create-matrix-table tfoot td {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
 .factory-orders-table-progress {
   display: grid;
   gap: 4px;
@@ -213,46 +276,113 @@
 }
 
 .factory-order-progress {
-  display: grid;
-  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
 }
 
-.factory-order-progress-item {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 120px 1fr;
+.factory-order-progress-track {
+  display: flex;
   align-items: center;
+  gap: 16px;
+  min-width: fit-content;
 }
 
-.factory-order-progress-item .label {
+.factory-order-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.factory-order-progress-node {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  min-width: 120px;
+  gap: 6px;
 }
 
-.factory-order-progress-item .label strong {
-  font-weight: 600;
+.factory-order-progress-node.clickable {
+  cursor: pointer;
+}
+
+.factory-order-progress-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #d9d9d9;
+  color: #595959;
+  font-size: 16px;
+}
+
+.factory-order-progress-icon.completed {
+  background: #52c41a;
+  color: #fff;
+}
+
+.factory-order-progress-icon.partial {
+  background: #fa8c16;
+  color: #fff;
+}
+
+.factory-order-progress-content {
+  text-align: center;
+}
+
+.factory-order-progress-name {
+  font-weight: 500;
+  font-size: 13px;
   color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
 }
 
-.factory-order-progress-item .label span {
+.factory-order-progress-status {
   font-size: 12px;
   color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
 }
 
-.factory-order-progress-item .progress-value {
-  font-size: 13px;
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
+.factory-order-progress-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
 }
 
-.factory-order-progress-muted .label strong,
-.factory-order-progress-muted .label span,
-.factory-order-progress-muted .progress-value {
-  color: var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25));
+.factory-order-progress-status-grid .date {
+  font-size: 11px;
+}
+
+.factory-order-progress-status.completed {
+  color: #52c41a;
+}
+
+.factory-order-progress-status.partial {
+  color: #fa8c16;
+}
+
+.factory-order-progress-arrow {
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 14px solid #c6c6c6;
+}
+
+.factory-order-progress-arrow.completed {
+  border-left-color: #52c41a;
+}
+
+.factory-order-progress-arrow.partial {
+  border-left-color: #fa8c16;
+}
+
+.factory-order-progress-node.clickable:hover .factory-order-progress-icon {
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
 }
 
 @media (max-width: 768px) {
-  .factory-order-progress-item {
-    grid-template-columns: 1fr;
+  .factory-order-progress-track {
+    gap: 12px;
   }
 }
