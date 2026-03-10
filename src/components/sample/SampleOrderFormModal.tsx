@@ -1199,7 +1199,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           size,
           quantity: matrix[color]?.[size] ?? 0,
         })),
-      ).filter((item) => item.quantity > 0);
+      );
 
       const baseAttachments = attachments
         .filter((attachment) => Boolean(attachment.url))
@@ -1418,6 +1418,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         if (detail.defaultUnit) {
           form.setFieldsValue({ unit: detail.defaultUnit });
         }
+        setSizeChartImage(detail.sizeChartImageUrl ?? undefined);
         const images = detail.colorImages ?? {};
         setColorImageMap(images);
         setColorImagesEnabled(Object.values(images).some((value) => Boolean(value)));

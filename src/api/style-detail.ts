@@ -106,11 +106,12 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
   const colorsSet = new Set<string>();
   const sizesSet = new Set<string>();
   const colorImages: Record<string, string | undefined> = {};
+  let sizeChartImageUrl: string | undefined;
 
   payload.variants?.forEach((variant) => {
+    const attrs = variant.attributes ?? {};
     if (variant.color) {
       colorsSet.add(variant.color);
-      const attrs = variant.attributes ?? {};
       const colorImage = typeof attrs.colorImageUrl === 'string' ? attrs.colorImageUrl : undefined;
       if (colorImage && !colorImages[variant.color]) {
         colorImages[variant.color] = colorImage;
@@ -118,6 +119,10 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     }
     if (variant.size) {
       sizesSet.add(variant.size);
+    }
+    if (!sizeChartImageUrl) {
+      sizeChartImageUrl =
+        typeof attrs.sizeChartImageUrl === 'string' ? attrs.sizeChartImageUrl : undefined;
     }
   });
 
@@ -135,6 +140,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     colors: Array.from(colorsSet),
     sizes: Array.from(sizesSet),
     colorImages,
+    sizeChartImageUrl,
     processes,
   };
 };

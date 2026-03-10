@@ -67,6 +67,7 @@ export interface StyleDetailData {
   colors: string[];
   sizes: string[];
   colorImages: StyleColorImageMap;
+  sizeChartImageUrl?: string;
   processes: StyleProcessItem[];
 }
 
