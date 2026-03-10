@@ -21,6 +21,7 @@ import {
   List,
   Modal,
   Pagination,
+  Radio,
   Row,
   Select,
   Space,
@@ -35,30 +36,13 @@ import type { UploadProps } from 'antd/es/upload/interface';
 import type { MessageInstance } from 'antd/es/message/interface';
 import {
   DeleteOutlined,
-  HolderOutlined,
   InboxOutlined,
   PictureOutlined,
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { arrayMove } from '@dnd-kit/sortable';
-import type { SampleProcessStep, SampleQuantityMatrix } from '../../types/sample';
+import type { SampleQuantityMatrix } from '../../types/sample';
 import type {
   SampleCreationAttachment,
   SampleCreationMeta,
@@ -77,7 +61,7 @@ import '../../styles/sample-order-form.css';
 import ListImage from '../common/ListImage';
 import type { MaterialItem, MaterialBasicType } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
-import { openSetupPage, renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
+import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -96,6 +80,7 @@ interface SampleOrderFormValues {
   styleId?: string;
   styleCode: string;
   styleName: string;
+  styleSyncMode?: 'create_new' | 'update_existing' | 'keep_existing';
   unit: string;
   orderNo?: string;
   sampleTypeId?: string;
@@ -154,6 +139,14 @@ type StyleListState = {
   data: StyleData[];
 };
 
+type SelectedStyleSnapshot = {
+  styleId: string;
+  styleCode: string;
+  styleName: string;
+  unit?: string;
+  variantKeys: string[];
+};
+
 const generateId = () => `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const generateSampleNo = () => `SMP-${dayjs().format('YYYYMMDDHHmmss')}`;
 
@@ -176,6 +169,8 @@ const sumMatrix = (matrix: SampleQuantityMatrix): number => {
     return grandTotal + Object.values(row).reduce((rowTotal, value) => rowTotal + Number(value || 0), 0);
   }, 0);
 };
+
+const buildVariantKey = (color?: string, size?: string): string => `${color || FALLBACK_COLOR}__${size || FALLBACK_SIZE}`;
 
 const COVER_SECTION_HEIGHT = 420;
 const FALLBACK_COLOR = '未指定颜色';
@@ -246,107 +241,6 @@ const mapColorImagesFromDetail = (
 };
 
 const toDayjsValue = (value?: string | null) => (value ? dayjs(value) : undefined);
-
-const ProcessListItem: React.FC<{
-  process: SampleProcessStep;
-  onRemove: (id: string) => void;
-}> = ({ process, onRemove }) => {
-  const { attributes, listeners, transform, transition, setNodeRef } = useSortable({ id: process.id });
-  const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    padding: '12px 16px',
-    border: '1px solid #f0f0f0',
-    borderRadius: 8,
-    background: '#fff',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div ref={setNodeRef} style={containerStyle}>
-      <div style={{ display: 'flex', flex: 1, gap: 12 }}>
-        <div
-          style={{ cursor: 'grab', color: '#999', lineHeight: '24px' }}
-          {...attributes}
-          {...listeners}
-        >
-          <HolderOutlined />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            <Text strong>
-              {process.order}. {process.name}
-            </Text>
-            <Space size={8} wrap>
-              {process.department && <Tag>{process.department}</Tag>}
-              {process.tags?.map((tag) => (
-                <Tag key={tag} color="blue">
-                  {tag}
-                </Tag>
-              ))}
-              {process.defaultDuration ? (
-                <Tag color="purple">{process.defaultDuration} 天</Tag>
-              ) : null}
-              {process.custom ? <Tag color="gold">自定义</Tag> : null}
-            </Space>
-            {process.description ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {process.description}
-              </Text>
-            ) : null}
-          </Space>
-        </div>
-      </div>
-      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onRemove(process.id)} />
-    </div>
-  );
-};
-
-const ProcessList: React.FC<{
-  processes: SampleProcessStep[];
-  onRemove: (id: string) => void;
-  onReorder: (activeId: string, overId: string) => void;
-}> = ({ processes, onRemove, onReorder }) => {
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) {
-        return;
-      }
-      onReorder(String(active.id), String(over.id));
-    },
-    [onReorder],
-  );
-
-  return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <SortableContext items={processes.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          {processes.length === 0 ? (
-            <Empty description="拖拽或点击左侧工序以添加" style={{ margin: '24px 0' }} />
-          ) : (
-            processes.map((process) => (
-              <ProcessListItem key={process.id} process={process} onRemove={onRemove} />
-            ))
-          )}
-        </Space>
-      </SortableContext>
-    </DndContext>
-  );
-};
 
 const SkuMatrixTable: React.FC<{
   colors: string[];
@@ -692,6 +586,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   initialSection,
 }) => {
   const [form] = Form.useForm<SampleOrderFormValues>();
+  const watchedStyleId = Form.useWatch('styleId', form);
   const [messageApi, messageContextHolder] = message.useMessage();
   const isEditMode = mode === 'edit';
   const [meta, setMeta] = useState<SampleCreationMeta>();
@@ -704,7 +599,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   }, [meta]);
   const [loading, setLoading] = useState(false);
   const [initializeLoading, setInitializeLoading] = useState(false);
-  const [processes, setProcesses] = useState<SampleProcessStep[]>([]);
   const [colors, setColors] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [matrix, setMatrix] = useState<SampleQuantityMatrix>({});
@@ -740,8 +634,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     total: 0,
     data: [],
   });
-  const [customProcessVisible, setCustomProcessVisible] = useState(false);
-  const [customProcessForm] = Form.useForm();
+  const [selectedStyleSnapshot, setSelectedStyleSnapshot] = useState<SelectedStyleSnapshot>();
   const setupEntries = useMemo<Record<string, SelectSetupConfig>>(() => ({
     sampleType: {
       entityLabel: '样板类型',
@@ -766,12 +659,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       pageLabel: '组织架构',
       buttonText: '去组织架构维护',
       path: '/settings/org',
-    },
-    process: {
-      entityLabel: '工序',
-      pageLabel: '加工类型',
-      buttonText: '去新加工类型',
-      path: '/basic/process-type',
     },
     style: {
       entityLabel: '款式',
@@ -939,11 +826,11 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImagesEnabled(false);
     setColorImageMap({});
     setAttachments([]);
-    setProcesses([]);
     setBomItems([]);
     setOtherCosts([]);
     setSizeChartImage(undefined);
     setMaterialPickerState({ open: false, type: 'fabric' });
+    setSelectedStyleSnapshot(undefined);
     form.resetFields();
   }, [form]);
 
@@ -960,17 +847,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
 
     const attachmentList = mapAttachmentsFromDetail(detail.attachments);
     setAttachments(attachmentList);
-
-    const processesFromDetail: SampleProcessStep[] = (detail.processes ?? []).map((process, index) => ({
-      id: process.processCatalogId ? String(process.processCatalogId) : `custom-${process.id ?? index}`,
-      name: process.processCatalogName || `工序${index + 1}`,
-      order: process.sequence ?? index + 1,
-      defaultDuration: process.plannedDurationMinutes ?? undefined,
-      custom: !process.processCatalogId,
-    }));
-    setProcesses(processesFromDetail.length > 0
-      ? processesFromDetail
-      : metaData.defaultProcesses.map((item, index) => ({ ...item, order: index + 1 })));
 
     const nextColorImageMap = mapColorImagesFromDetail(detail.colorImages);
     setColorImageMap(nextColorImageMap);
@@ -1003,6 +879,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       styleId: detail.styleId ? String(detail.styleId) : undefined,
       styleCode: detail.styleNo ?? '',
       styleName: detail.styleName ?? '',
+      styleSyncMode: 'keep_existing',
       unit: detail.unit || metaData.units[0],
       orderNo: detail.sampleNo,
       sampleTypeId: detail.sampleTypeId ? String(detail.sampleTypeId) : undefined,
@@ -1017,6 +894,15 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       sampleSewerId: detail.sampleSewerId ? String(detail.sampleSewerId) : undefined,
       remarks: detail.remarks,
     });
+    if (detail.styleId) {
+      setSelectedStyleSnapshot({
+        styleId: String(detail.styleId),
+        styleCode: detail.styleNo ?? '',
+        styleName: detail.styleName ?? '',
+        unit: detail.unit ?? undefined,
+        variantKeys: (detail.skus ?? []).map((item) => buildVariantKey(item.color ?? undefined, item.size ?? undefined)),
+      });
+    }
   }, [form]);
 
   useEffect(() => {
@@ -1079,11 +965,21 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
               styleId: initialStyle.id,
               styleCode: initialStyle.styleNo,
               styleName: initialStyle.styleName,
+              styleSyncMode: 'create_new',
             };
             if (initialStyle.defaultUnit) {
               presetValues.unit = initialStyle.defaultUnit;
             }
             form.setFieldsValue(presetValues);
+            setSelectedStyleSnapshot({
+              styleId: initialStyle.id,
+              styleCode: initialStyle.styleNo,
+              styleName: initialStyle.styleName,
+              unit: initialStyle.defaultUnit,
+              variantKeys: (initialStyle.colors ?? []).flatMap((color) =>
+                (initialStyle.sizes ?? []).map((size) => buildVariantKey(color, size)),
+              ),
+            });
             if (initialStyle.image) {
               setAttachments([
                 {
@@ -1143,42 +1039,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
 
   const handleMatrixChange = useCallback((nextMatrix: SampleQuantityMatrix) => {
     setMatrix(nextMatrix);
-  }, []);
-
-  const addProcess = useCallback((template: SampleProcessStep | { id: string; name: string; defaultDuration?: number; department?: string; description?: string; tags?: string[] }) => {
-    setProcesses((prev) => {
-      if (prev.some((item) => item.id === template.id)) {
-        return prev;
-      }
-      const next = prev.concat({
-        ...template,
-        order: prev.length + 1,
-        custom: 'custom' in template ? template.custom : template.id.startsWith('custom-'),
-      } as SampleProcessStep);
-      return next;
-    });
-  }, []);
-
-  const removeProcess = useCallback((id: string) => {
-    setProcesses((prev) => prev.filter((process) => process.id !== id).map((process, index) => ({
-      ...process,
-      order: index + 1,
-    })));
-  }, []);
-
-  const reorderProcess = useCallback((activeId: string, overId: string) => {
-    setProcesses((prev) => {
-      const oldIndex = prev.findIndex((item) => item.id === activeId);
-      const newIndex = prev.findIndex((item) => item.id === overId);
-      if (oldIndex === -1 || newIndex === -1) {
-        return prev;
-      }
-      const reordered = arrayMove(prev, oldIndex, newIndex).map((item, index) => ({
-        ...item,
-        order: index + 1,
-      }));
-      return reordered;
-    });
   }, []);
 
   const handleColorsUpdate = useCallback((nextColors: string[]) => {
@@ -1325,24 +1185,18 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         messageApi.error('元数据加载失败，请刷新页面');
         return;
       }
-      if (processes.length === 0) {
-        messageApi.error('请至少添加一道加工工序');
-        return;
-      }
       if (colors.length === 0 || sizes.length === 0) {
         messageApi.error('请至少保留一个颜色和尺码');
         return;
       }
-      if (!values.styleId) {
-        messageApi.error('请选择款式');
+      if (!values.styleCode?.trim() || !values.styleName?.trim()) {
+        messageApi.error('请填写款号和款名');
         return;
       }
       if (!values.customerId) {
         messageApi.error('请选择客户');
         return;
       }
-
-      setLoading(true);
 
       const totalQuantity = sumMatrix(matrix);
       const skus = colors.flatMap((color) =>
@@ -1398,12 +1252,92 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         }]
         : [];
 
+      const styleSyncMode = values.styleId
+        ? (values.styleSyncMode ?? 'create_new')
+        : 'create_new';
+      const currentVariantKeys = skus.map((item) => buildVariantKey(item.color, item.size));
+      const normalizedCurrentKeys = Array.from(new Set(currentVariantKeys)).sort();
+      const normalizedSnapshotKeys = Array.from(new Set(selectedStyleSnapshot?.variantKeys ?? [])).sort();
+      const styleChangedForUpdate = Boolean(
+        values.styleId
+          && styleSyncMode === 'update_existing'
+          && (
+            (values.styleCode ?? '').trim() !== (selectedStyleSnapshot?.styleCode ?? '').trim()
+            || (values.styleName ?? '').trim() !== (selectedStyleSnapshot?.styleName ?? '').trim()
+            || (values.unit ?? '').trim() !== (selectedStyleSnapshot?.unit ?? '').trim()
+            || normalizedCurrentKeys.join('|') !== normalizedSnapshotKeys.join('|')
+          ),
+      );
+
+      if (styleChangedForUpdate) {
+        Modal.confirm({
+          title: '确认更新已有款式信息？',
+          content: '检测到你修改了款号/款名/单位或SKU定义。确认后将覆盖所选已有款式信息。',
+          okText: '确认更新',
+          cancelText: '取消',
+          onOk: async () => {
+            setLoading(true);
+            const payload: SampleOrderCreateInput = {
+              sampleNo: values.orderNo?.trim() || generateSampleNo(),
+              sampleTypeId: values.sampleTypeId,
+              followTemplateId: values.followTemplateId,
+              customerId: values.customerId,
+              styleId: values.styleId,
+              styleCode: values.styleCode.trim(),
+              styleName: values.styleName.trim(),
+              styleSyncMode,
+              styleUpdateConfirmed: true,
+              unit: values.unit,
+              quantity: totalQuantity,
+              unitPrice: values.patternPrice,
+              totalAmount: values.patternPrice && totalQuantity ? values.patternPrice * totalQuantity : undefined,
+              deadline: values.deliveryDate?.format('YYYY-MM-DD'),
+              expectedFinishDate: values.deliveryDate?.format('YYYY-MM-DD'),
+              orderDate: values.orderDate?.format('YYYY-MM-DD'),
+              merchandiserId: values.merchandiserId,
+              patternMakerId: values.patternMakerId,
+              sampleSewerId: values.sampleSewerId,
+              patternNo: values.patternNo,
+              remarks: values.remarks,
+              skus,
+              processes: [],
+              costs: normalizedCosts,
+              materials: materialsPayload,
+              assets: [...baseAttachments, ...colorAttachments, ...sizeChartAssets],
+            };
+            try {
+              if (isEditMode) {
+                if (!orderId) {
+                  messageApi.error('缺少样板单 ID，无法保存');
+                  return;
+                }
+                await sampleOrderApi.update(orderId, payload);
+                messageApi.success('样板单更新成功');
+                onOk({ mode: 'edit', orderId });
+              } else {
+                await sampleOrderApi.create(payload);
+                messageApi.success('样板单创建成功');
+                onOk({ mode: 'create' });
+              }
+              handleClose();
+            } finally {
+              setLoading(false);
+            }
+          },
+        });
+        return;
+      }
+
+      setLoading(true);
       const payload: SampleOrderCreateInput = {
         sampleNo: values.orderNo?.trim() || generateSampleNo(),
         sampleTypeId: values.sampleTypeId,
         followTemplateId: values.followTemplateId,
         customerId: values.customerId,
         styleId: values.styleId,
+        styleCode: values.styleCode.trim(),
+        styleName: values.styleName.trim(),
+        styleSyncMode,
         unit: values.unit,
         quantity: totalQuantity,
         unitPrice: values.patternPrice,
@@ -1417,11 +1351,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         patternNo: values.patternNo,
         remarks: values.remarks,
         skus,
-        processes: processes.map((process, index) => ({
-          processCatalogId: process.id,
-          sequence: index + 1,
-          plannedDurationMinutes: process.defaultDuration,
-        })),
+        processes: [],
         costs: normalizedCosts,
         materials: materialsPayload,
         assets: [...baseAttachments, ...colorAttachments, ...sizeChartAssets],
@@ -1457,13 +1387,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [form, meta, processes, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage]);
+  }, [form, meta, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage, selectedStyleSnapshot]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     const presetValues: Partial<SampleOrderFormValues> = {
       styleId: style.id,
       styleCode: style.styleNo,
       styleName: style.styleName,
+      styleSyncMode: 'create_new',
     };
     if (style.defaultUnit) {
       presetValues.unit = style.defaultUnit;
@@ -1498,6 +1429,15 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         const images = detail.colorImages ?? {};
         setColorImageMap(images);
         setColorImagesEnabled(Object.values(images).some((value) => Boolean(value)));
+        setSelectedStyleSnapshot({
+          styleId: style.id,
+          styleCode: detail.styleNo ?? style.styleNo,
+          styleName: detail.styleName ?? style.styleName,
+          unit: detail.defaultUnit ?? style.defaultUnit,
+          variantKeys: (detail.colors ?? []).flatMap((color) =>
+            (detail.sizes ?? []).map((size) => buildVariantKey(color, size)),
+          ),
+        });
       } catch (error) {
         console.error('加载颜色图片失败', error);
         messageApi.warning('加载颜色图片失败，请稍后重试');
@@ -1505,36 +1445,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     })();
   }, [appendAttachment, form, handleColorsUpdate, handleSizesUpdate, messageApi]);
 
-  const handleCustomProcessOk = useCallback(async () => {
-    try {
-      const values = await customProcessForm.validateFields();
-      const newProcess: SampleProcessStep = {
-        id: `custom-${Date.now()}`,
-        name: values.name,
-        order: processes.length + 1,
-        defaultDuration: values.duration,
-        department: values.department,
-        description: values.description,
-        tags: ['自定义'],
-        custom: true,
-      };
-      addProcess(newProcess);
-      setCustomProcessVisible(false);
-      customProcessForm.resetFields();
-    } catch (error) {
-      console.error(error);
-    }
-  }, [customProcessForm, processes.length, addProcess]);
-
   if (!visible) {
     return null;
   }
-
-  const styleSelectTrigger = !isEditMode ? (
-    <Button type="link" onClick={() => setStyleState((prev) => ({ ...prev, open: true }))}>选择</Button>
-  ) : (
-    <Button type="link" disabled>选择</Button>
-  );
 
   return (
     <>
@@ -1556,7 +1469,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           <div>
             <Form form={form} layout="vertical" colon={false}>
               <div ref={registerSection('core')} className={getSectionClassName('core')}>
-                <Divider orientation="left">核心信息</Divider>
+                <Divider orientation="left" style={{ marginBottom: 12 }}>核心信息</Divider>
                 <Row gutter={16}>
                   <Col span={8}>
                     <div
@@ -1583,6 +1496,18 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   </Col>
                   <Col span={16}>
                     <Row gutter={16}>
+                    {!isEditMode ? (
+                      <Col span={24} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button
+                          type="link"
+                          size="small"
+                          style={{ paddingInline: 6, marginBottom: 10 }}
+                          onClick={() => setStyleState((prev) => ({ ...prev, open: true }))}
+                        >
+                          选择已有款式
+                        </Button>
+                      </Col>
+                    ) : null}
                     <Col span={12}>
                       <Form.Item
                         name="styleCode"
@@ -1592,7 +1517,12 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         <Input
                           placeholder="请输入款号"
                           disabled={isEditMode}
-                          addonAfter={styleSelectTrigger}
+                          onChange={() => {
+                            if (!isEditMode) {
+                              form.setFieldsValue({ styleId: undefined, styleSyncMode: 'create_new' });
+                              setSelectedStyleSnapshot(undefined);
+                            }
+                          }}
                         />
                       </Form.Item>
                     </Col>
@@ -1602,12 +1532,33 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         label="款名"
                         rules={[{ required: true, message: '请输入款名' }]}
                       >
-                        <Input placeholder="请输入款名" disabled={isEditMode} />
+                        <Input
+                          placeholder="请输入款名"
+                          disabled={isEditMode}
+                          onChange={() => {
+                            if (!isEditMode && form.getFieldValue('styleId')) {
+                              form.setFieldsValue({ styleId: undefined, styleSyncMode: 'create_new' });
+                              setSelectedStyleSnapshot(undefined);
+                            }
+                          }}
+                        />
                       </Form.Item>
                     </Col>
                     <Form.Item name="styleId" hidden>
                       <Input />
                     </Form.Item>
+                    {!isEditMode && watchedStyleId ? (
+                      <Col span={24}>
+                        <Form.Item label="款式同步策略" name="styleSyncMode" initialValue="create_new">
+                          <Radio.Group
+                            options={[
+                              { label: '创建新款式', value: 'create_new' },
+                              { label: '更新已有款式', value: 'update_existing' },
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                    ) : null}
                     <Col span={12}>
                       <Form.Item
                         name="unit"
@@ -1850,56 +1801,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 </Row>
               </div>
 
-              <div ref={registerSection('process')} className={getSectionClassName('process')}>
-                <Divider orientation="left">加工流程</Divider>
-                <Row gutter={16}>
-                  <Col span={10}>
-                    <Card
-                      size="small"
-                      title="可选工序"
-                      extra={(
-                        <Button type="link" size="small" onClick={() => openSetupPage(setupEntries.process.path)}>
-                          {setupEntries.process.buttonText}
-                        </Button>
-                      )}
-                      styles={{ body: { maxHeight: 320, overflow: 'auto' }}
-                    }
-                    >
-                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                      <SelectSetupHint config={setupEntries.process} />
-                      {meta?.processLibrary.map((process) => (
-                        <Card
-                          key={process.id}
-                          size="small"
-                          hoverable
-                          onClick={() => addProcess({ ...process, order: processes.length + 1 })}
-                        >
-                          <Space direction="vertical" size={4}>
-                            <Text strong>{process.name}</Text>
-                            <Space size={6} wrap>
-                              {process.department && <Tag>{process.department}</Tag>}
-                              {process.tags?.map((tag) => (
-                                <Tag key={tag} color="blue">{tag}</Tag>
-                              ))}
-                              {process.defaultDuration ? <Tag color="purple">{process.defaultDuration} 天</Tag> : null}
-                            </Space>
-                            {process.description ? <Text type="secondary">{process.description}</Text> : null}
-                          </Space>
-                        </Card>
-                      ))}
-                      <Button type="dashed" icon={<PlusOutlined />} onClick={() => setCustomProcessVisible(true)}>
-                        添加自定义工序
-                      </Button>
-                    </Space>
-                  </Card>
-                </Col>
-                  <Col span={14}>
-                    <Card size="small" title="已选工序">
-                      <ProcessList processes={processes} onRemove={removeProcess} onReorder={reorderProcess} />
-                    </Card>
-                  </Col>
-                </Row>
-              </div>
+              {null}
 
               <div ref={registerSection('skuDefinitions')} className={getSectionClassName('skuDefinitions')}>
                 <Divider orientation="left">SKU 定义</Divider>
@@ -2059,8 +1961,8 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 <Col span={8}>
                   <Card size="small">
                     <Space direction="vertical" size={4}>
-                      <Text type="secondary">流程节点</Text>
-                      <Text strong style={{ fontSize: 20 }}>{processes.length}</Text>
+                      <Text type="secondary">费用项</Text>
+                      <Text strong style={{ fontSize: 20 }}>{otherCosts.length}</Text>
                     </Space>
                   </Card>
                 </Col>
@@ -2087,36 +1989,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         messageApi={messageApi}
         setupEntry={setupEntries.material}
       />
-
-      <Modal
-        open={customProcessVisible}
-        title="添加自定义工序"
-        onCancel={() => setCustomProcessVisible(false)}
-        onOk={handleCustomProcessOk}
-        okText="添加"
-        cancelText="取消"
-        destroyOnHidden
-        forceRender
-      >
-        <Form form={customProcessForm} layout="vertical" colon={false}>
-          <Form.Item
-            name="name"
-            label="工序名称"
-            rules={[{ required: true, message: '请输入工序名称' }]}
-          >
-            <Input placeholder="例如：试穿评审" />
-          </Form.Item>
-          <Form.Item name="duration" label="预计耗时 (天)">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="department" label="执行部门">
-            <Input placeholder="请输入执行部门" />
-          </Form.Item>
-          <Form.Item name="description" label="工序说明">
-            <TextArea rows={2} placeholder="填写工序说明" />
-          </Form.Item>
-        </Form>
-      </Modal>
     </>
   );
 };

@@ -1218,7 +1218,7 @@ const FactoryOrders = () => {
 
   const handleLoadRemainingAllocation = useCallback(() => {
     if (!allocationColors.length || !allocationSizes.length) {
-      message.warning('暂无可加载的颜色/尺码分配数据');
+      message.warning('暂无可加载的颜色/尺码裁剪数据');
       return;
     }
     const orderedMatrix = progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
@@ -1250,7 +1250,7 @@ const FactoryOrders = () => {
         return matrix;
       }, {}),
     );
-    message.success('已加载剩余未分配数量');
+    message.success('已加载剩余未录入数量');
   }, [allocationColors, allocationHistoryRows, allocationSizes, progressStats.rows]);
 
   const handleOpenFactoryGuide = useCallback(() => {
@@ -1259,7 +1259,7 @@ const FactoryOrders = () => {
 
   const handleOpenAllocationCreate = useCallback(() => {
     if (!allocationColors.length || !allocationSizes.length) {
-      message.warning('暂无可分配的颜色/尺码数据');
+      message.warning('暂无可录入的颜色/尺码数据');
       return;
     }
     setAllocationMatrix(
@@ -1291,8 +1291,6 @@ const FactoryOrders = () => {
         subcontractorId: values.factoryId,
         unitPrice: values.unitPrice ?? 0,
       };
-      const requiredTotal = progressStats.rows.reduce((sum, row) => sum + row.orderedQty, 0);
-      const historyAllocatedTotal = allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0);
       const matrixItems = allocationColors.flatMap((color) =>
         allocationSizes.map((size) => ({
           color: color === '-' ? undefined : color,
@@ -1302,20 +1300,14 @@ const FactoryOrders = () => {
       ).filter((item) => item.quantity > 0);
       const totalAllocated = matrixItems.reduce((sum, item) => sum + item.quantity, 0);
       if (totalAllocated <= 0) {
-        message.warning('请在分配矩阵中填写大于 0 的数量');
-        return;
-      }
-      if (requiredTotal > 0 && historyAllocatedTotal + totalAllocated > requiredTotal) {
-        message.warning(
-          `分配后总量不能超过下单总量（${requiredTotal}），当前已分配 ${historyAllocatedTotal}，本次 ${totalAllocated}`,
-        );
+        message.warning('请在裁剪矩阵中填写大于 0 的数量');
         return;
       }
       payload.items = matrixItems;
 
       setAllocationCreateSubmitting(true);
       await factoryOrdersApi.completeProgress(progressActionModal.order.orderId, nodeCode, { payload });
-      message.success('分配已提交');
+      message.success('裁剪数据已提交');
       setAllocationCreateModalOpen(false);
       allocationCreateForm.resetFields();
       await loadProgressStats(progressActionModal.order.orderId, progressActionModal.stage.key as 'cutting' | 'sewing');
@@ -1325,7 +1317,7 @@ const FactoryOrders = () => {
         return;
       }
       console.error('failed to submit allocation', error);
-      message.error(error instanceof Error ? error.message : '提交分配失败');
+      message.error(error instanceof Error ? error.message : '提交裁剪数据失败');
     } finally {
       setAllocationCreateSubmitting(false);
     }
@@ -1838,6 +1830,7 @@ const FactoryOrders = () => {
     [allocationHistoryRows],
   );
   const progressStageKey = progressActionModal.stage?.key;
+  const isCuttingProgressStage = progressStageKey === 'cutting';
   const isWideProgressStage = progressStageKey === 'cutting' || progressStageKey === 'sewing';
   const isInOutProgressStage = progressStageKey === 'inbound' || progressStageKey === 'outbound';
   const inOutIsInbound = progressStageKey === 'inbound';
@@ -2580,11 +2573,11 @@ const FactoryOrders = () => {
                 },
                 {
                   key: 'allocation',
-                  label: '分配信息',
+                  label: isCuttingProgressStage ? '裁剪数据' : '分配信息',
                   children: (
                     <>
                       {allocationHistoryRows.length === 0 ? (
-                        <Text type="secondary">暂无分配记录</Text>
+                        <Text type="secondary">{isCuttingProgressStage ? '暂无裁剪记录' : '暂无分配记录'}</Text>
                       ) : allocationHistoryRows.map((record) => {
                         const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
                           if (!matrix[item.color]) {
@@ -2602,7 +2595,7 @@ const FactoryOrders = () => {
                             <div style={{ marginBottom: 6 }}>
                               <Text strong>工厂：{factoryLabel}</Text>
                               <Text type="secondary" style={{ marginLeft: 12 }}>
-                                分配时间：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
+                                {isCuttingProgressStage ? '录入时间' : '分配时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
                               </Text>
                               <Text type="secondary" style={{ marginLeft: 12 }}>
                                 工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
@@ -2669,7 +2662,7 @@ const FactoryOrders = () => {
                       })}
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                         <Button type="primary" onClick={handleOpenAllocationCreate}>
-                          新建分配
+                          {isCuttingProgressStage ? '手动录入' : '新建分配'}
                         </Button>
                       </div>
                     </>
@@ -2753,7 +2746,7 @@ const FactoryOrders = () => {
 
       <Modal
         open={allocationCreateModalOpen}
-        title="新建分配"
+        title={isCuttingProgressStage ? '手动录入裁剪数据' : '新建分配'}
         onCancel={() => {
           setAllocationCreateModalOpen(false);
           setAllocationCreateSubmitting(false);
@@ -2766,7 +2759,11 @@ const FactoryOrders = () => {
         destroyOnHidden
       >
         <Form form={allocationCreateForm} layout="vertical">
-          <Form.Item label="工厂" name="factoryId" rules={[{ required: true, message: '请选择工厂' }]}>
+          <Form.Item
+            label="工厂"
+            name="factoryId"
+            rules={isCuttingProgressStage ? [] : [{ required: true, message: '请选择工厂' }]}
+          >
             <Select
               showSearch
               optionFilterProp="label"
@@ -2785,20 +2782,24 @@ const FactoryOrders = () => {
             <InputNumber min={0} precision={2} style={{ width: '100%' }} />
           </Form.Item>
           <div className="factory-allocation-toolbar">
-            <Text strong>颜色/尺码数量矩阵</Text>
+            <Text strong>{isCuttingProgressStage ? '颜色/尺码裁剪矩阵' : '颜色/尺码数量矩阵'}</Text>
             <Button type="link" size="small" onClick={handleLoadRemainingAllocation}>
-              加载剩余数量
+              {isCuttingProgressStage ? '加载剩余待裁' : '加载剩余数量'}
             </Button>
           </div>
           {allocationColors.length === 0 || allocationSizes.length === 0 ? (
-            <Text type="secondary">暂无可分配的颜色/尺码数据</Text>
+            <Text type="secondary">{isCuttingProgressStage ? '暂无可录入的颜色/尺码裁剪数据' : '暂无可分配的颜色/尺码数据'}</Text>
           ) : (
             <>
               <Alert
-                type={allocationHistoryTotal + allocationGrandTotal > allocationRequiredTotal ? 'error' : 'info'}
+                type={allocationHistoryTotal + allocationGrandTotal > allocationRequiredTotal ? 'warning' : 'info'}
                 showIcon
                 style={{ marginBottom: 8 }}
-                message={`下单总量：${allocationRequiredTotal}，已分配：${allocationHistoryTotal}，本次分配：${allocationGrandTotal}，分配后：${allocationHistoryTotal + allocationGrandTotal}`}
+                message={
+                  isCuttingProgressStage
+                    ? `下单总量：${allocationRequiredTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`
+                    : `下单总量：${allocationRequiredTotal}，已分配：${allocationHistoryTotal}，本次分配：${allocationGrandTotal}，分配后：${allocationHistoryTotal + allocationGrandTotal}`
+                }
               />
               <div className="factory-create-matrix-wrap">
                 <table className="factory-create-matrix-table">
@@ -2821,21 +2822,24 @@ const FactoryOrders = () => {
                           const allocatedQty = normalizeQtyValue(allocationMatrix[color]?.[size]);
                           const remainingQty = Math.max(orderedQty - historyAllocatedQty - allocatedQty, 0);
                           const availableQty = Math.max(orderedQty - historyAllocatedQty, 0);
+                          const exceededQty = Math.max(historyAllocatedQty + allocatedQty - orderedQty, 0);
                           return (
                             <td key={`alloc-create-${color}-${size}`}>
                               <div style={{ display: 'grid', gap: 4 }}>
                                 <InputNumber
                                   min={0}
                                   precision={0}
-                                  max={availableQty > 0 ? availableQty : undefined}
+                                  max={!isCuttingProgressStage && availableQty > 0 ? availableQty : undefined}
                                   value={allocatedQty}
                                   onChange={(value) => handleAllocationMatrixQtyChange(color, size, value)}
                                   controls={false}
                                   style={{ width: '100%' }}
-                                  placeholder={`最多 ${availableQty}`}
+                                  placeholder={!isCuttingProgressStage ? `最多 ${availableQty}` : '填写裁剪数量'}
                                 />
                                 <Text type="secondary" style={{ fontSize: 11 }}>
-                                  {orderedQty}/{remainingQty}
+                                  {isCuttingProgressStage
+                                    ? `${historyAllocatedQty + allocatedQty}/${orderedQty}${exceededQty > 0 ? `（超裁 ${exceededQty}）` : ''}`
+                                    : `${orderedQty}/${remainingQty}`}
                                 </Text>
                               </div>
                             </td>

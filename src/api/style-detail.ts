@@ -4,12 +4,10 @@ import type {
   StyleFormMeta,
   StyleStatus,
 } from '../types/style';
-import type { ProcessTypeChargeMode } from '../types/process-type';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
-type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 
 type BackendStyleVariant = {
   id: number;
@@ -60,7 +58,7 @@ type BackendStyleProcessResponse = {
   processCatalogId?: number;
   processCode?: string;
   processName?: string;
-  chargeMode?: BackendChargeMode;
+  chargeMode?: string;
   defaultWage?: number;
   unit?: string;
   sourceTemplateId?: number;
@@ -84,18 +82,6 @@ const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
 
 const toBackendStatus = (status: StyleStatus): BackendStyleStatus =>
   status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
-
-const adaptChargeMode = (mode?: BackendChargeMode): ProcessTypeChargeMode => {
-  switch (mode) {
-    case 'HOURLY':
-      return 'hourly';
-    case 'STAGE_BASED':
-      return 'stage';
-    case 'PIECEWORK':
-    default:
-      return 'piecework';
-  }
-};
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -135,27 +121,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     }
   });
 
-  const processes = Array.isArray(payload.processes)
-    ? payload.processes
-        .filter((process) => process.processCatalogId != null)
-        .map((process) => ({
-          id: process.id ? String(process.id) : undefined,
-          processCatalogId: String(process.processCatalogId),
-          processCode: process.processCode ?? undefined,
-          processName: process.processName ?? undefined,
-          chargeMode: adaptChargeMode(process.chargeMode),
-          defaultWage:
-            typeof process.defaultWage === 'number' ? process.defaultWage : undefined,
-          unit: process.unit ?? undefined,
-          unitPrice:
-            typeof process.unitPrice === 'number' ? Number(process.unitPrice) : undefined,
-          remarks: process.remarks ?? undefined,
-          sequence: process.sequence ?? undefined,
-          sourceTemplateId: process.sourceTemplateId
-            ? String(process.sourceTemplateId)
-            : undefined,
-        }))
-    : [];
+  const processes: StyleDetailData['processes'] = [];
 
   return {
     id: String(payload.id),
@@ -202,27 +168,11 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
   remarks: payload.remarks,
   coverImageUrl: payload.coverImageUrl,
   variants: buildVariants(payload),
-  processes: buildProcesses(payload),
+  processes: buildProcesses(),
 });
 
-const buildProcesses = (payload: StyleDetailSavePayload): BackendStyleProcessRequest[] => {
-  if (!payload.processes?.length) {
-    return [];
-  }
-  return payload.processes
-      .filter((process) => process?.processCatalogId)
-      .map((process) => ({
-        processCatalogId: Number(process.processCatalogId),
-        unitPrice:
-          typeof process.unitPrice === 'number' && Number.isFinite(process.unitPrice)
-            ? Number(process.unitPrice)
-            : 0,
-        remarks: process.remarks,
-        sequence: process.sequence,
-        sourceTemplateId: process.sourceTemplateId
-          ? Number(process.sourceTemplateId)
-          : undefined,
-      }));
+const buildProcesses = (): BackendStyleProcessRequest[] => {
+  return [];
 };
 
 export const styleDetailApi = {

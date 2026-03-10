@@ -37,7 +37,6 @@ import type {
   SampleMaterialItem,
   SampleOrderDetail,
   SampleOtherCostItem,
-  SampleProcessItem,
 } from '../types/sample-detail';
 import sampleOrderApi from '../api/sample-order';
 import SampleOrderFormModal, { type SampleOrderFormSection } from '../components/sample/SampleOrderFormModal';
@@ -49,7 +48,6 @@ const SECTION_IDS = {
   base: 'sample-detail-base',
   quantity: 'sample-detail-quantity',
   bom: 'sample-detail-bom',
-  process: 'sample-detail-process',
   size: 'sample-detail-size',
   other: 'sample-detail-other',
   attachments: 'sample-detail-attachments',
@@ -60,18 +58,16 @@ type SectionKey = keyof typeof SECTION_IDS;
 
 const formatCurrency = (value: number): string => `¥${value.toFixed(2)}`;
 
-type DetailTabKey = 'bom' | 'process' | 'size' | 'other' | 'attachments';
+type DetailTabKey = 'bom' | 'size' | 'other' | 'attachments';
 
 const DETAIL_TAB_TO_EDITOR_SECTION: Record<Exclude<DetailTabKey, 'attachments'>, SampleOrderFormSection> = {
   bom: 'materials',
-  process: 'process',
   size: 'sizeChart',
   other: 'otherCosts',
 };
 
 const DETAIL_TAB_LABELS: Record<Exclude<DetailTabKey, 'attachments'>, string> = {
   bom: '物料清单',
-  process: '加工流程',
   size: '尺寸表',
   other: '其他费用',
 };
@@ -140,13 +136,13 @@ const SampleDetail = () => {
   }, [loadDetail]);
 
   const handleScrollTo = useCallback((section: SectionKey) => {
-    const tabSections = new Set<DetailTabKey>(['bom', 'process', 'size', 'other', 'attachments']);
+    const tabSections = new Set<DetailTabKey>(['bom', 'size', 'other', 'attachments']);
     if (tabSections.has(section as DetailTabKey)) {
       setActiveDetailTab(section as DetailTabKey);
     }
     const targetId = section === 'base'
       ? SECTION_IDS.base
-      : section === 'bom' || section === 'process' || section === 'size' || section === 'other' || section === 'attachments'
+      : section === 'bom' || section === 'size' || section === 'other' || section === 'attachments'
         ? SECTION_IDS.bom
         : SECTION_IDS.cost;
     window.setTimeout(() => {
@@ -290,26 +286,6 @@ const SampleDetail = () => {
     },
   ], []);
 
-  const processColumns = useMemo<ColumnsType<SampleProcessItem>>(() => [
-    { dataIndex: 'sequence', title: '工序号', width: 90, align: 'center' },
-    { dataIndex: 'name', title: '工序名称', width: 180 },
-    {
-      dataIndex: 'laborPrice',
-      title: '工价',
-      width: 120,
-      align: 'right',
-      render: (value: number) => formatCurrency(value),
-    },
-    {
-      dataIndex: 'standardTime',
-      title: '标准工时',
-      width: 120,
-      align: 'center',
-      render: (value: number | undefined) => (value ? `${value.toFixed(1)} h` : '-'),
-    },
-    { dataIndex: 'remark', title: '备注' },
-  ], []);
-
   const otherCostColumns = useMemo<ColumnsType<SampleOtherCostItem>>(() => [
     { dataIndex: 'costType', title: '费用类型', width: 180 },
     {
@@ -450,7 +426,6 @@ const SampleDetail = () => {
   const sectionButtons: Array<{ key: SectionKey; label: string }> = [
     { key: 'base', label: '基础信息' },
     { key: 'bom', label: '物料清单' },
-    { key: 'process', label: '加工类型' },
     { key: 'size', label: '尺寸表' },
     { key: 'other', label: '其他费用' },
     { key: 'attachments', label: '附件' },
@@ -639,18 +614,6 @@ const SampleDetail = () => {
                         ]}
                       />
                     ),
-                  },
-                  {
-                    key: 'process',
-                    label: '加工类型',
-                    children: detail.processes.length ? (
-                      <Table
-                        rowKey="id"
-                        pagination={false}
-                        columns={processColumns}
-                        dataSource={detail.processes}
-                      />
-                    ) : <Empty description="暂无工序信息" style={{ padding: '48px 0' }} />,
                   },
                   {
                     key: 'size',

@@ -74,8 +74,12 @@ export type SampleOrderCreateInput = {
   sampleNo: string;
   sampleTypeId?: string;
   followTemplateId?: string;
-  customerId: string;
-  styleId: string;
+  customerId?: string;
+  styleId?: string;
+  styleCode: string;
+  styleName: string;
+  styleSyncMode?: 'create_new' | 'update_existing' | 'keep_existing';
+  styleUpdateConfirmed?: boolean;
   styleVariantId?: string;
   quantity: number;
   unit?: string;
@@ -95,7 +99,7 @@ export type SampleOrderCreateInput = {
   remarks?: string;
   description?: string;
   skus: Array<{ color?: string; size?: string; quantity: number }>;
-  processes: Array<{
+  processes?: Array<{
     processCatalogId: string;
     sequence?: number;
     plannedDurationMinutes?: number;
@@ -194,6 +198,10 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
   followTemplateId: toNumber(payload.followTemplateId),
   customerId: toNumber(payload.customerId),
   styleId: toNumber(payload.styleId),
+  styleCode: payload.styleCode,
+  styleName: payload.styleName,
+  styleSyncMode: payload.styleSyncMode,
+  styleUpdateConfirmed: payload.styleUpdateConfirmed,
   styleVariantId: toNumber(payload.styleVariantId),
   quantity: payload.quantity,
   unit: payload.unit,
