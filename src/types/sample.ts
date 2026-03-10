@@ -81,7 +81,6 @@ export interface SampleQueryParams {
   keyword?: string; // 关键词搜索
   status?: SampleStatus; // 状态筛选
   overallStatus?: SampleOverallStatus; // 整体状态筛选
-  customer?: string; // 客户筛选
   season?: string; // 季节筛选
   category?: string; // 品类筛选
   priority?: SampleOrder['priority']; // 优先级筛选

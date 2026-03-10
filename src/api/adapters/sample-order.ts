@@ -179,7 +179,6 @@ export type SampleDashboardCounters = {
 
 export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): SampleOrder => {
   const fallbackText = '--';
-  const customerLabel = payload.customerName || (payload.customerId ? `客户 #${payload.customerId}` : fallbackText);
   const styleLabel = payload.styleName || (payload.styleId ? `款式 #${payload.styleId}` : fallbackText);
 
   return {
@@ -188,7 +187,7 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     styleName: styleLabel,
     styleCode: payload.styleNo ?? (payload.styleId ? `ST-${payload.styleId}` : fallbackText),
     unit: payload.unit ?? fallbackText,
-    customer: customerLabel,
+    customer: fallbackText,
     season: fallbackText,
     category: fallbackText,
     fabric: fallbackText,
@@ -433,10 +432,6 @@ export const buildListQuery = (params: SampleQueryParams = {}): Record<string, u
     page: params.page,
     size: params.pageSize,
   };
-
-  if (!query.keyword && params.customer) {
-    query.keyword = params.customer;
-  }
 
   Object.keys(query).forEach((key) => {
     if (query[key] === undefined || query[key] === null || query[key] === '') {

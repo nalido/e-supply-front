@@ -85,7 +85,6 @@ interface SampleOrderFormValues {
   orderNo?: string;
   sampleTypeId?: string;
   followTemplateId?: string;
-  customerId?: string;
   patternPrice?: number;
   orderDate?: Dayjs;
   deliveryDate?: Dayjs;
@@ -648,12 +647,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       buttonText: '去新建跟进模板',
       path: '/sample/follow-template',
     },
-    customer: {
-      entityLabel: '客户',
-      pageLabel: '往来单位',
-      buttonText: '去新建客户',
-      path: '/basic/partners?type=customer',
-    },
     staff: {
       entityLabel: '成员',
       pageLabel: '组织架构',
@@ -884,7 +877,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       orderNo: detail.sampleNo,
       sampleTypeId: detail.sampleTypeId ? String(detail.sampleTypeId) : undefined,
       followTemplateId: detail.followTemplateId ? String(detail.followTemplateId) : undefined,
-      customerId: detail.customerId ? String(detail.customerId) : undefined,
       patternPrice: detail.unitPrice ?? undefined,
       orderDate: toDayjsValue(detail.orderDate),
       deliveryDate: toDayjsValue(detail.deadline),
@@ -1060,6 +1052,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setMatrix((prev) => buildQuantityMatrix(colors, normalized, prev));
   }, [colors]);
 
+  const handleColorImageChange = useCallback((color: string, imageUrl?: string) => {
+    setColorImageMap((prev) => ({
+      ...prev,
+      [color]: imageUrl,
+    }));
+  }, []);
+
   const handleAttachmentRemove = useCallback((id: string) => {
     setAttachments((prev) => {
       const filtered = prev.filter((item) => item.id !== id);
@@ -1193,11 +1192,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         messageApi.error('请填写款号和款名');
         return;
       }
-      if (!values.customerId) {
-        messageApi.error('请选择客户');
-        return;
-      }
-
       const totalQuantity = sumMatrix(matrix);
       const skus = colors.flatMap((color) =>
         sizes.map((size) => ({
@@ -1281,7 +1275,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
               sampleNo: values.orderNo?.trim() || generateSampleNo(),
               sampleTypeId: values.sampleTypeId,
               followTemplateId: values.followTemplateId,
-              customerId: values.customerId,
               styleId: values.styleId,
               styleCode: values.styleCode.trim(),
               styleName: values.styleName.trim(),
@@ -1333,7 +1326,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         sampleNo: values.orderNo?.trim() || generateSampleNo(),
         sampleTypeId: values.sampleTypeId,
         followTemplateId: values.followTemplateId,
-        customerId: values.customerId,
         styleId: values.styleId,
         styleCode: values.styleCode.trim(),
         styleName: values.styleName.trim(),
@@ -1612,21 +1604,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         <SelectSetupHint config={setupEntries.followTemplate} marginTop={-18} marginBottom={8} />
                       </Space>
                     </Col>
-                    <Col span={12}>
-                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                        <Form.Item name="customerId" label="客户">
-                          <Select
-                            allowClear
-                            showSearch
-                            placeholder="请选择客户"
-                            optionFilterProp="label"
-                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.customer)}
-                            options={meta?.customers.map((item) => ({ label: item.name, value: String(item.id) }))}
-                          />
-                        </Form.Item>
-                        <SelectSetupHint config={setupEntries.customer} marginTop={-18} marginBottom={8} />
-                      </Space>
-                    </Col>
                     <Col span={24}>
                       <div
                         style={{
@@ -1833,7 +1810,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     <Switch checked={colorImagesEnabled} onChange={setColorImagesEnabled} />
                     <Space direction="vertical" size={0}>
                       <Text>颜色图片</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>开关仅控制显示，图片来自款式基础资料</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>可直接上传或替换颜色图，保存后写入样板单</Text>
                     </Space>
                   </Space>
                 </Col>
@@ -1871,7 +1848,12 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                                   </div>
                                 }
                               />
-                              <Text type="secondary" style={{ fontSize: 12 }}>如需调整请到款式资料维护</Text>
+                              <ImageUploader
+                                module="sample-orders"
+                                value={image}
+                                onChange={(value) => handleColorImageChange(color, value)}
+                                tips="上传该颜色展示图（可选）"
+                              />
                             </Space>
                           </Card>
                         );

@@ -14,14 +14,6 @@ export interface StaffOption {
   department?: string;
 }
 
-export interface CustomerOption {
-  id: string;
-  name: string;
-  shortName?: string;
-  level?: 'A' | 'B' | 'C' | 'D';
-  contact?: string;
-}
-
 export interface FollowTemplateOption {
   id: string;
   name: string;
@@ -43,7 +35,6 @@ export interface SampleCreationMeta {
   units: string[];
   sampleTypes: SampleTypeItem[];
   followTemplates: FollowTemplateOption[];
-  customers: CustomerOption[];
   merchandisers: StaffOption[];
   patternMakers: StaffOption[];
   sampleSewers: StaffOption[];
@@ -57,8 +48,6 @@ export interface SampleCreationMeta {
 export interface SampleCreationPayload extends Partial<SampleOrder> {
   unit: string;
   styleId?: string;
-  customerId?: string;
-  customerName?: string;
   merchandiserId?: string;
   patternMakerId?: string;
   sampleSewerId?: string;

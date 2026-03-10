@@ -59,7 +59,6 @@ type SampleOrderMetaResponse = {
   units: string[];
   sampleTypes: Array<{ id: number; name: string }>;
   followTemplates: Array<{ id: number; name: string; isDefault?: boolean }>;
-  customers: Array<{ id: number; name: string }>;
   merchandisers: SampleOrderMetaStaffResponse[];
   patternMakers: SampleOrderMetaStaffResponse[];
   sampleSewers: SampleOrderMetaStaffResponse[];
@@ -74,7 +73,6 @@ export type SampleOrderCreateInput = {
   sampleNo: string;
   sampleTypeId?: string;
   followTemplateId?: string;
-  customerId?: string;
   styleId?: string;
   styleCode: string;
   styleName: string;
@@ -143,10 +141,6 @@ const adaptMetaResponse = (payload: SampleOrderMetaResponse): SampleCreationMeta
     name: item.name,
     isDefault: Boolean(item.isDefault),
   })),
-  customers: (payload.customers ?? []).map((customer) => ({
-    id: String(customer.id),
-    name: customer.name,
-  })),
   merchandisers: (payload.merchandisers ?? []).map((staff) => ({
     id: String(staff.id),
     name: staff.name,
@@ -196,7 +190,6 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
   sampleNo: payload.sampleNo,
   sampleTypeId: toNumber(payload.sampleTypeId),
   followTemplateId: toNumber(payload.followTemplateId),
-  customerId: toNumber(payload.customerId),
   styleId: toNumber(payload.styleId),
   styleCode: payload.styleCode,
   styleName: payload.styleName,

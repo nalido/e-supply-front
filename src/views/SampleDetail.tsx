@@ -472,7 +472,6 @@ const SampleDetail = () => {
                     <Descriptions.Item label="纸样号">{detail.paperPatternNo ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="备注" span={3}>{detail.remarks ?? '暂无备注'}</Descriptions.Item>
                     <Descriptions.Item label="单位">{detail.unit}</Descriptions.Item>
-                    <Descriptions.Item label="客户">{detail.customer ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="预计交板">{detail.estimatedDeliveryDate ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="车板师">{detail.sampleSewer ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="加工类型" span={2}>

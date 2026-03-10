@@ -646,7 +646,7 @@ const StyleDetail = () => {
             )}
           </Card>
 
-          <Card title="款式工序" variant="borderless" className="style-detail-card">
+          <Card title="款式工序" variant="borderless" className="style-detail-card" style={{ display: 'none' }}>
             <div
               style={{
                 marginBottom: 16,

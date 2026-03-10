@@ -55,7 +55,6 @@ import type {
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import sampleOrderApi from '../api/sample-order';
 import { factoryOrdersApi } from '../api/factory-orders';
-import type { SampleCreationMeta } from '../types/sample-create';
 import { getSamplePriorityColor, getSamplePriorityLabel } from '../utils/sample-labels';
 import { useNavigate } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
@@ -75,7 +74,6 @@ type StatCardKey = 'total' | 'unfinished' | 'completed' | 'thisMonth' | 'urgent'
 type SampleListFilters = {
   keyword: string;
   overallStatus: SampleOverallStatus;
-  customer?: string;
   priority?: SampleOrder['priority'];
   dateRange?: [Dayjs, Dayjs];
 };
@@ -101,7 +99,7 @@ const STATUS_WEIGHT: Record<SampleStatus, number> = {
 
 type SortOrderType = 'ascend' | 'descend';
 
-type SortableField = 'orderNo' | 'customer' | 'quantity' | 'unitPrice' | 'totalAmount' | 'deadline' | 'createTime' | 'priority' | 'status';
+type SortableField = 'orderNo' | 'quantity' | 'unitPrice' | 'totalAmount' | 'deadline' | 'createTime' | 'priority' | 'status';
 
 type SortState = {
   field: SortableField;
@@ -129,7 +127,6 @@ type ProduceModalState = {
 
 const SORTABLE_FIELDS: SortableField[] = [
   'orderNo',
-  'customer',
   'quantity',
   'unitPrice',
   'totalAmount',
@@ -423,13 +420,11 @@ const SampleList: React.FC = () => {
   const [filters, setFilters] = useState<SampleListFilters>({
     keyword: '',
     overallStatus: 'unfinished',
-    customer: undefined,
     priority: undefined,
     dateRange: undefined,
   });
   const [statsFilters, setStatsFilters] = useState<StatsFilterState>({
     keyword: '',
-    customer: undefined,
     priority: undefined,
     dateRange: undefined,
   });
@@ -450,28 +445,11 @@ const SampleList: React.FC = () => {
     showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
   });
 
-  const [creationMeta, setCreationMeta] = useState<SampleCreationMeta | null>(null);
   const [editingNode, setEditingNode] = useState<{ order: SampleOrder; node: SampleFollowProgressNode } | null>(null);
   const [nodeModalLoading, setNodeModalLoading] = useState(false);
   const [statusLoadingOrderId, setStatusLoadingOrderId] = useState<string | null>(null);
   const [produceModal, setProduceModal] = useState<ProduceModalState>({ open: false, submitting: false });
   const [produceForm] = Form.useForm();
-  useEffect(() => {
-    let mounted = true;
-    sampleOrderApi
-      .getMeta()
-      .then((meta) => {
-        if (mounted) {
-          setCreationMeta(meta);
-        }
-      })
-      .catch(() => {
-        message.warning('加载筛选项失败，可稍后重试');
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const currentPage = pagination.current ?? 1;
   const currentPageSize = pagination.pageSize ?? 12;
@@ -492,9 +470,6 @@ const SampleList: React.FC = () => {
       switch (state.field) {
         case 'orderNo':
           compare = a.orderNo.localeCompare(b.orderNo);
-          break;
-        case 'customer':
-          compare = a.customer.localeCompare(b.customer);
           break;
         case 'quantity':
           compare = a.quantity - b.quantity;
@@ -550,7 +525,6 @@ const SampleList: React.FC = () => {
     const base: SampleQueryParams = {
       keyword: filters.keyword || undefined,
       overallStatus: filters.overallStatus,
-      customer: filters.customer,
       priority: filters.priority,
       startDate: filters.dateRange ? filters.dateRange[0].format('YYYY-MM-DD') : undefined,
       endDate: filters.dateRange ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
@@ -562,7 +536,6 @@ const SampleList: React.FC = () => {
     (overrides: Partial<SampleQueryParams> = {}): SampleQueryParams => {
       const base: SampleQueryParams = {
         keyword: statsFilters.keyword || undefined,
-        customer: statsFilters.customer,
         priority: statsFilters.priority,
         startDate: statsFilters.dateRange ? statsFilters.dateRange[0].format('YYYY-MM-DD') : undefined,
         endDate: statsFilters.dateRange ? statsFilters.dateRange[1].format('YYYY-MM-DD') : undefined,
@@ -648,13 +621,11 @@ const SampleList: React.FC = () => {
     setFilters({
       keyword: '',
       overallStatus: 'unfinished',
-      customer: undefined,
       priority: undefined,
       dateRange: undefined,
     });
     setStatsFilters({
       keyword: '',
-      customer: undefined,
       priority: undefined,
       dateRange: undefined,
     });
@@ -988,7 +959,6 @@ const SampleList: React.FC = () => {
           <Text strong>{record.styleName}</Text>
           <div style={{ color: '#8c8c8c', fontSize: 12 }}>
             <div>{record.sampleType || '未分类'}</div>
-            <div>{record.customer}</div>
           </div>
         </div>
       ),
@@ -1131,10 +1101,6 @@ const SampleList: React.FC = () => {
                 <span style={INFO_LABEL_STYLE}>样板单号</span>
                 <span style={INFO_VALUE_STYLE}>{order.orderNo}</span>
               </div>
-              <div style={INFO_ROW_STYLE}>
-                <span style={INFO_LABEL_STYLE}>客户</span>
-                <span style={INFO_VALUE_STYLE}>{order.customer}</span>
-              </div>
               <div style={{ ...INFO_ROW_STYLE, justifyContent: 'space-between' }}>
                 <div style={{ ...INFO_ROW_STYLE, flex: 1 }}>
                   <span style={INFO_LABEL_STYLE}>下单日期</span>
@@ -1234,7 +1200,7 @@ const SampleList: React.FC = () => {
           <Space size={12} wrap>
             <Search
               allowClear
-              placeholder="搜索样板单号、款式名称、客户..."
+              placeholder="搜索样板单号、款式名称..."
               onSearch={handleSearch}
               style={{ width: 240 }}
               enterButton
@@ -1259,23 +1225,6 @@ const SampleList: React.FC = () => {
               {PRIORITY_OPTIONS.map((priority) => (
                 <Option key={priority} value={priority}>
                   {getSamplePriorityLabel(priority)}
-                </Option>
-              ))}
-            </Select>
-            <Select
-              allowClear
-              showSearch
-              placeholder="客户"
-              value={filters.customer}
-              style={{ width: 160 }}
-              onChange={(value) => handleFilterChange('customer', value || undefined)}
-              filterOption={(input, option) =>
-                (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            >
-              {(creationMeta?.customers ?? []).map((customer) => (
-                <Option key={customer.id} value={customer.name}>
-                  {customer.name}
                 </Option>
               ))}
             </Select>
