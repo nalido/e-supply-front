@@ -55,8 +55,10 @@ import type {
 } from '../types';
 import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
 import { stylesApi } from '../api/styles';
+import { styleDetailApi } from '../api/style-detail';
 import { partnersApi } from '../api/partners';
 import sampleOrderApi from '../api/sample-order';
+import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import dayjs from 'dayjs';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
@@ -147,6 +149,11 @@ type InOutDetailRow = {
   size: string;
   dispatchQty: number;
   doneQty: number;
+};
+
+type PendingSampleProduceContext = {
+  sampleOrderId: string;
+  sampleOrderNo?: string;
 };
 
 const overallStatusOptions = [
@@ -301,6 +308,7 @@ const FactoryOrders = () => {
   const [createSizes, setCreateSizes] = useState<string[]>([]);
   const [createMatrix, setCreateMatrix] = useState<CreateQuantityMatrix>({});
   const [createMatrixSeedStyleId, setCreateMatrixSeedStyleId] = useState<number | null>(null);
+  const [pendingSampleProduceContext, setPendingSampleProduceContext] = useState<PendingSampleProduceContext | null>(null);
   const [costDetailRecord, setCostDetailRecord] = useState<OrderActionSnapshot | null>(null);
   const [costDetailLoading, setCostDetailLoading] = useState(false);
   const [costDetailData, setCostDetailData] = useState<FactoryOrderCostDetail | null>(null);
@@ -600,6 +608,7 @@ const FactoryOrders = () => {
     setCreateSizes([]);
     setCreateMatrix({});
     setCreateMatrixSeedStyleId(null);
+    setPendingSampleProduceContext(null);
     createForm.resetFields();
   };
 
@@ -1155,11 +1164,16 @@ const FactoryOrders = () => {
     const styleIdRaw = searchParams.get('styleId');
     const parsedStyleId = styleIdRaw ? Number(styleIdRaw) : NaN;
     const presetStyleId = Number.isFinite(parsedStyleId) && parsedStyleId > 0 ? parsedStyleId : undefined;
+    const sampleOrderId = searchParams.get('sampleOrderId');
+    const sampleOrderNo = searchParams.get('sampleOrderNo') ?? undefined;
+    setPendingSampleProduceContext(sampleOrderId ? { sampleOrderId, sampleOrderNo } : null);
     handleOpenCreate(presetStyleId);
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('quickCreate');
     nextParams.delete('styleId');
+    nextParams.delete('sampleOrderId');
+    nextParams.delete('sampleOrderNo');
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams, handleOpenCreate]);
 
@@ -1179,12 +1193,56 @@ const FactoryOrders = () => {
       return;
     }
     const style = styleOptions.find((item) => item.value === styleId);
-    const defaultColors = normalizeTagValues(style?.colors ?? []);
-    const defaultSizes = normalizeTagValues(style?.sizes ?? []);
-    setCreateColors(defaultColors);
-    setCreateSizes(defaultSizes);
-    setCreateMatrix(buildCreateMatrix(defaultColors, defaultSizes));
-    setCreateMatrixSeedStyleId(styleId);
+    const styleColors = normalizeTagValues(style?.colors ?? []);
+    const styleSizes = normalizeTagValues(style?.sizes ?? []);
+    if (styleColors.length > 0 || styleSizes.length > 0) {
+      setCreateColors(styleColors);
+      setCreateSizes(styleSizes);
+      setCreateMatrix(buildCreateMatrix(styleColors, styleSizes));
+      setCreateMatrixSeedStyleId(styleId);
+      return;
+    }
+
+    let cancelled = false;
+    const fillFromStyleDetail = async () => {
+      try {
+        const detail = await styleDetailApi.fetchDetail(String(styleId));
+        if (cancelled) {
+          return;
+        }
+        const detailColors = normalizeTagValues(detail.colors ?? []);
+        const detailSizes = normalizeTagValues(detail.sizes ?? []);
+        setStyleOptions((prev) => {
+          const current = prev.find((item) => item.value === styleId);
+          const nextEntry: SelectOption = {
+            value: styleId,
+            label: current?.label ?? `${detail.styleNo} / ${detail.styleName}`,
+            image: current?.image ?? detail.coverImageUrl,
+            colors: detailColors,
+            sizes: detailSizes,
+          };
+          if (current) {
+            return prev.map((item) => (item.value === styleId ? { ...item, ...nextEntry } : item));
+          }
+          return [...prev, nextEntry];
+        });
+        setCreateColors(detailColors);
+        setCreateSizes(detailSizes);
+        setCreateMatrix(buildCreateMatrix(detailColors, detailSizes));
+        setCreateMatrixSeedStyleId(styleId);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.error('failed to load style detail for quick create', error);
+        setCreateMatrixSeedStyleId(styleId);
+      }
+    };
+
+    void fillFromStyleDetail();
+    return () => {
+      cancelled = true;
+    };
   }, [createMatrixSeedStyleId, createModalOpen, selectedCreateStyleId, styleOptions]);
 
   const handleCreateColorsChange = useCallback((values: string[]) => {
@@ -1399,7 +1457,15 @@ const FactoryOrders = () => {
         remarks: values.remarks,
         lines: lineItems,
       });
+      if (pendingSampleProduceContext?.sampleOrderId) {
+        await sampleOrderApi.updateStatus(
+          pendingSampleProduceContext.sampleOrderId,
+          SampleStatusEnum.PRODUCING,
+          '转大货生产',
+        );
+      }
       message.success('工厂订单创建成功');
+      setPendingSampleProduceContext(null);
       handleCloseCreate();
       triggerReload();
     } catch (error) {
