@@ -300,7 +300,11 @@ const CuttingCompletedPage = () => {
       <Modal
         title={detailState.task ? `裁床任务详情 - ${detailState.task.orderCode}` : '裁床任务详情'}
         open={detailState.open}
-        footer={null}
+        footer={(
+          <Space>
+            <Button onClick={() => setDetailState({ open: false })}>关闭</Button>
+          </Space>
+        )}
         onCancel={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
@@ -338,6 +342,75 @@ const CuttingCompletedPage = () => {
             </Descriptions>
             {sheetDetail ? (
               <>
+                <Card title="床次信息" size="small">
+                  {sheetDetail.bedRecords && sheetDetail.bedRecords.length > 0 ? (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      {sheetDetail.bedRecords.map((record, index) => {
+                        const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
+                          if (!matrix[item.color]) {
+                            matrix[item.color] = {};
+                          }
+                          matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
+                          return matrix;
+                        }, {});
+                        const matrixColors = Array.from(new Set([
+                          ...sheetDetail.rows.map((row) => row.color),
+                          ...record.items.map((item) => item.color),
+                        ]));
+                        const matrixSizes = Array.from(new Set([
+                          ...sheetDetail.sizes,
+                          ...record.items.map((item) => item.size),
+                        ]));
+                        return (
+                          <Card
+                            key={`${record.bedNumber}-${record.recordedAt ?? index}`}
+                            size="small"
+                            title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
+                            extra={<Text type="secondary">{record.recordedAt ?? '-'}</Text>}
+                          >
+                            <div style={{ marginBottom: 8 }}>
+                              <Text type="secondary">
+                                床次实用：
+                                {typeof record.actualFabricQty === 'number'
+                                  ? `${record.actualFabricQty}${sheetDetail.materialUnit ?? ''}`
+                                  : '-'}
+                              </Text>
+                            </div>
+                            <div className="factory-create-matrix-wrap">
+                              <table className="factory-create-matrix-table">
+                                <thead>
+                                  <tr>
+                                    <th>颜色</th>
+                                    {matrixSizes.map((size) => (
+                                      <th key={`${record.bedNumber}-head-${size}`}>{size}</th>
+                                    ))}
+                                    <th>小计</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matrixColors.map((color) => {
+                                    const rowTotal = matrixSizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
+                                    return (
+                                      <tr key={`${record.bedNumber}-row-${color}`}>
+                                        <td>{color}</td>
+                                        {matrixSizes.map((size) => (
+                                          <td key={`${record.bedNumber}-${color}-${size}`}>{recordMatrix[color]?.[size] ?? 0}</td>
+                                        ))}
+                                        <td>{rowTotal}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </Space>
+                  ) : (
+                    <Text type="secondary">暂无床次裁剪数据</Text>
+                  )}
+                </Card>
                 <Table
                   rowKey={(row) => row.color}
                   bordered

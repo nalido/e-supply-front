@@ -327,6 +327,11 @@
   color: #fff;
 }
 
+.factory-order-progress-icon.overcut {
+  background: #ff4d4f;
+  color: #fff;
+}
+
 .factory-order-progress-content {
   text-align: center;
 }
@@ -361,6 +366,10 @@
   color: #fa8c16;
 }
 
+.factory-order-progress-status.overcut {
+  color: #ff4d4f;
+}
+
 .factory-order-progress-arrow {
   width: 0;
   height: 0;
@@ -375,6 +384,10 @@
 
 .factory-order-progress-arrow.partial {
   border-left-color: #fa8c16;
+}
+
+.factory-order-progress-arrow.overcut {
+  border-left-color: #ff4d4f;
 }
 
 .factory-order-progress-node.clickable:hover .factory-order-progress-icon {

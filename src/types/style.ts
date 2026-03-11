@@ -1,25 +1,4 @@
-import type { ProcessTypeChargeMode } from './process-type';
-
 export type StyleStatus = 'active' | 'inactive';
-
-export type StyleProcessItem = {
-  id?: string;
-  processCatalogId: string;
-  processCode?: string;
-  processName?: string;
-  chargeMode?: ProcessTypeChargeMode;
-  defaultWage?: number;
-  unit?: string;
-  unitPrice?: number;
-  remarks?: string;
-  sequence?: number;
-  sourceTemplateId?: string;
-};
-
-export type StyleProcessPayload = Pick<
-  StyleProcessItem,
-  'processCatalogId' | 'unitPrice' | 'remarks' | 'sequence' | 'sourceTemplateId'
->;
 
 export interface StyleData {
   id: string;
@@ -68,7 +47,6 @@ export interface StyleDetailData {
   sizes: string[];
   colorImages: StyleColorImageMap;
   sizeChartImageUrl?: string;
-  processes: StyleProcessItem[];
 }
 
 export interface StyleDetailSavePayload {
@@ -79,8 +57,8 @@ export interface StyleDetailSavePayload {
   designerId?: string;
   remarks?: string;
   coverImageUrl?: string;
+  sizeChartImageUrl?: string;
   colors: string[];
   sizes: string[];
   colorImages: StyleColorImageMap;
-  processes: StyleProcessPayload[];
 }

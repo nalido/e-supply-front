@@ -344,6 +344,17 @@ type CuttingSheetDetailPayload = Partial<{
     completedSubtotal: number;
     pendingSubtotal: number;
   }>;
+  bedRecords: Array<{
+    bedNumber: string;
+    recordedAt?: string;
+    actualFabricQty?: number;
+    totalQty?: number;
+    items?: Array<{
+      color?: string;
+      size?: string;
+      quantity?: number;
+    }>;
+  }>;
   materialDocuments: Array<{
     documentCategory: string;
     documentId: number;
@@ -431,6 +442,19 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
     orderedSubtotal: Number(row.orderedSubtotal ?? 0),
     completedSubtotal: Number(row.completedSubtotal ?? 0),
     pendingSubtotal: Number(row.pendingSubtotal ?? 0),
+  })),
+  bedRecords: (payload.bedRecords ?? []).map((record) => ({
+    bedNumber: record.bedNumber ?? '-',
+    recordedAt: record.recordedAt,
+    actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
+      ? Number(record.actualFabricQty)
+      : undefined,
+    totalQty: Number(record.totalQty ?? 0),
+    items: (record.items ?? []).map((item) => ({
+      color: item.color ?? '-',
+      size: item.size ?? '-',
+      quantity: Number(item.quantity ?? 0),
+    })),
   })),
   materialDocuments: (payload.materialDocuments ?? []).map((doc) => ({
     documentCategory: doc.documentCategory ?? 'ISSUE',
@@ -662,6 +686,20 @@ export const pieceworkService = {
   ): Promise<void> {
     const tenantId = ensureTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/complete`, payload, {
+      params: { tenantId },
+    });
+  },
+
+  async recordCuttingSheetBed(
+    workOrderId: number,
+    payload: {
+      bedNumber: string;
+      actualFabricQty: number;
+      items: Array<{ color: string; size: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds`, payload, {
       params: { tenantId },
     });
   },

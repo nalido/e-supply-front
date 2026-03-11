@@ -78,7 +78,6 @@ export interface SampleOrderDetail {
   paperPatternNo?: string;
   remarks?: string;
   unit: string;
-  customer?: string;
   estimatedDeliveryDate?: string;
   sampleSewer?: string;
   processingTypes: string[];

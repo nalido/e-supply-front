@@ -27,7 +27,6 @@ type BackendStyleResponse = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariant[];
-  processes?: BackendStyleProcessResponse[];
 };
 
 type BackendStyleRequest = {
@@ -41,35 +40,12 @@ type BackendStyleRequest = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariantRequest[];
-  processes: BackendStyleProcessRequest[];
 };
 
 type BackendStyleVariantRequest = {
   color?: string;
   size?: string;
   attributes?: Record<string, unknown> | null;
-};
-
-type BackendStyleProcessResponse = {
-  id: number;
-  sequence?: number;
-  unitPrice?: number;
-  remarks?: string;
-  processCatalogId?: number;
-  processCode?: string;
-  processName?: string;
-  chargeMode?: string;
-  defaultWage?: number;
-  unit?: string;
-  sourceTemplateId?: number;
-};
-
-type BackendStyleProcessRequest = {
-  processCatalogId: number;
-  unitPrice?: number;
-  remarks?: string;
-  sequence?: number;
-  sourceTemplateId?: number;
 };
 
 type BackendMetadataResponse = {
@@ -126,8 +102,6 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     }
   });
 
-  const processes: StyleDetailData['processes'] = [];
-
   return {
     id: String(payload.id),
     styleNo: payload.styleNo,
@@ -141,12 +115,11 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     sizes: Array.from(sizesSet),
     colorImages,
     sizeChartImageUrl,
-    processes,
   };
 };
 
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
-  const { colors, sizes, colorImages } = payload;
+  const { colors, sizes, colorImages, sizeChartImageUrl } = payload;
   if (!colors.length || !sizes.length) {
     return [];
   }
@@ -154,10 +127,17 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
   colors.forEach((color) => {
     sizes.forEach((size) => {
       const image = colorImages[color];
+      const attributes: Record<string, unknown> = {};
+      if (image) {
+        attributes.colorImageUrl = image;
+      }
+      if (sizeChartImageUrl) {
+        attributes.sizeChartImageUrl = sizeChartImageUrl;
+      }
       variants.push({
         color,
         size,
-        attributes: image ? { colorImageUrl: image } : null,
+        attributes: Object.keys(attributes).length > 0 ? attributes : null,
       });
     });
   });
@@ -174,12 +154,7 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
   remarks: payload.remarks,
   coverImageUrl: payload.coverImageUrl,
   variants: buildVariants(payload),
-  processes: buildProcesses(),
 });
-
-const buildProcesses = (): BackendStyleProcessRequest[] => {
-  return [];
-};
 
 export const styleDetailApi = {
   async fetchMeta(): Promise<StyleFormMeta> {

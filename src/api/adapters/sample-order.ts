@@ -51,8 +51,6 @@ export type SampleOrderSummaryResponse = {
   status: SampleStatusResponse;
   priority: SamplePriorityResponse;
   quantity: number;
-  customerId?: number;
-  customerName?: string;
   styleId?: number;
   styleName?: string;
   styleNo?: string;
@@ -82,8 +80,6 @@ export type SampleOrderDetailResponse = {
   sampleTypeId?: number;
   sampleTypeName?: string;
   followTemplateId?: number;
-  customerId?: number;
-  customerName?: string;
   styleId?: number;
   styleNo?: string;
   styleName?: string;
@@ -187,7 +183,6 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     styleName: styleLabel,
     styleCode: payload.styleNo ?? (payload.styleId ? `ST-${payload.styleId}` : fallbackText),
     unit: payload.unit ?? fallbackText,
-    customer: fallbackText,
     season: fallbackText,
     category: fallbackText,
     fabric: fallbackText,
@@ -343,7 +338,6 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     paperPatternNo: payload.patternNo,
     remarks: payload.remarks,
     unit: payload.unit || '件',
-    customer: payload.customerName,
     estimatedDeliveryDate: payload.deadline,
     sampleSewer: payload.sampleSewerName,
     processingTypes: processItems.map((item) => item.name),

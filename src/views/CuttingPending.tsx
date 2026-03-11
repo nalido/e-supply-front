@@ -71,6 +71,12 @@ type CompleteModalState = {
   submitting: boolean;
 };
 
+type BedRecordModalState = {
+  open: boolean;
+  task?: CuttingTask;
+  submitting: boolean;
+};
+
 type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
 const CuttingPendingPage = () => {
@@ -86,11 +92,14 @@ const CuttingPendingPage = () => {
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
   const [startState, setStartState] = useState<StartModalState>({ open: false, submitting: false });
   const [completeState, setCompleteState] = useState<CompleteModalState>({ open: false, submitting: false });
+  const [bedRecordState, setBedRecordState] = useState<BedRecordModalState>({ open: false, submitting: false });
   const [detailLoading, setDetailLoading] = useState(false);
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
   const [completeQtyMap, setCompleteQtyMap] = useState<Record<string, number>>({});
+  const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number>>({});
   const [startForm] = Form.useForm();
   const [completeForm] = Form.useForm();
+  const [bedRecordForm] = Form.useForm();
   const [warehouseOptions, setWarehouseOptions] = useState<Array<{ label: string; value: number }>>([]);
   const [materialOptions, setMaterialOptions] = useState<Array<{ label: string; value: number; unit?: string; availableQty: number }>>([]);
   const [cutterOptions, setCutterOptions] = useState<Array<{ label: string; value: number }>>([]);
@@ -364,6 +373,73 @@ const CuttingPendingPage = () => {
     }
   };
 
+  const openBedRecordModal = async (task: CuttingTask) => {
+    if (!task.workOrderId) {
+      message.warning('当前任务缺少工单信息，无法录入床次数据');
+      return;
+    }
+    setBedRecordState({ open: true, task, submitting: false });
+    bedRecordForm.setFieldsValue({
+      bedNumber: `BED-${task.orderCode}-${(sheetDetail?.bedRecords?.length ?? 0) + 1}`,
+      actualFabricQty: undefined,
+    });
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
+      setSheetDetail(detail);
+      const initialQtyMap: Record<string, number> = {};
+      detail.rows.forEach((row) => {
+        row.cells.forEach((cell) => {
+          initialQtyMap[buildSpecKey(row.color, cell.size)] = 0;
+        });
+      });
+      setBedRecordQtyMap(initialQtyMap);
+    } catch (error) {
+      console.error('failed to load cutting sheet detail for bed record', error);
+      message.error('获取裁床单详情失败');
+    }
+  };
+
+  const handleSubmitBedRecord = async () => {
+    if (!bedRecordState.task?.workOrderId) {
+      return;
+    }
+    try {
+      const values = await bedRecordForm.validateFields();
+      const items = Object.entries(bedRecordQtyMap)
+        .map(([key, quantity]) => {
+          const [color, size] = key.split('::');
+          return { color, size, quantity: Math.max(0, Math.round(Number(quantity) || 0)) };
+        })
+        .filter((item) => item.quantity > 0);
+      if (items.length === 0) {
+        message.warning('请至少填写一个颜色尺码的裁剪数量');
+        return;
+      }
+      setBedRecordState((prev) => ({ ...prev, submitting: true }));
+      await pieceworkService.recordCuttingSheetBed(bedRecordState.task.workOrderId, {
+        bedNumber: values.bedNumber,
+        actualFabricQty: Number(values.actualFabricQty),
+        items,
+      });
+      message.success('床次裁剪数据已录入');
+      setBedRecordState({ open: false, submitting: false });
+      bedRecordForm.resetFields();
+      setBedRecordQtyMap({});
+      setReloadToken((prev) => prev + 1);
+      if (detailState.task?.workOrderId === bedRecordState.task.workOrderId) {
+        handleViewDetail(detailState.task);
+      }
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        return;
+      }
+      console.error('failed to record cutting bed data', error);
+      message.error('录入床次裁剪数据失败');
+    } finally {
+      setBedRecordState((prev) => ({ ...prev, submitting: false }));
+    }
+  };
+
   const openCompleteModal = async (task: CuttingTask) => {
     if (!task.workOrderId) {
       message.warning('当前任务缺少工单信息，无法完成裁剪');
@@ -375,9 +451,20 @@ const CuttingPendingPage = () => {
       const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
       setSheetDetail(detail);
       const defaultQtyMap: Record<string, number> = {};
+      const bedRecordMap = (detail.bedRecords ?? []).reduce<Record<string, number>>((acc, record) => {
+        (record.items ?? []).forEach((item) => {
+          const key = buildSpecKey(item.color, item.size);
+          acc[key] = (acc[key] ?? 0) + Math.max(0, Number(item.quantity ?? 0));
+        });
+        return acc;
+      }, {});
       detail.rows.forEach((row) => {
         row.cells.forEach((cell) => {
-          defaultQtyMap[buildSpecKey(row.color, cell.size)] = Math.max(0, cell.pendingQty ?? 0);
+          const key = buildSpecKey(row.color, cell.size);
+          const fromBeds = bedRecordMap[key];
+          defaultQtyMap[key] = Number.isFinite(fromBeds)
+            ? Math.max(0, Math.round(Number(fromBeds)))
+            : Math.max(0, Number(cell.completedQty ?? 0));
         });
       });
       setCompleteQtyMap(defaultQtyMap);
@@ -630,11 +717,25 @@ const CuttingPendingPage = () => {
               <Button
                 type="primary"
                 onClick={() => {
-                  completeForm.setFieldsValue({ actualFabricQty: sheetDetail.completeActualFabricQty ?? sheetDetail.startActualFabricQty ?? undefined });
-                  setCompleteState({ open: true, task: detailState.task, submitting: false });
+                  if (!detailState.task) {
+                    return;
+                  }
+                  void openCompleteModal(detailState.task);
                 }}
               >
                 完成
+              </Button>
+            ) : null}
+            {sheetDetail?.status === 'IN_PROGRESS' ? (
+              <Button
+                onClick={() => {
+                  if (!detailState.task) {
+                    return;
+                  }
+                  void openBedRecordModal(detailState.task);
+                }}
+              >
+                手动录入床次
               </Button>
             ) : null}
             {sheetDetail?.status === 'NOT_STARTED' ? (
@@ -689,6 +790,75 @@ const CuttingPendingPage = () => {
             </Descriptions>
             {sheetDetail ? (
               <>
+                <Card title="床次信息" size="small">
+                  {sheetDetail.bedRecords && sheetDetail.bedRecords.length > 0 ? (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      {sheetDetail.bedRecords.map((record, index) => {
+                        const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
+                          if (!matrix[item.color]) {
+                            matrix[item.color] = {};
+                          }
+                          matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
+                          return matrix;
+                        }, {});
+                        const matrixColors = Array.from(new Set([
+                          ...sheetDetail.rows.map((row) => row.color),
+                          ...record.items.map((item) => item.color),
+                        ]));
+                        const matrixSizes = Array.from(new Set([
+                          ...sheetDetail.sizes,
+                          ...record.items.map((item) => item.size),
+                        ]));
+                        return (
+                          <Card
+                            key={`${record.bedNumber}-${record.recordedAt ?? index}`}
+                            size="small"
+                            title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
+                            extra={<Text type="secondary">{record.recordedAt ?? '-'}</Text>}
+                          >
+                            <div style={{ marginBottom: 8 }}>
+                              <Text type="secondary">
+                                床次实用：
+                                {typeof record.actualFabricQty === 'number'
+                                  ? `${record.actualFabricQty}${sheetDetail.materialUnit ?? ''}`
+                                  : '-'}
+                              </Text>
+                            </div>
+                            <div className="factory-create-matrix-wrap">
+                              <table className="factory-create-matrix-table">
+                                <thead>
+                                  <tr>
+                                    <th>颜色</th>
+                                    {matrixSizes.map((size) => (
+                                      <th key={`${record.bedNumber}-head-${size}`}>{size}</th>
+                                    ))}
+                                    <th>小计</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {matrixColors.map((color) => {
+                                    const rowTotal = matrixSizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
+                                    return (
+                                      <tr key={`${record.bedNumber}-row-${color}`}>
+                                        <td>{color}</td>
+                                        {matrixSizes.map((size) => (
+                                          <td key={`${record.bedNumber}-${color}-${size}`}>{recordMatrix[color]?.[size] ?? 0}</td>
+                                        ))}
+                                        <td>{rowTotal}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </Space>
+                  ) : (
+                    <Text type="secondary">暂无床次裁剪数据</Text>
+                  )}
+                </Card>
                 <Table
                   rowKey={(row) => row.color}
                   bordered
@@ -860,6 +1030,95 @@ const CuttingPendingPage = () => {
               }
             />
           ) : null}
+        </Form>
+      </Modal>
+
+      <Modal
+        open={bedRecordState.open}
+        title={bedRecordState.task ? `手动录入床次 - ${bedRecordState.task.orderCode}` : '手动录入床次'}
+        width={1080}
+        onCancel={() => {
+          bedRecordForm.resetFields();
+          setBedRecordQtyMap({});
+          setBedRecordState({ open: false, submitting: false });
+        }}
+        onOk={handleSubmitBedRecord}
+        confirmLoading={bedRecordState.submitting}
+      >
+        <Form form={bedRecordForm} layout="vertical">
+          <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
+            <Input maxLength={32} />
+          </Form.Item>
+          <Form.Item
+            label={`当前床次实际用料${sheetDetail?.materialUnit ? `（${sheetDetail.materialUnit}）` : ''}`}
+            name="actualFabricQty"
+            rules={[
+              { required: true, message: '请输入当前床次实际用料' },
+              {
+                validator: (_rule, value: number | undefined) => {
+                  if (value === undefined || value === null) {
+                    return Promise.resolve();
+                  }
+                  if (Number(value) <= 0) {
+                    return Promise.reject(new Error('当前床次实际用料必须大于 0'));
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
+          >
+            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+          </Form.Item>
+          {sheetDetail?.rows?.length ? (
+            <div className="factory-create-matrix-wrap">
+              <table className="factory-create-matrix-table">
+                <thead>
+                  <tr>
+                    <th>颜色 \\ 尺码</th>
+                    {sheetDetail.sizes.map((size) => (
+                      <th key={`bed-record-head-${size}`}>{size}</th>
+                    ))}
+                    <th>小计</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sheetDetail.rows.map((row) => (
+                    <tr key={`bed-record-row-${row.color}`}>
+                      <td>{row.color}</td>
+                      {sheetDetail.sizes.map((size) => {
+                        const key = buildSpecKey(row.color, size);
+                        const value = bedRecordQtyMap[key] ?? 0;
+                        return (
+                          <td key={`bed-record-${row.color}-${size}`}>
+                            <InputNumber
+                              min={0}
+                              precision={0}
+                              controls={false}
+                              value={value}
+                              onChange={(nextValue) => {
+                                const qty = Math.max(0, Math.round(Number(nextValue) || 0));
+                                setBedRecordQtyMap((prev) => ({
+                                  ...prev,
+                                  [key]: qty,
+                                }));
+                              }}
+                              style={{ width: '100%' }}
+                              placeholder="填写实裁数量"
+                            />
+                          </td>
+                        );
+                      })}
+                      <td>
+                        {sheetDetail.sizes.reduce((sum, size) => sum + (bedRecordQtyMap[buildSpecKey(row.color, size)] ?? 0), 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Text type="secondary">暂无可录入的颜色尺码数据</Text>
+          )}
         </Form>
       </Modal>
 

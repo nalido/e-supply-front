@@ -124,6 +124,7 @@ type AllocationQuantityMatrix = Record<string, Record<string, number>>;
 type AllocationHistoryRow = {
   key: string;
   completedAt?: string;
+  bedNumber?: string;
   factoryId?: number;
   unitPrice?: number;
   totalQty: number;
@@ -814,11 +815,13 @@ const FactoryOrders = () => {
           const payload = JSON.parse(stageNode.payloadJson) as {
             allocations?: Array<{
               completedAt?: unknown;
+              bedNumber?: unknown;
               subcontractorId?: unknown;
               unitPrice?: unknown;
               items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
             }>;
             completedAt?: unknown;
+            bedNumber?: unknown;
             subcontractorId?: unknown;
             unitPrice?: unknown;
             items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
@@ -841,6 +844,7 @@ const FactoryOrders = () => {
             historyRows.push({
               key: `${stageNodeCode}-${index}`,
               completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
+              bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
               factoryId: Number.isFinite(Number(allocation.subcontractorId))
                 ? Number(allocation.subcontractorId)
                 : undefined,
@@ -1216,6 +1220,23 @@ const FactoryOrders = () => {
     }));
   }, []);
 
+  const progressStageKey = progressActionModal.stage?.key;
+  const isCuttingProgressStage = progressStageKey === 'cutting';
+  const isWideProgressStage = progressStageKey === 'cutting' || progressStageKey === 'sewing';
+  const isInOutProgressStage = progressStageKey === 'inbound' || progressStageKey === 'outbound';
+  const inOutIsInbound = progressStageKey === 'inbound';
+  const inOutPendingLabel = inOutIsInbound ? '待收货' : '待出货';
+  const inOutDetailLabel = inOutIsInbound ? '收货明细' : '出货明细';
+  const inOutDoneLabel = inOutIsInbound ? '已收货' : '已出货';
+  const inOutStageStatus = String(progressActionModal.stage?.status ?? '').toLowerCase();
+  const inOutStageCompleted = isInOutProgressStage
+    && (
+      inOutStageStatus === 'success'
+      || inOutStageStatus === 'completed'
+      || (typeof progressActionModal.stage?.value === 'string' && progressActionModal.stage.value.includes('已完成'))
+    );
+  const progressModalWidth = isWideProgressStage ? 1360 : isInOutProgressStage ? 1400 : 560;
+
   const handleLoadRemainingAllocation = useCallback(() => {
     if (!allocationColors.length || !allocationSizes.length) {
       message.warning('暂无可加载的颜色/尺码裁剪数据');
@@ -1273,9 +1294,12 @@ const FactoryOrders = () => {
     );
     allocationCreateForm.setFieldsValue({
       unitPrice: 0,
+      bedNumber: isCuttingProgressStage
+        ? `BED-${dayjs().format('MMDD-HHmmss')}`
+        : undefined,
     });
     setAllocationCreateModalOpen(true);
-  }, [allocationColors, allocationCreateForm, allocationSizes]);
+  }, [allocationColors, allocationCreateForm, allocationSizes, isCuttingProgressStage]);
 
   const handleSubmitAllocationCreate = useCallback(async () => {
     if (!progressActionModal.order || !progressActionModal.stage) {
@@ -1291,6 +1315,9 @@ const FactoryOrders = () => {
         subcontractorId: values.factoryId,
         unitPrice: values.unitPrice ?? 0,
       };
+      if (isCuttingProgressStage) {
+        payload.bedNumber = values.bedNumber;
+      }
       const matrixItems = allocationColors.flatMap((color) =>
         allocationSizes.map((size) => ({
           color: color === '-' ? undefined : color,
@@ -1327,6 +1354,7 @@ const FactoryOrders = () => {
     allocationHistoryRows,
     allocationMatrix,
     allocationSizes,
+    isCuttingProgressStage,
     loadProgressStats,
     progressActionModal.order,
     progressActionModal.stage,
@@ -1829,28 +1857,11 @@ const FactoryOrders = () => {
     () => allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0),
     [allocationHistoryRows],
   );
-  const progressStageKey = progressActionModal.stage?.key;
-  const isCuttingProgressStage = progressStageKey === 'cutting';
-  const isWideProgressStage = progressStageKey === 'cutting' || progressStageKey === 'sewing';
-  const isInOutProgressStage = progressStageKey === 'inbound' || progressStageKey === 'outbound';
-  const inOutIsInbound = progressStageKey === 'inbound';
-  const inOutPendingLabel = inOutIsInbound ? '待收货' : '待出货';
-  const inOutDetailLabel = inOutIsInbound ? '收货明细' : '出货明细';
-  const inOutDoneLabel = inOutIsInbound ? '已收货' : '已出货';
-  const inOutStageStatus = String(progressActionModal.stage?.status ?? '').toLowerCase();
-  const inOutStageCompleted = isInOutProgressStage
-    && (
-      inOutStageStatus === 'success'
-      || inOutStageStatus === 'completed'
-      || (typeof progressActionModal.stage?.value === 'string' && progressActionModal.stage.value.includes('已完成'))
-    );
-  const progressModalWidth = isWideProgressStage ? 1360 : isInOutProgressStage ? 1400 : 560;
-
   const renderCardView = () => {
     if (loadingCards && cardOrders.length === 0) {
       return (
         <List
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
+          grid={{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}
           dataSource={Array.from({ length: cardPageSize }, (_v, index) => ({ id: `factory-skeleton-${index}` }))}
           rowKey="id"
           renderItem={(item) => (
@@ -1872,7 +1883,7 @@ const FactoryOrders = () => {
       <>
         <List
           rowKey="id"
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
+          grid={{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}
           dataSource={cardOrders}
           renderItem={(order) => {
             const isChecked = selectedOrderIds.includes(order.id);
@@ -1972,11 +1983,16 @@ const FactoryOrders = () => {
                         const status = stage.status ?? 'default';
                         const isOrderPlaced = stage.key === 'order_placed';
                         const normalizedStatus = String(status).toLowerCase();
+                        const stageBreakdown = parseAllocationCompletionValue(stage.value);
+                        const isOvercut = normalizedStatus === 'danger';
                         const isPartial =
-                          normalizedStatus === 'warning'
-                          || (typeof stage.value === 'string' && stage.value.includes('部分完成'));
+                          !isOvercut && (
+                            normalizedStatus === 'warning'
+                            || (typeof stage.value === 'string' && stage.value.includes('部分完成'))
+                          );
                         const isCompleted =
                           isOrderPlaced ||
+                          (isOvercut && (stageBreakdown?.completedPercent ?? 0) >= 100) ||
                           normalizedStatus === 'success' ||
                           normalizedStatus === 'completed' ||
                           (typeof stage.value === 'string' && stage.value.includes('已完成'));
@@ -2007,7 +2023,6 @@ const FactoryOrders = () => {
                           && (!isCompleted || repeatOpen)
                           && (!predecessorBlockedStage || alwaysViewable),
                         );
-                        const stageBreakdown = parseAllocationCompletionValue(stage.value);
                         const nodeStatusContent = isOrderPlaced ? (
                           <span>{`下单数量：${order.quantityValue}`}</span>
                         ) : stageBreakdown ? (
@@ -2041,19 +2056,19 @@ const FactoryOrders = () => {
                                 }, stage);
                               }}
                             >
-                              <div className={`factory-order-progress-icon${isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
+                              <div className={`factory-order-progress-icon${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
                                 {isCompleted ? <CheckOutlined /> : <ClockCircleOutlined />}
                               </div>
                               <div className="factory-order-progress-content">
                                 <div className="factory-order-progress-name">{normalizeProgressLabel(stage)}</div>
-                                <div className={`factory-order-progress-status${isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
+                                <div className={`factory-order-progress-status${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
                                   {nodeStatusContent}
                                 </div>
                               </div>
                             </div>
                             {index < order.progress.length - 1 ? (
                               <div
-                                className={`factory-order-progress-arrow${isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}
+                                className={`factory-order-progress-arrow${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}
                               />
                             ) : null}
                           </div>
@@ -2593,7 +2608,16 @@ const FactoryOrders = () => {
                         return (
                           <div key={record.key} style={{ marginBottom: 16 }}>
                             <div style={{ marginBottom: 6 }}>
-                              <Text strong>工厂：{factoryLabel}</Text>
+                              <Text strong>
+                                {isCuttingProgressStage
+                                  ? `床次：${record.bedNumber ?? '-'}`
+                                  : `工厂：${factoryLabel}`}
+                              </Text>
+                              {isCuttingProgressStage ? (
+                                <Text type="secondary" style={{ marginLeft: 12 }}>
+                                  工厂：{factoryLabel}
+                                </Text>
+                              ) : null}
                               <Text type="secondary" style={{ marginLeft: 12 }}>
                                 {isCuttingProgressStage ? '录入时间' : '分配时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
                               </Text>
@@ -2759,6 +2783,15 @@ const FactoryOrders = () => {
         destroyOnHidden
       >
         <Form form={allocationCreateForm} layout="vertical">
+          {isCuttingProgressStage ? (
+            <Form.Item
+              label="床次编号"
+              name="bedNumber"
+              rules={[{ required: true, message: '请输入床次编号' }]}
+            >
+              <Input maxLength={32} placeholder="请输入床次编号" />
+            </Form.Item>
+          ) : null}
           <Form.Item
             label="工厂"
             name="factoryId"
@@ -2772,12 +2805,14 @@ const FactoryOrders = () => {
               notFoundContent="暂无工厂，请先新增合作方工厂"
             />
           </Form.Item>
-          <div style={{ marginTop: -8, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text type="secondary">没有可选工厂？请先到合作方页面新增工厂。</Text>
-            <Button type="link" size="small" onClick={handleOpenFactoryGuide}>
-              去新建工厂
-            </Button>
-          </div>
+          {!isCuttingProgressStage ? (
+            <div style={{ marginTop: -8, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text type="secondary">没有可选工厂？请先到合作方页面新增工厂。</Text>
+              <Button type="link" size="small" onClick={handleOpenFactoryGuide}>
+                去新建工厂
+              </Button>
+            </div>
+          ) : null}
           <Form.Item label="工价（元/件）" name="unitPrice">
             <InputNumber min={0} precision={2} style={{ width: '100%' }} />
           </Form.Item>

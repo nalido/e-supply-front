@@ -76,6 +76,17 @@ export type CuttingSheetDetail = {
   completedQty: number;
   sizes: string[];
   rows: CuttingSheetColorRow[];
+  bedRecords?: Array<{
+    bedNumber: string;
+    recordedAt?: string;
+    actualFabricQty?: number;
+    totalQty: number;
+    items: Array<{
+      color: string;
+      size: string;
+      quantity: number;
+    }>;
+  }>;
   materialDocuments?: Array<{
     documentCategory: 'ISSUE' | 'RETURN' | string;
     documentId: number;

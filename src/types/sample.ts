@@ -39,7 +39,6 @@ export interface SampleOrder {
   styleName: string; // 款式名称
   styleCode: string; // 款式编号
   unit?: string; // 单位
-  customer: string; // 客户
   season: string; // 季节
   category: string; // 品类
   fabric: string; // 面料
