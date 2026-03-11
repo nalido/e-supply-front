@@ -36,6 +36,7 @@ import {
   AppstoreOutlined,
   CheckOutlined,
   ClockCircleOutlined,
+  ExclamationCircleOutlined,
   ExportOutlined,
   DownloadOutlined,
   ImportOutlined,
@@ -1996,6 +1997,8 @@ const FactoryOrders = () => {
                           normalizedStatus === 'success' ||
                           normalizedStatus === 'completed' ||
                           (typeof stage.value === 'string' && stage.value.includes('已完成'));
+                        const isInProgress = !isCompleted && (isPartial || isOvercut);
+                        const progressStateClass = isOvercut ? 'overcut' : isCompleted ? 'completed' : isPartial ? 'partial' : 'pending';
                         const predecessorBlockedStage = order.progress
                           .slice(0, index)
                           .find((prev) => {
@@ -2025,19 +2028,22 @@ const FactoryOrders = () => {
                         );
                         const nodeStatusContent = isOrderPlaced ? (
                           <span>{`下单数量：${order.quantityValue}`}</span>
-                        ) : stageBreakdown ? (
-                          <div className="factory-order-progress-status-grid">
-                            <span>{`分配 ${stageBreakdown.allocatedPercent}%`}</span>
-                            <span>{`完成 ${stageBreakdown.completedPercent}%`}</span>
-                            {stage.date ? <span className="date">{stage.date}</span> : null}
-                          </div>
+                        ) : isCompleted ? (
+                          <span>{stage.date ?? '已完成'}</span>
+                        ) : isInProgress ? (
+                          <span>进行中</span>
                         ) : (
-                          <span>{stage.date ? `${stage.value} · ${stage.date}` : stage.value}</span>
+                          <span>待完成</span>
+                        );
+                        const iconContent = stageBreakdown ? (
+                          <span className="factory-order-progress-icon-percent">{`${stageBreakdown.completedPercent}%`}</span>
+                        ) : (
+                          isOvercut ? <ExclamationCircleOutlined /> : isCompleted ? <CheckOutlined /> : <ClockCircleOutlined />
                         );
                         return (
                           <div className="factory-order-progress-step" key={`${order.id}-${stage.key}`}>
                             <div
-                              className={`factory-order-progress-node${clickable ? ' clickable' : ''}`}
+                              className={`factory-order-progress-node ${progressStateClass}${clickable ? ' clickable' : ''}`}
                               onClick={() => {
                                 if (predecessorBlockedStage && !alwaysViewable) {
                                   message.warning(`请先完成前置节点：${predecessorBlockedName}`);
@@ -2056,19 +2062,19 @@ const FactoryOrders = () => {
                                 }, stage);
                               }}
                             >
-                              <div className={`factory-order-progress-icon${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
-                                {isCompleted ? <CheckOutlined /> : <ClockCircleOutlined />}
+                              <div className={`factory-order-progress-icon ${progressStateClass}${stageBreakdown ? ' has-percent' : ''}`}>
+                                {iconContent}
                               </div>
                               <div className="factory-order-progress-content">
                                 <div className="factory-order-progress-name">{normalizeProgressLabel(stage)}</div>
-                                <div className={`factory-order-progress-status${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}>
+                                <div className={`factory-order-progress-status ${progressStateClass}`}>
                                   {nodeStatusContent}
                                 </div>
                               </div>
                             </div>
                             {index < order.progress.length - 1 ? (
                               <div
-                                className={`factory-order-progress-arrow${isOvercut ? ' overcut' : isCompleted ? ' completed' : isPartial ? ' partial' : ''}`}
+                                className={`factory-order-progress-arrow ${progressStateClass}`}
                               />
                             ) : null}
                           </div>
