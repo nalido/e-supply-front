@@ -549,7 +549,7 @@ const FinishedGoodsOtherInbound = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bodyStyle={{ paddingBottom: 8 }}>
+      <Card styles={{ body: { paddingBottom: 8 } }}>
         <Space wrap size={12} style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} loading={metaLoading}>
@@ -650,7 +650,7 @@ const FinishedGoodsOtherInbound = () => {
         onCancel={closeFormModal}
         onOk={handleSubmitForm}
         confirmLoading={formModal.submitting}
-        destroyOnClose
+        destroyOnHidden
         width={640}
       >
         <Form form={form} layout="vertical" initialValues={buildDefaultFormValues(meta)}>

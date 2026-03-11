@@ -202,7 +202,7 @@ const WarehousePage = () => {
         confirmLoading={modalState.submitting}
         onCancel={() => setModalState({ open: false, submitting: false, editing: undefined })}
         onOk={handleSubmit}
-        destroyOnClose
+        destroyOnHidden
         width={480}
       >
         <Form form={form} layout="vertical">

@@ -1,15 +1,14 @@
 import type { SampleFollowProgress, SampleOrder, SampleQueryParams, SampleStats } from '../types/sample';
 import type { SampleOrderDetail } from '../types/sample-detail';
-import type { SampleCreationMeta, SampleCreationPayload } from '../types/sample-create';
+import type { SampleCreationMeta } from '../types/sample-create';
 import http from './http';
-import { apiConfig } from './config';
-import { sampleService } from './mock';
 import { tenantStore } from '../stores/tenant';
 import {
   adaptSampleOrderSummary,
   adaptSampleOrderDetail,
   buildListQuery,
   buildStatsFromCounters,
+  mapStatusToBackend,
   mapPriorityToBackend,
   type SampleOrderDetailResponse,
   type SampleOrderListResponse,
@@ -22,6 +21,14 @@ export type SampleOrderListResult = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+export type SampleOrderExportParams = SampleQueryParams & {
+  orderIds?: string[];
+};
+
+type ExportResponse = {
+  fileUrl: string;
 };
 
 type SampleOrderStatsPayload = {
@@ -245,67 +252,8 @@ const fetchBackendSampleDetail = async (
   return data;
 };
 
-const toMockCreationPayload = (payload: SampleOrderCreateInput): SampleCreationPayload => {
-  const colors = Array.from(new Set(payload.skus?.map((sku) => sku.color || '默认颜色') ?? ['默认颜色']));
-  const sizes = Array.from(new Set(payload.skus?.map((sku) => sku.size || '均码') ?? ['均码']));
-  const quantityMatrix = colors.reduce<Record<string, Record<string, number>>>((matrix, color) => {
-    matrix[color] = sizes.reduce<Record<string, number>>((row, size) => {
-      const matchingSku = payload.skus?.find((sku) => (sku.color || '默认颜色') === color && (sku.size || '均码') === size);
-      row[size] = matchingSku?.quantity ?? 0;
-      return row;
-    }, {});
-    return matrix;
-  }, {});
-  return {
-    unit: payload.unit || '件',
-    followTemplateId: payload.followTemplateId,
-    orderNo: payload.sampleNo,
-    styleId: payload.styleId,
-    customerId: payload.customerId,
-    merchandiserId: payload.merchandiserId,
-    patternMakerId: payload.patternMakerId,
-    sampleSewerId: payload.sampleSewerId,
-    patternPrice: payload.unitPrice,
-    orderDate: payload.orderDate,
-    deliveryDate: payload.deadline,
-    remarks: payload.remarks,
-    description: payload.description,
-    processes: payload.processes?.map((process, index) => ({
-      id: String(process.processCatalogId ?? index),
-      name: `工序${index + 1}`,
-      order: process.sequence ?? index + 1,
-      custom: true,
-    })) ?? [],
-    colors,
-    sizes,
-    quantityMatrix,
-    colorImagesEnabled: (payload.assets ?? []).some((asset) => asset.type === 'COLOR_IMAGE'),
-    colorImageMap: (payload.assets ?? [])
-      .filter((asset) => asset.type === 'COLOR_IMAGE' && asset.color)
-      .reduce<Record<string, string | undefined>>((acc, asset) => {
-        if (asset.color) {
-          acc[asset.color] = asset.url;
-        }
-        return acc;
-      }, {}),
-    attachments: (payload.assets ?? [])
-      .filter((asset) => asset.type === 'ATTACHMENT')
-      .map((asset, index) => ({
-        id: asset.name ?? `att-${index}`,
-        url: asset.url,
-        isMain: asset.isMain,
-        createdAt: new Date().toISOString(),
-      })),
-  } as SampleCreationPayload;
-};
-
 export const sampleOrderApi = {
   async list(params: SampleQueryParams & { page?: number; pageSize?: number }): Promise<SampleOrderListResult> {
-    if (apiConfig.useMock) {
-      const result = await sampleService.getSampleOrders(params);
-      return result;
-    }
-
     const tenantId = ensureTenantId();
     const query = buildListQuery(params);
     const { data } = await http.get<SampleOrderListResponse>('/api/v1/sample-orders', {
@@ -327,10 +275,6 @@ export const sampleOrderApi = {
   },
 
   async getStats(params: SampleQueryParams = {}): Promise<SampleStats> {
-    if (apiConfig.useMock) {
-      return sampleService.getSampleStats(params);
-    }
-
     const tenantId = ensureTenantId();
     const query = buildListQuery({ ...params, status: undefined });
     const { data } = await http.get<SampleOrderStatsPayload>('/api/v1/sample-orders/stats', {
@@ -352,30 +296,17 @@ export const sampleOrderApi = {
   },
 
   async detail(id: string): Promise<SampleOrderDetail> {
-    if (apiConfig.useMock) {
-      return sampleService.getSampleDetail(id);
-    }
     const tenantId = ensureTenantId();
     const data = await fetchBackendSampleDetail(tenantId, id);
     return adaptSampleOrderDetail(data);
   },
 
   async detailRaw(id: string): Promise<SampleOrderDetailResponse> {
-    if (apiConfig.useMock) {
-      throw new Error('当前处于 Mock 模式，无法获取样板单原始详情');
-    }
     const tenantId = ensureTenantId();
     return fetchBackendSampleDetail(tenantId, id);
   },
 
   async create(payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
-    if (apiConfig.useMock) {
-      const response = await sampleService.createSampleOrder(toMockCreationPayload(payload));
-      if (!response.success) {
-        throw new Error(response.message || '创建失败');
-      }
-      return sampleService.getSampleDetail(response.order.id);
-    }
     const tenantId = ensureTenantId();
     const body = buildCreateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>('/api/v1/sample-orders', body);
@@ -383,9 +314,6 @@ export const sampleOrderApi = {
   },
 
   async update(id: string, payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
-    if (apiConfig.useMock) {
-      throw new Error('Mock 模式暂不支持编辑样板单');
-    }
     const tenantId = ensureTenantId();
     const body = buildCreateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}/update`, body);
@@ -397,9 +325,6 @@ export const sampleOrderApi = {
     nodeId: string,
     payload: { completed: boolean; statusValue?: string },
   ): Promise<SampleFollowProgress | undefined> {
-    if (apiConfig.useMock) {
-      return sampleService.updateFollowProgressNode(orderId, nodeId, payload);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.post<SampleFollowProgressResponse>(
       `/api/v1/sample-orders/${orderId}/follow-progress/${nodeId}/update`,
@@ -413,30 +338,55 @@ export const sampleOrderApi = {
   },
 
   async copy(id: string): Promise<void> {
-    if (apiConfig.useMock) {
-      return Promise.resolve();
-    }
     const tenantId = ensureTenantId();
     await http.post(`/api/v1/sample-orders/${id}/copy`, undefined, { params: { tenantId } });
   },
 
   async delete(id: string): Promise<void> {
-    if (apiConfig.useMock) {
-      return Promise.resolve();
-    }
     const tenantId = ensureTenantId();
     await http.post(`/api/v1/sample-orders/${id}/delete`, undefined, { params: { tenantId } });
   },
 
+  async updateStatus(id: string, status: SampleOrder['status'], note?: string): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      `/api/v1/sample-orders/${id}/status/update`,
+      {
+        status: mapStatusToBackend(status),
+        note,
+      },
+      { params: { tenantId } },
+    );
+  },
+
   async getMeta(): Promise<SampleCreationMeta> {
-    if (apiConfig.useMock) {
-      return sampleService.getCreationMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<SampleOrderMetaResponse>('/api/v1/sample-orders/meta', {
       params: { tenantId },
     });
     return adaptMetaResponse(data);
+  },
+
+  async exportList(params: SampleOrderExportParams): Promise<ExportResponse> {
+    const tenantId = ensureTenantId();
+    const response = await http.post<ExportResponse>(
+      '/api/v1/sample-orders/export',
+      {
+        status: mapStatusToBackend(params.status),
+        priority: params.priority ? mapPriorityToBackend(params.priority) : undefined,
+        startDeadline: params.startDate,
+        endDeadline: params.endDate,
+        keyword: params.keyword,
+        orderIds: params.orderIds
+          ?.map((value) => {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : undefined;
+          })
+          .filter((value): value is number => typeof value === 'number'),
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
   },
 };
 

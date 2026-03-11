@@ -37,6 +37,8 @@ export type CuttingTaskDataset = {
   summary: CuttingTaskMetric[];
   list: CuttingTask[];
   total: number;
+  page: number;
+  pageSize: number;
 };
 
 export type CuttingReportColorDetail = {
@@ -76,4 +78,6 @@ export type CuttingReportDataset = {
   list: CuttingReportRecord[];
   total: number;
   summary: CuttingReportSummary;
+  page: number;
+  pageSize: number;
 };

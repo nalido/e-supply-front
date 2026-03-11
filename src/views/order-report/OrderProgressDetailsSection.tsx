@@ -295,16 +295,17 @@ const OrderProgressDetailsSection = () => {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const params: OrderProgressDetailsListParams = {
-        page,
-        pageSize,
+      const { startDate, endDate } = formatRangeValue(dateRange);
+      const { fileUrl } = await pieceworkService.exportOrderProgress({
         keyword: appliedKeyword,
-        orderDateStart: dateRange?.[0]?.format('YYYY-MM-DD'),
-        orderDateEnd: dateRange?.[1]?.format('YYYY-MM-DD'),
-      };
-      const result = await orderProgressDetailsReportService.export(params);
-      message.success('导出任务已生成，请稍后到下载中心查看');
-      console.info('mock export file url', result.fileUrl);
+        orderDateStart: startDate,
+        orderDateEnd: endDate,
+      });
+      if (fileUrl) {
+        message.success(`已生成导出文件：${fileUrl}`);
+      } else {
+        message.success('导出任务已生成，请稍后在下载中心查看');
+      }
     } catch (error) {
       console.error('failed to export order progress details', error);
       message.error('导出失败，请稍后重试');
@@ -395,7 +396,7 @@ const OrderProgressDetailsSection = () => {
   );
 
   return (
-    <Card bordered={false} bodyStyle={{ padding: 24 }}>
+    <Card variant="borderless" styles={{ body: { padding: 24 } }}>
       <Space style={{ marginBottom: 16 }} wrap>
         <Input
           allowClear

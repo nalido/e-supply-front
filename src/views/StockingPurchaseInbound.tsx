@@ -807,7 +807,7 @@ const StockingPurchaseInbound = () => {
           onCancel={closeReceiveModal}
           confirmLoading={receiveModalState.submitting}
           onOk={handleReceiveSubmit}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form form={receiveForm} layout="vertical">
             <Form.Item name="warehouseId" hidden rules={[{ required: true, message: '请选择收料仓库' }]}>
@@ -861,7 +861,7 @@ const StockingPurchaseInbound = () => {
           onCancel={closeBatchReceiveModal}
           confirmLoading={batchReceiveModalState.submitting}
           onOk={handleBatchReceiveSubmit}
-          destroyOnClose
+          destroyOnHidden
           width={760}
         >
           <Form form={batchReceiveForm} layout="vertical">
@@ -889,7 +889,7 @@ const StockingPurchaseInbound = () => {
                     }
                     const pendingQty = record.pendingQty ?? 0;
                     return (
-                      <Card key={`${record.id}-${field.key}`} size="small" bordered>
+                      <Card key={`${record.id}-${field.key}`} size="small" variant="outlined">
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
                           <div>
                             <Text strong>{record.purchaseOrderNo}</Text>
@@ -960,7 +960,7 @@ const StockingPurchaseInbound = () => {
           ) : (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               {groupedReceipts.map(({ header, items }) => (
-                <Card key={header.id} size="small" bordered>
+                <Card key={header.id} size="small" variant="outlined">
                   <Descriptions
                     size="small"
                     column={1}

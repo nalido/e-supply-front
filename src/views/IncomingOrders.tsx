@@ -409,7 +409,7 @@ const IncomingOrders = () => {
 
   return (
     <div className="incoming-orders-page">
-      <Card bordered={false} className="incoming-orders-card">
+      <Card variant="borderless" className="incoming-orders-card">
         <div className="incoming-orders-action-bar">
           <Typography.Title level={4} className="incoming-orders-title">外接订单</Typography.Title>
           <Dropdown
@@ -481,7 +481,7 @@ const IncomingOrders = () => {
         onOk={handleShipSubmit}
         confirmLoading={rowActionLoading === activeOrder?.id}
         okText="确认发货"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={shipForm} layout="vertical" preserve={false}>
           <Form.Item label="本次发货数量" name="quantity" initialValue={0} rules={[{ required: true, message: '请输入发货数量' }]}>
@@ -515,7 +515,7 @@ const IncomingOrders = () => {
         onOk={handleRejectSubmit}
         confirmLoading={rowActionLoading === activeOrder?.id}
         okText="确认拒绝"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={rejectForm} layout="vertical" preserve={false}>
           <Form.Item

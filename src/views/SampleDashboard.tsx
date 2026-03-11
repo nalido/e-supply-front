@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, Row, Col, Table, Typography, Segmented } from 'antd';
 import { CalendarOutlined } from '@ant-design/icons';
-import { sampleService } from '../api/mock';
+import { sampleDashboardService } from '../api/sample-dashboard';
 import type { ColumnsType } from 'antd/es/table';
 import type {
   SampleDashboardStats,
@@ -48,10 +48,10 @@ export default function SampleDashboard() {
     setLoading(true);
     try {
       const [statsData, chartDataset, pieDataset, overdueData] = await Promise.all([
-        sampleService.getSampleDashboardStats(),
-        sampleService.getSampleChartData(),
-        sampleService.getSamplePieData(),
-        sampleService.getOverdueSamples({ page: 1, pageSize: 10 })
+        sampleDashboardService.getStats(),
+        sampleDashboardService.getChart(),
+        sampleDashboardService.getPie(),
+        sampleDashboardService.getOverdueSamples({ page: 1, pageSize: 10 })
       ]);
       
       setStats(statsData);

@@ -317,7 +317,7 @@ const MaterialIssueDetails = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} title="领料出库明细">
+      <Card variant="borderless" title="领料出库明细">
         <Tabs
           items={tabs.map((tab) => ({ key: tab.value, label: tab.label }))}
           activeKey={materialType}
@@ -374,7 +374,7 @@ const MaterialIssueDetails = () => {
         </Space>
       </Card>
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Table<MaterialIssueRecord>
           rowKey="id"
           loading={tableLoading}

@@ -7,17 +7,8 @@ import type {
   WarehouseStatus,
   WarehouseType,
 } from '../types';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  createWarehouse as mockCreateWarehouse,
-  listWarehouses as mockListWarehouses,
-  removeWarehouse as mockRemoveWarehouse,
-  updateWarehouse as mockUpdateWarehouse,
-} from '../mock/warehouse';
-
-const useMock = apiConfig.useMock;
 
 type BackendWarehouseType = 'MATERIAL' | 'FINISHED' | 'VIRTUAL';
 type BackendWarehouseStatus = 'ACTIVE' | 'INACTIVE';
@@ -121,9 +112,6 @@ const buildRequestPayload = (
 
 export const warehouseApi = {
   list: async (params: WarehouseListParams): Promise<WarehouseDataset> => {
-    if (useMock) {
-      return mockListWarehouses(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendPageResponse<BackendWarehouseResponse>>(
       '/api/v1/warehouses',
@@ -144,9 +132,6 @@ export const warehouseApi = {
     };
   },
   create: async (payload: SaveWarehousePayload): Promise<Warehouse> => {
-    if (useMock) {
-      return mockCreateWarehouse(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendWarehouseResponse>('/api/v1/warehouses', {
       ...buildRequestPayload(tenantId, payload),
@@ -154,9 +139,6 @@ export const warehouseApi = {
     return adaptWarehouse(response.data);
   },
   update: async (id: string, payload: UpdateWarehousePayload): Promise<Warehouse | undefined> => {
-    if (useMock) {
-      return mockUpdateWarehouse(id, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendWarehouseResponse>(
       `/api/v1/warehouses/${id}/update`,
@@ -165,9 +147,6 @@ export const warehouseApi = {
     return adaptWarehouse(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    if (useMock) {
-      return mockRemoveWarehouse(id);
-    }
     const tenantId = ensureTenantId();
     await http.delete(`/api/v1/warehouses/${id}`, {
       params: { tenantId },

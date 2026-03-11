@@ -24,7 +24,7 @@ import type {
   ReconciliationPartnerType,
   ReconciliationStatus,
 } from '../types/settlement-report-reconciliation-details';
-import { reconciliationDetailsReportService } from '../api/mock';
+import { reconciliationDetailsReportService } from '../api/settlement';
 
 const { RangePicker } = DatePicker;
 const { Link, Text } = Typography;
@@ -199,7 +199,9 @@ const SettlementReportReconciliationDetails = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await reconciliationDetailsReportService.cancel({ ids: selectedRowKeys.map(String) });
+          await Promise.all(
+            selectedRowKeys.map((id) => reconciliationDetailsReportService.cancel(String(id))),
+          );
           message.success('已撤销选中的对账记录');
           setSelectedRowKeys([]);
           void loadList();
@@ -308,13 +310,13 @@ const SettlementReportReconciliationDetails = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space size={16} wrap>
           <Statistic title="金额合计" value={summary.totalAmount} precision={2} prefix="¥" />
           <Statistic title="已对账条数" value={summary.reconciledCount} />
         </Space>
       </Card>
-      <Card bordered={false} loading={metaLoading}>
+      <Card variant="borderless" loading={metaLoading}>
         <Form layout="inline">
           <Space align="start" size={16} wrap style={{ width: '100%' }}>
             <Form.Item label="往来单位类型" style={{ minWidth: 240 }}>
@@ -395,7 +397,7 @@ const SettlementReportReconciliationDetails = () => {
           </Space>
         </Form>
       </Card>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space style={{ marginBottom: 16 }}>
           <Button
             danger

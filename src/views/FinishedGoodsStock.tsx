@@ -358,7 +358,7 @@ const FinishedGoodsStock = () => {
   return (
     <Fragment>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card bordered={false} loading={metaLoading}>
+        <Card variant="borderless" loading={metaLoading}>
         <Row gutter={[16, 16]} align="middle" wrap>
           <Col flex="auto">
             <Space size={12} wrap>
@@ -392,7 +392,7 @@ const FinishedGoodsStock = () => {
           </Col>
         </Row>
 
-        <Card bordered style={{ marginTop: 16 }}>
+        <Card variant="outlined" style={{ marginTop: 16 }}>
           <Row gutter={[16, 16]} wrap align="middle">
             <Col xs={24} sm={12} md={6}>
               <Select
@@ -432,7 +432,7 @@ const FinishedGoodsStock = () => {
         </Card>
       </Card>
 
-        <Card bordered={false}>
+        <Card variant="borderless">
           <Table<FinishedGoodsStockRecord>
             rowKey={(record) => record.id}
             loading={tableLoading}

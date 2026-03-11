@@ -282,7 +282,7 @@ const OrganizationSettings = () => {
         open={createModalOpen}
         onCancel={() => setCreateModalOpen(false)}
         onOk={submitCreate}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={createForm} layout="vertical" initialValues={{ password: '123456' }}>
           <Form.Item
@@ -351,7 +351,7 @@ const OrganizationSettings = () => {
         onCancel={closeEditModal}
         onOk={submitEdit}
         confirmLoading={editSubmitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical">
           <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}>

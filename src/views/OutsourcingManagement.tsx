@@ -6,6 +6,9 @@ import type { Dayjs } from 'dayjs';
 import {
   Button,
   Card,
+  Descriptions,
+  Drawer,
+  Empty,
   DatePicker,
   Form,
   Input,
@@ -16,6 +19,8 @@ import {
   Table,
   Tag,
   Typography,
+  Progress,
+  Spin,
   message,
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
@@ -26,6 +31,9 @@ import type {
   OutsourcingManagementListParams,
   OutsourcingManagementListResponse,
   OutsourcingManagementMeta,
+  OutsourcingOrderDetail,
+  OutsourcingOrderReceipt,
+  OutsourcingMaterialRequestRecord,
   OutsourcingTaskStatus,
 } from '../types/outsourcing-management';
 
@@ -59,6 +67,8 @@ const PERCENT_FORMATTER = new Intl.NumberFormat('zh-CN', {
 const formatCurrency = (value: number): string => CURRENCY_FORMATTER.format(value ?? 0);
 const formatQuantity = (value: number): string => QUANTITY_FORMATTER.format(value ?? 0);
 const formatPercent = (value: number): string => PERCENT_FORMATTER.format(value ?? 0);
+const formatDateTime = (value?: string): string =>
+  value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-';
 
 const buildDateParams = (
   range: RangeValue<Dayjs>,
@@ -96,6 +106,7 @@ const OutsourcingManagement = () => {
     record?: OutsourcingManagementListItem;
   }>({ visible: false });
   const [submittingReceive, setSubmittingReceive] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [receiveForm] = Form.useForm();
 
   const [orderNo, setOrderNo] = useState('');
@@ -117,6 +128,9 @@ const OutsourcingManagement = () => {
     pageSize: DEFAULT_PAGE_SIZE,
     statusKey: undefined,
   });
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [orderDetail, setOrderDetail] = useState<OutsourcingOrderDetail | null>(null);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -200,14 +214,36 @@ const OutsourcingManagement = () => {
     setAppliedParams((prev) => ({ ...prev, page: nextPage, pageSize: size }));
   };
 
-  const handleExport = async () => {
+  const performExport = async (selectedOnly: boolean) => {
     try {
-      await outsourcingManagementApi.export(appliedParams);
-      message.success('已生成导出任务，请稍后在下载中心查看');
+      setExporting(true);
+      const exportParams = selectedOnly
+        ? { ...appliedParams, selectedOrderIds: selectedRowKeys.map((key) => String(key)) }
+        : appliedParams;
+      const result = await outsourcingManagementApi.export(exportParams);
+      if (result.fileUrl) {
+        message.success(`已生成导出文件：${result.fileUrl}`);
+      } else {
+        message.success('已生成导出任务，请稍后在下载中心查看');
+      }
     } catch (error) {
       console.error('failed to export outsourcing management list', error);
       message.error('导出失败，请稍后重试');
+    } finally {
+      setExporting(false);
     }
+  };
+
+  const handleExportAll = () => {
+    void performExport(false);
+  };
+
+  const handleExportSelected = () => {
+    if (!selectedRowKeys.length) {
+      message.warning('请先勾选需要导出的外发单');
+      return;
+    }
+    void performExport(true);
   };
 
   const handleReceiveSubmit = async () => {
@@ -255,6 +291,26 @@ const OutsourcingManagement = () => {
       remark: '',
     });
   }, [receiveForm]);
+
+  const handleViewDetail = useCallback(async (record: OutsourcingManagementListItem) => {
+    setDetailDrawerOpen(true);
+    setDetailLoading(true);
+    try {
+      const detailData = await outsourcingManagementApi.getDetail(record.id);
+      setOrderDetail(detailData);
+    } catch (error) {
+      console.error('failed to load outsourcing detail', error);
+      message.error('加载外发单详情失败');
+      setDetailDrawerOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const handleDetailClose = () => {
+    setDetailDrawerOpen(false);
+    setOrderDetail(null);
+  };
 
   const columns: ColumnsType<OutsourcingManagementListItem> = useMemo(
     () => [
@@ -352,14 +408,81 @@ const OutsourcingManagement = () => {
             <Button type="link" onClick={() => handleConfirmReceive(record)}>
               确认接收
             </Button>
-            <Button type="link" onClick={() => message.info(`查看外发单 ${record.outgoingNo}`)}>
+            <Button type="link" onClick={() => handleViewDetail(record)}>
               查看
             </Button>
           </Space>
         ),
       },
     ],
-    [handleConfirmReceive],
+    [handleConfirmReceive, handleViewDetail],
+  );
+
+  const receiptColumns = useMemo<ColumnsType<OutsourcingOrderReceipt>>(
+    () => [
+      {
+        title: '接收时间',
+        dataIndex: 'receivedAt',
+        key: 'receivedAt',
+        render: (value?: string) => formatDateTime(value),
+      },
+      {
+        title: '接收数量',
+        dataIndex: 'receivedQty',
+        key: 'receivedQty',
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '良品',
+        dataIndex: 'goodQty',
+        key: 'goodQty',
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '次品',
+        dataIndex: 'defectQty',
+        key: 'defectQty',
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '返工',
+        dataIndex: 'reworkQty',
+        key: 'reworkQty',
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      { title: '备注', dataIndex: 'remark', key: 'remark', render: (value?: string) => value || '-' },
+    ],
+    [],
+  );
+
+  const materialRequestColumns = useMemo<ColumnsType<OutsourcingMaterialRequestRecord>>(
+    () => [
+      {
+        title: '申请时间',
+        dataIndex: 'requestedAt',
+        key: 'requestedAt',
+        render: (value?: string) => formatDateTime(value),
+      },
+      {
+        title: '物料ID',
+        dataIndex: 'materialId',
+        key: 'materialId',
+        render: (value?: string) => value ?? '-',
+      },
+      {
+        title: '数量',
+        dataIndex: 'requestQuantity',
+        key: 'requestQuantity',
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      { title: '备注', dataIndex: 'remark', key: 'remark', render: (value?: string) => value || '-' },
+    ],
+    [],
   );
 
   const summaryItems = useMemo(
@@ -374,9 +497,10 @@ const OutsourcingManagement = () => {
   );
 
   return (
-    <Card title="外发管理">
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card bordered={false} loading={tableLoading && !records.length}>
+    <>
+      <Card title="外发管理">
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Card variant="borderless" loading={tableLoading && !records.length}>
           <Space size={24} wrap>
             {summaryItems.map((item) => (
               <div key={item.key} style={{ minWidth: 160 }}>
@@ -442,8 +566,15 @@ const OutsourcingManagement = () => {
             <Text type="secondary">共 {total} 条记录</Text>
           </Space>
           <Space>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
-              导出Excel
+            <Button icon={<DownloadOutlined />} onClick={handleExportAll} loading={exporting}>
+              导出全部
+            </Button>
+            <Button
+              onClick={handleExportSelected}
+              disabled={!selectedRowKeys.length}
+              loading={exporting}
+            >
+              导出所选
             </Button>
           </Space>
         </div>
@@ -469,7 +600,99 @@ const OutsourcingManagement = () => {
             showTotal: (value) => `共 ${value} 条`,
           }}
         />
-      </Space>
+        </Space>
+      </Card>
+
+      <Drawer
+        title={orderDetail ? `外发单 ${orderDetail.outgoingNo}` : '外发单详情'}
+        width={780}
+        open={detailDrawerOpen}
+        onClose={handleDetailClose}
+        destroyOnHidden
+        maskClosable
+      >
+        <Spin spinning={detailLoading}>
+          {orderDetail ? (
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Card variant="borderless">
+                <Descriptions column={2} size="small" bordered>
+                  <Descriptions.Item label="工厂订单">{orderDetail.orderNo}</Descriptions.Item>
+                  <Descriptions.Item label="外发单号">{orderDetail.outgoingNo}</Descriptions.Item>
+                  <Descriptions.Item label="加工厂">{orderDetail.processorName}</Descriptions.Item>
+                  <Descriptions.Item label="工序">{orderDetail.processStep}</Descriptions.Item>
+                  <Descriptions.Item label="发出数量" span={2}>
+                    {formatQuantity(orderDetail.dispatchQty)} 件
+                  </Descriptions.Item>
+                  <Descriptions.Item label="接收数量" span={2}>
+                    {formatQuantity(orderDetail.receivedQty)} 件
+                  </Descriptions.Item>
+                  <Descriptions.Item label="良品数量" span={2}>
+                    {formatQuantity(orderDetail.goodReceivedQty)} 件
+                  </Descriptions.Item>
+                  <Descriptions.Item label="单价">{formatCurrency(orderDetail.unitPrice)}</Descriptions.Item>
+                  <Descriptions.Item label="加工费用">{formatCurrency(orderDetail.totalCost)}</Descriptions.Item>
+                  <Descriptions.Item label="外发日期">{orderDetail.dispatchDate ?? '-'}</Descriptions.Item>
+                  <Descriptions.Item label="预计完成" span={1}>
+                    {orderDetail.expectedCompletionDate ?? '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+                <div style={{ marginTop: 16 }}>
+                  <Text type="secondary">完成进度</Text>
+                  <Progress
+                    percent={Math.min(100, Number(orderDetail.progressPercent?.toFixed(1) ?? 0))}
+                    status="active"
+                  />
+                </div>
+              </Card>
+
+              {orderDetail.workOrder ? (
+                <Descriptions title="工单信息" bordered size="small" column={2}>
+                  <Descriptions.Item label="工单号">{orderDetail.workOrder.id}</Descriptions.Item>
+                  <Descriptions.Item label="工单状态">{orderDetail.workOrder.status ?? '-'}</Descriptions.Item>
+                  <Descriptions.Item label="计划数量">{formatQuantity(orderDetail.workOrder.plannedQty)} 件</Descriptions.Item>
+                  <Descriptions.Item label="完工数量">{formatQuantity(orderDetail.workOrder.completedQty)} 件</Descriptions.Item>
+                  <Descriptions.Item label="备注" span={2}>
+                    {orderDetail.workOrder.remark || '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              ) : null}
+
+              {orderDetail.productionOrder ? (
+                <Descriptions title="生产订单" bordered size="small" column={2}>
+                  <Descriptions.Item label="订单号">{orderDetail.productionOrder.orderNo}</Descriptions.Item>
+                  <Descriptions.Item label="预计交期">
+                    {orderDetail.productionOrder.expectedDelivery || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="总数量">{formatQuantity(orderDetail.productionOrder.totalQuantity)} 件</Descriptions.Item>
+                  <Descriptions.Item label="完成数量">{formatQuantity(orderDetail.productionOrder.completedQuantity)} 件</Descriptions.Item>
+                </Descriptions>
+              ) : null}
+
+              <Card title="接收记录" variant="borderless">
+                <Table<OutsourcingOrderReceipt>
+                  rowKey={(record) => record.id}
+                  dataSource={orderDetail.receipts}
+                  columns={receiptColumns}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+
+              <Card title="补料记录" variant="borderless">
+                <Table<OutsourcingMaterialRequestRecord>
+                  rowKey={(record) => record.id}
+                  dataSource={orderDetail.materialRequests}
+                  columns={materialRequestColumns}
+                  pagination={false}
+                  size="small"
+                />
+              </Card>
+            </Space>
+          ) : (
+            <Empty description="请选择外发单" />
+          )}
+        </Spin>
+      </Drawer>
 
       <Modal
         open={receiveModalState.visible}
@@ -477,7 +700,7 @@ const OutsourcingManagement = () => {
         onCancel={handleReceiveCancel}
         onOk={handleReceiveSubmit}
         confirmLoading={submittingReceive}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form layout="vertical" form={receiveForm} preserve={false}>
           <Form.Item
@@ -505,7 +728,7 @@ const OutsourcingManagement = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </>
   );
 };
 

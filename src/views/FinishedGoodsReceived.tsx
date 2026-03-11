@@ -447,7 +447,7 @@ const FinishedGoodsReceived = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={metaLoading}>
+      <Card variant="borderless" loading={metaLoading}>
         <Row gutter={[16, 16]} align="middle" justify="space-between">
           <Col flex="auto">
             <Space wrap size={16}>
@@ -506,7 +506,7 @@ const FinishedGoodsReceived = () => {
         </Row>
       </Card>
 
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Row justify="space-between" align="middle">
             <Col>
@@ -548,7 +548,7 @@ const FinishedGoodsReceived = () => {
         onCancel={closeModifyModal}
         onOk={handleModifySubmit}
         confirmLoading={modifyModal.submitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item

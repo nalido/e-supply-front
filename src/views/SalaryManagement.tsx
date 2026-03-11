@@ -5,14 +5,17 @@ import dayjs, { type Dayjs } from 'dayjs';
 import {
   Button,
   Card,
+  Drawer,
   DatePicker,
   Empty,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
   Table,
   Tabs,
+  Tag,
   Typography,
   message,
 } from 'antd';
@@ -23,6 +26,15 @@ import type {
   SalaryListParams,
   SalaryMeta,
   SalarySettlePayload,
+  SalaryTicketListParams,
+  SalaryTicketRecord,
+  SalaryTicketSummary,
+  SalaryPayslipRecord,
+  SalaryPayslipSendResult,
+  SalaryPayslipLogRecord,
+  SalaryPayslipStatus,
+  SalaryScanStatistics,
+  SalaryTicketDetailRecord,
 } from '../types/salary-management';
 
 const { RangePicker } = DatePicker;
@@ -30,6 +42,7 @@ const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const DETAIL_PAGE_SIZE_OPTIONS = [10, 20, 30];
 
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
@@ -39,6 +52,34 @@ const currencyFormatter = new Intl.NumberFormat('zh-CN', {
 });
 
 const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
+
+const quantityFormatter = new Intl.NumberFormat('zh-CN');
+
+const formatQuantity = (value?: number) => quantityFormatter.format(Math.max(0, Math.round(value ?? 0)));
+
+const DEFAULT_TICKET_SUMMARY: SalaryTicketSummary = {
+  totalQuantity: 0,
+  settledAmount: 0,
+  unsettledAmount: 0,
+  totalAmount: 0,
+};
+
+const ticketStatusColorMap: Record<SalaryTicketRecord['status'], string> = {
+  PENDING: 'orange',
+  SETTLED: 'green',
+  VOIDED: 'red',
+};
+
+const ticketStatusLabelMap: Record<SalaryTicketRecord['status'], string> = {
+  PENDING: '待结算',
+  SETTLED: '已结算',
+  VOIDED: '已作废',
+};
+
+const payslipStatusMap: Record<SalaryPayslipStatus, { label: string; color: string }> = {
+  SENT: { label: '已发送', color: 'green' },
+  FAILED: { label: '失败', color: 'red' },
+};
 
 const createDefaultRange = (meta?: SalaryMeta): [Dayjs | null, Dayjs | null] => {
   if (!meta) {
@@ -54,6 +95,8 @@ type AppliedFilters = {
   keyword?: string;
 };
 
+type TicketStatusFilter = 'all' | 'pending' | 'settled' | 'voided';
+
 const createFilterParams = (
   params: AppliedFilters,
   page: number,
@@ -63,6 +106,19 @@ const createFilterParams = (
   pageSize,
   ...params,
 });
+
+const ticketStatusOptions: Array<{ label: string; value: TicketStatusFilter }> = [
+  { label: '全部状态', value: 'all' },
+  { label: '待结算', value: 'pending' },
+  { label: '已结算', value: 'settled' },
+  { label: '作废', value: 'voided' },
+];
+
+const payslipStatusOptions: Array<{ label: string; value: SalaryPayslipStatus | 'all' }> = [
+  { label: '全部状态', value: 'all' },
+  { label: '已发送', value: 'SENT' },
+  { label: '失败', value: 'FAILED' },
+];
 
 const SalaryManagement = () => {
   const [activeTab, setActiveTab] = useState('settlement');
@@ -86,6 +142,44 @@ const SalaryManagement = () => {
   const [keyword, setKeyword] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [detailEmployee, setDetailEmployee] = useState<SalaryEmployeeRecord | null>(null);
+  const [ticketRecords, setTicketRecords] = useState<SalaryTicketRecord[]>([]);
+  const [ticketSummary, setTicketSummary] = useState<SalaryTicketSummary>(DEFAULT_TICKET_SUMMARY);
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketPageSize, setTicketPageSize] = useState(DETAIL_PAGE_SIZE_OPTIONS[0]);
+  const [ticketTotal, setTicketTotal] = useState(0);
+  const [ticketStatus, setTicketStatus] = useState<TicketStatusFilter>('all');
+  const [ticketKeywordInput, setTicketKeywordInput] = useState('');
+  const [ticketKeyword, setTicketKeyword] = useState('');
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustAmount, setAdjustAmount] = useState(0);
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false);
+  const [payslipModalOpen, setPayslipModalOpen] = useState(false);
+  const [payslipSubmitting, setPayslipSubmitting] = useState(false);
+  const [payslipResult, setPayslipResult] = useState<SalaryPayslipSendResult | null>(null);
+  const [logRecords, setLogRecords] = useState<SalaryPayslipLogRecord[]>([]);
+  const [logTotal, setLogTotal] = useState(0);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logStatus, setLogStatus] = useState<SalaryPayslipStatus | 'all'>('all');
+  const [logKeyword, setLogKeyword] = useState('');
+  const [logDateRange, setLogDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [logFilters, setLogFilters] = useState<{ startDate?: string; endDate?: string; status?: SalaryPayslipStatus | 'all'; keyword?: string }>({
+    status: 'all',
+  });
+  const [scanStats, setScanStats] = useState<SalaryScanStatistics | null>(null);
+  const [scanStatsLoading, setScanStatsLoading] = useState(false);
+  const [detailRecords, setDetailRecords] = useState<SalaryTicketDetailRecord[]>([]);
+  const [detailTotal, setDetailTotal] = useState(0);
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailPageSize, setDetailPageSize] = useState(10);
+  const [detailKeywordInput, setDetailKeywordInput] = useState('');
+  const [detailKeyword, setDetailKeyword] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -169,6 +263,212 @@ const SalaryManagement = () => {
     setPageSize(DEFAULT_PAGE_SIZE);
   };
 
+  const handleLogSearch = () => {
+    const [start, end] = logDateRange;
+    setLogFilters({
+      startDate: start ? start.format('YYYY-MM-DD') : undefined,
+      endDate: end ? end.format('YYYY-MM-DD') : undefined,
+      status: logStatus,
+      keyword: logKeyword.trim() || undefined,
+    });
+    setLogPage(1);
+  };
+
+  const handleLogReset = () => {
+    setLogDateRange([null, null]);
+    setLogStatus('all');
+    setLogKeyword('');
+    setLogFilters({ status: 'all' });
+    setLogPage(1);
+    setLogPageSize(DEFAULT_PAGE_SIZE);
+  };
+
+  const handleDetailSearch = () => {
+    setDetailKeyword(detailKeywordInput.trim());
+    setDetailPage(1);
+  };
+
+  const handleDetailReset = () => {
+    setDetailKeywordInput('');
+    setDetailKeyword('');
+    setDetailPage(1);
+  };
+
+  const loadTicketList = useCallback(async () => {
+    if (!detailDrawerOpen || !detailEmployee) {
+      return;
+    }
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      message.warning('请先选择结算周期');
+      return;
+    }
+    const params: SalaryTicketListParams = {
+      employeeId: detailEmployee.id,
+      startDate: appliedFilters.startDate,
+      endDate: appliedFilters.endDate,
+      page: ticketPage,
+      pageSize: ticketPageSize,
+      status: ticketStatus,
+      keyword: ticketKeyword || undefined,
+    };
+    setTicketLoading(true);
+    try {
+      const response = await pieceworkService.getSalaryTickets(params);
+      setTicketRecords(response.list);
+      setTicketTotal(response.total);
+      setTicketSummary(response.summary ?? DEFAULT_TICKET_SUMMARY);
+      if (response.page && response.page !== ticketPage) {
+        setTicketPage(response.page);
+      }
+      if (response.pageSize && response.pageSize !== ticketPageSize) {
+        setTicketPageSize(response.pageSize);
+      }
+    } catch (error) {
+      console.error('failed to load salary ticket details', error);
+      message.error('加载计件明细失败');
+    } finally {
+      setTicketLoading(false);
+    }
+  }, [
+    appliedFilters.endDate,
+    appliedFilters.startDate,
+    detailDrawerOpen,
+    detailEmployee,
+    ticketKeyword,
+    ticketPage,
+    ticketPageSize,
+    ticketStatus,
+  ]);
+
+  const loadPayslipLogs = useCallback(async () => {
+    setLogLoading(true);
+    try {
+      const response = await pieceworkService.getPayslipLogs({
+        startDate: logFilters.startDate,
+        endDate: logFilters.endDate,
+        status: logFilters.status,
+        keyword: logFilters.keyword,
+        page: logPage,
+        pageSize: logPageSize,
+      });
+      setLogRecords(response.list);
+      setLogTotal(response.total);
+      if (response.page && response.page !== logPage) {
+        setLogPage(response.page);
+      }
+      if (response.pageSize && response.pageSize !== logPageSize) {
+        setLogPageSize(response.pageSize);
+      }
+    } catch (error) {
+      console.error('failed to load payslip logs', error);
+      message.error('加载工资条记录失败');
+    } finally {
+      setLogLoading(false);
+    }
+  }, [
+    logFilters.endDate,
+    logFilters.keyword,
+    logFilters.startDate,
+    logFilters.status,
+    logPage,
+    logPageSize,
+  ]);
+
+  useEffect(() => {
+    void loadPayslipLogs();
+  }, [loadPayslipLogs]);
+
+  const loadScanStatistics = useCallback(async () => {
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      return;
+    }
+    setScanStatsLoading(true);
+    try {
+      const stats = await pieceworkService.getPayrollScanStatistics({
+        startDate: appliedFilters.startDate,
+        endDate: appliedFilters.endDate,
+        department: appliedFilters.department,
+        keyword: appliedFilters.keyword,
+      });
+      setScanStats(stats);
+    } catch (error) {
+      console.error('failed to load scan statistics', error);
+      message.error('加载扫菲统计失败');
+    } finally {
+      setScanStatsLoading(false);
+    }
+  }, [appliedFilters.department, appliedFilters.endDate, appliedFilters.keyword, appliedFilters.startDate]);
+
+  const loadTicketDetails = useCallback(
+    async (pageValue: number, sizeValue: number, keywordValue: string) => {
+      if (!appliedFilters.startDate || !appliedFilters.endDate) {
+        return;
+      }
+      setDetailLoading(true);
+      try {
+        const response = await pieceworkService.getPayrollTicketDetails({
+          startDate: appliedFilters.startDate,
+          endDate: appliedFilters.endDate,
+          department: appliedFilters.department,
+          keyword: keywordValue,
+          page: pageValue,
+          pageSize: sizeValue,
+        });
+        setDetailRecords(response.list);
+        setDetailTotal(response.total);
+        setDetailPage(response.page);
+        setDetailPageSize(response.pageSize);
+      } catch (error) {
+        console.error('failed to load payroll ticket details', error);
+        message.error('加载计菲明细失败');
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [appliedFilters.department, appliedFilters.endDate, appliedFilters.startDate],
+  );
+
+  useEffect(() => {
+    if (!detailDrawerOpen) {
+      return;
+    }
+    void loadTicketList();
+  }, [detailDrawerOpen, loadTicketList]);
+
+  useEffect(() => {
+    if (detailDrawerOpen) {
+      return;
+    }
+    setDetailEmployee(null);
+    setTicketRecords([]);
+    setTicketSummary(DEFAULT_TICKET_SUMMARY);
+    setTicketTotal(0);
+    setTicketPage(1);
+    setTicketPageSize(DETAIL_PAGE_SIZE_OPTIONS[0]);
+    setTicketStatus('all');
+    setTicketKeyword('');
+    setTicketKeywordInput('');
+    setTicketLoading(false);
+  }, [detailDrawerOpen]);
+
+  useEffect(() => {
+    if (activeTab === 'statistics') {
+      void loadScanStatistics();
+    }
+  }, [activeTab, loadScanStatistics]);
+
+  useEffect(() => {
+    if (activeTab === 'details') {
+      void loadTicketDetails(detailPage, detailPageSize, detailKeyword);
+    }
+  }, [activeTab, detailKeyword, detailPage, detailPageSize, loadTicketDetails]);
+
+  useEffect(() => {
+    if (activeTab === 'details') {
+      setDetailPage(1);
+    }
+  }, [activeTab, appliedFilters]);
+
   const pagination = useMemo<TableProps<SalaryEmployeeRecord>['pagination']>(
     () => ({
       current: page,
@@ -179,6 +479,18 @@ const SalaryManagement = () => {
       showTotal: (value: number) => `共 ${value} 条`,
     }),
     [page, pageSize, total],
+  );
+
+  const detailPagination = useMemo<TableProps<SalaryTicketDetailRecord>['pagination']>(
+    () => ({
+      current: detailPage,
+      pageSize: detailPageSize,
+      total: detailTotal,
+      showSizeChanger: true,
+      pageSizeOptions: PAGE_SIZE_OPTIONS,
+      showTotal: (value: number) => `共 ${value} 人`,
+    }),
+    [detailPage, detailPageSize, detailTotal],
   );
 
   const handleTableChange: TableProps<SalaryEmployeeRecord>['onChange'] = (paginationConfig) => {
@@ -194,6 +506,63 @@ const SalaryManagement = () => {
       setPage(nextPage);
     }
   };
+
+  const handleDetailTableChange: TableProps<SalaryTicketDetailRecord>['onChange'] = (paginationConfig) => {
+    if (!paginationConfig) {
+      return;
+    }
+    const nextPage = paginationConfig.current ?? 1;
+    const nextSize = paginationConfig.pageSize ?? detailPageSize;
+    if (nextSize !== detailPageSize) {
+      setDetailPageSize(nextSize);
+      setDetailPage(1);
+    } else if (nextPage !== detailPage) {
+      setDetailPage(nextPage);
+    }
+  };
+
+  const logPagination = useMemo<TableProps<SalaryPayslipLogRecord>['pagination']>(
+    () => ({
+      current: logPage,
+      pageSize: logPageSize,
+      total: logTotal,
+      showSizeChanger: true,
+      pageSizeOptions: PAGE_SIZE_OPTIONS,
+      showTotal: (value: number) => `共 ${value} 条`,
+    }),
+    [logPage, logPageSize, logTotal],
+  );
+
+  const handleLogTableChange: TableProps<SalaryPayslipLogRecord>['onChange'] = (paginationConfig) => {
+    if (!paginationConfig) {
+      return;
+    }
+    const nextPage = paginationConfig.current ?? logPage;
+    const nextSize = paginationConfig.pageSize ?? logPageSize;
+    if (nextSize !== logPageSize) {
+      setLogPageSize(nextSize);
+      setLogPage(1);
+    } else if (nextPage !== logPage) {
+      setLogPage(nextPage);
+    }
+  };
+
+  const handleOpenDetail = useCallback(
+    (record: SalaryEmployeeRecord) => {
+      if (!appliedFilters.startDate || !appliedFilters.endDate) {
+        message.warning('请先选择结算周期');
+        return;
+      }
+      setDetailEmployee(record);
+      setTicketPage(1);
+      setTicketPageSize(DETAIL_PAGE_SIZE_OPTIONS[0]);
+      setTicketStatus('all');
+      setTicketKeyword('');
+      setTicketKeywordInput('');
+      setDetailDrawerOpen(true);
+    },
+    [appliedFilters.endDate, appliedFilters.startDate],
+  );
 
   const columns: ColumnsType<SalaryEmployeeRecord> = useMemo(
     () => [
@@ -261,16 +630,13 @@ const SalaryManagement = () => {
         fixed: 'right',
         width: 120,
         render: (_value, record) => (
-          <Button
-            type="link"
-            onClick={() => message.info(`查看 ${record.name} 的计件明细（Mock）`)}
-          >
+          <Button type="link" onClick={() => handleOpenDetail(record)}>
             详情
           </Button>
         ),
       },
     ],
-    [page, pageSize],
+    [page, pageSize, handleOpenDetail],
   );
 
   const selection: TableRowSelection<SalaryEmployeeRecord> = useMemo(
@@ -281,6 +647,11 @@ const SalaryManagement = () => {
     }),
     [selectedRowKeys],
   );
+
+  const handleTicketSearch = () => {
+    setTicketKeyword(ticketKeywordInput.trim());
+    setTicketPage(1);
+  };
 
   const handleSettle = () => {
     const [start, end] = dateRange;
@@ -317,7 +688,16 @@ const SalaryManagement = () => {
   };
 
   const handlePayslip = () => {
-    message.info('工资条功能正在建设中，敬请期待');
+    if (!selectedRowKeys.length) {
+      message.warning('请先选择需要发送工资条的员工');
+      return;
+    }
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      message.warning('请先完成周期查询');
+      return;
+    }
+    setPayslipResult(null);
+    setPayslipModalOpen(true);
   };
 
   const handleBatchAdjust = () => {
@@ -325,12 +705,426 @@ const SalaryManagement = () => {
       message.warning('请先选择需要调整的员工');
       return;
     }
-    message.info(`已选择 ${selectedRowKeys.length} 名员工，模拟批量调整弹窗`);
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      message.warning('请先完成周期查询');
+      return;
+    }
+    setAdjustAmount(0);
+    setAdjustReason('');
+    setAdjustModalOpen(true);
+  };
+
+  const handleConfirmAdjust = async () => {
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      message.warning('请选择结算周期');
+      return;
+    }
+    if (!selectedRowKeys.length) {
+      message.warning('请先选择需要调整的员工');
+      return;
+    }
+    if (!adjustAmount) {
+      message.warning('请输入非零调整金额');
+      return;
+    }
+    setAdjustSubmitting(true);
+    try {
+      await pieceworkService.batchAdjustSalary({
+        startDate: appliedFilters.startDate,
+        endDate: appliedFilters.endDate,
+        employeeIds: selectedRowKeys.map((key) => String(key)),
+        adjustment: adjustAmount,
+        reason: adjustReason.trim() || undefined,
+      });
+      message.success('批量调整已提交');
+      setAdjustModalOpen(false);
+      setAdjustAmount(0);
+      setAdjustReason('');
+      void loadList();
+    } catch (error) {
+      console.error('failed to adjust salary', error);
+      message.error('批量调整失败，请稍后重试');
+    } finally {
+      setAdjustSubmitting(false);
+    }
+  };
+
+  const handleSendPayslip = async () => {
+    if (!appliedFilters.startDate || !appliedFilters.endDate) {
+      message.warning('请选择结算周期');
+      return;
+    }
+    if (!selectedRowKeys.length) {
+      message.warning('请先选择需要发送的员工');
+      return;
+    }
+    setPayslipSubmitting(true);
+    try {
+      const result = await pieceworkService.sendPayslips({
+        startDate: appliedFilters.startDate,
+        endDate: appliedFilters.endDate,
+        employeeIds: selectedRowKeys.map((key) => String(key)),
+      });
+      setPayslipResult(result);
+      message.success(`已生成 ${result.sentCount} 份工资条`);
+      void loadPayslipLogs();
+    } catch (error) {
+      console.error('failed to send payslips', error);
+      message.error('工资条发送失败，请稍后重试');
+    } finally {
+      setPayslipSubmitting(false);
+    }
   };
 
   const handleSalaryItems = () => {
     message.info('薪资条目配置将在接入正式接口时开放');
   };
+
+  const handleTicketStatusChange = (value: TicketStatusFilter) => {
+    setTicketStatus(value);
+    setTicketPage(1);
+  };
+
+  const ticketPagination = useMemo<TableProps<SalaryTicketRecord>['pagination']>(
+    () => ({
+      current: ticketPage,
+      pageSize: ticketPageSize,
+      total: ticketTotal,
+      showSizeChanger: true,
+      pageSizeOptions: DETAIL_PAGE_SIZE_OPTIONS,
+      showTotal: (value: number) => `共 ${value} 条`,
+    }),
+    [ticketPage, ticketPageSize, ticketTotal],
+  );
+
+  const handleTicketTableChange: TableProps<SalaryTicketRecord>['onChange'] = (paginationConfig) => {
+    if (!paginationConfig) {
+      return;
+    }
+    const nextPage = paginationConfig.current ?? 1;
+    const nextSize = paginationConfig.pageSize ?? ticketPageSize;
+    if (nextSize !== ticketPageSize) {
+      setTicketPageSize(nextSize);
+      setTicketPage(1);
+    } else if (nextPage !== ticketPage) {
+      setTicketPage(nextPage);
+    }
+  };
+
+  const ticketColumns: ColumnsType<SalaryTicketRecord> = useMemo(
+    () => [
+      {
+        title: '序号',
+        key: 'index',
+        width: 80,
+        align: 'right',
+        render: (_value, _record, index) => (ticketPage - 1) * ticketPageSize + index + 1,
+      },
+      {
+        title: '菲票号',
+        dataIndex: 'ticketNo',
+        key: 'ticketNo',
+        width: 160,
+      },
+      {
+        title: '工序',
+        dataIndex: 'processName',
+        key: 'processName',
+        width: 160,
+      },
+      {
+        title: '记录时间',
+        dataIndex: 'recordedAt',
+        key: 'recordedAt',
+        width: 180,
+        render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'),
+      },
+      {
+        title: '数量',
+        dataIndex: 'quantity',
+        key: 'quantity',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '单价',
+        dataIndex: 'pieceRate',
+        key: 'pieceRate',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '金额',
+        dataIndex: 'amount',
+        key: 'amount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        key: 'status',
+        width: 120,
+        render: (value: SalaryTicketRecord['status']) => (
+          <Tag color={ticketStatusColorMap[value] ?? 'default'}>{ticketStatusLabelMap[value] ?? value}</Tag>
+        ),
+      },
+      {
+        title: '工单',
+        key: 'workOrder',
+        width: 160,
+        render: (_value, record) => (record.workOrderId ? `WO-${record.workOrderId}` : '-'),
+      },
+    ],
+    [ticketPage, ticketPageSize],
+  );
+
+  const payslipColumns: ColumnsType<SalaryPayslipRecord> = useMemo(
+    () => [
+      {
+        title: '员工',
+        dataIndex: 'employeeName',
+        key: 'employeeName',
+        width: 160,
+      },
+      {
+        title: '已结算',
+        dataIndex: 'settledAmount',
+        key: 'settledAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '待结算',
+        dataIndex: 'unsettledAmount',
+        key: 'unsettledAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '调整金额',
+        dataIndex: 'adjustmentAmount',
+        key: 'adjustmentAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '合计',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+    ],
+    [],
+  );
+
+  const payslipLogColumns: ColumnsType<SalaryPayslipLogRecord> = useMemo(
+    () => [
+      {
+        title: '员工',
+        dataIndex: 'employeeName',
+        key: 'employeeName',
+        width: 160,
+        render: (value: string, record) => (
+          <Space direction="vertical" size={2}>
+            <Text strong>{value}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{record.employeeId}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: '周期',
+        key: 'period',
+        width: 220,
+        render: (_value, record) => `${record.startDate} ~ ${record.endDate}`,
+      },
+      {
+        title: '已结算',
+        dataIndex: 'settledAmount',
+        key: 'settledAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '未结算',
+        dataIndex: 'unsettledAmount',
+        key: 'unsettledAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '调整',
+        dataIndex: 'adjustmentAmount',
+        key: 'adjustmentAmount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '合计',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        key: 'status',
+        width: 110,
+        render: (value: SalaryPayslipStatus) => {
+          const metaStatus = payslipStatusMap[value];
+          return <Tag color={metaStatus?.color}>{metaStatus?.label ?? value}</Tag>;
+        },
+      },
+      {
+        title: '发送人',
+        dataIndex: 'requestedByName',
+        key: 'requestedByName',
+        width: 140,
+        render: (_value: string | undefined, record) => record.requestedByName || record.requestedBy || '-',
+      },
+      {
+        title: '发送时间',
+        dataIndex: 'sentAt',
+        key: 'sentAt',
+        width: 200,
+        render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'),
+      },
+      {
+        title: '备注',
+        dataIndex: 'message',
+        key: 'message',
+        render: (value?: string) => value || '-',
+      },
+    ],
+    [],
+  );
+
+  const scanEmployeeColumns: ColumnsType<SalaryScanStatistics['topEmployees'][number]> = useMemo(
+    () => [
+      { title: '员工', dataIndex: 'employeeName', key: 'employeeName', width: 160 },
+      { title: '部门', dataIndex: 'department', key: 'department', width: 140 },
+      { title: '扫菲次数', dataIndex: 'ticketCount', key: 'ticketCount', width: 120, align: 'right' },
+      {
+        title: '扫菲数量',
+        dataIndex: 'totalQuantity',
+        key: 'totalQuantity',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '计菲金额',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '待结算',
+        dataIndex: 'unsettledAmount',
+        key: 'unsettledAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+    ],
+    [],
+  );
+
+  const scanProcessColumns: ColumnsType<SalaryScanStatistics['topProcesses'][number]> = useMemo(
+    () => [
+      { title: '工序', dataIndex: 'processName', key: 'processName', width: 200 },
+      { title: '扫菲次数', dataIndex: 'ticketCount', key: 'ticketCount', width: 120, align: 'right' },
+      { title: '扫菲数量', dataIndex: 'totalQuantity', key: 'totalQuantity', width: 140, align: 'right' },
+      {
+        title: '计菲金额',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 160,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+    ],
+    [],
+  );
+
+  const scanTrendColumns: ColumnsType<SalaryScanStatistics['trend'][number]> = useMemo(
+    () => [
+      { title: '日期', dataIndex: 'date', key: 'date', width: 160 },
+      { title: '扫菲数量', dataIndex: 'totalQuantity', key: 'totalQuantity', width: 140, align: 'right' },
+      {
+        title: '计菲金额',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 160,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+    ],
+    [],
+  );
+
+  const ticketDetailColumns: ColumnsType<SalaryTicketDetailRecord> = useMemo(
+    () => [
+      { title: '员工', dataIndex: 'employeeName', key: 'employeeName', width: 180 },
+      { title: '部门', dataIndex: 'department', key: 'department', width: 140 },
+      { title: '扫菲次数', dataIndex: 'ticketCount', key: 'ticketCount', width: 120, align: 'right' },
+      {
+        title: '扫菲数量',
+        dataIndex: 'totalQuantity',
+        key: 'totalQuantity',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatQuantity(value),
+      },
+      {
+        title: '已结算',
+        dataIndex: 'settledAmount',
+        key: 'settledAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '待结算',
+        dataIndex: 'unsettledAmount',
+        key: 'unsettledAmount',
+        width: 140,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '合计',
+        dataIndex: 'totalAmount',
+        key: 'totalAmount',
+        width: 160,
+        align: 'right',
+        render: (value: number) => formatCurrency(value),
+      },
+      {
+        title: '最近扫菲',
+        dataIndex: 'lastScanAt',
+        key: 'lastScanAt',
+        width: 200,
+        render: (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'),
+      },
+    ],
+    [],
+  );
 
   const departmentOptions = meta?.departmentOptions ?? [
     { label: '全部部门', value: '' },
@@ -343,7 +1137,7 @@ const SalaryManagement = () => {
 
   const settlementContent = (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={metaLoading && !records.length}>
+      <Card variant="borderless" loading={metaLoading && !records.length}>
         <Space size={32} wrap>
           <Space direction="vertical" size={4}>
             <Text type="secondary">已结算</Text>
@@ -371,7 +1165,7 @@ const SalaryManagement = () => {
       </Card>
 
       <Card
-        bordered={false}
+        variant="borderless"
         title="薪资结算"
         extra={
           <Space size={8} wrap>
@@ -438,23 +1232,308 @@ const SalaryManagement = () => {
     </Space>
   );
 
-  const placeholderCard = (title: string) => (
-    <Card bordered={false} style={{ minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Empty description={`${title}功能正在设计中`} />
-    </Card>
+  const payslipHistoryContent = (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card
+        variant="borderless"
+        title="工资条推送记录"
+        extra={
+          <Button
+            type="primary"
+            onClick={handlePayslip}
+            disabled={!selectedRowKeys.length || !appliedFilters.startDate || !appliedFilters.endDate}
+          >
+            发送工资条
+          </Button>
+        }
+      >
+        <Space size={12} wrap style={{ marginBottom: 16 }}>
+          <RangePicker
+            value={logDateRange}
+            onChange={(values) => {
+              if (!values) {
+                setLogDateRange([null, null]);
+              } else {
+                setLogDateRange([values[0], values[1]] as [Dayjs | null, Dayjs | null]);
+              }
+            }}
+            style={{ width: 280 }}
+            placeholder={[ '开始日期', '结束日期' ]}
+          />
+          <Select
+            value={logStatus}
+            onChange={(value) => setLogStatus(value)}
+            options={payslipStatusOptions}
+            style={{ width: 160 }}
+          />
+          <Input
+            allowClear
+            value={logKeyword}
+            onChange={(event) => setLogKeyword(event.target.value)}
+            placeholder="员工/工号关键词"
+            style={{ width: 220 }}
+            onPressEnter={handleLogSearch}
+          />
+          <Button type="primary" icon={<SearchOutlined />} onClick={handleLogSearch}>
+            查询
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={handleLogReset}>
+            重置
+          </Button>
+        </Space>
+        <Table<SalaryPayslipLogRecord>
+          rowKey={(record) => record.id}
+          dataSource={logRecords}
+          columns={payslipLogColumns}
+          loading={logLoading}
+          pagination={logPagination}
+          onChange={handleLogTableChange}
+          scroll={{ x: 960 }}
+        />
+      </Card>
+    </Space>
+  );
+
+  const scanStatisticsContent = (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card variant="borderless" loading={scanStatsLoading && !scanStats}>
+        {scanStats ? (
+          <Space size={32} wrap>
+            <Space direction="vertical" size={4}>
+              <Text type="secondary">扫菲次数</Text>
+              <Text strong style={{ fontSize: 18 }}>{scanStats.summary.totalTickets}</Text>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Text type="secondary">扫菲数量</Text>
+              <Text strong style={{ fontSize: 18 }}>{formatQuantity(scanStats.summary.totalQuantity)}</Text>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Text type="secondary">计菲金额</Text>
+              <Text strong style={{ fontSize: 18 }}>{formatCurrency(scanStats.summary.totalAmount)}</Text>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Text type="secondary">待结算</Text>
+              <Text strong style={{ fontSize: 18, color: '#fa8c16' }}>{formatCurrency(scanStats.summary.unsettledAmount)}</Text>
+            </Space>
+          </Space>
+        ) : (
+          <Empty description="暂无统计数据" />
+        )}
+      </Card>
+      <Space size={16} style={{ width: '100%' }} wrap>
+        <Card title="员工扫菲TOP" variant="borderless" style={{ flex: 1, minWidth: 360 }}>
+          <Table
+            rowKey={(record) => record.employeeId}
+            dataSource={scanStats?.topEmployees ?? []}
+            columns={scanEmployeeColumns}
+            pagination={false}
+            loading={scanStatsLoading}
+            size="small"
+          />
+        </Card>
+        <Card title="工序扫菲TOP" variant="borderless" style={{ flex: 1, minWidth: 360 }}>
+          <Table
+            rowKey={(record, index) => `${record.processName}-${index}`}
+            dataSource={scanStats?.topProcesses ?? []}
+            columns={scanProcessColumns}
+            pagination={false}
+            loading={scanStatsLoading}
+            size="small"
+          />
+        </Card>
+      </Space>
+      <Card title="扫菲趋势" variant="borderless">
+        <Table
+          rowKey={(record, index) => `${record.date}-${index}`}
+          dataSource={scanStats?.trend ?? []}
+          columns={scanTrendColumns}
+          pagination={false}
+          loading={scanStatsLoading}
+          size="small"
+        />
+      </Card>
+    </Space>
+  );
+
+  const ticketDetailsContent = (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card
+        variant="borderless"
+        title="员工计菲明细"
+        extra={
+          <Space size={8} wrap>
+            <Input
+              allowClear
+              value={detailKeywordInput}
+              onChange={(event) => setDetailKeywordInput(event.target.value)}
+              placeholder="员工/工号关键词"
+              style={{ width: 240 }}
+              onPressEnter={handleDetailSearch}
+            />
+            <Button type="primary" icon={<SearchOutlined />} onClick={handleDetailSearch}>
+              查询
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={handleDetailReset}>
+              重置
+            </Button>
+          </Space>
+        }
+      >
+        <Table<SalaryTicketDetailRecord>
+          rowKey={(record) => record.employeeId}
+          dataSource={detailRecords}
+          columns={ticketDetailColumns}
+          loading={detailLoading}
+          pagination={detailPagination}
+          onChange={handleDetailTableChange}
+          scroll={{ x: 960 }}
+        />
+      </Card>
+    </Space>
   );
 
   return (
-    <Tabs
-      activeKey={activeTab}
-      onChange={(key) => setActiveTab(key)}
-      items={[
-        { key: 'settlement', label: '薪资结算', children: settlementContent },
-        { key: 'payslip', label: '工资条', children: placeholderCard('工资条') },
-        { key: 'statistics', label: '扫菲统计', children: placeholderCard('扫菲统计') },
-        { key: 'details', label: '员工计菲明细表', children: placeholderCard('员工计菲明细表') },
-      ]}
-    />
+    <>
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key)}
+        items={[
+          { key: 'settlement', label: '薪资结算', children: settlementContent },
+          { key: 'payslip', label: '工资条记录', children: payslipHistoryContent },
+          { key: 'statistics', label: '扫菲统计', children: scanStatisticsContent },
+          { key: 'details', label: '员工计菲明细表', children: ticketDetailsContent },
+        ]}
+      />
+
+      <Drawer
+        title={detailEmployee ? `${detailEmployee.name} 的计件明细` : '计件明细'}
+        width={860}
+        destroyOnHidden={false}
+        maskClosable
+        open={detailDrawerOpen}
+        onClose={() => setDetailDrawerOpen(false)}
+      >
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Card variant="borderless">
+            <Space size={32} wrap>
+              <Space direction="vertical" size={4}>
+                <Text type="secondary">计件数量</Text>
+                <Text strong style={{ fontSize: 18 }}>{formatQuantity(ticketSummary.totalQuantity)}</Text>
+              </Space>
+              <Space direction="vertical" size={4}>
+                <Text type="secondary">待结算</Text>
+                <Text strong style={{ fontSize: 18, color: '#fa8c16' }}>{formatCurrency(ticketSummary.unsettledAmount)}</Text>
+              </Space>
+              <Space direction="vertical" size={4}>
+                <Text type="secondary">已结算</Text>
+                <Text strong style={{ fontSize: 18 }}>{formatCurrency(ticketSummary.settledAmount)}</Text>
+              </Space>
+              <Space direction="vertical" size={4}>
+                <Text type="secondary">总金额</Text>
+                <Text strong style={{ fontSize: 18 }}>{formatCurrency(ticketSummary.totalAmount)}</Text>
+              </Space>
+            </Space>
+          </Card>
+
+          <Card
+            variant="borderless"
+            title="计件记录"
+            extra={
+              <Space size={8} wrap>
+                <Select
+                  value={ticketStatus}
+                  onChange={handleTicketStatusChange}
+                  options={ticketStatusOptions}
+                  style={{ width: 140 }}
+                />
+                <Input
+                  allowClear
+                  value={ticketKeywordInput}
+                  onChange={(event) => setTicketKeywordInput(event.target.value)}
+                  placeholder="菲票/工序关键词"
+                  style={{ width: 220 }}
+                  onPressEnter={handleTicketSearch}
+                />
+                <Button type="primary" icon={<SearchOutlined />} onClick={handleTicketSearch}>
+                  筛选
+                </Button>
+              </Space>
+            }
+          >
+            <Table<SalaryTicketRecord>
+              rowKey={(record) => record.id}
+              dataSource={ticketRecords}
+              columns={ticketColumns}
+              loading={ticketLoading}
+              pagination={ticketPagination}
+              onChange={handleTicketTableChange}
+              scroll={{ x: 900 }}
+            />
+          </Card>
+        </Space>
+      </Drawer>
+
+      <Modal
+        title="批量调整"
+        open={adjustModalOpen}
+        onCancel={() => setAdjustModalOpen(false)}
+        onOk={handleConfirmAdjust}
+        okText="提交调整"
+        confirmLoading={adjustSubmitting}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text>
+            当前选中 {selectedRowKeys.length} 名员工，调整将在 {appliedFilters.startDate ?? '-'} 至 {appliedFilters.endDate ?? '-'}
+            的结算周期内生效。
+          </Text>
+          <InputNumber
+            style={{ width: '100%' }}
+            value={adjustAmount}
+            prefix="¥"
+            step={50}
+            onChange={(value) => setAdjustAmount(typeof value === 'number' ? value : 0)}
+          />
+          <Input.TextArea
+            rows={3}
+            allowClear
+            value={adjustReason}
+            onChange={(event) => setAdjustReason(event.target.value)}
+            placeholder="请输入调整原因（选填）"
+          />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="发送工资条"
+        open={payslipModalOpen}
+        onCancel={() => {
+          setPayslipModalOpen(false);
+          setPayslipResult(null);
+        }}
+        onOk={handleSendPayslip}
+        okText="发送"
+        confirmLoading={payslipSubmitting}
+        width={760}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text>
+            将向 {selectedRowKeys.length} 名员工发送 {appliedFilters.startDate ?? '-'} 至 {appliedFilters.endDate ?? '-'} 的工资条。
+          </Text>
+          {payslipResult && payslipResult.records.length ? (
+            <Table<SalaryPayslipRecord>
+              rowKey={(record) => record.employeeId}
+              dataSource={payslipResult.records}
+              columns={payslipColumns}
+              pagination={false}
+              size="small"
+              scroll={{ x: 520 }}
+            />
+          ) : (
+            <Text type="secondary">点击“发送”后将展示本次工资条的明细。</Text>
+          )}
+        </Space>
+      </Modal>
+    </>
   );
 };
 

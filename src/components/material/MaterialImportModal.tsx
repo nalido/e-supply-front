@@ -35,6 +35,7 @@ const MaterialImportModal = ({
           uid: file.uid,
           name: file.name,
           status: 'done',
+          originFileObj: file,
         },
       ]);
       return false;

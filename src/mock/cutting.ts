@@ -175,6 +175,8 @@ const dataset: CuttingTaskDataset = {
   summary,
   list: tasks,
   total: tasks.length,
+  page: 1,
+  pageSize: tasks.length,
 };
 
 export const getCuttingPendingDataset = (): CuttingTaskDataset => dataset;
@@ -319,6 +321,8 @@ const completedDataset: CuttingTaskDataset = {
   summary: completedSummary,
   list: completedTasks,
   total: completedTasks.length,
+  page: 1,
+  pageSize: completedTasks.length,
 };
 
 export const getCuttingCompletedDataset = (): CuttingTaskDataset => completedDataset;
@@ -530,6 +534,8 @@ const cuttingReportDataset: CuttingReportDataset = {
   list: reportRecords,
   total: reportRecords.length,
   summary: reportSummary,
+  page: 1,
+  pageSize: reportRecords.length,
 };
 
 export const getCuttingReportDataset = (): CuttingReportDataset => cuttingReportDataset;

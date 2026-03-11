@@ -23,7 +23,7 @@ import type {
   SupplierPaymentPayload,
   SupplierPaymentRecord,
 } from '../types/settlement-supplier-payments';
-import { supplierPaymentService } from '../api/mock';
+import { supplierPaymentService } from '../api/settlement';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -262,7 +262,7 @@ const SettlementSupplierPayments = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={metaLoading}>
+      <Card variant="borderless" loading={metaLoading}>
         <Space size={16} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
           <Statistic title="应付合计" value={summary.totalPayable} precision={2} prefix="¥" />
           <Statistic
@@ -281,7 +281,7 @@ const SettlementSupplierPayments = () => {
           />
         </Space>
       </Card>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space style={{ marginBottom: 16 }} wrap>
           <Input
             allowClear
@@ -335,7 +335,7 @@ const SettlementSupplierPayments = () => {
         onCancel={handleModalCancel}
         onOk={handleModalOk}
         confirmLoading={modalSubmitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form<SupplierPaymentFormValues> form={form} layout="vertical" preserve={false}>
           <Form.Item

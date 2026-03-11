@@ -539,7 +539,7 @@ const StyleDetail = () => {
         </div>
 
         <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange}>
-          <Card bordered={false} className="style-detail-card style-detail-overview-card">
+          <Card variant="borderless" className="style-detail-card style-detail-overview-card">
             <div className="style-detail-overview">
               <div className="style-detail-gallery">
                 <div className="style-detail-gallery-title">款式主图</div>
@@ -646,7 +646,7 @@ const StyleDetail = () => {
             )}
           </Card>
 
-          <Card title="款式工序" bordered={false} className="style-detail-card">
+          <Card title="款式工序" variant="borderless" className="style-detail-card">
             <div
               style={{
                 marginBottom: 16,
@@ -680,7 +680,7 @@ const StyleDetail = () => {
           open={operationModalState.open}
           onOk={handleOperationSubmit}
           onCancel={closeOperationModal}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form form={operationForm} layout="vertical">
             <Form.Item
@@ -718,7 +718,7 @@ const StyleDetail = () => {
           title="引用工序模板"
           footer={null}
           width={720}
-          destroyOnClose
+          destroyOnHidden
         >
           <List
             dataSource={templateModal.templates}

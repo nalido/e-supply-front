@@ -234,7 +234,7 @@ const SampleOrderComparisonReport = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={loadingCharts}>
+      <Card variant="borderless" loading={loadingCharts}>
         {aggregation ? (
           <Space direction="vertical" size={24} style={{ width: '100%' }}>
             <MonthlyAreaChart
@@ -264,7 +264,7 @@ const SampleOrderComparisonReport = () => {
       </Card>
 
       <Card
-        bordered={false}
+        variant="borderless"
         title="打板下单对照表"
         extra={
           <Space size={8} wrap>

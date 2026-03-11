@@ -161,6 +161,35 @@
   background: #f8fafc;
 }
 
+.bulk-cost-variance-summary {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 14px;
+}
+
+.bulk-cost-variance-row {
+  flex: 1;
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #475569;
+}
+
+.bulk-cost-variance-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.bulk-cost-variance-delta {
+  color: #dc2626;
+  font-weight: 700;
+}
+
 .bulk-cost-pagination {
   display: flex;
   justify-content: flex-end;

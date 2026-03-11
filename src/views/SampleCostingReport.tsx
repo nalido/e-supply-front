@@ -14,7 +14,7 @@ import {
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
-import { sampleCostingReportService } from '../api/mock';
+import { sampleCostingReportService } from '../api/sample-costing-report';
 import type {
   SampleCostAggregation,
   SampleCostCard,
@@ -128,10 +128,9 @@ const SampleCostingReport = () => {
   };
 
   const trendDataset = useMemo(() => {
-    if (!aggregation) {
-      return [];
-    }
-    const { labels, developmentCost, sampleCost } = aggregation.trend;
+    const labels = aggregation?.trend?.labels ?? [];
+    const developmentCost = aggregation?.trend?.developmentCost ?? [];
+    const sampleCost = aggregation?.trend?.sampleCost ?? [];
     return labels.flatMap((label, index) => [
       { month: label, count: sampleCost[index] ?? 0, type: '样板成本' },
       { month: label, count: developmentCost[index] ?? 0, type: '开发费用' },
@@ -139,16 +138,14 @@ const SampleCostingReport = () => {
   }, [aggregation]);
 
   const pieDataset = useMemo(() => {
-    if (!aggregation) {
-      return { data: [], total: 0 };
-    }
+    const types = aggregation?.typeComparison?.types ?? [];
     return {
-      data: aggregation.typeComparison.types.map((slice) => ({
+      data: types.map((slice) => ({
         name: slice.name,
         value: slice.value,
         colorStops: pieColorStops[slice.name] ?? ['#cbd5f5', '#4c51bf'],
       })),
-      total: aggregation.typeComparison.total,
+      total: aggregation?.typeComparison?.total ?? 0,
     };
   }, [aggregation]);
 
@@ -193,7 +190,7 @@ const SampleCostingReport = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={loadingCharts}>
+      <Card variant="borderless" loading={loadingCharts}>
         {aggregation ? (
           <Space style={{ width: '100%' }} size={24} direction="vertical">
             <Title level={5} style={{ margin: 0 }}>
@@ -231,7 +228,7 @@ const SampleCostingReport = () => {
       </Card>
 
       <Card
-        bordered={false}
+        variant="borderless"
         title="成本核价列表"
         extra={
           <Space size={8} wrap>

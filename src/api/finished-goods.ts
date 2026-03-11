@@ -35,19 +35,8 @@ import type {
   FinishedGoodsInventoryListResponse,
   FinishedGoodsInventoryQueryParams,
 } from '../types/finished-goods-inventory';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  finishedGoodsStockService as mockFinishedGoodsStockService,
-  finishedGoodsPendingReceiptService as mockFinishedGoodsPendingReceiptService,
-  finishedGoodsReceivedService as mockFinishedGoodsReceivedService,
-  finishedGoodsOtherInboundService as mockFinishedGoodsOtherInboundService,
-  finishedGoodsOutboundService as mockFinishedGoodsOutboundService,
-  finishedGoodsInventoryReportService as mockFinishedGoodsInventoryReportService,
-} from './mock';
-
-const useMock = apiConfig.useMock;
 
 const ensureTenantId = (): string => {
   const tenantId = tenantStore.getTenantId();
@@ -67,9 +56,6 @@ const toNumber = (value?: string): number | undefined => {
 
 export const finishedGoodsStockService = {
   async getMeta(): Promise<FinishedGoodsStockMeta> {
-    if (useMock) {
-      return mockFinishedGoodsStockService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsStockMeta>('/api/v1/finished-goods/stock/meta', {
       params: { tenantId },
@@ -77,9 +63,6 @@ export const finishedGoodsStockService = {
     return data;
   },
   async getList(params: FinishedGoodsStockListParams): Promise<FinishedGoodsStockListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsStockService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsStockListResponse>('/api/v1/finished-goods/stock', {
       params: {
@@ -99,9 +82,6 @@ export const finishedGoodsStockService = {
 
 export const finishedGoodsPendingReceiptService = {
   async getMeta(): Promise<FinishedGoodsPendingReceiptMeta> {
-    if (useMock) {
-      return mockFinishedGoodsPendingReceiptService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsPendingReceiptMeta>(
       '/api/v1/finished-goods/pending-receipts/meta',
@@ -110,9 +90,6 @@ export const finishedGoodsPendingReceiptService = {
     return data;
   },
   async getList(params: FinishedGoodsPendingReceiptListParams): Promise<FinishedGoodsPendingReceiptListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsPendingReceiptService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsPendingReceiptListResponse>(
       '/api/v1/finished-goods/pending-receipts',
@@ -132,9 +109,6 @@ export const finishedGoodsPendingReceiptService = {
     return data;
   },
   async receive(payload: FinishedGoodsPendingReceiptReceivePayload): Promise<boolean> {
-    if (useMock) {
-      return mockFinishedGoodsPendingReceiptService.receive(payload);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.post<unknown>(
       '/api/v1/finished-goods/pending-receipts/receive',
@@ -151,9 +125,6 @@ export const finishedGoodsPendingReceiptService = {
 
 export const finishedGoodsReceivedService = {
   async getMeta(): Promise<FinishedGoodsReceivedMeta> {
-    if (useMock) {
-      return mockFinishedGoodsReceivedService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsReceivedMeta>('/api/v1/finished-goods/received/meta', {
       params: { tenantId },
@@ -161,9 +132,6 @@ export const finishedGoodsReceivedService = {
     return data;
   },
   async getList(params: FinishedGoodsReceivedListParams): Promise<FinishedGoodsReceivedListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsReceivedService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsReceivedListResponse>('/api/v1/finished-goods/received', {
       params: {
@@ -179,10 +147,6 @@ export const finishedGoodsReceivedService = {
     return data;
   },
   async update(id: string, payload: FinishedGoodsReceivedUpdatePayload): Promise<void> {
-    if (useMock) {
-      await mockFinishedGoodsReceivedService.update(id, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       `/api/v1/finished-goods/received/${id}/update`,
@@ -195,10 +159,6 @@ export const finishedGoodsReceivedService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    if (useMock) {
-      const response = await mockFinishedGoodsReceivedService.remove(ids);
-      return response.success ? ids.length : 0;
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/received/delete',
@@ -208,10 +168,6 @@ export const finishedGoodsReceivedService = {
     return data.removed;
   },
   async export(params: FinishedGoodsReceivedListParams): Promise<void> {
-    if (useMock) {
-      await mockFinishedGoodsReceivedService.export(params);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       '/api/v1/finished-goods/received/export',
@@ -231,9 +187,6 @@ export const finishedGoodsReceivedService = {
 
 export const finishedGoodsOtherInboundService = {
   async getMeta(): Promise<FinishedGoodsOtherInboundMeta> {
-    if (useMock) {
-      return mockFinishedGoodsOtherInboundService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsOtherInboundMeta>(
       '/api/v1/finished-goods/other-inbound/meta',
@@ -242,9 +195,6 @@ export const finishedGoodsOtherInboundService = {
     return data;
   },
   async getList(params: FinishedGoodsOtherInboundListParams): Promise<FinishedGoodsOtherInboundListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsOtherInboundService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsOtherInboundListResponse>(
       '/api/v1/finished-goods/other-inbound',
@@ -262,10 +212,6 @@ export const finishedGoodsOtherInboundService = {
     return data;
   },
   async create(payload: FinishedGoodsOtherInboundFormPayload): Promise<void> {
-    if (useMock) {
-      await mockFinishedGoodsOtherInboundService.create(payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       '/api/v1/finished-goods/other-inbound',
@@ -285,10 +231,6 @@ export const finishedGoodsOtherInboundService = {
     );
   },
   async update(id: string, payload: FinishedGoodsOtherInboundFormPayload): Promise<void> {
-    if (useMock) {
-      await mockFinishedGoodsOtherInboundService.update(id, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       `/api/v1/finished-goods/other-inbound/${id}/update`,
@@ -308,9 +250,6 @@ export const finishedGoodsOtherInboundService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    if (useMock) {
-      return mockFinishedGoodsOtherInboundService.remove(ids);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/other-inbound/delete',
@@ -323,9 +262,6 @@ export const finishedGoodsOtherInboundService = {
 
 export const finishedGoodsOutboundService = {
   async getMeta(): Promise<FinishedGoodsOutboundMeta> {
-    if (useMock) {
-      return mockFinishedGoodsOutboundService.getMeta();
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsOutboundMeta>('/api/v1/finished-goods/outbound/meta', {
       params: { tenantId },
@@ -333,9 +269,6 @@ export const finishedGoodsOutboundService = {
     return data;
   },
   async getList(params: FinishedGoodsOutboundListParams): Promise<FinishedGoodsOutboundListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsOutboundService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsOutboundListResponse>(
       '/api/v1/finished-goods/outbound',
@@ -358,9 +291,6 @@ export const finishedGoodsOutboundService = {
 
 export const finishedGoodsDispatchService = {
   async create(payload: FinishedGoodsDispatchCreatePayload): Promise<FinishedGoodsDispatchSummary> {
-    if (useMock) {
-      return mockFinishedGoodsOutboundService.createDispatch(payload);
-    }
     const tenantId = ensureTenantId();
     const requestBody: Record<string, unknown> = {
       warehouseId: Number(payload.warehouseId),
@@ -387,10 +317,6 @@ export const finishedGoodsDispatchService = {
     return data;
   },
   async update(id: string, payload: FinishedGoodsDispatchUpdatePayload): Promise<void> {
-    if (useMock) {
-      await mockFinishedGoodsOutboundService.updateDispatch(id, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(
       `/api/v1/finished-goods/dispatches/${id}/update`,
@@ -405,10 +331,6 @@ export const finishedGoodsDispatchService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    if (useMock) {
-      const result = await mockFinishedGoodsOutboundService.removeDispatches(ids);
-      return result.removed;
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/dispatches/delete',
@@ -421,9 +343,6 @@ export const finishedGoodsDispatchService = {
 
 export const finishedGoodsInventoryReportService = {
   async getOverview(params: FinishedGoodsInventoryQueryParams = {}): Promise<FinishedGoodsInventoryAggregation> {
-    if (useMock) {
-      return mockFinishedGoodsInventoryReportService.getOverview(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsInventoryAggregation>(
       '/api/v1/finished-goods/inventory/aggregation',
@@ -432,9 +351,6 @@ export const finishedGoodsInventoryReportService = {
     return data;
   },
   async getList(params: FinishedGoodsInventoryListParams): Promise<FinishedGoodsInventoryListResponse> {
-    if (useMock) {
-      return mockFinishedGoodsInventoryReportService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const { data } = await http.get<FinishedGoodsInventoryListResponse>(
       '/api/v1/finished-goods/inventory',

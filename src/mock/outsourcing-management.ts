@@ -4,6 +4,9 @@ import type {
   OutsourcingManagementListResponse,
   OutsourcingManagementMeta,
   OutsourcingManagementProcessorOption,
+  OutsourcingOrderDetail,
+  OutsourcingOrderReceipt,
+  OutsourcingMaterialRequestRecord,
 } from '../types/outsourcing-management';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -239,4 +242,90 @@ export const exportOutsourcingManagement = async (
   await delay(320);
   console.info('mock export outsourcing management with params', params);
   return { fileUrl: '/mock/outsourcing-management.xlsx' };
+};
+
+export const fetchOutsourcingManagementDetail = async (
+  id: string,
+): Promise<OutsourcingOrderDetail> => {
+  await delay(200);
+  const task = tasks.find((item) => item.id === id);
+  if (!task) {
+    throw new Error('Outsourcing order not found');
+  }
+  return buildDetailFromTask(task);
+};
+
+const buildDetailFromTask = (task: OutsourcingManagementListItem): OutsourcingOrderDetail => {
+  const receipts: OutsourcingOrderReceipt[] = task.receivedQty
+    ? [
+        {
+          id: `${task.id}-receipt-1`,
+          receivedQty: Math.round(task.receivedQty * 0.6),
+          defectQty: Math.round(task.receivedQty * 0.02),
+          reworkQty: Math.round(task.receivedQty * 0.01),
+          goodQty: Math.round(task.receivedQty * 0.57),
+          receivedAt: `${task.dispatchDate}T10:00:00Z`,
+          remark: '首批回货',
+        },
+        {
+          id: `${task.id}-receipt-2`,
+          receivedQty: task.receivedQty - Math.round(task.receivedQty * 0.6),
+          defectQty: 2,
+          reworkQty: 1,
+          goodQty: task.receivedQty - Math.round(task.receivedQty * 0.6) - 3,
+          receivedAt: `${task.dispatchDate}T18:00:00Z`,
+          remark: '尾批回货',
+        },
+      ]
+    : [];
+
+  const requests: OutsourcingMaterialRequestRecord[] = [
+    {
+      id: `${task.id}-req-1`,
+      materialId: 'FAB-001',
+      requestQuantity: Math.round(task.dispatchedQty * 0.1),
+      requestedAt: `${task.dispatchDate}T09:00:00Z`,
+      remark: '补充辅料',
+    },
+  ];
+
+  return {
+    id: task.id,
+    status: task.status,
+    outgoingNo: task.outgoingNo,
+    orderNo: task.orderNo,
+    styleNo: task.styleNo,
+    styleName: task.styleName,
+    processorName: task.processorName,
+    processStep: task.processStep,
+    dispatchQty: task.dispatchedQty,
+    receivedQty: task.receivedQty,
+    goodReceivedQty: receipts.reduce((sum, receipt) => sum + receipt.goodQty, 0),
+    attritionRate: task.attritionRate,
+    unitPrice: task.unitPrice,
+    totalCost: task.totalCost,
+    dispatchDate: task.dispatchDate,
+    expectedCompletionDate: task.expectedCompletionDate ?? undefined,
+    createdAt: `${task.dispatchDate}T08:00:00Z`,
+    updatedAt: `${task.dispatchDate}T20:00:00Z`,
+    progressPercent: task.dispatchedQty
+      ? Number(((task.receivedQty / task.dispatchedQty) * 100).toFixed(2))
+      : 0,
+    workOrder: {
+      id: `WO-${task.orderNo}`,
+      plannedQty: task.dispatchedQty,
+      completedQty: task.receivedQty,
+      status: task.receivedQty >= task.dispatchedQty ? 'COMPLETED' : 'IN_PROGRESS',
+      remark: 'Mock 数据仅供展示',
+    },
+    productionOrder: {
+      id: `PO-${task.orderNo}`,
+      orderNo: task.orderNo,
+      totalQuantity: task.dispatchedQty + 120,
+      completedQuantity: task.receivedQty,
+      expectedDelivery: task.expectedCompletionDate ?? task.dispatchDate,
+    },
+    receipts,
+    materialRequests: requests,
+  };
 };

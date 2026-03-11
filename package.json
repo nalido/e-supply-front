@@ -1,5 +1,5 @@
 {
-  "name": "mcp-dashboard",
+  "name": "e-sale-front",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "route:sweep": "node scripts/route_sweep.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.2",
@@ -37,6 +38,7 @@
     "globals": "^16.3.0",
     "less": "^4.4.1",
     "less-loader": "^12.3.0",
+    "playwright": "^1.57.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
     "vite": "^6.0.7"

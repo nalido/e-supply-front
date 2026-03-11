@@ -120,21 +120,24 @@ const SampleFollowNodeModal: React.FC<SampleFollowNodeModalProps> = ({
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
+      forceRender
     >
-      {node ? (
-        <Form form={form} layout="vertical">
-          <Form.Item label="节点名称">
-            <Text>{node.nodeName}</Text>
-          </Form.Item>
-          <Form.Item label="节点完成" name="completed" valuePropName="checked">
-            <Switch checkedChildren="完成" unCheckedChildren="待处理" />
-          </Form.Item>
-          {renderField()}
-        </Form>
-      ) : (
-        <Text type="secondary">请选择要编辑的节点</Text>
-      )}
+      <Form form={form} layout="vertical">
+        {node ? (
+          <>
+            <Form.Item label="节点名称">
+              <Text>{node.nodeName}</Text>
+            </Form.Item>
+            <Form.Item label="节点完成" name="completed" valuePropName="checked">
+              <Switch checkedChildren="完成" unCheckedChildren="待处理" />
+            </Form.Item>
+            {renderField()}
+          </>
+        ) : (
+          <Text type="secondary">请选择要编辑的节点</Text>
+        )}
+      </Form>
     </Modal>
   );
 };

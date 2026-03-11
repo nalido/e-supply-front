@@ -14,6 +14,7 @@ import type {
   SampleStats,
   SampleStatus,
 } from '../types/sample';
+import type { Paginated } from '../types/pagination';
 import type {
   BulkCostAggregation,
   BulkCostListParams,
@@ -130,6 +131,14 @@ import type {
   OrderProgressDetailsListResponse,
 } from '../types/order-progress-details-report';
 import type {
+  SequentialProcessListParams,
+  SequentialProcessListResponse,
+} from '../types/sequential-process-report';
+import type {
+  ReportDownloadListParams,
+  ReportDownloadListResponse,
+} from '../types/report-download-log';
+import type {
   ProcessProductionDetailParams,
   ProcessProductionDetailResponse,
   ProcessProductionExportParams,
@@ -137,16 +146,28 @@ import type {
   ProcessProductionLotListResponse,
 } from '../types/process-production-comparison-report';
 import type {
+  QualityControlCreatePayload,
   QualityControlExportParams,
   QualityControlListParams,
   QualityControlListResponse,
   QualityControlMeta,
+  QualityControlRecord,
+  QualityExceptionLog,
 } from '../types/quality-control-management';
 import type {
   SalaryListParams,
   SalaryListResponse,
   SalaryMeta,
   SalarySettlePayload,
+  SalaryTicketListParams,
+  SalaryTicketListResponse,
+  SalaryBatchAdjustPayload,
+  SalaryPayslipSendPayload,
+  SalaryPayslipSendResult,
+  SalaryScanStatistics,
+  SalaryScanStatisticsParams,
+  SalaryTicketDetailParams,
+  SalaryTicketDetailResponse,
 } from '../types/salary-management';
 import type {
   SampleCostAggregation,
@@ -223,20 +244,28 @@ import {
   exportOrderProgressDetails,
   fetchOrderProgressDetailsList,
 } from '../mock/order-progress-details-report';
+import { orderSequentialProcessReportService as mockOrderSequentialProcessReportService } from '../mock/order-sequential-process-report';
 import {
   exportProcessProductionMatrix,
   fetchProcessProductionDetails,
   fetchProcessProductionLots,
 } from '../mock/order-process-production-comparison-report';
 import {
+  createQualityControlRecord,
   exportQualityControlRecords,
+  fetchQualityControlDetail,
   fetchQualityControlList,
   fetchQualityControlMeta,
+  resolveQualityControlException,
 } from '../mock/quality-control-management';
 import {
   fetchSalaryList,
   fetchSalaryMeta,
+  fetchSalaryTickets,
   settleSalary,
+  applySalaryAdjustments,
+  sendSalaryPayslips,
+  fetchSalaryPayslipLogs,
 } from '../mock/salary-management';
 import {
   exportSampleCostList,
@@ -285,9 +314,11 @@ import {
 } from '../mock/product-inbound-pending';
 import {
   exportOutsourcingManagement,
+  fetchOutsourcingManagementDetail,
   fetchOutsourcingManagementList,
   fetchOutsourcingManagementMeta,
 } from '../mock/outsourcing-management';
+import { fetchReportDownloadLogs } from '../mock/report-download-logs';
 import {
   exportOutsourcingProductionReport,
   fetchOutsourcingProductionReportList,
@@ -356,11 +387,6 @@ import {
   fetchReconciliationDetailsList,
   fetchReconciliationDetailsMeta,
 } from '../mock/settlement-report-reconciliation-details';
-
-export type Paginated<T> = {
-  list: T[];
-  total: number;
-};
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -1941,6 +1967,27 @@ const qualityControlManagement = {
   ): Promise<{ fileUrl: string }> {
     return exportQualityControlRecords(params);
   },
+
+  async create(
+    payload: QualityControlCreatePayload,
+  ): Promise<QualityControlRecord> {
+    return createQualityControlRecord(payload);
+  },
+
+  async getDetail(id: string): Promise<QualityControlRecord> {
+    return fetchQualityControlDetail(id);
+  },
+
+  async resolveException(
+    id: string,
+    payload: QualityExceptionResolvePayload,
+  ): Promise<QualityControlRecord> {
+    return resolveQualityControlException(id, payload);
+  },
+
+  async getExceptionLogs(id: string): Promise<QualityExceptionLog[]> {
+    return fetchQualityExceptionLogs(id);
+  },
 };
 
 const salaryManagement = {
@@ -1958,6 +2005,42 @@ const salaryManagement = {
     payload: SalarySettlePayload,
   ): Promise<{ success: boolean }> {
     return settleSalary(payload);
+  },
+
+  async getTickets(
+    params: SalaryTicketListParams,
+  ): Promise<SalaryTicketListResponse> {
+    return fetchSalaryTickets(params);
+  },
+
+  async getPayslipLogs(
+    params: SalaryPayslipLogListParams,
+  ): Promise<SalaryPayslipLogResponse> {
+    return fetchSalaryPayslipLogs(params);
+  },
+
+  async applyAdjustments(
+    payload: SalaryBatchAdjustPayload,
+  ): Promise<{ success: boolean }> {
+    return applySalaryAdjustments(payload);
+  },
+
+  async sendPayslips(
+    payload: SalaryPayslipSendPayload,
+  ): Promise<SalaryPayslipSendResult> {
+    return sendSalaryPayslips(payload);
+  },
+
+  async getScanStatistics(
+    params: SalaryScanStatisticsParams,
+  ): Promise<SalaryScanStatistics> {
+    return fetchSalaryScanStatistics(params);
+  },
+
+  async getTicketDetails(
+    params: SalaryTicketDetailParams,
+  ): Promise<SalaryTicketDetailResponse> {
+    return fetchSalaryTicketDetails(params);
   },
 };
 
@@ -2083,6 +2166,22 @@ const orderTicketDetailsReport = {
     params: OrderTicketRecordListParams,
   ): Promise<{ fileUrl: string }> {
     return exportOrderTicketDetails(params);
+  },
+};
+
+const sequentialProcessReport = {
+  async getList(
+    params: SequentialProcessListParams,
+  ): Promise<SequentialProcessListResponse> {
+    return mockOrderSequentialProcessReportService.getList(params);
+  },
+};
+
+const reportDownloadLogs = {
+  async getList(
+    params: ReportDownloadListParams,
+  ): Promise<ReportDownloadListResponse> {
+    return fetchReportDownloadLogs(params);
   },
 };
 
@@ -2234,6 +2333,10 @@ const outsourcingManagement = {
     return fetchOutsourcingManagementList(params);
   },
 
+  async getDetail(id: string) {
+    return fetchOutsourcingManagementDetail(id);
+  },
+
   async export(
     params: OutsourcingManagementListParams,
   ): Promise<{ fileUrl: string }> {
@@ -2294,6 +2397,8 @@ export const sampleOrderComparisonReportService = sampleOrderComparisonReport;
 export const stockingPurchaseInboundService = stockingPurchaseInbound;
 export const orderProgressDetailsReportService = orderProgressDetailsReport;
 export const orderTicketDetailsReportService = orderTicketDetailsReport;
+export const orderSequentialProcessReportService = sequentialProcessReport;
+export const reportDownloadLogService = reportDownloadLogs;
 export const outsourcingCuttingDetailReportService = outsourcingCuttingDetailReport;
 export const outsourcingManagementService = outsourcingManagement;
 export const outsourcingProductionReportService = outsourcingProductionReport;

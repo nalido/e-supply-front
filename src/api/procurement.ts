@@ -12,12 +12,8 @@ import type {
   StockingReceiptRecord,
   StockingReceiptListResponse,
 } from '../types/stocking-purchase-inbound';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import { stockingPurchaseInboundService as mockStockingService } from './mock';
-
-const useMock = apiConfig.useMock;
 
 type BackendProcurementOrderSummary = {
   id: string;
@@ -45,17 +41,11 @@ const adaptOrderSummary = (data: BackendProcurementOrderSummary): ProcurementOrd
 
 export const stockingPurchaseInboundService = {
   async getMeta(): Promise<StockingPurchaseMeta> {
-    if (useMock) {
-      return mockStockingService.getMeta();
-    }
     const response = await http.get<StockingPurchaseMeta>('/api/v1/procurement/stocking/meta');
     return response.data;
   },
 
   async getList(params: StockingPurchaseListParams): Promise<StockingPurchaseListResponse> {
-    if (useMock) {
-      return mockStockingService.getList(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<StockingPurchaseListResponse>('/api/v1/procurement/stocking', {
       params: {
@@ -71,9 +61,6 @@ export const stockingPurchaseInboundService = {
   },
 
   async batchReceive(payload: StockingBatchReceivePayload): Promise<{ success: boolean }> {
-    if (useMock) {
-      return mockStockingService.batchReceive(payload);
-    }
     const tenantId = ensureTenantId();
     const orderIds = payload.orderIds
       .map((id) => Number(id))
@@ -87,9 +74,6 @@ export const stockingPurchaseInboundService = {
   },
 
   async setStatus(payload: StockingStatusUpdatePayload): Promise<{ success: boolean }> {
-    if (useMock) {
-      return mockStockingService.setStatus(payload);
-    }
     const tenantId = ensureTenantId();
     const orderIds = payload.orderIds
       .map((id) => Number(id))
@@ -106,9 +90,6 @@ export const stockingPurchaseInboundService = {
   },
 
   async export(params: StockingPurchaseExportParams): Promise<{ fileUrl: string }> {
-    if (useMock) {
-      return mockStockingService.export(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/procurement/stocking/export',
@@ -123,9 +104,6 @@ export const stockingPurchaseInboundService = {
   },
 
   async createOrder(payload: StockingPurchaseCreatePayload): Promise<ProcurementOrderSummary> {
-    if (useMock) {
-      return mockStockingService.createOrder(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendProcurementOrderSummary>(
       '/api/v1/procurement/orders',
@@ -151,9 +129,6 @@ export const stockingPurchaseInboundService = {
     orderId: string,
     payload: StockingReceivePayload,
   ): Promise<ProcurementReceiptSummary> {
-    if (useMock) {
-      return mockStockingService.receive(orderId, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<ProcurementReceiptSummary>(
       `/api/v1/procurement/orders/${orderId}/receive`,
@@ -176,9 +151,6 @@ export const stockingPurchaseInboundService = {
   },
 
   async getReceipts(params: { orderId: string; lineId?: string }): Promise<StockingReceiptRecord[]> {
-    if (useMock) {
-      return mockStockingService.getReceipts(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<StockingReceiptListResponse>(
       `/api/v1/procurement/stocking/orders/${params.orderId}/receipts`,

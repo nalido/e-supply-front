@@ -69,10 +69,10 @@ const MainLayout = () => {
         >
           <img
             src="/assets/images/logo.png"
-            alt="易供云"
+            alt="易销云"
             style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6 }}
           />
-          易供云
+          易销云
         </div>
         <Menu
           theme="dark"

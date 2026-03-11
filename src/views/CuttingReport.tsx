@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import { DatePicker, Input, Space, Table, Tag, Typography, Button, message } from 'antd';
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
-import dayjs, { type Dayjs } from 'dayjs';
+import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import type { Dayjs } from 'dayjs';
 import type { CuttingReportDataset, CuttingReportRecord } from '../types';
 import { pieceworkService } from '../api/piecework';
 import '../styles/cutting-report.css';
@@ -16,6 +16,8 @@ const initialDataset: CuttingReportDataset = {
   list: [],
   total: 0,
   summary: { cuttingQuantity: 0, ticketQuantity: 0 },
+  page: 1,
+  pageSize: 10,
 };
 
 const toNumber = (value: number) => value.toLocaleString('zh-CN');
@@ -28,72 +30,58 @@ const CuttingReportPage = () => {
   const [cutterKeyword, setCutterKeyword] = useState('');
   const [remarkKeyword, setRemarkKeyword] = useState('');
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>(null);
+  const [appliedFilters, setAppliedFilters] = useState({
+    orderKeyword: '',
+    styleKeyword: '',
+    cutterKeyword: '',
+    remarkKeyword: '',
+    startDate: undefined as string | undefined,
+    endDate: undefined as string | undefined,
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    pieceworkService
-      .getCuttingReport()
-      .then((data) => {
-        setDataset(data);
-        setPage(1);
-      })
-      .catch(() => {
-        message.error('获取裁床报表失败，请稍后重试');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  const filteredRecords = useMemo(() => {
-    const orderToken = orderKeyword.trim().toLowerCase();
-    const styleToken = styleKeyword.trim().toLowerCase();
-    const cutterToken = cutterKeyword.trim().toLowerCase();
-    const remarkToken = remarkKeyword.trim().toLowerCase();
-
-    return dataset.list.filter((record) => {
-      const matchesOrder = !orderToken || record.orderCode.toLowerCase().includes(orderToken);
-      const matchesStyle =
-        !styleToken ||
-        record.styleCode.toLowerCase().includes(styleToken) ||
-        record.styleName.toLowerCase().includes(styleToken);
-      const matchesCutter = !cutterToken || record.cutter.toLowerCase().includes(cutterToken);
-      const matchesRemark =
-        !remarkToken ||
-        (record.orderRemark && record.orderRemark.toLowerCase().includes(remarkToken)) ||
-        (record.cuttingRemark && record.cuttingRemark.toLowerCase().includes(remarkToken));
-      const matchesDate = (() => {
-        if (!dateRange || !dateRange[0] || !dateRange[1]) {
-          return true;
+    let cancelled = false;
+    const fetchReport = async () => {
+      setLoading(true);
+      try {
+        const response = await pieceworkService.getCuttingReport({
+          page,
+          pageSize,
+          orderKeyword: appliedFilters.orderKeyword,
+          styleKeyword: appliedFilters.styleKeyword,
+          cutterKeyword: appliedFilters.cutterKeyword,
+          remarkKeyword: appliedFilters.remarkKeyword,
+          startDate: appliedFilters.startDate,
+          endDate: appliedFilters.endDate,
+        });
+        if (!cancelled) {
+          setDataset(response);
+          if (response.page !== page) {
+            setPage(response.page);
+          }
+          if (response.pageSize !== pageSize) {
+            setPageSize(response.pageSize);
+          }
         }
-        const recordDate = dayjs(record.date);
-        return (
-          recordDate.isSame(dateRange[0], 'day') ||
-          recordDate.isSame(dateRange[1], 'day') ||
-          (recordDate.isAfter(dateRange[0], 'day') && recordDate.isBefore(dateRange[1], 'day'))
-        );
-      })();
-
-      return matchesOrder && matchesStyle && matchesCutter && matchesRemark && matchesDate;
-    });
-  }, [dataset.list, orderKeyword, styleKeyword, cutterKeyword, remarkKeyword, dateRange]);
-
-  const cuttingTotal = useMemo(
-    () => filteredRecords.reduce((sum, record) => sum + record.cuttingQuantity, 0),
-    [filteredRecords],
-  );
-
-  const ticketTotal = useMemo(
-    () => filteredRecords.reduce((sum, record) => sum + record.ticketQuantity, 0),
-    [filteredRecords],
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [orderKeyword, styleKeyword, cutterKeyword, remarkKeyword, dateRange]);
+      } catch (error) {
+        console.error('failed to load cutting report', error);
+        if (!cancelled) {
+          message.error('获取裁床报表失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    void fetchReport();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, appliedFilters]);
 
   const handleReset = () => {
     setOrderKeyword('');
@@ -101,20 +89,40 @@ const CuttingReportPage = () => {
     setCutterKeyword('');
     setRemarkKeyword('');
     setDateRange(null);
+    setAppliedFilters({
+      orderKeyword: '',
+      styleKeyword: '',
+      cutterKeyword: '',
+      remarkKeyword: '',
+      startDate: undefined,
+      endDate: undefined,
+    });
+    setPage(1);
+  };
+
+  const handleApplyFilters = () => {
+    setAppliedFilters({
+      orderKeyword: orderKeyword.trim(),
+      styleKeyword: styleKeyword.trim(),
+      cutterKeyword: cutterKeyword.trim(),
+      remarkKeyword: remarkKeyword.trim(),
+      startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
+      endDate: dateRange?.[1]?.format('YYYY-MM-DD'),
+    });
+    setPage(1);
   };
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      const params = {
-        orderKeyword: orderKeyword || undefined,
-        styleKeyword: styleKeyword || undefined,
-        cutterKeyword: cutterKeyword || undefined,
-        remarkKeyword: remarkKeyword || undefined,
-        startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
-        endDate: dateRange?.[1]?.format('YYYY-MM-DD'),
-      };
-      const { fileUrl } = await pieceworkService.exportCuttingReport(params);
+      const { fileUrl } = await pieceworkService.exportCuttingReport({
+        orderKeyword: appliedFilters.orderKeyword,
+        styleKeyword: appliedFilters.styleKeyword,
+        cutterKeyword: appliedFilters.cutterKeyword,
+        remarkKeyword: appliedFilters.remarkKeyword,
+        startDate: appliedFilters.startDate,
+        endDate: appliedFilters.endDate,
+      });
       message.success('导出任务已开始，请在服务器 logs/exports 目录查看');
       if (fileUrl) {
         console.info('cutting report export file', fileUrl);
@@ -304,12 +312,15 @@ const CuttingReportPage = () => {
         </div>
         <div className="cutting-report-toolbar">
           <Space size={12} wrap>
+            <Button type="primary" icon={<SearchOutlined />} onClick={handleApplyFilters}>
+              查询
+            </Button>
             <Button icon={<ReloadOutlined />} onClick={handleReset}>重置条件</Button>
-            <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
+            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
               按当前条件全部导出
             </Button>
           </Space>
-          <Text type="secondary">匹配 {filteredRecords.length} 条裁床单</Text>
+          <Text type="secondary">匹配 {dataset.total} 条裁床单</Text>
         </div>
       </section>
 
@@ -319,11 +330,11 @@ const CuttingReportPage = () => {
           rowKey={(record) => record.id}
           loading={loading}
           columns={columns}
-          dataSource={filteredRecords}
+          dataSource={dataset.list}
           pagination={{
             current: page,
             pageSize,
-            total: filteredRecords.length,
+            total: dataset.total,
             showSizeChanger: true,
             showQuickJumper: true,
             pageSizeOptions: [10, 20, 30],
@@ -341,10 +352,10 @@ const CuttingReportPage = () => {
                   <Text strong>合计</Text>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={12} align="right">
-                  <Text>{`${toNumber(cuttingTotal)} 件`}</Text>
+                  <Text>{`${toNumber(dataset.summary.cuttingQuantity)} 件`}</Text>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={13} align="right">
-                  <Text>{`${toNumber(ticketTotal)} 张`}</Text>
+                  <Text>{`${toNumber(dataset.summary.ticketQuantity)} 张`}</Text>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={14} />
                 <Table.Summary.Cell index={15} />

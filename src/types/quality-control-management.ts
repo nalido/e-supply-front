@@ -1,7 +1,10 @@
 export type QualityInspectionStatus = 'passed' | 'failed' | 'rework';
 
+export type QualityExceptionStatus = 'none' | 'pending' | 'resolved';
+
 export type QualityControlRecord = {
   id: string;
+  workOrderId: string;
   qcDate: string;
   orderNumber: string;
   styleNumber: string;
@@ -15,14 +18,22 @@ export type QualityControlRecord = {
   defectReason?: string;
   disposition: 'accepted' | 'rework' | 'scrap';
   inspector: string;
+  inspectorId?: string;
+  exceptionStatus?: QualityExceptionStatus;
+  exceptionNote?: string;
+  exceptionHandledBy?: string;
+  exceptionHandledAt?: string;
 };
+
+export type QualityDisposition = 'accepted' | 'rework' | 'scrap';
 
 export type QualityControlListParams = {
   page: number;
   pageSize: number;
   keyword?: string;
+  workOrderId?: string;
   status?: QualityInspectionStatus | 'all';
-  inspector?: string;
+  inspectorId?: string;
   startDate?: string;
   endDate?: string;
 };
@@ -30,6 +41,8 @@ export type QualityControlListParams = {
 export type QualityControlListResponse = {
   list: QualityControlRecord[];
   total: number;
+  page: number;
+  pageSize: number;
   summary: {
     inspectedQty: number;
     passedQty: number;
@@ -45,3 +58,27 @@ export type QualityControlMeta = {
 };
 
 export type QualityControlExportParams = Omit<QualityControlListParams, 'page' | 'pageSize'>;
+
+export type QualityControlCreatePayload = {
+  workOrderId: string;
+  inspectorId: string;
+  qcDate: string;
+  inspectedQty: number;
+  passedQty: number;
+  failedQty: number;
+  defectReason?: string;
+  disposition: QualityDisposition;
+};
+
+export type QualityExceptionResolvePayload = {
+  note?: string;
+};
+
+export type QualityExceptionLog = {
+  id: string;
+  status: QualityExceptionStatus;
+  note?: string;
+  handledBy?: string;
+  handledByName?: string;
+  createdAt?: string;
+};

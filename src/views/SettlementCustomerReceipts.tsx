@@ -23,7 +23,7 @@ import type {
   CustomerReceiptPayload,
   CustomerReceiptRecord,
 } from '../types/settlement-customer-receipts';
-import { customerReceiptService } from '../api/mock';
+import { customerReceiptService } from '../api/settlement';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -262,7 +262,7 @@ const SettlementCustomerReceipts = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false} loading={metaLoading}>
+      <Card variant="borderless" loading={metaLoading}>
         <Space size={16} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
           <Statistic
             title="应收合计"
@@ -286,7 +286,7 @@ const SettlementCustomerReceipts = () => {
           />
         </Space>
       </Card>
-      <Card bordered={false}>
+      <Card variant="borderless">
         <Space style={{ marginBottom: 16 }} wrap>
           <Input
             allowClear
@@ -340,7 +340,7 @@ const SettlementCustomerReceipts = () => {
         onCancel={handleModalCancel}
         onOk={handleModalOk}
         confirmLoading={modalSubmitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form<ReceiptFormValues> form={form} layout="vertical" preserve={false}>
           <Form.Item

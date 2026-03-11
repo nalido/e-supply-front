@@ -23,6 +23,7 @@ import type {
   MaterialBasicType,
   MaterialDataset,
   MaterialItem,
+  MaterialUnit,
 } from '../types';
 import '../styles/material-archive.css';
 
@@ -164,21 +165,90 @@ const MaterialArchive = () => {
     setImportModal({ open: true, loading: false, fileList: [] });
   };
 
+  const parseMaterialCsv = (content: string, materialType: MaterialBasicType): CreateMaterialPayload[] => {
+    const lines = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length <= 1) {
+      return [];
+    }
+    const header = splitCsvLine(lines[0]);
+    const headerMap = new Map<string, number>();
+    header.forEach((label, index) => headerMap.set(label, index));
+    const getValue = (row: string[], label: string) => {
+      const idx = headerMap.get(label);
+      return idx !== undefined ? row[idx]?.trim() ?? '' : '';
+    };
+    const defaultUnit = materialType === 'fabric' ? '米' : '个';
+    return lines
+      .slice(1)
+      .map(splitCsvLine)
+      .map((row) => {
+        const name = getValue(row, '名称');
+        if (!name) {
+          return null;
+        }
+        const priceValue = Number(getValue(row, '单价'));
+        const colorsValue = getValue(row, '颜色');
+        const colors = colorsValue
+          ? colorsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
+          : undefined;
+        return {
+          name,
+          materialType,
+          unit: (getValue(row, '用量单位') || defaultUnit) as MaterialUnit,
+          price: Number.isFinite(priceValue) ? priceValue : undefined,
+          width: getValue(row, '幅宽') || undefined,
+          grammage: getValue(row, '克重') || undefined,
+          tolerance: getValue(row, '空差') || undefined,
+          colors,
+          remarks: getValue(row, '备注') || undefined,
+        } as CreateMaterialPayload;
+      })
+      .filter((item): item is CreateMaterialPayload => item !== null);
+  };
+
+  const splitCsvLine = (line: string) => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result.map((value) => value.trim());
+  };
+
   const handleStartImport = async () => {
     setImportModal((prev) => ({ ...prev, loading: true }));
     try {
-      const mockPayload: CreateMaterialPayload[] = [
-        {
-          name: `${activeTab === 'fabric' ? '导入面料' : '导入辅料'}-${Date.now().toString().slice(-4)}`,
-          materialType: activeTab,
-          unit: activeTab === 'fabric' ? '米' : '个',
-          price: activeTab === 'fabric' ? 18.6 : 0.42,
-          width: activeTab === 'fabric' ? '145cm' : undefined,
-          colors: activeTab === 'fabric' ? ['默认色'] : ['黑色'],
-          remarks: `来自导入文件 ${importModal.fileList[0]?.name ?? ''}`.trim(),
-        },
-      ];
-      const count = await materialApi.import(mockPayload, activeTab);
+      const file = importModal.fileList[0]?.originFileObj as File | undefined;
+      if (!file) {
+        message.warning('请先选择导入文件');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        message.error('目前仅支持 CSV 模板导入');
+        return;
+      }
+      const text = await file.text();
+      const payloads = parseMaterialCsv(text, activeTab);
+      if (payloads.length === 0) {
+        message.error('未解析到有效的导入数据');
+        return;
+      }
+      const count = await materialApi.import(payloads, activeTab);
       fetchList({ page: 1, pageSize, keyword });
       setImportModal({ open: false, loading: false, fileList: [] });
       Modal.success({

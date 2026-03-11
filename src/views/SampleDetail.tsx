@@ -40,7 +40,6 @@ import type {
   SampleProcessItem,
 } from '../types/sample-detail';
 import sampleOrderApi from '../api/sample-order';
-import { apiConfig } from '../api/config';
 import SampleOrderFormModal, { type SampleOrderFormSection } from '../components/sample/SampleOrderFormModal';
 import DonutChart from '../components/charts/DonutChart';
 
@@ -115,8 +114,6 @@ const SampleDetail = () => {
     return () => observer.disconnect();
   }, []);
 
-  const isMockMode = apiConfig.useMock;
-
   const sampleId = searchParams.get('id') ?? '';
 
   const loadDetail = useCallback(async () => {
@@ -165,13 +162,9 @@ const SampleDetail = () => {
       message.warning('缺少样板单 ID，无法编辑');
       return;
     }
-    if (isMockMode) {
-      message.info('当前为 Mock 数据，暂不支持编辑');
-      return;
-    }
     setInitialEditSection(section);
     setEditModalVisible(true);
-  }, [isMockMode, sampleId]);
+  }, [sampleId]);
 
   const handleEdit = useCallback(() => {
     openEditModal('core');
@@ -577,7 +570,7 @@ const SampleDetail = () => {
             <Card
               id={SECTION_IDS.bom}
               title="详细信息"
-              bodyStyle={{ paddingTop: 12 }}
+              styles={{ body: { paddingTop: 12 } }}
             >
               <Tabs
                 activeKey={activeDetailTab}
@@ -747,7 +740,7 @@ const SampleDetail = () => {
                 <Col xs={24} md={12}>
                   <Row gutter={[16, 16]}>
                     <Col span={12}>
-                      <Card bordered={false} style={{ background: '#f5f9ff' }}>
+                      <Card variant="borderless" style={{ background: '#f5f9ff' }}>
                         <Statistic
                           title="报价单件成本"
                           value={detail.cost.totalQuotedPrice}
@@ -757,7 +750,7 @@ const SampleDetail = () => {
                       </Card>
                     </Col>
                     <Col span={12}>
-                      <Card bordered={false} style={{ background: '#f8f5ff' }}>
+                      <Card variant="borderless" style={{ background: '#f8f5ff' }}>
                         <Statistic
                           title="开发费用"
                           value={detail.cost.developmentFee}

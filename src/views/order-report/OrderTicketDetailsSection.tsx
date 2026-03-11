@@ -174,9 +174,10 @@ const OrderTicketDetailsSection = () => {
         lotId: activeLot.id,
         keyword: recordKeyword || undefined,
       });
-      message.success('导出任务已生成，请在日志目录查看生成的文件');
       if (fileUrl) {
-        console.info('ticket records export file', fileUrl);
+        message.success(`已生成导出文件：${fileUrl}`);
+      } else {
+        message.success('导出任务已生成，请在日志目录查看生成的文件');
       }
     } catch (error) {
       console.error('failed to export ticket records', error);
@@ -366,7 +367,7 @@ const OrderTicketDetailsSection = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
-        bordered={false}
+        variant="borderless"
         title="裁床批次"
         extra={
           <Space size={8}>
@@ -405,7 +406,7 @@ const OrderTicketDetailsSection = () => {
       </Card>
 
       <Card
-        bordered={false}
+        variant="borderless"
         title="计菲明细"
         extra={
           <Space size={8}>

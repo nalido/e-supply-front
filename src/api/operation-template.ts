@@ -5,17 +5,8 @@ import type {
   SaveOperationTemplatePayload,
   UpdateOperationTemplatePayload,
 } from '../types';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  createOperationTemplate as mockCreateOperationTemplate,
-  listOperationTemplates as mockListOperationTemplates,
-  removeOperationTemplate as mockRemoveOperationTemplate,
-  updateOperationTemplate as mockUpdateOperationTemplate,
-} from '../mock/operation-template';
-
-const useMock = apiConfig.useMock;
 
 type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 
@@ -111,9 +102,6 @@ const buildOperationsPayload = (
 
 export const operationTemplateApi = {
   list: async (params: OperationTemplateListParams): Promise<OperationTemplateDataset> => {
-    if (useMock) {
-      return mockListOperationTemplates(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendPageResponse<BackendOperationTemplateResponse>>(
       '/api/v1/operation-templates',
@@ -132,9 +120,6 @@ export const operationTemplateApi = {
     };
   },
   create: async (payload: SaveOperationTemplatePayload): Promise<OperationTemplate> => {
-    if (useMock) {
-      return mockCreateOperationTemplate(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendOperationTemplateResponse>('/api/v1/operation-templates', {
       tenantId,
@@ -145,9 +130,6 @@ export const operationTemplateApi = {
     return adaptTemplate(response.data);
   },
   update: async (id: string, payload: UpdateOperationTemplatePayload): Promise<OperationTemplate | undefined> => {
-    if (useMock) {
-      return mockUpdateOperationTemplate(id, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendOperationTemplateResponse>(
       `/api/v1/operation-templates/${id}/update`,
@@ -161,9 +143,6 @@ export const operationTemplateApi = {
     return adaptTemplate(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    if (useMock) {
-      return mockRemoveOperationTemplate(id);
-    }
     const tenantId = ensureTenantId();
     await http.delete(`/api/v1/operation-templates/${id}`, {
       params: { tenantId },

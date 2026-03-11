@@ -334,7 +334,7 @@ const OutsourceOrders = () => {
 
   return (
     <div className="outsource-orders-page">
-      <Card bordered={false} className="outsource-orders-card">
+      <Card variant="borderless" className="outsource-orders-card">
         <div className="outsource-orders-action-bar">
           <Title level={4} className="outsource-orders-title">外发订单</Title>
           <Space size={12} wrap>
@@ -416,7 +416,7 @@ const OutsourceOrders = () => {
         onOk={handleReceiptSubmit}
         okText="确认收货"
         confirmLoading={bulkUpdating}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={receiptForm} layout="vertical" preserve={false}>
           <Form.Item
@@ -442,7 +442,7 @@ const OutsourceOrders = () => {
         onOk={handleMaterialSubmit}
         okText="提交申请"
         confirmLoading={rowActionLoading === materialTarget?.id}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={materialForm} layout="vertical" preserve={false}>
           <Form.Item

@@ -1,15 +1,30 @@
 import type {
+  QualityControlCreatePayload,
   QualityControlExportParams,
   QualityControlListParams,
   QualityControlListResponse,
   QualityControlMeta,
   QualityControlRecord,
+  QualityExceptionResolvePayload,
+  QualityExceptionStatus,
+  QualityExceptionLog,
   QualityInspectionStatus,
 } from '../types/quality-control-management';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const dataset: Array<QualityControlRecord & { status: QualityInspectionStatus }> = [
+type MockQualityRecord = QualityControlRecord & {
+  status: QualityInspectionStatus;
+  exceptionStatus?: QualityExceptionStatus;
+};
+
+const inspectorIdMap: Record<string, string> = {
+  林珊: '2001',
+  王婷: '2002',
+  郭诚: '2003',
+};
+
+const rawDataset: Array<Omit<MockQualityRecord, 'workOrderId' | 'inspectorId'>> = [
   {
     id: 'qc-20240506-001',
     qcDate: '2024-05-06',
@@ -211,6 +226,25 @@ const dataset: Array<QualityControlRecord & { status: QualityInspectionStatus }>
   },
 ];
 
+const dataset: MockQualityRecord[] = rawDataset.map((record, index) => ({
+  ...record,
+  workOrderId: String(1000 + index),
+  inspectorId: inspectorIdMap[record.inspector] ?? '',
+}));
+
+const exceptionLogStore: Record<string, QualityExceptionLog[]> = {
+  'qc-20240506-001': [
+    {
+      id: 'log-qc-20240506-001-1',
+      status: 'pending',
+      note: '次品返工待复检',
+      handledBy: '998',
+      handledByName: '林珊',
+      createdAt: '2024-05-06T11:20:00.000Z',
+    },
+  ],
+};
+
 const meta: QualityControlMeta = {
   statusOptions: [
     { label: '全部状态', value: 'all' },
@@ -220,9 +254,9 @@ const meta: QualityControlMeta = {
   ],
   inspectorOptions: [
     { label: '全部质检员', value: '' },
-    { label: '林珊', value: '林珊' },
-    { label: '王婷', value: '王婷' },
-    { label: '郭诚', value: '郭诚' },
+    { label: '林珊', value: inspectorIdMap['林珊'] },
+    { label: '王婷', value: inspectorIdMap['王婷'] },
+    { label: '郭诚', value: inspectorIdMap['郭诚'] },
   ],
   defaultStatus: 'all',
 };
@@ -251,6 +285,7 @@ const matchesKeyword = (record: QualityControlRecord, keyword: string): boolean 
     return true;
   }
   return [
+    record.workOrderId,
     record.orderNumber,
     record.styleNumber,
     record.styleName,
@@ -303,7 +338,10 @@ export const fetchQualityControlList = async (
     if (params.status && params.status !== 'all' && record.status !== params.status) {
       return false;
     }
-    if (params.inspector && record.inspector !== params.inspector) {
+    if (params.workOrderId && record.workOrderId !== params.workOrderId) {
+      return false;
+    }
+    if (params.inspectorId && record.inspectorId !== params.inspectorId) {
       return false;
     }
     if (!matchesKeyword(record, keyword)) {
@@ -315,7 +353,8 @@ export const fetchQualityControlList = async (
   const start = (params.page - 1) * params.pageSize;
   const end = start + params.pageSize;
   const list = filtered.slice(start, end).map((record) => {
-    const { status: statusToOmit, ...rest } = record;
+    const cloned = cloneRecord(record);
+    const { status: statusToOmit, ...rest } = cloned;
     void statusToOmit;
     return rest;
   });
@@ -324,6 +363,8 @@ export const fetchQualityControlList = async (
     list,
     total: filtered.length,
     summary: summarise(filtered),
+    page: params.page,
+    pageSize: params.pageSize,
   };
 };
 
@@ -333,4 +374,126 @@ export const exportQualityControlRecords = async (
   await delay(240);
   void _params;
   return { fileUrl: '/mock/exports/quality-control-records.xlsx' };
+};
+
+export const createQualityControlRecord = async (
+  payload: QualityControlCreatePayload,
+): Promise<QualityControlRecord> => {
+  await delay(280);
+  const status: QualityInspectionStatus =
+      payload.disposition === 'accepted'
+        ? 'passed'
+        : payload.disposition === 'scrap'
+          ? 'failed'
+          : 'rework';
+  const qcDate = payload.qcDate ? payload.qcDate.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const workOrderIdValue = payload.workOrderId?.trim() || String(Date.now());
+  const inspectorIdValue = payload.inspectorId ? String(payload.inspectorId) : '';
+  const inspectorName =
+    meta.inspectorOptions.find((option) => option.value === inspectorIdValue)?.label ||
+    inspectorIdValue ||
+    '系统录入';
+  const record: QualityControlRecord & { status: QualityInspectionStatus } = {
+    id: `qc-${Date.now()}`,
+    workOrderId: workOrderIdValue,
+    qcDate,
+    orderNumber: `WO-${workOrderIdValue}`,
+    styleNumber: '新建款式',
+    styleName: '系统录入工单',
+    processName: '待分配工序',
+    ticketNo: `FP-${workOrderIdValue}`,
+    worker: '系统录入',
+    inspectedQty: payload.inspectedQty,
+    passedQty: payload.passedQty,
+    failedQty: payload.failedQty,
+    defectReason: payload.defectReason,
+    disposition: payload.disposition === 'scrap' ? 'scrap' : payload.disposition === 'rework' ? 'rework' : 'accepted',
+    inspector: inspectorName,
+    inspectorId: inspectorIdValue,
+    status,
+    exceptionStatus: status === 'passed' ? 'none' : 'pending',
+  };
+  dataset.unshift(record);
+  if (record.exceptionStatus && record.exceptionStatus !== 'none') {
+    appendExceptionLog(record.id, {
+      id: `log-${record.id}-pending`,
+      status: 'pending',
+      note: record.defectReason ?? '录入质检',
+      handledBy: inspectorIdValue || undefined,
+      handledByName: inspectorName,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  const { status: omittedStatus, ...rest } = record;
+  void omittedStatus;
+  return rest;
+};
+
+const ensureExceptionStatus = (
+  record: QualityControlRecord & { exceptionStatus?: QualityExceptionStatus },
+) => {
+  if (!record.exceptionStatus) {
+    record.exceptionStatus = record.disposition === 'accepted' ? 'none' : 'pending';
+  }
+  return record;
+};
+
+const cloneRecord = (
+  record: QualityControlRecord & { status: QualityInspectionStatus; exceptionStatus?: QualityExceptionStatus },
+) => {
+  const enriched = ensureExceptionStatus(record);
+  return { ...enriched };
+};
+
+export const fetchQualityControlDetail = async (id: string): Promise<QualityControlRecord> => {
+  await delay(200);
+  const record = dataset.find((item) => item.id === id);
+  if (!record) {
+    throw new Error('Record not found');
+  }
+  const cloned = cloneRecord(record);
+  const { status: resolvedStatus, ...rest } = cloned;
+  void resolvedStatus;
+  return rest;
+};
+
+export const resolveQualityControlException = async (
+  id: string,
+  payload: QualityExceptionResolvePayload,
+): Promise<QualityControlRecord> => {
+  await delay(220);
+  const record = dataset.find((item) => item.id === id);
+  if (!record) {
+    throw new Error('Record not found');
+  }
+  record.exceptionStatus = 'resolved';
+  record.exceptionNote = payload.note ?? 'Mock 已处理';
+  record.exceptionHandledBy = 'Mock Handler';
+  record.exceptionHandledAt = new Date().toISOString();
+  appendExceptionLog(id, {
+    id: `log-${id}-resolved-${Date.now()}`,
+    status: 'resolved',
+    note: payload.note ?? 'Mock 已处理',
+    handledBy: 'Mock Handler',
+    handledByName: 'Mock Handler',
+    createdAt: record.exceptionHandledAt,
+  });
+  const cloned = cloneRecord(record);
+  const { status: _status, ...rest } = cloned;
+  void _status;
+  return rest;
+};
+
+export const fetchQualityExceptionLogs = async (
+  id: string,
+): Promise<QualityExceptionLog[]> => {
+  await delay(180);
+  return exceptionLogStore[id]?.slice() ?? [];
+};
+
+const appendExceptionLog = (inspectionId: string, log: QualityExceptionLog) => {
+  if (!exceptionLogStore[inspectionId]) {
+    exceptionLogStore[inspectionId] = [];
+  }
+  exceptionLogStore[inspectionId].push(log);
 };

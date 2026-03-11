@@ -9,24 +9,9 @@ import type {
   OutsourceOrderStatus,
   OutsourceReceiptPayload,
 } from '../types';
-import type { Paginated } from './mock';
-import { apiConfig } from './config';
+import type { Paginated } from '../types/pagination';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  acceptIncomingOrder as mockAcceptIncomingOrder,
-  confirmOutsourceReceipt as mockConfirmOutsourceReceipt,
-  listIncomingOrderClients,
-  listIncomingOrders as mockListIncomingOrders,
-  listOutsourceOrders as mockListOutsourceOrders,
-  rejectIncomingOrder as mockRejectIncomingOrder,
-  requestOutsourceMaterial as mockRequestOutsourceMaterial,
-  setIncomingOrdersStatus as mockSetIncomingOrdersStatus,
-  setOutsourceOrdersStatus as mockSetOutsourceOrdersStatus,
-  shipIncomingOrder as mockShipIncomingOrder,
-} from '../mock/collaboration';
-
-const useMock = apiConfig.useMock;
 
 type BackendIncomingOrder = {
   id: string;
@@ -254,9 +239,6 @@ const bulkIncomingStatusRequest = (
 
 export const collaborationApi = {
   listIncomingOrders: async (params: IncomingOrderListParams): Promise<Paginated<IncomingOrder>> => {
-    if (useMock) {
-      return mockListIncomingOrders(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendIncomingOrderListResponse>(
       '/api/v1/collaboration/incoming-orders',
@@ -277,41 +259,22 @@ export const collaborationApi = {
     };
   },
   acceptIncomingOrder: async (orderId: string): Promise<void> => {
-    if (useMock) {
-      await mockAcceptIncomingOrder(orderId);
-      return;
-    }
     const tenantId = ensureTenantId();
     await acceptIncomingOrderRequest(tenantId, orderId);
   },
   rejectIncomingOrder: async (orderId: string, reason?: string): Promise<void> => {
-    if (useMock) {
-      await mockRejectIncomingOrder(orderId, reason);
-      return;
-    }
     const tenantId = ensureTenantId();
     await rejectIncomingOrderRequest(tenantId, orderId, reason);
   },
   bulkUpdateStatus: async (orderIds: string[], status: IncomingOrderStatus): Promise<void> => {
-    if (useMock) {
-      await mockSetIncomingOrdersStatus(orderIds, status);
-      return;
-    }
     const tenantId = ensureTenantId();
     await bulkIncomingStatusRequest(tenantId, orderIds, toBackendIncomingStatus(status) as string);
   },
   shipOrder: async (orderId: string, payload: IncomingOrderShipmentPayload): Promise<void> => {
-    if (useMock) {
-      await mockShipIncomingOrder(orderId, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await shipIncomingOrderRequest(tenantId, orderId, payload);
   },
   listClients: async (): Promise<string[]> => {
-    if (useMock) {
-      return listIncomingOrderClients();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<string[]>(
       '/api/v1/collaboration/incoming-orders/clients',
@@ -320,9 +283,6 @@ export const collaborationApi = {
     return response.data;
   },
   listOutsourceOrders: async (params: OutsourceOrderListParams): Promise<Paginated<OutsourceOrder>> => {
-    if (useMock) {
-      return mockListOutsourceOrders(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendOutsourceOrderListResponse>(
       '/api/v1/collaboration/outsource-orders',
@@ -342,10 +302,6 @@ export const collaborationApi = {
     };
   },
   confirmOutsourceReceipt: async (orderIds: string[], payload: OutsourceReceiptPayload): Promise<void> => {
-    if (useMock) {
-      await mockConfirmOutsourceReceipt(orderIds, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await confirmOutsourceReceiptRequest(tenantId, orderIds, payload);
   },
@@ -353,10 +309,6 @@ export const collaborationApi = {
     orderId: string,
     payload: OutsourceMaterialRequestPayload,
   ): Promise<void> => {
-    if (useMock) {
-      await mockRequestOutsourceMaterial(orderId, payload);
-      return;
-    }
     const tenantId = ensureTenantId();
     await requestOutsourceMaterialRequest(tenantId, orderId, payload);
   },
@@ -364,10 +316,6 @@ export const collaborationApi = {
     orderIds: string[],
     status: OutsourceOrderStatus,
   ): Promise<void> => {
-    if (useMock) {
-      await mockSetOutsourceOrdersStatus(orderIds, status);
-      return;
-    }
     const tenantId = ensureTenantId();
     await setOutsourceStatusRequest(tenantId, orderIds, toBackendOutsourceStatus(status) as string);
   },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -31,22 +31,13 @@ const initialDataset: CuttingTaskDataset = {
   summary: [],
   list: [],
   total: 0,
+  page: 1,
+  pageSize: 6,
 };
 
 type ColorPreviewState = {
   open: boolean;
   task?: CuttingTask;
-};
-
-const filterTasks = (tasks: CuttingTask[], keyword: string): CuttingTask[] => {
-  const normalized = keyword.trim().toLowerCase();
-  if (!normalized) {
-    return tasks;
-  }
-  return tasks.filter((task) => {
-    const haystack = [task.orderCode, task.styleCode, task.styleName].join(' ').toLowerCase();
-    return haystack.includes(normalized);
-  });
 };
 
 const renderMetric = (metric: CuttingTaskMetric) => (
@@ -66,42 +57,53 @@ const CuttingCompletedPage = () => {
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(6);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
 
   useEffect(() => {
-    setLoading(true);
-    pieceworkService
-      .getCuttingCompleted()
-      .then((data) => {
-        setDataset(data);
-        setPage(1);
-      })
-      .catch(() => {
-        message.error('获取已裁记录失败，请稍后重试');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    setPage(1);
-  }, [keyword]);
-
-  const filteredTasks = useMemo(
-    () => filterTasks(dataset.list, keyword),
-    [dataset.list, keyword],
-  );
-
-  const paginatedTasks = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredTasks.slice(start, start + pageSize);
-  }, [filteredTasks, page, pageSize]);
+    let cancelled = false;
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await pieceworkService.getCuttingCompleted({
+          page,
+          pageSize,
+          keyword: appliedKeyword,
+          includeSummary: page === 1,
+        });
+        if (!cancelled) {
+          setDataset(response);
+          if (response.page !== page) {
+            setPage(response.page);
+          }
+          if (response.pageSize !== pageSize) {
+            setPageSize(response.pageSize);
+          }
+        }
+      } catch (error) {
+        console.error('failed to load completed cutting tasks', error);
+        if (!cancelled) {
+          message.error('获取已裁记录失败，请稍后重试');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    void fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, pageSize, appliedKeyword]);
 
   const handleSearch = (value: string) => {
-    setKeyword(value.trim());
+    const trimmed = value.trim();
+    setKeyword(trimmed);
+    setAppliedKeyword(trimmed);
+    setPage(1);
   };
 
   const handleOpenPreview = (task: CuttingTask) => {
@@ -138,11 +140,11 @@ const CuttingCompletedPage = () => {
             <Skeleton key={index} active paragraph={{ rows: 4 }} />
           ))}
         </div>
-      ) : paginatedTasks.length === 0 ? (
-        <Empty description={keyword ? '未找到匹配的已裁订单' : '暂无已裁订单'} />
+      ) : dataset.list.length === 0 ? (
+        <Empty description={appliedKeyword ? '未找到匹配的已裁订单' : '暂无已裁订单'} />
       ) : (
         <div className="cutting-task-list">
-          {paginatedTasks.map((task) => {
+          {dataset.list.map((task) => {
             const pendingHighlight = task.pendingQuantity !== 0 ? 'cutting-qty-highlight' : '';
             const isOverCut = task.pendingQuantity < 0;
             return (
@@ -249,19 +251,19 @@ const CuttingCompletedPage = () => {
         </div>
       )}
 
-      {filteredTasks.length > 0 ? (
+      {dataset.total > 0 ? (
         <div className="cutting-pagination-wrap">
           <Pagination
             current={page}
             pageSize={pageSize}
-            total={filteredTasks.length}
+            total={dataset.total}
             showSizeChanger
             showQuickJumper
             pageSizeOptions={[6, 9, 12]}
             showTotal={(total, range) => `${range[0]}-${range[1]} / 共 ${total} 条`}
             onChange={(nextPage, nextSize) => {
               setPage(nextPage);
-              setPageSize(nextSize);
+              setPageSize(nextSize ?? pageSize);
             }}
           />
         </div>

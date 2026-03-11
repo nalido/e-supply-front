@@ -20,7 +20,7 @@ import type {
   CashierAccountType,
   CashierAccountTypeOption,
 } from '../types/settlement-cashier-accounts';
-import { cashierAccountService } from '../api/mock';
+import { cashierAccountService } from '../api/settlement';
 
 const { Text } = Typography;
 
@@ -299,7 +299,7 @@ const SettlementCashierAccounts = () => {
   const selectedType = Form.useWatch('type', form);
 
   return (
-    <Card bordered={false} loading={metaLoading} title="出纳账户">
+    <Card variant="borderless" loading={metaLoading} title="出纳账户">
       <Space style={{ marginBottom: 16 }} wrap>
         <Input
           allowClear
@@ -350,7 +350,7 @@ const SettlementCashierAccounts = () => {
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={modalSubmitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form<CashierAccountPayload> form={form} layout="vertical" preserve={false}>
           <Form.Item

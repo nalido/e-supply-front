@@ -10,7 +10,16 @@ const PreferencesPage = () => {
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    settingsApi.preferences.list().then(setGroups);
+    const loadPreferences = async () => {
+      try {
+        const data = await settingsApi.preferences.list();
+        setGroups(data);
+      } catch (error) {
+        console.error(error);
+        message.error('加载偏好设置失败，请稍后重试');
+      }
+    };
+    loadPreferences();
   }, []);
 
   const setPreferenceValue = (key: string, value: boolean | string) => {
@@ -58,7 +67,7 @@ const PreferencesPage = () => {
       <Row gutter={[16, 16]}>
         {groups.map((group) => (
           <Col key={group.key} xs={24} md={12}>
-            <Card title={group.title} bordered>
+            <Card title={group.title} variant="outlined">
               <Space direction="vertical" style={{ width: '100%' }} size={16}>
                 {group.items.map((item) => (
                   <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>

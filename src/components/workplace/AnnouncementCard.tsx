@@ -43,7 +43,7 @@ const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
         </Space>
       }
       style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
-      bodyStyle={{ flex: 1, padding: '16px' }}
+      styles={{ body: { flex: 1, padding: '16px' } }}
       loading={loading}
     >
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

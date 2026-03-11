@@ -9,6 +9,7 @@ import {
   Dropdown,
   Input,
   List,
+  Modal,
   message,
   Popconfirm,
   Row,
@@ -646,9 +647,22 @@ const SampleList: React.FC = () => {
     setIsModalVisible(false);
   }, []);
 
-  const handleExport = useCallback(() => {
-    message.info('导出样板单列表');
-  }, []);
+  const handleExport = useCallback(async () => {
+    try {
+      const params = buildListQueryParams();
+      await sampleOrderApi.exportList({
+        keyword: params.keyword,
+        status: params.status,
+        priority: params.priority as SampleOrder['priority'] | undefined,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
+      message.success('导出任务已创建，请稍后在下载中心查看');
+    } catch (error) {
+      console.error('Failed to export sample orders', error);
+      message.error('导出失败，请稍后重试');
+    }
+  }, [buildListQueryParams]);
 
   const handleRefresh = useCallback(() => {
     void loadStats();
@@ -675,9 +689,27 @@ const SampleList: React.FC = () => {
     }
   }, [loadData, loadStats]);
 
-  const handleBulkOrder = useCallback((order: SampleOrder) => {
-    message.success(`已发起大货订单：${order.orderNo}`);
-  }, []);
+  const handleBulkOrder = useCallback(
+    (order: SampleOrder) => {
+      Modal.confirm({
+        title: `确认将样板单「${order.orderNo}」转为大货生产吗？`,
+        okText: '确认',
+        cancelText: '取消',
+        onOk: async () => {
+          try {
+            await sampleOrderApi.updateStatus(order.id, SampleStatusEnum.PRODUCING, '转大货生产');
+            message.success(`样板单 ${order.orderNo} 已进入大货生产`);
+            void loadData();
+            void loadStats();
+          } catch (error) {
+            console.error('Failed to update sample order status', error);
+            message.error('操作失败，请稍后重试');
+          }
+        },
+      });
+    },
+    [loadData, loadStats],
+  );
 
   const handleDelete = useCallback(async (order: SampleOrder) => {
     try {

@@ -6,22 +6,8 @@ import type {
   ProcessTypeStatus,
   UpdateProcessTypePayload,
 } from '../types';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import {
-  batchRemoveProcessTypes as mockBatchRemove,
-  batchSetProcessTypeStatus as mockBatchSetStatus,
-  createProcessType as mockCreateProcessType,
-  exportProcessTypes as mockExportProcessTypes,
-  importProcessTypes as mockImportProcessTypes,
-  listProcessTypes as mockListProcessTypes,
-  removeProcessType as mockRemoveProcessType,
-  setProcessTypeStatus as mockSetProcessTypeStatus,
-  updateProcessType as mockUpdateProcessType,
-} from '../mock/process-type';
-
-const useMock = apiConfig.useMock;
 
 type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 type BackendStatus = 'ACTIVE' | 'INACTIVE';
@@ -132,9 +118,6 @@ const sequentialInvoke = async <T>(queue: Array<() => Promise<T>>): Promise<T[]>
 
 export const processTypeApi = {
   list: async (params: ProcessTypeListParams): Promise<ProcessTypeDataset> => {
-    if (useMock) {
-      return mockListProcessTypes();
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendPageResponse<BackendProcessCatalogResponse>>(
       '/api/v1/process-catalog',
@@ -154,9 +137,6 @@ export const processTypeApi = {
     };
   },
   create: async (payload: CreateProcessTypePayload): Promise<ProcessType> => {
-    if (useMock) {
-      return mockCreateProcessType(payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendProcessCatalogResponse>('/api/v1/process-catalog', {
       ...buildPayload(tenantId, payload),
@@ -164,9 +144,6 @@ export const processTypeApi = {
     return adaptProcessType(response.data);
   },
   update: async (id: string, payload: UpdateProcessTypePayload): Promise<ProcessType | undefined> => {
-    if (useMock) {
-      return mockUpdateProcessType(id, payload);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendProcessCatalogResponse>(
       `/api/v1/process-catalog/${id}/update`,
@@ -175,9 +152,6 @@ export const processTypeApi = {
     return adaptProcessType(response.data);
   },
   toggleStatus: async (id: string, status: ProcessTypeStatus): Promise<ProcessType | undefined> => {
-    if (useMock) {
-      return mockSetProcessTypeStatus(id, status);
-    }
     const tenantId = ensureTenantId();
     const response = await http.post<BackendProcessCatalogResponse>(
       `/api/v1/process-catalog/${id}/status/update`,
@@ -187,38 +161,23 @@ export const processTypeApi = {
     return adaptProcessType(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    if (useMock) {
-      return mockRemoveProcessType(id);
-    }
     const tenantId = ensureTenantId();
     await http.delete(`/api/v1/process-catalog/${id}`, { params: { tenantId } });
     return true;
   },
   batchRemove: async (ids: string[]): Promise<number> => {
-    if (useMock) {
-      return mockBatchRemove(ids);
-    }
     await sequentialInvoke(ids.map((id) => () => processTypeApi.remove(id)));
     return ids.length;
   },
   batchToggleStatus: async (ids: string[], status: ProcessTypeStatus): Promise<number> => {
-    if (useMock) {
-      return mockBatchSetStatus(ids, status);
-    }
     await sequentialInvoke(ids.map((id) => () => processTypeApi.toggleStatus(id, status)));
     return ids.length;
   },
   import: async (payload: CreateProcessTypePayload[]): Promise<number> => {
-    if (useMock) {
-      return mockImportProcessTypes(payload);
-    }
     await sequentialInvoke(payload.map((item) => () => processTypeApi.create(item)));
     return payload.length;
   },
   export: async (filters?: { onlyActive?: boolean; keyword?: string }): Promise<Blob> => {
-    if (useMock) {
-      return mockExportProcessTypes(filters);
-    }
     const dataset = await processTypeApi.list({
       page: 1,
       pageSize: 500,
@@ -229,10 +188,6 @@ export const processTypeApi = {
     return new Blob([json], { type: 'application/json' });
   },
   hot: async (): Promise<ProcessType[]> => {
-    if (useMock) {
-      const dataset = await mockListProcessTypes();
-      return dataset.list.filter((item) => item.status === 'active');
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendProcessCatalogResponse[]>(
       '/api/v1/process-catalog/hot',

@@ -1,10 +1,6 @@
 import type { PaginatedStyleData, StyleData, StyleListParams, StyleStatus } from '../types/style';
-import { apiConfig } from './config';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
-import { styles as mockStyles } from './mock';
-
-const useMock = apiConfig.useMock;
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
 
@@ -59,9 +55,6 @@ const ensureTenantId = (): number => {
 
 export const stylesApi = {
   async list(params: StyleListParams): Promise<PaginatedStyleData> {
-    if (useMock) {
-      return mockStyles.list(params);
-    }
     const tenantId = ensureTenantId();
     const response = await http.get<BackendPageResponse<BackendStyleSummary>>('/api/v1/styles', {
       params: {
@@ -80,10 +73,6 @@ export const stylesApi = {
   },
 
   async delete(styleId: string): Promise<void> {
-    if (useMock) {
-      await mockStyles.delete(styleId);
-      return;
-    }
     const tenantId = ensureTenantId();
     await http.post(`/api/v1/styles/${styleId}/delete`, undefined, {
       params: { tenantId },

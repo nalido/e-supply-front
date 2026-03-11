@@ -9,7 +9,7 @@ import type {
   OutsourceReceiptPayload,
   OutsourceMaterialRequestPayload,
 } from '../types';
-import type { Paginated } from '../api/mock';
+import type { Paginated } from '../types/pagination';
 
 const MOCK_LATENCY = 240;
 
