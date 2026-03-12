@@ -122,9 +122,26 @@ http.interceptors.request.use(async (config) => {
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error?.response?.status !== 401) {
+    const status = error?.response?.status;
+    const originalRequest = error?.config as (typeof error.config & { __authRetried?: boolean }) | undefined;
+
+    // Clerk token切换期间可能出现瞬时403，这里做一次静默重试避免打断页面加载。
+    if (status === 403 && tokenResolver && originalRequest && !originalRequest.__authRetried) {
+      originalRequest.__authRetried = true;
+      try {
+        const token = await tokenResolver();
+        if (token) {
+          originalRequest.headers = originalRequest.headers ?? {};
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+        }
+        return http.request(originalRequest);
+      } catch (retryError) {
+        console.warn('Retry request after 403 failed', retryError);
+      }
+    }
+
+    if (status !== 401) {
       const backendMessage = error?.response?.data?.message ?? error.message;
-      const status = error?.response?.status;
       const traceId = findTraceId(error);
       console.error('API Error:', status, backendMessage, traceId ? `traceId=${traceId}` : '');
 

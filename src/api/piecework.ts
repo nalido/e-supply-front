@@ -3,6 +3,7 @@ import { tenantStore } from '../stores/tenant';
 import type {
   PieceworkDashboardDataset,
   CuttingTaskDataset,
+  CuttingSheetDetail,
   CuttingReportDataset,
   WorkshopProgressDataset,
 } from '../types';
@@ -296,6 +297,75 @@ type CuttingTaskQueryParams = {
   includeSummary?: boolean;
 };
 
+type CuttingTaskCreateItem = {
+  workOrderId: number;
+  bedNumber: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+  cutAt?: string;
+  cutterId?: number;
+  remark?: string;
+};
+
+type CuttingSheetDetailPayload = Partial<{
+  workOrderId: number;
+  productionOrderId: number;
+  orderCode: string;
+  styleCode: string;
+  styleName: string;
+  customer: string;
+  status: string;
+  bedNumber: string;
+  cutterId: number;
+  plannedFabricQty: number;
+  warehouseId: number;
+  warehouseName: string;
+  materialId: number;
+  materialCode: string;
+  materialName: string;
+  materialUnit: string;
+  startActualFabricQty: number;
+  completeActualFabricQty: number;
+  startedAt: string;
+  completedAt: string;
+  plannedQty: number;
+  completedQty: number;
+  sizes: string[];
+  rows: Array<{
+    color: string;
+    cells: Array<{
+      size: string;
+      orderedQty: number;
+      completedQty: number;
+      pendingQty: number;
+    }>;
+    orderedSubtotal: number;
+    completedSubtotal: number;
+    pendingSubtotal: number;
+  }>;
+  bedRecords: Array<{
+    bedNumber: string;
+    recordedAt?: string;
+    actualFabricQty?: number;
+    totalQty?: number;
+    items?: Array<{
+      color?: string;
+      size?: string;
+      quantity?: number;
+    }>;
+  }>;
+  materialDocuments: Array<{
+    documentCategory: string;
+    documentId: number;
+    documentNo: string;
+    documentTypeLabel: string;
+    quantity: number;
+    issuedAt: string;
+    jumpPath: string;
+  }>;
+}>;
+
 type CuttingReportQueryParams = {
   page?: number;
   pageSize?: number;
@@ -335,6 +405,66 @@ const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset
   summary: payload.summary ?? { cuttingQuantity: 0, ticketQuantity: 0 },
   page: payload.page ?? 1,
   pageSize: payload.pageSize ?? (payload.list?.length ?? 0),
+});
+
+const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingSheetDetail => ({
+  workOrderId: Number(payload.workOrderId ?? 0),
+  productionOrderId: Number(payload.productionOrderId ?? 0),
+  orderCode: payload.orderCode ?? '',
+  styleCode: payload.styleCode,
+  styleName: payload.styleName,
+  customer: payload.customer,
+  status: payload.status ?? 'NOT_STARTED',
+  bedNumber: payload.bedNumber,
+  cutterId: payload.cutterId,
+  plannedFabricQty: payload.plannedFabricQty,
+  warehouseId: payload.warehouseId,
+  warehouseName: payload.warehouseName,
+  materialId: payload.materialId,
+  materialCode: payload.materialCode,
+  materialName: payload.materialName,
+  materialUnit: payload.materialUnit,
+  startActualFabricQty: payload.startActualFabricQty,
+  completeActualFabricQty: payload.completeActualFabricQty,
+  startedAt: payload.startedAt,
+  completedAt: payload.completedAt,
+  plannedQty: Number(payload.plannedQty ?? 0),
+  completedQty: Number(payload.completedQty ?? 0),
+  sizes: payload.sizes ?? [],
+  rows: (payload.rows ?? []).map((row) => ({
+    color: row.color,
+    cells: (row.cells ?? []).map((cell) => ({
+      size: cell.size,
+      orderedQty: Number(cell.orderedQty ?? 0),
+      completedQty: Number(cell.completedQty ?? 0),
+      pendingQty: Number(cell.pendingQty ?? 0),
+    })),
+    orderedSubtotal: Number(row.orderedSubtotal ?? 0),
+    completedSubtotal: Number(row.completedSubtotal ?? 0),
+    pendingSubtotal: Number(row.pendingSubtotal ?? 0),
+  })),
+  bedRecords: (payload.bedRecords ?? []).map((record) => ({
+    bedNumber: record.bedNumber ?? '-',
+    recordedAt: record.recordedAt,
+    actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
+      ? Number(record.actualFabricQty)
+      : undefined,
+    totalQty: Number(record.totalQty ?? 0),
+    items: (record.items ?? []).map((item) => ({
+      color: item.color ?? '-',
+      size: item.size ?? '-',
+      quantity: Number(item.quantity ?? 0),
+    })),
+  })),
+  materialDocuments: (payload.materialDocuments ?? []).map((doc) => ({
+    documentCategory: doc.documentCategory ?? 'ISSUE',
+    documentId: Number(doc.documentId ?? 0),
+    documentNo: doc.documentNo ?? '',
+    documentTypeLabel: doc.documentTypeLabel ?? '',
+    quantity: Number(doc.quantity ?? 0),
+    issuedAt: doc.issuedAt,
+    jumpPath: doc.jumpPath,
+  })),
 });
 
 const adaptDashboard = (payload: PieceworkDashboardPayload): PieceworkDashboardDataset => ({
@@ -485,6 +615,26 @@ export const pieceworkService = {
     return adaptCuttingDataset(data);
   },
 
+  async createCuttingTasks(tasks: CuttingTaskCreateItem[]): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      '/api/v1/cutting-tasks',
+      {
+        tasks: tasks.map((task) => ({
+          workOrderId: task.workOrderId,
+          bedNumber: task.bedNumber,
+          color: task.color,
+          size: task.size,
+          quantity: task.quantity,
+          cutAt: task.cutAt,
+          cutterId: task.cutterId,
+          remark: task.remark,
+        })),
+      },
+      { params: { tenantId } },
+    );
+  },
+
   async getCuttingCompleted(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {
     const tenantId = ensureTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/completed', {
@@ -499,6 +649,59 @@ export const pieceworkService = {
       },
     });
     return adaptCuttingDataset(data);
+  },
+
+  async getCuttingSheetDetail(workOrderId: number): Promise<CuttingSheetDetail> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get(`/api/v1/workshop/cutting/sheets/${workOrderId}`, {
+      params: { tenantId },
+    });
+    return adaptCuttingSheetDetail(data);
+  },
+
+  async startCuttingSheet(
+    workOrderId: number,
+    payload: {
+      bedNumber: string;
+      cutterId?: number;
+      plannedFabricQty: number;
+      actualFabricQty?: number;
+      warehouseId?: number;
+      materialId?: number;
+      materialUnit?: string;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/start`, payload, {
+      params: { tenantId },
+    });
+  },
+
+  async completeCuttingSheet(
+    workOrderId: number,
+    payload: {
+      actualFabricQty: number;
+      items?: Array<{ color: string; size: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/complete`, payload, {
+      params: { tenantId },
+    });
+  },
+
+  async recordCuttingSheetBed(
+    workOrderId: number,
+    payload: {
+      bedNumber: string;
+      actualFabricQty: number;
+      items: Array<{ color: string; size: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds`, payload, {
+      params: { tenantId },
+    });
   },
 
   async getCuttingReport(params?: CuttingReportQueryParams): Promise<CuttingReportDataset> {

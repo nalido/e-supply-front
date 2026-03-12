@@ -125,6 +125,69 @@
   margin-top: 16px;
 }
 
+.factory-create-matrix-wrap {
+  width: 100%;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 8px;
+}
+
+.factory-create-style-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.factory-allocation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-allocation-summary-title {
+  margin-bottom: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: #1f1f1f;
+}
+
+.factory-create-matrix-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.factory-create-matrix-table th,
+.factory-create-matrix-table td {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  padding: 8px;
+  text-align: center;
+}
+
+.factory-create-matrix-table th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+.factory-create-matrix-table td:first-child,
+.factory-create-matrix-table th:first-child {
+  width: 120px;
+  text-align: left;
+}
+
+.factory-create-matrix-table tfoot td {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
 .factory-orders-table-progress {
   display: grid;
   gap: 4px;
@@ -213,46 +276,216 @@
 }
 
 .factory-order-progress {
-  display: grid;
-  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
 }
 
-.factory-order-progress-item {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 120px 1fr;
+.factory-order-progress-track {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: fit-content;
+}
+
+.factory-order-progress-step {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
-.factory-order-progress-item .label {
+.factory-order-progress-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 116px;
+  flex: 0 0 116px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: linear-gradient(180deg, #fcfcfc 0%, #f8f8f8 100%);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.factory-order-progress-node.clickable {
+  cursor: pointer;
+}
+
+.factory-order-progress-node.pending {
+  border-color: #d9d9d9;
+}
+
+.factory-order-progress-node.completed {
+  border-color: #b7eb8f;
+  background: linear-gradient(180deg, #f6ffed 0%, #edfbe4 100%);
+}
+
+.factory-order-progress-node.partial {
+  border-color: #ffd591;
+  background: linear-gradient(180deg, #fff7e8 0%, #fff2db 100%);
+}
+
+.factory-order-progress-node.overcut {
+  border-color: #ffa39e;
+  background: linear-gradient(180deg, #fff1f0 0%, #ffe8e6 100%);
+}
+
+.factory-order-progress-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #d9d9d9;
+  color: #434343;
+  font-size: 12px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.factory-order-progress-icon.has-percent {
+  width: 28px;
+}
+
+.factory-order-progress-icon-percent {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.1px;
+}
+
+.factory-order-progress-icon.completed {
+  background: #52c41a;
+  color: #fff;
+  box-shadow: none;
+}
+
+.factory-order-progress-icon.partial {
+  background: #fa8c16;
+  color: #fff;
+  box-shadow: none;
+}
+
+.factory-order-progress-icon.overcut {
+  background: #ff4d4f;
+  color: #fff;
+  box-shadow: none;
+}
+
+.factory-order-progress-content {
+  text-align: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.factory-order-progress-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+  line-height: 1.2;
+  margin-bottom: 1px;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.factory-order-progress-status {
+  font-size: 11px;
+  color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
+  line-height: 1.25;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.factory-order-progress-status-grid {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  line-height: 1.2;
 }
 
-.factory-order-progress-item .label strong {
-  font-weight: 600;
-  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+.factory-order-progress-status-grid .date {
+  font-size: 11px;
 }
 
-.factory-order-progress-item .label span {
-  font-size: 12px;
+.factory-order-progress-status.pending {
   color: var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45));
 }
 
-.factory-order-progress-item .progress-value {
-  font-size: 13px;
-  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
+.factory-order-progress-status.completed {
+  color: #389e0d;
 }
 
-.factory-order-progress-muted .label strong,
-.factory-order-progress-muted .label span,
-.factory-order-progress-muted .progress-value {
-  color: var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25));
+.factory-order-progress-status.partial {
+  color: #d46b08;
+}
+
+.factory-order-progress-status.overcut {
+  color: #cf1322;
+}
+
+.factory-order-progress-arrow {
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: #d9d9d9;
+  position: relative;
+}
+
+.factory-order-progress-arrow::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: inherit;
+}
+
+.factory-order-progress-arrow.pending {
+  background: #d9d9d9;
+}
+
+.factory-order-progress-arrow.completed {
+  background: #73d13d;
+}
+
+.factory-order-progress-arrow.partial {
+  background: #ffb866;
+}
+
+.factory-order-progress-arrow.overcut {
+  background: #ff9c9d;
+}
+
+.factory-order-progress-node.clickable:hover {
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+  border-color: #91caff;
+}
+
+.factory-order-progress-node.clickable:hover .factory-order-progress-icon {
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
 }
 
 @media (max-width: 768px) {
-  .factory-order-progress-item {
-    grid-template-columns: 1fr;
+  .factory-order-progress-track {
+    gap: 8px;
+  }
+
+  .factory-order-progress-node {
+    width: 108px;
+    flex: 0 0 108px;
+    padding: 8px;
+  }
+
+  .factory-order-progress-arrow {
+    width: 14px;
   }
 }

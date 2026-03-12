@@ -1,4 +1,4 @@
-export type WorkshopStageKey = 'cutting' | 'sewing' | 'finishing' | 'packaging' | 'warehousing';
+export type WorkshopStageKey = string;
 
 export type WorkshopStageStatus = 'not_started' | 'in_progress' | 'completed' | 'delayed';
 

@@ -10,9 +10,9 @@ import SampleType from './views/SampleType';
 import SampleCostingReport from './views/SampleCostingReport';
 import SampleOrderComparisonReport from './views/SampleOrderComparisonReport';
 import FactoryOrders from './views/FactoryOrders';
+import CuttingReportPage from './views/CuttingReport';
 import CuttingPendingPage from './views/CuttingPending';
 import CuttingCompletedPage from './views/CuttingCompleted';
-import CuttingReportPage from './views/CuttingReport';
 import ProcessTypePage from './views/ProcessType';
 import StyleMaterials from './views/StyleMaterials';
 import StyleDetail from './views/StyleDetail';
@@ -215,6 +215,8 @@ const router = createBrowserRouter([
       { path: 'settings/audit', element: React.createElement(ActionLogPage) },
       { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
       { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
+      { path: 'piecework/cutting/list', element: React.createElement(Navigate, { to: '/piecework/cutting/pending', replace: true }) },
+      { path: 'piecework/cutting/create', element: React.createElement(Navigate, { to: '/piecework/cutting/pending', replace: true }) },
       { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },

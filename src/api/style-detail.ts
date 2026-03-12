@@ -4,12 +4,10 @@ import type {
   StyleFormMeta,
   StyleStatus,
 } from '../types/style';
-import type { ProcessTypeChargeMode } from '../types/process-type';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
-type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 
 type BackendStyleVariant = {
   id: number;
@@ -29,7 +27,6 @@ type BackendStyleResponse = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariant[];
-  processes?: BackendStyleProcessResponse[];
 };
 
 type BackendStyleRequest = {
@@ -43,35 +40,12 @@ type BackendStyleRequest = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariantRequest[];
-  processes: BackendStyleProcessRequest[];
 };
 
 type BackendStyleVariantRequest = {
   color?: string;
   size?: string;
   attributes?: Record<string, unknown> | null;
-};
-
-type BackendStyleProcessResponse = {
-  id: number;
-  sequence?: number;
-  unitPrice?: number;
-  remarks?: string;
-  processCatalogId?: number;
-  processCode?: string;
-  processName?: string;
-  chargeMode?: BackendChargeMode;
-  defaultWage?: number;
-  unit?: string;
-  sourceTemplateId?: number;
-};
-
-type BackendStyleProcessRequest = {
-  processCatalogId: number;
-  unitPrice?: number;
-  remarks?: string;
-  sequence?: number;
-  sourceTemplateId?: number;
 };
 
 type BackendMetadataResponse = {
@@ -84,18 +58,6 @@ const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
 
 const toBackendStatus = (status: StyleStatus): BackendStyleStatus =>
   status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
-
-const adaptChargeMode = (mode?: BackendChargeMode): ProcessTypeChargeMode => {
-  switch (mode) {
-    case 'HOURLY':
-      return 'hourly';
-    case 'STAGE_BASED':
-      return 'stage';
-    case 'PIECEWORK':
-    default:
-      return 'piecework';
-  }
-};
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -120,11 +82,12 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
   const colorsSet = new Set<string>();
   const sizesSet = new Set<string>();
   const colorImages: Record<string, string | undefined> = {};
+  let sizeChartImageUrl: string | undefined;
 
   payload.variants?.forEach((variant) => {
+    const attrs = variant.attributes ?? {};
     if (variant.color) {
       colorsSet.add(variant.color);
-      const attrs = variant.attributes ?? {};
       const colorImage = typeof attrs.colorImageUrl === 'string' ? attrs.colorImageUrl : undefined;
       if (colorImage && !colorImages[variant.color]) {
         colorImages[variant.color] = colorImage;
@@ -133,29 +96,11 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     if (variant.size) {
       sizesSet.add(variant.size);
     }
+    if (!sizeChartImageUrl) {
+      sizeChartImageUrl =
+        typeof attrs.sizeChartImageUrl === 'string' ? attrs.sizeChartImageUrl : undefined;
+    }
   });
-
-  const processes = Array.isArray(payload.processes)
-    ? payload.processes
-        .filter((process) => process.processCatalogId != null)
-        .map((process) => ({
-          id: process.id ? String(process.id) : undefined,
-          processCatalogId: String(process.processCatalogId),
-          processCode: process.processCode ?? undefined,
-          processName: process.processName ?? undefined,
-          chargeMode: adaptChargeMode(process.chargeMode),
-          defaultWage:
-            typeof process.defaultWage === 'number' ? process.defaultWage : undefined,
-          unit: process.unit ?? undefined,
-          unitPrice:
-            typeof process.unitPrice === 'number' ? Number(process.unitPrice) : undefined,
-          remarks: process.remarks ?? undefined,
-          sequence: process.sequence ?? undefined,
-          sourceTemplateId: process.sourceTemplateId
-            ? String(process.sourceTemplateId)
-            : undefined,
-        }))
-    : [];
 
   return {
     id: String(payload.id),
@@ -169,12 +114,12 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     colors: Array.from(colorsSet),
     sizes: Array.from(sizesSet),
     colorImages,
-    processes,
+    sizeChartImageUrl,
   };
 };
 
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
-  const { colors, sizes, colorImages } = payload;
+  const { colors, sizes, colorImages, sizeChartImageUrl } = payload;
   if (!colors.length || !sizes.length) {
     return [];
   }
@@ -182,10 +127,17 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
   colors.forEach((color) => {
     sizes.forEach((size) => {
       const image = colorImages[color];
+      const attributes: Record<string, unknown> = {};
+      if (image) {
+        attributes.colorImageUrl = image;
+      }
+      if (sizeChartImageUrl) {
+        attributes.sizeChartImageUrl = sizeChartImageUrl;
+      }
       variants.push({
         color,
         size,
-        attributes: image ? { colorImageUrl: image } : null,
+        attributes: Object.keys(attributes).length > 0 ? attributes : null,
       });
     });
   });
@@ -202,28 +154,7 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
   remarks: payload.remarks,
   coverImageUrl: payload.coverImageUrl,
   variants: buildVariants(payload),
-  processes: buildProcesses(payload),
 });
-
-const buildProcesses = (payload: StyleDetailSavePayload): BackendStyleProcessRequest[] => {
-  if (!payload.processes?.length) {
-    return [];
-  }
-  return payload.processes
-      .filter((process) => process?.processCatalogId)
-      .map((process) => ({
-        processCatalogId: Number(process.processCatalogId),
-        unitPrice:
-          typeof process.unitPrice === 'number' && Number.isFinite(process.unitPrice)
-            ? Number(process.unitPrice)
-            : 0,
-        remarks: process.remarks,
-        sequence: process.sequence,
-        sourceTemplateId: process.sourceTemplateId
-          ? Number(process.sourceTemplateId)
-          : undefined,
-      }));
-};
 
 export const styleDetailApi = {
   async fetchMeta(): Promise<StyleFormMeta> {

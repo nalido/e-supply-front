@@ -10,6 +10,7 @@ export const SampleStatus = {
 } as const;
 
 export type SampleStatus = typeof SampleStatus[keyof typeof SampleStatus];
+export type SampleOverallStatus = 'unfinished' | 'completed';
 
 export interface SampleProcessOption {
   id: string;
@@ -38,7 +39,6 @@ export interface SampleOrder {
   styleName: string; // 款式名称
   styleCode: string; // 款式编号
   unit?: string; // 单位
-  customer: string; // 客户
   season: string; // 季节
   category: string; // 品类
   fabric: string; // 面料
@@ -79,7 +79,7 @@ export interface SampleOrder {
 export interface SampleQueryParams {
   keyword?: string; // 关键词搜索
   status?: SampleStatus; // 状态筛选
-  customer?: string; // 客户筛选
+  overallStatus?: SampleOverallStatus; // 整体状态筛选
   season?: string; // 季节筛选
   category?: string; // 品类筛选
   priority?: SampleOrder['priority']; // 优先级筛选

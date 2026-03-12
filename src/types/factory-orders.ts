@@ -21,7 +21,6 @@ export type FactoryOrderItem = {
   code: string;
   name: string;
   thumbnail: string;
-  customer?: string;
   materialStatus?: string;
   expectedDelivery?: string;
   orderDate?: string;
@@ -52,7 +51,6 @@ export type FactoryOrderStatusSummary = {
 export type FactoryOrderTableRow = {
   id: string;
   orderCode: string;
-  customer: string;
   styleCode: string;
   styleName: string;
   orderQuantity: number;

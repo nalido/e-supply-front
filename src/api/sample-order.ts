@@ -59,7 +59,6 @@ type SampleOrderMetaResponse = {
   units: string[];
   sampleTypes: Array<{ id: number; name: string }>;
   followTemplates: Array<{ id: number; name: string; isDefault?: boolean }>;
-  customers: Array<{ id: number; name: string }>;
   merchandisers: SampleOrderMetaStaffResponse[];
   patternMakers: SampleOrderMetaStaffResponse[];
   sampleSewers: SampleOrderMetaStaffResponse[];
@@ -74,8 +73,11 @@ export type SampleOrderCreateInput = {
   sampleNo: string;
   sampleTypeId?: string;
   followTemplateId?: string;
-  customerId: string;
-  styleId: string;
+  styleId?: string;
+  styleCode: string;
+  styleName: string;
+  styleSyncMode?: 'create_new' | 'update_existing' | 'keep_existing';
+  styleUpdateConfirmed?: boolean;
   styleVariantId?: string;
   quantity: number;
   unit?: string;
@@ -95,7 +97,7 @@ export type SampleOrderCreateInput = {
   remarks?: string;
   description?: string;
   skus: Array<{ color?: string; size?: string; quantity: number }>;
-  processes: Array<{
+  processes?: Array<{
     processCatalogId: string;
     sequence?: number;
     plannedDurationMinutes?: number;
@@ -138,10 +140,6 @@ const adaptMetaResponse = (payload: SampleOrderMetaResponse): SampleCreationMeta
     id: String(item.id),
     name: item.name,
     isDefault: Boolean(item.isDefault),
-  })),
-  customers: (payload.customers ?? []).map((customer) => ({
-    id: String(customer.id),
-    name: customer.name,
   })),
   merchandisers: (payload.merchandisers ?? []).map((staff) => ({
     id: String(staff.id),
@@ -192,8 +190,11 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
   sampleNo: payload.sampleNo,
   sampleTypeId: toNumber(payload.sampleTypeId),
   followTemplateId: toNumber(payload.followTemplateId),
-  customerId: toNumber(payload.customerId),
   styleId: toNumber(payload.styleId),
+  styleCode: payload.styleCode,
+  styleName: payload.styleName,
+  styleSyncMode: payload.styleSyncMode,
+  styleUpdateConfirmed: payload.styleUpdateConfirmed,
   styleVariantId: toNumber(payload.styleVariantId),
   quantity: payload.quantity,
   unit: payload.unit,

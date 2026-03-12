@@ -23,7 +23,7 @@ import {
   Spin,
   message,
 } from 'antd';
-import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
 import type {
@@ -92,6 +92,37 @@ const STATUS_FILTER_OPTIONS = [
   { label: '已取消', value: 'CANCELLED' },
 ];
 
+const STATUS_UPDATE_OPTIONS = STATUS_FILTER_OPTIONS.filter((item) => item.value).map((item) => ({
+  label: item.label,
+  value: item.value,
+}));
+
+type OutsourcingCreateForm = {
+  productionOrderId: string;
+  workOrderId: string;
+  subcontractorId: string;
+  processCatalogId: string;
+  dispatchQty: number;
+  unitPrice: number;
+  attritionRate?: number;
+  orderNo?: string;
+  dispatchDate: Dayjs;
+  expectedReturnDate?: Dayjs;
+};
+
+type OutsourcingStatusForm = {
+  orderId: string;
+  status: string;
+};
+
+type OutsourcingMaterialForm = {
+  orderId: string;
+  materialId?: string;
+  requestQuantity: number;
+  requestedAt?: Dayjs;
+  remark?: string;
+};
+
 const OutsourcingManagement = () => {
   const [meta, setMeta] = useState<OutsourcingManagementMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -108,6 +139,21 @@ const OutsourcingManagement = () => {
   const [submittingReceive, setSubmittingReceive] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [receiveForm] = Form.useForm();
+  const [createForm] = Form.useForm<OutsourcingCreateForm>();
+  const [statusForm] = Form.useForm<OutsourcingStatusForm>();
+  const [materialForm] = Form.useForm<OutsourcingMaterialForm>();
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const [materialSubmitting, setMaterialSubmitting] = useState(false);
+  const [statusTargetOrder, setStatusTargetOrder] = useState<OutsourcingManagementListItem | null>(null);
+  const [materialTargetOrder, setMaterialTargetOrder] = useState<OutsourcingManagementListItem | null>(null);
+  const [productionOptions, setProductionOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [workOrderOptions, setWorkOrderOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [processOptions, setProcessOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const [materialOptions, setMaterialOptions] = useState<Array<{ id: string; label: string }>>([]);
 
   const [orderNo, setOrderNo] = useState('');
   const [styleKeyword, setStyleKeyword] = useState('');
@@ -148,6 +194,31 @@ const OutsourcingManagement = () => {
 
     loadMeta();
   }, []);
+
+  const loadCreateOptions = useCallback(async () => {
+    try {
+      const [production, processes] = await Promise.all([
+        outsourcingManagementApi.listProductionOrderOptions(),
+        outsourcingManagementApi.listProcessOptions(),
+      ]);
+      setProductionOptions(production);
+      setProcessOptions(processes);
+      if (production.length > 0) {
+        const productionOrderId = production[0].id;
+        const workOrders = await outsourcingManagementApi.listWorkOrderOptions(productionOrderId);
+        setWorkOrderOptions(workOrders);
+        createForm.setFieldValue('productionOrderId', productionOrderId);
+        createForm.setFieldValue('workOrderId', workOrders[0]?.id);
+      } else {
+        setWorkOrderOptions([]);
+      }
+      createForm.setFieldValue('subcontractorId', meta?.processors?.[0]?.id);
+      createForm.setFieldValue('processCatalogId', processes[0]?.id);
+    } catch (error) {
+      console.error('failed to load outsource create options', error);
+      message.error('加载外发创建选项失败');
+    }
+  }, [createForm, meta?.processors]);
 
   const loadList = useCallback(async () => {
     setTableLoading(true);
@@ -312,6 +383,130 @@ const OutsourcingManagement = () => {
     setOrderDetail(null);
   };
 
+  const handleOpenCreateModal = () => {
+    setCreateModalOpen(true);
+    createForm.resetFields();
+    createForm.setFieldsValue({
+      dispatchQty: 10,
+      unitPrice: 1,
+      attritionRate: 0,
+      dispatchDate: dayjs(),
+      expectedReturnDate: dayjs().add(7, 'day'),
+    });
+    void loadCreateOptions();
+  };
+
+  const handleProductionChange = async (productionOrderId: string) => {
+    createForm.setFieldValue('productionOrderId', productionOrderId);
+    createForm.setFieldValue('workOrderId', undefined);
+    const options = await outsourcingManagementApi.listWorkOrderOptions(productionOrderId);
+    setWorkOrderOptions(options);
+    if (options.length > 0) {
+      createForm.setFieldValue('workOrderId', options[0].id);
+    }
+  };
+
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      setCreateSubmitting(true);
+      await outsourcingManagementApi.createOrder({
+        workOrderId: values.workOrderId,
+        subcontractorId: values.subcontractorId,
+        processCatalogId: values.processCatalogId,
+        dispatchQty: Number(values.dispatchQty),
+        unitPrice: Number(values.unitPrice),
+        attritionRate: values.attritionRate == null ? undefined : Number(values.attritionRate),
+        orderNo: values.orderNo?.trim() || undefined,
+        dispatchDate: values.dispatchDate.format('YYYY-MM-DD'),
+        expectedReturnDate: values.expectedReturnDate?.format('YYYY-MM-DD'),
+      });
+      message.success('外发订单创建成功');
+      setCreateModalOpen(false);
+      createForm.resetFields();
+      void loadList();
+    } catch (error: unknown) {
+      if ((error as { errorFields?: unknown })?.errorFields) {
+        return;
+      }
+      console.error('failed to create outsourcing order', error);
+      message.error('外发订单创建失败');
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
+  const handleOpenStatusModal = useCallback((record: OutsourcingManagementListItem) => {
+    setStatusTargetOrder(record);
+    statusForm.setFieldsValue({ orderId: record.id, status: 'DISPATCHED' });
+    setStatusModalOpen(true);
+  }, [statusForm]);
+
+  const handleStatusSubmit = async () => {
+    try {
+      const values = await statusForm.validateFields();
+      setStatusSubmitting(true);
+      await outsourcingManagementApi.updateStatus(values.orderId, values.status);
+      message.success('外发状态更新成功');
+      setStatusModalOpen(false);
+      setStatusTargetOrder(null);
+      void loadList();
+    } catch (error: unknown) {
+      if ((error as { errorFields?: unknown })?.errorFields) {
+        return;
+      }
+      console.error('failed to update outsourcing status', error);
+      message.error('外发状态更新失败');
+    } finally {
+      setStatusSubmitting(false);
+    }
+  };
+
+  const handleOpenMaterialModal = useCallback(async (record: OutsourcingManagementListItem) => {
+    setMaterialTargetOrder(record);
+    materialForm.setFieldsValue({
+      orderId: record.id,
+      requestQuantity: 1,
+      requestedAt: dayjs(),
+      materialId: undefined,
+      remark: '',
+    });
+    try {
+      const options = await outsourcingManagementApi.listMaterialOptions();
+      setMaterialOptions(options);
+    } catch (error) {
+      console.error('failed to load material options', error);
+      message.error('加载物料选项失败');
+    }
+    setMaterialModalOpen(true);
+  }, [materialForm]);
+
+  const handleMaterialSubmit = async () => {
+    try {
+      const values = await materialForm.validateFields();
+      setMaterialSubmitting(true);
+      await outsourcingManagementApi.createMaterialRequest({
+        orderId: values.orderId,
+        materialId: values.materialId,
+        requestQuantity: Number(values.requestQuantity),
+        requestedAt: values.requestedAt?.format('YYYY-MM-DDTHH:mm:ss'),
+        remark: values.remark,
+      });
+      message.success('补料申请已提交');
+      setMaterialModalOpen(false);
+      setMaterialTargetOrder(null);
+      void loadList();
+    } catch (error: unknown) {
+      if ((error as { errorFields?: unknown })?.errorFields) {
+        return;
+      }
+      console.error('failed to create outsource material request', error);
+      message.error('补料申请失败');
+    } finally {
+      setMaterialSubmitting(false);
+    }
+  };
+
   const columns: ColumnsType<OutsourcingManagementListItem> = useMemo(
     () => [
       {
@@ -401,12 +596,18 @@ const OutsourcingManagement = () => {
       },
       {
         title: '操作',
-        width: 160,
+        width: 250,
         fixed: 'right',
         render: (_: unknown, record) => (
           <Space>
             <Button type="link" onClick={() => handleConfirmReceive(record)}>
               确认接收
+            </Button>
+            <Button type="link" onClick={() => handleOpenStatusModal(record)}>
+              更新状态
+            </Button>
+            <Button type="link" onClick={() => handleOpenMaterialModal(record)}>
+              补料申请
             </Button>
             <Button type="link" onClick={() => handleViewDetail(record)}>
               查看
@@ -415,7 +616,7 @@ const OutsourcingManagement = () => {
         ),
       },
     ],
-    [handleConfirmReceive, handleViewDetail],
+    [handleConfirmReceive, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
   );
 
   const receiptColumns = useMemo<ColumnsType<OutsourcingOrderReceipt>>(
@@ -566,6 +767,9 @@ const OutsourcingManagement = () => {
             <Text type="secondary">共 {total} 条记录</Text>
           </Space>
           <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreateModal}>
+              新建外发单
+            </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExportAll} loading={exporting}>
               导出全部
             </Button>
@@ -725,6 +929,177 @@ const OutsourcingManagement = () => {
           </Form.Item>
           <Form.Item label="备注" name="remark">
             <Input.TextArea rows={3} maxLength={200} placeholder="可选" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={createModalOpen}
+        title="新建外发单"
+        onCancel={() => {
+          setCreateModalOpen(false);
+          createForm.resetFields();
+        }}
+        onOk={handleCreateSubmit}
+        confirmLoading={createSubmitting}
+        destroyOnHidden
+        width={640}
+      >
+        <Form layout="vertical" form={createForm} preserve={false}>
+          <Form.Item
+            label="生产单"
+            name="productionOrderId"
+            rules={[{ required: true, message: '请选择生产单' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={productionOptions.map((item) => ({ label: item.label, value: item.id }))}
+              onChange={(value) => {
+                void handleProductionChange(value);
+              }}
+            />
+          </Form.Item>
+          <Form.Item
+            label="工单"
+            name="workOrderId"
+            rules={[{ required: true, message: '请选择工单' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={workOrderOptions.map((item) => ({ label: item.label, value: item.id }))}
+            />
+          </Form.Item>
+          <Form.Item
+            label="加工厂"
+            name="subcontractorId"
+            rules={[{ required: true, message: '请选择加工厂' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={(meta?.processors ?? []).map((item) => ({ label: item.name, value: item.id }))}
+            />
+          </Form.Item>
+          <Form.Item
+            label="工序类型"
+            name="processCatalogId"
+            rules={[{ required: true, message: '请选择工序类型' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={processOptions.map((item) => ({ label: item.label, value: item.id }))}
+            />
+          </Form.Item>
+          <Space size={12} style={{ width: '100%' }}>
+            <Form.Item
+              label="外发数量"
+              name="dispatchQty"
+              rules={[{ required: true, message: '请输入外发数量' }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              label="加工单价"
+              name="unitPrice"
+              rules={[{ required: true, message: '请输入加工单价' }]}
+              style={{ flex: 1 }}
+            >
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+          </Space>
+          <Space size={12} style={{ width: '100%' }}>
+            <Form.Item label="损耗率" name="attritionRate" style={{ flex: 1 }}>
+              <InputNumber min={0} max={1} step={0.01} precision={4} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="外发单号(可选)" name="orderNo" style={{ flex: 1 }}>
+              <Input maxLength={64} />
+            </Form.Item>
+          </Space>
+          <Space size={12} style={{ width: '100%' }}>
+            <Form.Item
+              label="外发日期"
+              name="dispatchDate"
+              rules={[{ required: true, message: '请选择外发日期' }]}
+              style={{ flex: 1 }}
+            >
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="预计回货日期" name="expectedReturnDate" style={{ flex: 1 }}>
+              <DatePicker style={{ width: '100%' }} />
+            </Form.Item>
+          </Space>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={statusModalOpen}
+        title={statusTargetOrder ? `更新状态 - ${statusTargetOrder.outgoingNo}` : '更新状态'}
+        onCancel={() => {
+          setStatusModalOpen(false);
+          setStatusTargetOrder(null);
+          statusForm.resetFields();
+        }}
+        onOk={handleStatusSubmit}
+        confirmLoading={statusSubmitting}
+        destroyOnHidden
+      >
+        <Form layout="vertical" form={statusForm} preserve={false}>
+          <Form.Item name="orderId" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item
+            label="目标状态"
+            name="status"
+            rules={[{ required: true, message: '请选择状态' }]}
+          >
+            <Select
+              options={STATUS_UPDATE_OPTIONS}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={materialModalOpen}
+        title={materialTargetOrder ? `补料申请 - ${materialTargetOrder.outgoingNo}` : '补料申请'}
+        onCancel={() => {
+          setMaterialModalOpen(false);
+          setMaterialTargetOrder(null);
+          materialForm.resetFields();
+        }}
+        onOk={handleMaterialSubmit}
+        confirmLoading={materialSubmitting}
+        destroyOnHidden
+      >
+        <Form layout="vertical" form={materialForm} preserve={false}>
+          <Form.Item name="orderId" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item label="物料" name="materialId">
+            <Select
+              showSearch
+              allowClear
+              optionFilterProp="label"
+              options={materialOptions.map((item) => ({ label: item.label, value: item.id }))}
+              placeholder="可选，不选时由后端兜底"
+            />
+          </Form.Item>
+          <Form.Item
+            label="申请数量"
+            name="requestQuantity"
+            rules={[{ required: true, message: '请输入申请数量' }]}
+          >
+            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="申请时间" name="requestedAt">
+            <DatePicker showTime style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="备注" name="remark">
+            <Input.TextArea rows={3} maxLength={200} />
           </Form.Item>
         </Form>
       </Modal>

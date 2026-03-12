@@ -51,8 +51,6 @@ export type SampleOrderSummaryResponse = {
   status: SampleStatusResponse;
   priority: SamplePriorityResponse;
   quantity: number;
-  customerId?: number;
-  customerName?: string;
   styleId?: number;
   styleName?: string;
   styleNo?: string;
@@ -82,8 +80,6 @@ export type SampleOrderDetailResponse = {
   sampleTypeId?: number;
   sampleTypeName?: string;
   followTemplateId?: number;
-  customerId?: number;
-  customerName?: string;
   styleId?: number;
   styleNo?: string;
   styleName?: string;
@@ -179,7 +175,6 @@ export type SampleDashboardCounters = {
 
 export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): SampleOrder => {
   const fallbackText = '--';
-  const customerLabel = payload.customerName || (payload.customerId ? `客户 #${payload.customerId}` : fallbackText);
   const styleLabel = payload.styleName || (payload.styleId ? `款式 #${payload.styleId}` : fallbackText);
 
   return {
@@ -188,7 +183,6 @@ export const adaptSampleOrderSummary = (payload: SampleOrderSummaryResponse): Sa
     styleName: styleLabel,
     styleCode: payload.styleNo ?? (payload.styleId ? `ST-${payload.styleId}` : fallbackText),
     unit: payload.unit ?? fallbackText,
-    customer: customerLabel,
     season: fallbackText,
     category: fallbackText,
     fabric: fallbackText,
@@ -344,7 +338,6 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
     paperPatternNo: payload.patternNo,
     remarks: payload.remarks,
     unit: payload.unit || '件',
-    customer: payload.customerName,
     estimatedDeliveryDate: payload.deadline,
     sampleSewer: payload.sampleSewerName,
     processingTypes: processItems.map((item) => item.name),
@@ -426,16 +419,13 @@ export const buildListQuery = (params: SampleQueryParams = {}): Record<string, u
   const query: Record<string, unknown> = {
     keyword: params.keyword,
     status: mapStatusToBackend(params.status),
+    overallStatus: params.overallStatus,
     priority: mapPriorityToBackend(safePriority),
     startDeadline: params.startDate,
     endDeadline: params.endDate,
     page: params.page,
     size: params.pageSize,
   };
-
-  if (!query.keyword && params.customer) {
-    query.keyword = params.customer;
-  }
 
   Object.keys(query).forEach((key) => {
     if (query[key] === undefined || query[key] === null || query[key] === '') {

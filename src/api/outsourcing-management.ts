@@ -11,6 +11,8 @@ import type {
 } from '../types/outsourcing-management';
 import type { PartnerDataset } from '../types';
 import { partnersApi } from './partners';
+import processTypeApi from './process-type';
+import { materialApi } from './material';
 
 const ensureTenantId = (): number => {
   const tenantId = tenantStore.getTenantId();
@@ -282,5 +284,124 @@ export const outsourcingManagementApi = {
       params: { tenantId },
     });
     return adaptDetail(data);
+  },
+
+  async listProductionOrderOptions(keyword?: string): Promise<Array<{ id: string; label: string }>> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get('/api/v1/production-orders/table', {
+      params: {
+        tenantId,
+        keyword: keyword?.trim() || undefined,
+        page: 0,
+        size: 50,
+      },
+    });
+    const list = Array.isArray(data?.list) ? data.list : [];
+    return list.map((item: Record<string, unknown>) => ({
+      id: String(item.id ?? ''),
+      label: String(item.orderCode ?? item.orderNo ?? `订单#${item.id ?? '-'}`),
+    })).filter((item: { id: string; label: string }) => item.id && item.label);
+  },
+
+  async listWorkOrderOptions(productionOrderId: string): Promise<Array<{ id: string; label: string }>> {
+    const tenantId = ensureTenantId();
+    const parsed = Number(productionOrderId);
+    if (!Number.isFinite(parsed)) {
+      return [];
+    }
+    const { data } = await http.get('/api/v1/production/work-orders', {
+      params: {
+        tenantId,
+        productionOrderId: parsed,
+      },
+    });
+    const list = Array.isArray(data) ? data : [];
+    return list.map((item: Record<string, unknown>) => ({
+      id: String(item.id ?? ''),
+      label: `工单#${item.id ?? '-'} / 状态:${item.status ?? '-'} / 计划:${item.plannedQty ?? 0}`,
+    })).filter((item) => item.id);
+  },
+
+  async listProcessOptions(keyword?: string): Promise<Array<{ id: string; label: string }>> {
+    const data = await processTypeApi.list({
+      page: 1,
+      pageSize: 200,
+      keyword: keyword?.trim() || undefined,
+      status: 'active',
+    });
+    return data.list.map((item) => ({
+      id: item.id,
+      label: `${item.code} / ${item.name}`,
+    }));
+  },
+
+  async listMaterialOptions(keyword?: string): Promise<Array<{ id: string; label: string }>> {
+    const [fabric, accessory] = await Promise.all([
+      materialApi.list({ page: 1, pageSize: 100, materialType: 'fabric', keyword }),
+      materialApi.list({ page: 1, pageSize: 100, materialType: 'accessory', keyword }),
+    ]);
+    const merged = [...fabric.list, ...accessory.list];
+    return merged.map((item) => ({
+      id: item.id,
+      label: `${item.sku} / ${item.name}`,
+    }));
+  },
+
+  async createOrder(payload: {
+    workOrderId: string;
+    subcontractorId: string;
+    processCatalogId: string;
+    dispatchQty: number;
+    unitPrice: number;
+    dispatchDate: string;
+    expectedReturnDate?: string;
+    attritionRate?: number;
+    orderNo?: string;
+  }): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      '/api/v1/outsourcing-orders',
+      {
+        workOrderId: Number(payload.workOrderId),
+        subcontractorId: Number(payload.subcontractorId),
+        processCatalogId: Number(payload.processCatalogId),
+        dispatchQty: payload.dispatchQty,
+        unitPrice: payload.unitPrice,
+        dispatchDate: payload.dispatchDate,
+        expectedReturnDate: payload.expectedReturnDate,
+        attritionRate: payload.attritionRate,
+        orderNo: payload.orderNo?.trim() || undefined,
+      },
+      { params: { tenantId } },
+    );
+  },
+
+  async updateStatus(orderId: string, status: string): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      `/api/v1/outsourcing-orders/${Number(orderId)}/update`,
+      { status },
+      { params: { tenantId } },
+    );
+  },
+
+  async createMaterialRequest(payload: {
+    orderId: string;
+    materialId?: string;
+    requestQuantity: number;
+    requestedAt?: string;
+    remark?: string;
+  }): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      `/api/v1/outsourcing-orders/${Number(payload.orderId)}/material-requests`,
+      {
+        materialId: payload.materialId ? Number(payload.materialId) : undefined,
+        requestQuantity: payload.requestQuantity,
+        requestedAt: payload.requestedAt,
+        remark: payload.remark?.trim() || undefined,
+      },
+      { params: { tenantId } },
+    );
   },
 };
