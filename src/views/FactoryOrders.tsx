@@ -114,6 +114,15 @@ type OrderActionSnapshot = {
 };
 
 type CreateQuantityMatrix = Record<string, Record<string, number>>;
+type CreateStyleMaterial = {
+  materialId: number;
+  materialName: string;
+  materialSku: string;
+  materialType: 'FABRIC' | 'ACCESSORY' | 'PACKAGING';
+  unit: string;
+  consumption: number;
+  lossRate: number;
+};
 type ProgressStatRow = {
   key: string;
   color: string;
@@ -309,6 +318,7 @@ const FactoryOrders = () => {
   const [createSizes, setCreateSizes] = useState<string[]>([]);
   const [createMatrix, setCreateMatrix] = useState<CreateQuantityMatrix>({});
   const [createMatrixSeedStyleId, setCreateMatrixSeedStyleId] = useState<number | null>(null);
+  const [createStyleMaterials, setCreateStyleMaterials] = useState<CreateStyleMaterial[]>([]);
   const [pendingSampleProduceContext, setPendingSampleProduceContext] = useState<PendingSampleProduceContext | null>(null);
   const [costDetailRecord, setCostDetailRecord] = useState<OrderActionSnapshot | null>(null);
   const [costDetailLoading, setCostDetailLoading] = useState(false);
@@ -1207,7 +1217,10 @@ const FactoryOrders = () => {
     let cancelled = false;
     const fillFromStyleDetail = async () => {
       try {
-        const detail = await styleDetailApi.fetchDetail(String(styleId));
+        const [detail, materials] = await Promise.all([
+          styleDetailApi.fetchDetail(String(styleId)),
+          styleDetailApi.fetchMaterials(String(styleId)),
+        ]);
         if (cancelled) {
           return;
         }
@@ -1230,12 +1243,14 @@ const FactoryOrders = () => {
         setCreateColors(detailColors);
         setCreateSizes(detailSizes);
         setCreateMatrix(buildCreateMatrix(detailColors, detailSizes));
+        setCreateStyleMaterials(materials);
         setCreateMatrixSeedStyleId(styleId);
       } catch (error) {
         if (cancelled) {
           return;
         }
         console.error('failed to load style detail for quick create', error);
+        setCreateStyleMaterials([]);
         setCreateMatrixSeedStyleId(styleId);
       }
     };
@@ -1245,6 +1260,36 @@ const FactoryOrders = () => {
       cancelled = true;
     };
   }, [createMatrixSeedStyleId, createModalOpen, selectedCreateStyleId, styleOptions]);
+
+  useEffect(() => {
+    if (!createModalOpen || selectedCreateStyleId == null) {
+      setCreateStyleMaterials([]);
+      return;
+    }
+    const styleId = Number(selectedCreateStyleId);
+    if (!Number.isFinite(styleId) || styleId <= 0) {
+      setCreateStyleMaterials([]);
+      return;
+    }
+    let cancelled = false;
+    const loadMaterials = async () => {
+      try {
+        const materials = await styleDetailApi.fetchMaterials(String(styleId));
+        if (!cancelled) {
+          setCreateStyleMaterials(materials);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('failed to load style bom materials', error);
+          setCreateStyleMaterials([]);
+        }
+      }
+    };
+    void loadMaterials();
+    return () => {
+      cancelled = true;
+    };
+  }, [createModalOpen, selectedCreateStyleId]);
 
   const handleCreateColorsChange = useCallback((values: string[]) => {
     const nextColors = normalizeTagValues(values);
@@ -2419,6 +2464,33 @@ const FactoryOrders = () => {
                     <Text>{selectedStyleOption.label}</Text>
                   </Space>
                 </div>
+              </Col>
+            ) : null}
+            {selectedStyleOption ? (
+              <Col span={24}>
+                <Form.Item label="关联面辅料">
+                  {createStyleMaterials.length === 0 ? (
+                    <Text type="secondary">当前款式未配置 BOM，暂无可同步的面辅料。</Text>
+                  ) : (
+                    <div className="factory-create-material-preview">
+                      {createStyleMaterials.map((item) => (
+                        <div key={`${item.materialId}-${item.materialType}`} className="factory-create-material-card">
+                          <div className="factory-create-material-top">
+                            <span className={`factory-create-material-type ${item.materialType.toLowerCase()}`}>
+                              {item.materialType === 'FABRIC' ? '面料' : item.materialType === 'ACCESSORY' ? '辅料' : '包装'}
+                            </span>
+                            <span className="factory-create-material-sku">{item.materialSku || '未配置编码'}</span>
+                          </div>
+                          <div className="factory-create-material-name">{item.materialName}</div>
+                          <div className="factory-create-material-meta">
+                            单耗 {item.consumption || 0}{item.unit || '件'}
+                            {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Form.Item>
               </Col>
             ) : null}
             <Col span={12}>

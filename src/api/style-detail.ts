@@ -29,6 +29,16 @@ type BackendStyleResponse = {
   variants: BackendStyleVariant[];
 };
 
+type BackendStyleMaterialResponse = {
+  materialId: number;
+  materialName: string;
+  materialSku?: string;
+  materialType?: 'FABRIC' | 'ACCESSORY' | 'PACKAGING';
+  unit?: string;
+  consumption?: number;
+  lossRate?: number;
+};
+
 type BackendStyleRequest = {
   tenantId: number;
   styleNo: string;
@@ -170,6 +180,21 @@ export const styleDetailApi = {
       params: { tenantId },
     });
     return adaptDetail(response.data);
+  },
+  async fetchMaterials(styleId: string) {
+    const tenantId = ensureTenantId();
+    const response = await http.get<BackendStyleMaterialResponse[]>(`/api/v1/styles/${styleId}/materials`, {
+      params: { tenantId },
+    });
+    return (response.data ?? []).map((item) => ({
+      materialId: item.materialId,
+      materialName: item.materialName,
+      materialSku: item.materialSku ?? '',
+      materialType: item.materialType ?? 'ACCESSORY',
+      unit: item.unit ?? '',
+      consumption: Number(item.consumption ?? 0),
+      lossRate: Number(item.lossRate ?? 0),
+    }));
   },
   async create(payload: StyleDetailSavePayload): Promise<StyleDetailData> {
     const tenantId = ensureTenantId();

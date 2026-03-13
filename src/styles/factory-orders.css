@@ -255,6 +255,68 @@
   background: #fafafa;
 }
 
+.factory-create-material-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.factory-create-material-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.factory-create-material-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.factory-create-material-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.factory-create-material-type.fabric {
+  color: #1677ff;
+  background: rgba(22, 119, 255, 0.08);
+}
+
+.factory-create-material-type.accessory {
+  color: #722ed1;
+  background: rgba(114, 46, 209, 0.08);
+}
+
+.factory-create-material-type.packaging {
+  color: #d46b08;
+  background: rgba(250, 140, 22, 0.12);
+}
+
+.factory-create-material-sku {
+  font-size: 12px;
+  color: rgba(16, 32, 57, 0.48);
+}
+
+.factory-create-material-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #102039;
+}
+
+.factory-create-material-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(16, 32, 57, 0.58);
+}
+
 .factory-allocation-toolbar {
   display: flex;
   align-items: center;
