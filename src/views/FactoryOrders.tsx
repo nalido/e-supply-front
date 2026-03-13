@@ -24,7 +24,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -181,6 +180,8 @@ const materialStatusOptions = [
   { label: '齐备中', value: 'ALLOCATING' },
   { label: '已齐备（已发料）', value: 'ALLOCATED' },
 ];
+
+const hiddenOrderStatusTags = new Set(['DRAFT', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
 
 const progressNodeCodeMap: Record<string, string> = {
   order_placed: 'ORDER_PLACED',
@@ -1955,9 +1956,11 @@ const FactoryOrders = () => {
           renderItem={(order) => {
             const isChecked = selectedOrderIds.includes(order.id);
             const meta = getOverallStatusMeta(order.isCompleted, order.statusKey);
+            const visibleTags = (order.tags ?? []).filter((tag) => !hiddenOrderStatusTags.has(tag));
+            const overallCompleted = resolveOverallCompleted(order.isCompleted, order.statusKey);
             return (
               <List.Item key={order.id}>
-                <Card styles={{ body: { display: 'flex', flexDirection: 'column', gap: 12, padding: 16 } }}>
+                <Card className="factory-order-card-shell" styles={{ body: { display: 'flex', flexDirection: 'column', gap: 16, padding: 20 } }}>
                   <div className="factory-order-card-header">
                     <div className="factory-order-card-main">
                       <div className="factory-order-checkbox">
@@ -1974,15 +1977,19 @@ const FactoryOrders = () => {
                           width={null}
                           height={null}
                         />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="factory-order-title">{order.name}</div>
-                          <Space size={8} wrap>
+                        <div className="factory-order-content">
+                          <div className="factory-order-topline">
+                            <div className="factory-order-title">{order.name}</div>
+                          </div>
+                          <Space className="factory-order-meta-row" size={8} wrap>
                             <span className="factory-order-subtitle">订单号：{order.code}</span>
-                            <Tag color={meta.color}>{meta.label}</Tag>
                             {order.expectedDelivery ? <span className="factory-order-subtitle">预计交货：{order.expectedDelivery}</span> : null}
+                            <span className={`factory-order-status-badge${overallCompleted ? ' completed' : ' ongoing'}`}>
+                              {meta.label}
+                            </span>
                           </Space>
                           {order.materialStatus && order.materialStatus !== 'PENDING' ? (
-                            <div style={{ marginTop: 4 }}>
+                            <div className="factory-order-material-tag">
                               <Tag color={getMaterialTagColor(order.materialStatus)}>{order.materialStatus}</Tag>
                             </div>
                           ) : null}
@@ -1990,7 +1997,7 @@ const FactoryOrders = () => {
                             <Tag color="blue" bordered={false}>
                               {order.quantityLabel}：{order.quantityValue}
                             </Tag>
-                            {order.tags?.map((tag) => (
+                            {visibleTags.map((tag) => (
                               <Tag key={`${order.id}-${tag}`} bordered={false}>
                                 {tag}
                               </Tag>
@@ -2044,7 +2051,12 @@ const FactoryOrders = () => {
                     </div>
                   </div>
 
-                  <div className="factory-order-progress">
+                  <div className="factory-order-progress-panel">
+                    <div className="factory-order-progress-panel-header">
+                      <div className="factory-order-progress-panel-title">生产推进</div>
+                      <div className="factory-order-progress-panel-meta">点击节点可继续推进状态</div>
+                    </div>
+                    <div className="factory-order-progress">
                     <div className="factory-order-progress-track">
                       {order.progress.map((stage, index) => {
                         const status = stage.status ?? 'default';
@@ -2148,6 +2160,7 @@ const FactoryOrders = () => {
                       })}
                     </div>
                   </div>
+                  </div>
                 </Card>
               </List.Item>
             );
@@ -2211,34 +2224,43 @@ const FactoryOrders = () => {
 
   return (
     <div className="factory-orders-page">
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {(loadingSummary && metrics.length === 0 ? Array.from({ length: 4 }).map((_, index) => ({
-          key: `loading-${index}`,
-          label: '加载中',
-          primaryValue: '...',
-        })) : metrics).map((metric: FactoryOrderMetric | { key: string; label: string; primaryValue: string }) => (
-          <Col key={metric.key} xs={12} sm={12} md={8} lg={6}>
-            <Card
-              hoverable
-              loading={loadingSummary && metrics.length === 0}
-              styles={{ body: { padding: 16 } }}
-              style={('tone' in metric && metric.tone === 'warning') ? { borderColor: '#ffccc7', background: '#fff2f0' } : undefined}
-            >
-              <Statistic
-                title={metric.label}
-                value={metric.primaryValue}
-                valueStyle={{ fontSize: 20, fontWeight: 600 }}
-              />
-              {'secondaryValue' in metric && metric.secondaryValue ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>{metric.secondaryValue}</Text>
-              ) : null}
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      <section className="factory-orders-hero">
+        <div className="factory-orders-hero-copy">
+          <div className="factory-orders-hero-eyebrow">Factory order cockpit</div>
+          <div className="factory-orders-hero-title">工厂订单总览</div>
+          <div className="factory-orders-hero-subtitle">
+            聚合查看订单节奏、物料准备与交付压力，优先处理即将交期和仍在推进中的工单。
+          </div>
+        </div>
+        <Row gutter={[16, 16]} className="factory-orders-hero-metrics">
+          {(loadingSummary && metrics.length === 0 ? Array.from({ length: 4 }).map((_, index) => ({
+            key: `loading-${index}`,
+            label: '加载中',
+            primaryValue: '...',
+          })) : metrics).map((metric: FactoryOrderMetric | { key: string; label: string; primaryValue: string }) => (
+            <Col key={metric.key} xs={12} sm={12} md={8} lg={6}>
+              <div className={`factory-orders-metric-card${'tone' in metric && metric.tone === 'warning' ? ' warning' : ''}`}>
+                <div className="factory-orders-metric-title">{metric.label}</div>
+                <div className="factory-orders-metric-primary">{metric.primaryValue}</div>
+                {'secondaryValue' in metric && metric.secondaryValue ? (
+                  <div className="factory-orders-metric-secondary">{metric.secondaryValue}</div>
+                ) : (
+                  <div className="factory-orders-metric-secondary">实时汇总当前列表关键指标</div>
+                )}
+              </div>
+            </Col>
+          ))}
+        </Row>
+      </section>
 
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <Card className="factory-orders-panel">
+        <div className="factory-orders-panel-header">
+          <div>
+            <div className="factory-orders-panel-title">订单列表</div>
+            <div className="factory-orders-panel-subtitle">支持按完成状态、交期与更新时间筛选，适合运营和跟单协同查看。</div>
+          </div>
+        </div>
+        <div className="factory-orders-toolbar">
           <Space size={12} wrap>
             <Input.Search
               allowClear
@@ -2290,7 +2312,7 @@ const FactoryOrders = () => {
           </Space>
         </div>
 
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div className="factory-orders-selection-row">
           <Checkbox
             indeterminate={indeterminate}
             checked={allVisibleSelected}
@@ -2303,7 +2325,7 @@ const FactoryOrders = () => {
           </Text>
         </div>
 
-        <div style={{ marginTop: 20 }}>
+        <div className="factory-orders-content">
           {viewMode === 'card' ? renderCardView() : renderTableView()}
         </div>
       </Card>
