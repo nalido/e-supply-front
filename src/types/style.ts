@@ -1,4 +1,5 @@
 export type StyleStatus = 'active' | 'inactive';
+export type StyleWeeklySalesSource = 'AUTO' | 'MANUAL';
 
 export interface StyleData {
   id: string;
@@ -44,6 +45,16 @@ export interface StyleMaterialData {
   lossRate: number;
 }
 
+export interface StyleWeeklySalesConfig {
+  source: StyleWeeklySalesSource;
+  manualWeeklySales?: number;
+  autoSalesWeeks?: number;
+  coverageWeeks?: number;
+  overrideReason?: string;
+  autoWeeklySales?: number;
+  effectiveWeeklySales?: number;
+}
+
 export interface StyleDetailData {
   id?: string;
   styleNo: string;
@@ -58,6 +69,7 @@ export interface StyleDetailData {
   colorImages: StyleColorImageMap;
   sizeChartImageUrl?: string;
   materials?: StyleMaterialData[];
+  weeklySalesConfig?: StyleWeeklySalesConfig;
 }
 
 export interface StyleDetailSavePayload {
@@ -72,4 +84,5 @@ export interface StyleDetailSavePayload {
   colors: string[];
   sizes: string[];
   colorImages: StyleColorImageMap;
+  weeklySalesConfig?: StyleWeeklySalesConfig;
 }
