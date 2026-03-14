@@ -4,14 +4,11 @@ import type {
   StyleDetailSavePayload,
   StyleFormMeta,
   StyleStatus,
-  StyleWeeklySalesConfig,
 } from '../types/style';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
-type BackendWeeklySalesMode = 'AUTO' | 'MANUAL';
-
 type BackendStyleVariant = {
   id: number;
   color?: string;
@@ -30,25 +27,6 @@ type BackendStyleResponse = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariant[];
-};
-
-type BackendWeeklySalesSettingResponse = {
-  styleId: number;
-  salesMode: BackendWeeklySalesMode;
-  manualWeeklySales?: number;
-  autoSalesWeeks?: number;
-  coverageWeeks?: number;
-  overrideReason?: string;
-  resolvedWeeklySales?: number;
-};
-
-type BackendWeeklySalesSettingRequest = {
-  tenantId: number;
-  salesMode: BackendWeeklySalesMode;
-  manualWeeklySales?: number;
-  autoSalesWeeks?: number;
-  coverageWeeks?: number;
-  overrideReason?: string;
 };
 
 type BackendStyleMaterialResponse = {
@@ -150,37 +128,6 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
   };
 };
 
-const adaptWeeklySalesConfig = (
-  payload?: BackendWeeklySalesSettingResponse,
-): StyleWeeklySalesConfig | undefined => {
-  if (!payload) {
-    return undefined;
-  }
-  const effectiveWeeklySales = payload.resolvedWeeklySales;
-  return {
-    source: payload.salesMode,
-    manualWeeklySales: payload.manualWeeklySales,
-    autoSalesWeeks: payload.autoSalesWeeks,
-    coverageWeeks: payload.coverageWeeks,
-    overrideReason: payload.overrideReason,
-    autoWeeklySales: payload.salesMode === 'AUTO' ? effectiveWeeklySales : undefined,
-    effectiveWeeklySales,
-  };
-};
-
-const buildWeeklySalesRequest = (
-  config: StyleWeeklySalesConfig | undefined,
-  tenantId: number,
-): BackendWeeklySalesSettingRequest => ({
-  tenantId,
-  salesMode: config?.source ?? 'AUTO',
-  manualWeeklySales:
-    config?.source === 'MANUAL' ? config.manualWeeklySales : undefined,
-  autoSalesWeeks: config?.autoSalesWeeks,
-  coverageWeeks: config?.coverageWeeks,
-  overrideReason: config?.overrideReason?.trim() || undefined,
-});
-
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
   const { colors, sizes, colorImages, sizeChartImageUrl } = payload;
   if (!colors.length || !sizes.length) {
@@ -229,18 +176,10 @@ export const styleDetailApi = {
   },
   async fetchDetail(styleId: string): Promise<StyleDetailData> {
     const tenantId = ensureTenantId();
-    const [detailResponse, weeklySalesResponse] = await Promise.all([
-      http.get<BackendStyleResponse>(`/api/v1/styles/${styleId}`, {
-        params: { tenantId },
-      }),
-      http.get<BackendWeeklySalesSettingResponse>(`/api/v1/styles/${styleId}/weekly-sales-setting`, {
-        params: { tenantId },
-      }),
-    ]);
-    return {
-      ...adaptDetail(detailResponse.data),
-      weeklySalesConfig: adaptWeeklySalesConfig(weeklySalesResponse.data),
-    };
+    const detailResponse = await http.get<BackendStyleResponse>(`/api/v1/styles/${styleId}`, {
+      params: { tenantId },
+    });
+    return adaptDetail(detailResponse.data);
   },
   async fetchMaterials(styleId: string): Promise<StyleMaterialData[]> {
     const tenantId = ensureTenantId();
@@ -261,26 +200,12 @@ export const styleDetailApi = {
     const tenantId = ensureTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     const response = await http.post<BackendStyleResponse>('/api/v1/styles', requestBody);
-    const createdDetail = adaptDetail(response.data);
-    if (createdDetail.id && payload.weeklySalesConfig) {
-      await http.post<BackendWeeklySalesSettingResponse>(
-        `/api/v1/styles/${createdDetail.id}/weekly-sales-setting`,
-        buildWeeklySalesRequest(payload.weeklySalesConfig, tenantId),
-      );
-      return this.fetchDetail(createdDetail.id);
-    }
-    return createdDetail;
+    return adaptDetail(response.data);
   },
   async update(styleId: string, payload: StyleDetailSavePayload): Promise<StyleDetailData> {
     const tenantId = ensureTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     await http.post<BackendStyleResponse>(`/api/v1/styles/${styleId}/update`, requestBody);
-    if (payload.weeklySalesConfig) {
-      await http.post<BackendWeeklySalesSettingResponse>(
-        `/api/v1/styles/${styleId}/weekly-sales-setting`,
-        buildWeeklySalesRequest(payload.weeklySalesConfig, tenantId),
-      );
-    }
     return this.fetchDetail(styleId);
   },
 };

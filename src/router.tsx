@@ -44,6 +44,7 @@ import MaterialInventoryReport from './views/MaterialInventoryReport';
 import MaterialPurchaseReport from './views/MaterialPurchaseReport';
 import MaterialIssueDetails from './views/MaterialIssueDetails';
 import MaterialStock from './views/MaterialStock';
+import SalesStockingSuggestion from './views/SalesStockingSuggestion';
 import OrderOutsourcingCuttingDetailReport from './views/OrderOutsourcingCuttingDetailReport';
 import SettlementCustomerReceipts from './views/SettlementCustomerReceipts';
 import SettlementFactoryPayments from './views/SettlementFactoryPayments';
@@ -133,6 +134,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/product/inbound/received' &&
     n.key !== '/product/outbound' &&
     n.key !== '/material/stock' &&
+    n.key !== '/material/sales-stocking-suggestion' &&
     n.key !== '/material/report/overview' &&
     n.key !== '/material/report/purchase-inbound-detail' &&
     n.key !== '/material/issue' &&
@@ -196,6 +198,7 @@ const router = createBrowserRouter([
       { path: 'product/inbound/pending', element: React.createElement(FinishedGoodsPendingReceipt) },
       { path: 'product/inbound/received', element: React.createElement(FinishedGoodsReceived) },
       { path: 'material/stock', element: React.createElement(MaterialStock) },
+      { path: 'material/sales-stocking-suggestion', element: React.createElement(SalesStockingSuggestion) },
       { path: 'material/purchase-prep', element: React.createElement(StockingPurchaseInbound) },
       { path: 'material/report/overview', element: React.createElement(MaterialInventoryReport) },
       { path: 'material/report/purchase-inbound-detail', element: React.createElement(MaterialPurchaseReport) },

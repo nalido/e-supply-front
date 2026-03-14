@@ -42,6 +42,12 @@ export type StockingPurchaseCreateModalProps = {
     quantity?: number;
     supplierName?: string;
     remark?: string;
+    items?: Array<{
+      materialCode?: string;
+      materialName?: string;
+      quantity?: number;
+      supplierName?: string;
+    }>;
   };
   onClose: () => void;
   onCreated: (summary: ProcurementOrderSummary) => void;
@@ -160,38 +166,59 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
 
   useEffect(() => {
     const draft = initialDraft;
-    const materialKeyword = draft?.materialCode && draft.materialCode !== '--'
-      ? draft.materialCode
-      : draft?.materialName;
-    if (!open || !materialKeyword) {
+    const draftItems = (draft?.items && draft.items.length > 0)
+      ? draft.items
+      : [{
+          materialCode: draft?.materialCode,
+          materialName: draft?.materialName,
+          quantity: draft?.quantity,
+          supplierName: draft?.supplierName,
+        }];
+    if (!open || !draftItems.some((item) => item.materialCode || item.materialName)) {
       return;
     }
     const loadInitialMaterial = async () => {
       try {
-        const response = await materialApi.list({
-          page: 1,
-          pageSize: DEFAULT_PAGE_SIZE,
-          materialType,
-          keyword: materialKeyword,
-        });
-        const matchedMaterial =
-          response.list.find((item) => item.sku === draft?.materialCode)
-          ?? response.list.find((item) => item.name === draft?.materialName)
-          ?? response.list[0];
-        if (!matchedMaterial) {
+        const matchedMaterials: MaterialItem[] = [];
+        const nextQuantities: Record<string, number> = {};
+        for (const draftItem of draftItems) {
+          const materialKeyword =
+            draftItem.materialCode && draftItem.materialCode !== '--'
+              ? draftItem.materialCode
+              : draftItem.materialName;
+          if (!materialKeyword) {
+            continue;
+          }
+          const response = await materialApi.list({
+            page: 1,
+            pageSize: DEFAULT_PAGE_SIZE,
+            materialType,
+            keyword: materialKeyword,
+          });
+          const matchedMaterial =
+            response.list.find((item) => item.sku === draftItem.materialCode)
+            ?? response.list.find((item) => item.name === draftItem.materialName)
+            ?? response.list[0];
+          if (!matchedMaterial) {
+            continue;
+          }
+          if (!matchedMaterials.find((item) => item.id === matchedMaterial.id)) {
+            matchedMaterials.push(matchedMaterial);
+          }
+          nextQuantities[matchedMaterial.id] = Math.max(0, Number(draftItem.quantity ?? 0));
+        }
+        if (!matchedMaterials.length) {
           return;
         }
-        setSelectedMaterials([matchedMaterial]);
-        setQuantities({
-          [matchedMaterial.id]: Math.max(0, Number(draft?.quantity ?? 0)),
-        });
+        setSelectedMaterials(matchedMaterials);
+        setQuantities(nextQuantities);
       } catch (error) {
         console.error('failed to load initial material draft', error);
         message.warning('已打开采购创建弹窗，但未能自动匹配物料，请手动选择');
       }
     };
     void loadInitialMaterial();
-  }, [initialDraft?.materialCode, initialDraft?.materialName, initialDraft?.quantity, materialType, open]);
+  }, [initialDraft, materialType, open]);
 
   useEffect(() => {
     if (materialDrawerOpen) {

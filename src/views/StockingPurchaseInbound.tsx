@@ -107,6 +107,20 @@ type BatchReceiveModalState = {
   records: StockingPurchaseRecord[];
 };
 
+type StockingCreateDraft = {
+  materialCode?: string;
+  materialName?: string;
+  quantity?: number;
+  supplierName?: string;
+  remark?: string;
+  items?: Array<{
+    materialCode?: string;
+    materialName?: string;
+    quantity?: number;
+    supplierName?: string;
+  }>;
+};
+
 const StockingPurchaseInbound = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [receiveForm] = Form.useForm<ReceiveFormValues>();
@@ -143,13 +157,25 @@ const StockingPurchaseInbound = () => {
     if (searchParams.get('openCreate') !== 'true') {
       return undefined;
     }
+    const prefillKey = searchParams.get('prefillKey');
+    if (prefillKey) {
+      try {
+        const raw = window.sessionStorage.getItem(prefillKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as StockingCreateDraft;
+          return parsed;
+        }
+      } catch (error) {
+        console.error('failed to parse stocking create prefill', error);
+      }
+    }
     return {
       materialCode: searchParams.get('materialCode') ?? undefined,
       materialName: searchParams.get('materialName') ?? undefined,
       quantity: Number(searchParams.get('quantity') ?? '0'),
       supplierName: searchParams.get('supplierName') ?? undefined,
       remark: searchParams.get('remark') ?? undefined,
-    };
+    } as StockingCreateDraft;
   }, [searchParams]);
 
   useEffect(() => {
@@ -823,6 +849,10 @@ const StockingPurchaseInbound = () => {
             setCreateModalOpen(false);
             if (searchParams.get('openCreate') === 'true') {
               const next = new URLSearchParams(searchParams);
+              const prefillKey = next.get('prefillKey');
+              if (prefillKey) {
+                window.sessionStorage.removeItem(prefillKey);
+              }
               next.delete('openCreate');
               next.delete('materialType');
               next.delete('materialCode');
@@ -830,6 +860,7 @@ const StockingPurchaseInbound = () => {
               next.delete('quantity');
               next.delete('supplierName');
               next.delete('remark');
+              next.delete('prefillKey');
               setSearchParams(next, { replace: true });
             }
           }}
@@ -839,6 +870,10 @@ const StockingPurchaseInbound = () => {
             setSelectedRowKeys([]);
             if (searchParams.get('openCreate') === 'true') {
               const next = new URLSearchParams(searchParams);
+              const prefillKey = next.get('prefillKey');
+              if (prefillKey) {
+                window.sessionStorage.removeItem(prefillKey);
+              }
               next.delete('openCreate');
               next.delete('materialType');
               next.delete('materialCode');
@@ -846,6 +881,7 @@ const StockingPurchaseInbound = () => {
               next.delete('quantity');
               next.delete('supplierName');
               next.delete('remark');
+              next.delete('prefillKey');
               setSearchParams(next, { replace: true });
             }
             void loadList();

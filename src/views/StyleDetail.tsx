@@ -11,12 +11,10 @@ import {
   List,
   Modal,
   Pagination,
-  Radio,
   Row,
   Select,
   Space,
   Spin,
-  Statistic,
   Switch,
   Typography,
   message,
@@ -36,7 +34,6 @@ import type {
   StyleDetailData,
   StyleDetailSavePayload,
   StyleFormMeta,
-  StyleWeeklySalesSource,
 } from '../types/style';
 import '../styles/style-detail.css';
 import '../styles/sample-order-form.css';
@@ -55,11 +52,6 @@ type StyleFormValues = {
   colorImagesEnabled: boolean;
   coverImageUrl?: string;
   sizeChartImageUrl?: string;
-  weeklySalesSource: StyleWeeklySalesSource;
-  manualWeeklySales?: number;
-  autoSalesWeeks?: number;
-  coverageWeeks?: number;
-  overrideReason?: string;
 };
 
 type MaterialPickerState = {
@@ -85,19 +77,7 @@ const buildInitialValues = (detail?: StyleDetailData): StyleFormValues => ({
   colorImagesEnabled: Boolean(detail?.colorImages && Object.values(detail.colorImages).some(Boolean)),
   coverImageUrl: detail?.coverImageUrl,
   sizeChartImageUrl: detail?.sizeChartImageUrl,
-  weeklySalesSource: detail?.weeklySalesConfig?.source ?? 'AUTO',
-  manualWeeklySales: detail?.weeklySalesConfig?.manualWeeklySales,
-  autoSalesWeeks: detail?.weeklySalesConfig?.autoSalesWeeks ?? 4,
-  coverageWeeks: detail?.weeklySalesConfig?.coverageWeeks ?? 2,
-  overrideReason: detail?.weeklySalesConfig?.overrideReason,
 });
-
-const formatDecimal = (value?: number, digits = 2): string => {
-  if (value == null || Number.isNaN(value)) {
-    return '--';
-  }
-  return `${Number(value).toFixed(digits)}`;
-};
 
 const createUid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -158,18 +138,6 @@ const StyleDetail = () => {
   const watchedColors = Form.useWatch('colors', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
-  const weeklySalesSource = Form.useWatch('weeklySalesSource', form) ?? 'AUTO';
-  const manualWeeklySales = Form.useWatch('manualWeeklySales', form);
-  const autoSalesWeeks = Form.useWatch('autoSalesWeeks', form);
-  const coverageWeeks = Form.useWatch('coverageWeeks', form);
-
-  const autoWeeklySales = detail?.weeklySalesConfig?.autoWeeklySales;
-  const effectiveWeeklySales = useMemo(() => {
-    if (weeklySalesSource === 'MANUAL') {
-      return manualWeeklySales;
-    }
-    return detail?.weeklySalesConfig?.effectiveWeeklySales ?? autoWeeklySales;
-  }, [autoWeeklySales, detail?.weeklySalesConfig?.effectiveWeeklySales, manualWeeklySales, weeklySalesSource]);
 
   const fabricMaterials = useMemo(
     () => materials.filter((item) => item.materialType === 'fabric'),
@@ -418,18 +386,6 @@ const StyleDetail = () => {
     }
   }, [isDirty, navigate]);
 
-  const handleOpenSalesStockingReport = useCallback(() => {
-    const styleNo = form.getFieldValue('styleNo')?.trim();
-    const params = new URLSearchParams({
-      mode: 'sales',
-      materialType: 'fabric',
-    });
-    if (styleNo) {
-      params.set('keyword', styleNo);
-    }
-    navigate(`/orders/report/material-need?${params.toString()}`);
-  }, [form, navigate]);
-
   const handleSave = useCallback(async () => {
     try {
       const values = await form.validateFields();
@@ -454,13 +410,6 @@ const StyleDetail = () => {
         coverImageUrl: values.coverImageUrl,
         sizeChartImageUrl: values.sizeChartImageUrl,
         colorImages: values.colorImagesEnabled ? colorImages : {},
-        weeklySalesConfig: {
-          source: values.weeklySalesSource,
-          manualWeeklySales: values.weeklySalesSource === 'MANUAL' ? values.manualWeeklySales : undefined,
-          autoSalesWeeks: values.autoSalesWeeks,
-          coverageWeeks: values.coverageWeeks,
-          overrideReason: values.overrideReason,
-        },
       };
       const savedDetail = isEditing && styleId
         ? await styleDetailApi.update(styleId, payload)
@@ -604,91 +553,6 @@ const StyleDetail = () => {
                 ))}
               </div>
             )}
-          </Card>
-
-          <Card variant="borderless" className="style-detail-card">
-            <div className="style-detail-materials-header" style={{ marginBottom: 16 }}>
-              <div>
-                <Title level={5} style={{ marginBottom: 4 }}>备料参数 / 周销量设置</Title>
-                <Space direction="vertical" size={4}>
-                  <Text type="secondary">用于驱动“销量备料建议”模式的周销量、覆盖周期与人工覆盖口径。</Text>
-                  <Button type="link" style={{ paddingInline: 0 }} onClick={handleOpenSalesStockingReport}>
-                    查看订单物料需求报表中的销量备料建议
-                  </Button>
-                </Space>
-              </div>
-            </div>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} lg={14}>
-                <Form.Item name="weeklySalesSource" label="周销量来源" rules={[{ required: true, message: '请选择周销量来源' }]}>
-                  <Radio.Group optionType="button" buttonStyle="solid">
-                    <Radio.Button value="AUTO">自动</Radio.Button>
-                    <Radio.Button value="MANUAL">手工覆盖</Radio.Button>
-                  </Radio.Group>
-                </Form.Item>
-              </Col>
-              <Col xs={24} lg={10}>
-                <Form.Item name="coverageWeeks" label="备料覆盖周数" rules={[{ required: true, message: '请输入覆盖周数' }]}>
-                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如 2" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} lg={12}>
-                <Form.Item
-                  name="autoSalesWeeks"
-                  label="自动销量回看周数"
-                  extra="AUTO 模式下用于说明自动销量的统计周期。"
-                  rules={[{ required: true, message: '请输入自动销量回看周数' }]}
-                >
-                  <InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="例如 4" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} lg={12}>
-                <Form.Item
-                  name="manualWeeklySales"
-                  label="手工周销量"
-                  rules={weeklySalesSource === 'MANUAL' ? [{ required: true, message: '请输入手工周销量' }] : []}
-                >
-                  <InputNumber
-                    min={0}
-                    precision={2}
-                    style={{ width: '100%' }}
-                    placeholder="例如 120"
-                    disabled={weeklySalesSource !== 'MANUAL'}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24}>
-                <Form.Item name="overrideReason" label="覆盖说明">
-                  <Input.TextArea
-                    rows={3}
-                    placeholder="如手工覆盖，请说明原因，例如直播活动预计放量、渠道备货等"
-                    maxLength={200}
-                    showCount
-                    allowClear
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} sm={8}>
-                <Card size="small">
-                  <Statistic title="自动周销量" value={formatDecimal(autoWeeklySales)} suffix="件/周" />
-                  <Text type="secondary">回看 {autoSalesWeeks ?? '--'} 周</Text>
-                </Card>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Card size="small">
-                  <Statistic title="生效周销量" value={formatDecimal(effectiveWeeklySales)} suffix="件/周" />
-                  <Text type="secondary">来源：{weeklySalesSource === 'MANUAL' ? '手工覆盖' : '自动'}</Text>
-                </Card>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Card size="small">
-                  <Statistic title="备料覆盖周期" value={coverageWeeks ?? '--'} suffix="周" />
-                  <Text type="secondary">用于推导建议库存</Text>
-                </Card>
-              </Col>
-            </Row>
           </Card>
 
           {isEditing && (

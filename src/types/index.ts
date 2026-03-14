@@ -37,4 +37,5 @@ export * from './salary-management';
 export * from './sample-costing-report';
 export * from './sample-order-comparison-report';
 export * from './stocking-purchase-inbound';
+export * from './sales-stocking-suggestion';
 export * from './pagination';

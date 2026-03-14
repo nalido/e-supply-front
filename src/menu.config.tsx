@@ -69,6 +69,7 @@ export const menuTree: MenuNode[] = [
     label: '物料进销存',
     children: [
       { key: '/material/stock', label: <Link to="/material/stock">物料库存</Link> },
+      { key: '/material/sales-stocking-suggestion', label: <Link to="/material/sales-stocking-suggestion">销量备料建议</Link> },
       { key: '/material/purchase-prep', label: <Link to="/material/purchase-prep">备料采购入库</Link> },
       { key: '/material/issue', label: <Link to="/material/issue">领料出库明细</Link> },
       {

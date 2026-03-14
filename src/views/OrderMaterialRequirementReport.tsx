@@ -7,7 +7,6 @@ import {
   Descriptions,
   Drawer,
   Input,
-  Radio,
   Space,
   Table,
   Tabs,
@@ -15,14 +14,11 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type {
   OrderMaterialRequirementListItem,
   OrderMaterialRequirementListParams,
-  OrderMaterialRequirementMode,
   OrderMaterialRequirementType,
-  SalesStockingSuggestionListItem,
-  SalesStockingSuggestionListParams,
 } from '../types/order-material-requirement-report';
 import { orderMaterialRequirementReportService } from '../api/order-material-requirement-report';
 import ListImage from '../components/common/ListImage';
@@ -36,12 +32,6 @@ const quantityFormatter = new Intl.NumberFormat('zh-CN', {
   maximumFractionDigits: 2,
 });
 
-const percentFormatter = new Intl.NumberFormat('zh-CN', {
-  style: 'percent',
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-
 const materialTabs = [
   { key: 'fabric', label: '面料' },
   { key: 'accessory', label: '辅料' },
@@ -49,31 +39,22 @@ const materialTabs = [
 ] as const satisfies { key: OrderMaterialRequirementType; label: string }[];
 
 const renderQuantity = (value: number): string => quantityFormatter.format(value ?? 0);
-const hasMeaningfulValue = (value?: string | null): value is string => Boolean(value && value !== '--' && value !== '-');
-
-const isValidMode = (value: string | null): value is OrderMaterialRequirementMode =>
-  value === 'order' || value === 'sales';
 
 const isValidMaterialType = (value: string | null): value is OrderMaterialRequirementType =>
   value === 'fabric' || value === 'accessory' || value === 'packaging';
 
 const OrderMaterialRequirementReport = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const modeParam = searchParams.get('mode');
   const materialTypeParam = searchParams.get('materialType');
-  const initialMode: OrderMaterialRequirementMode = isValidMode(modeParam) ? modeParam : 'order';
   const initialMaterialType: OrderMaterialRequirementType = isValidMaterialType(materialTypeParam)
     ? materialTypeParam
     : 'fabric';
   const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
-  const [mode, setMode] = useState<OrderMaterialRequirementMode>(initialMode);
   const [materialType, setMaterialType] = useState<OrderMaterialRequirementType>(initialMaterialType);
   const [restockOnly, setRestockOnly] = useState(searchParams.get('restockOnly') === 'true');
   const [keyword, setKeyword] = useState(initialKeyword);
   const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [records, setRecords] = useState<OrderMaterialRequirementListItem[]>([]);
-  const [salesRecords, setSalesRecords] = useState<SalesStockingSuggestionListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const initialPage = Number(searchParams.get('page') ?? '1');
   const initialPageSize = Number(searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE));
@@ -83,13 +64,10 @@ const OrderMaterialRequirementReport = () => {
   );
   const [total, setTotal] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRecord, setDetailRecord] = useState<SalesStockingSuggestionListItem | null>(null);
-  const [orderDetailOpen, setOrderDetailOpen] = useState(false);
-  const [orderDetailRecord, setOrderDetailRecord] = useState<OrderMaterialRequirementListItem | null>(null);
+  const [detailRecord, setDetailRecord] = useState<OrderMaterialRequirementListItem | null>(null);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
-    nextParams.set('mode', mode);
     nextParams.set('materialType', materialType);
     nextParams.set('page', String(page));
     nextParams.set('pageSize', String(pageSize));
@@ -100,9 +78,9 @@ const OrderMaterialRequirementReport = () => {
       nextParams.set('keyword', appliedKeyword);
     }
     setSearchParams(nextParams, { replace: true });
-  }, [appliedKeyword, materialType, mode, page, pageSize, restockOnly, setSearchParams]);
+  }, [appliedKeyword, materialType, page, pageSize, restockOnly, setSearchParams]);
 
-  const orderColumns: ColumnsType<OrderMaterialRequirementListItem> = useMemo(() => [
+  const columns: ColumnsType<OrderMaterialRequirementListItem> = useMemo(() => [
     {
       title: '物料',
       width: 260,
@@ -164,79 +142,6 @@ const OrderMaterialRequirementReport = () => {
         <Button
           type="link"
           onClick={() => {
-            setOrderDetailRecord(record);
-            setOrderDetailOpen(true);
-          }}
-        >
-          查看更多
-        </Button>
-      ),
-    },
-  ], []);
-
-  const salesColumns: ColumnsType<SalesStockingSuggestionListItem> = useMemo(() => [
-    {
-      title: '物料 / 款式',
-      width: 260,
-      fixed: 'left',
-      render: (_, record) => (
-        <Space align="start" size={12}>
-          <ListImage src={record.imageUrl} alt={record.materialName} fallback={<Text type="secondary">暂无图片</Text>} />
-          <Space direction="vertical" size={0}>
-            <Text strong>{record.materialName}</Text>
-            <Text type="secondary">{record.materialCode}</Text>
-            <Text>{record.styleNo ?? '--'}</Text>
-            <Text type="secondary">{record.styleName ?? '--'}</Text>
-          </Space>
-        </Space>
-      ),
-    },
-    {
-      title: '周销量',
-      dataIndex: 'weeklySales',
-      width: 110,
-      align: 'right',
-      render: (value) => renderQuantity(value),
-    },
-    {
-      title: '覆盖周数',
-      dataIndex: 'coverageWeeks',
-      width: 100,
-      align: 'right',
-      render: (value) => `${renderQuantity(value)} 周`,
-    },
-    {
-      title: '建议库存',
-      dataIndex: 'suggestedStockQty',
-      width: 130,
-      align: 'right',
-      render: (value, record) => `${renderQuantity(value)} ${record.unit ?? ''}`.trim(),
-    },
-    {
-      title: '当前可得量',
-      dataIndex: 'availableQty',
-      width: 130,
-      align: 'right',
-      render: (value, record) => `${renderQuantity(value)} ${record.unit ?? ''}`.trim(),
-    },
-    {
-      title: '建议补货量',
-      dataIndex: 'suggestedReplenishQty',
-      width: 140,
-      align: 'right',
-      render: (value, record) => (
-        <Text strong type={value > 0 ? 'danger' : 'secondary'}>{`${renderQuantity(value)} ${record.unit ?? ''}`.trim()}</Text>
-      ),
-    },
-    {
-      title: '详情',
-      key: 'detail',
-      width: 96,
-      fixed: 'right',
-      render: (_, record) => (
-        <Button
-          type="link"
-          onClick={() => {
             setDetailRecord(record);
             setDetailOpen(true);
           }}
@@ -245,77 +150,28 @@ const OrderMaterialRequirementReport = () => {
         </Button>
       ),
     },
-    {
-      title: '操作',
-      key: 'action',
-      width: 120,
-      fixed: 'right',
-      render: (_, record) => (
-        <Button
-          type="link"
-          disabled={record.suggestedReplenishQty <= 0}
-          onClick={() => {
-            const targetMaterialType = materialType === 'packaging' ? 'accessory' : materialType;
-            const targetParams = new URLSearchParams({
-              openCreate: 'true',
-              materialType: targetMaterialType,
-              materialName: record.materialName ?? '',
-              quantity: String(record.suggestedReplenishQty ?? 0),
-            });
-            if (hasMeaningfulValue(record.materialCode)) {
-              targetParams.set('materialCode', record.materialCode);
-            }
-            if (hasMeaningfulValue(record.supplier)) {
-              targetParams.set('supplierName', record.supplier);
-            }
-            const remarkParts = [record.styleNo, record.styleName].filter(Boolean);
-            if (remarkParts.length) {
-              targetParams.set('remark', `来自销量备料建议：${remarkParts.join(' / ')}`);
-            }
-            navigate(`/material/purchase-prep?${targetParams.toString()}`);
-          }}
-        >
-          发起采购
-        </Button>
-      ),
-    },
-  ], [materialType, navigate]);
+  ], []);
 
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
-      if (mode === 'order') {
-        const params: OrderMaterialRequirementListParams = {
-          materialType,
-          restockNeeded: restockOnly,
-          name: appliedKeyword,
-          page,
-          pageSize,
-        };
-        const response = await orderMaterialRequirementReportService.getList(params);
-        setRecords(response.list);
-        setSalesRecords([]);
-        setTotal(response.total);
-      } else {
-        const params: SalesStockingSuggestionListParams = {
-          materialType,
-          restockNeeded: restockOnly,
-          name: appliedKeyword,
-          page,
-          pageSize,
-        };
-        const response = await orderMaterialRequirementReportService.getSalesStockingSuggestions(params);
-        setSalesRecords(response.list);
-        setRecords([]);
-        setTotal(response.total);
-      }
+      const params: OrderMaterialRequirementListParams = {
+        materialType,
+        restockNeeded: restockOnly,
+        name: appliedKeyword,
+        page,
+        pageSize,
+      };
+      const response = await orderMaterialRequirementReportService.getList(params);
+      setRecords(response.list);
+      setTotal(response.total);
     } catch (error) {
       console.error('failed to load material requirement list', error);
-      message.error(mode === 'order' ? '获取物料需求报表失败' : '获取销量备料建议失败');
+      message.error('获取物料需求报表失败');
     } finally {
       setLoading(false);
     }
-  }, [mode, materialType, restockOnly, appliedKeyword, page, pageSize]);
+  }, [materialType, restockOnly, appliedKeyword, page, pageSize]);
 
   useEffect(() => {
     void loadList();
@@ -354,23 +210,11 @@ const OrderMaterialRequirementReport = () => {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Space style={{ width: '100%', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <Space size={12} wrap>
-              <Radio.Group
-                value={mode}
-                onChange={(event) => {
-                  setMode(event.target.value as OrderMaterialRequirementMode);
-                  setPage(1);
-                }}
-                optionType="button"
-                buttonStyle="solid"
-              >
-                <Radio.Button value="order">订单需求</Radio.Button>
-                <Radio.Button value="sales">销量备料建议</Radio.Button>
-              </Radio.Group>
               <Button icon={<DownloadOutlined />} onClick={handleExport}>
                 导出Excel
               </Button>
               <Checkbox checked={restockOnly} onChange={(event) => handleRestockChange(event.target.checked)}>
-                {mode === 'order' ? '仅显示需补料数' : '仅显示建议补货量 > 0'}
+                仅显示需补料数
               </Checkbox>
             </Space>
             <Space size={12} wrap>
@@ -379,7 +223,7 @@ const OrderMaterialRequirementReport = () => {
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
                 onPressEnter={handleFilter}
-                placeholder={mode === 'order' ? '物料名称' : '物料名称 / 款号'}
+                placeholder="物料名称"
                 prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
                 style={{ width: 240 }}
               />
@@ -397,131 +241,59 @@ const OrderMaterialRequirementReport = () => {
         </Space>
       </Card>
 
-      <Card title={mode === 'order' ? '物料需求明细' : '销量备料建议明细'}>
-        {mode === 'order' && (
-          <div style={{ marginBottom: 12 }}>
-            <Text type="secondary">已将关键字段前置：合计需求量、需补料、备料在库、备料在途、备料采购；其余信息可点击“查看更多”。</Text>
-          </div>
-        )}
-        {mode === 'sales' && (
-          <div style={{ marginBottom: 12 }}>
-            <Space direction="vertical" size={4}>
-              <Text type="secondary">根据款式周销量设置、覆盖周期与款式面辅料单耗，推导建议库存和建议补货量。</Text>
-              <Text type="secondary">已将关键字段前置：周销量、覆盖周数、建议库存、当前可得量、建议补货量；其余信息可点击“查看更多”。</Text>
-            </Space>
-          </div>
-        )}
-        {mode === 'order' ? (
-          <>
-            <Table<OrderMaterialRequirementListItem>
-              rowKey="id"
-              columns={orderColumns}
-              dataSource={records}
-              loading={loading}
-              pagination={{
-                current: page,
-                pageSize,
-                total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-                onChange: handleTableChange,
-                onShowSizeChange: (_current, nextSize) => {
-                  setPage(1);
-                  setPageSize(nextSize);
-                },
-                showTotal: (value) => `共 ${value} 条`,
-              }}
-              scroll={{ x: 980 }}
-            />
-            <Drawer
-              title="订单需求详情"
-              width={640}
-              open={orderDetailOpen}
-              onClose={() => setOrderDetailOpen(false)}
-              destroyOnClose
-            >
-              {orderDetailRecord && (
-                <Descriptions column={1} bordered size="small">
-                  <Descriptions.Item label="物料名称">{orderDetailRecord.name}</Descriptions.Item>
-                  <Descriptions.Item label="供应商">{orderDetailRecord.supplier || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="物料类型">{orderDetailRecord.materialCategory || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="颜色">{orderDetailRecord.color || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="幅宽">{orderDetailRecord.width || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="克重">{orderDetailRecord.grammage || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="空差">{orderDetailRecord.allowance || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="供应商型号">{orderDetailRecord.supplierModel || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="供应商色号">{orderDetailRecord.supplierColor || '--'}</Descriptions.Item>
-                  <Descriptions.Item label="合计需求量">{renderQuantity(orderDetailRecord.totalRequiredQty)}</Descriptions.Item>
-                  <Descriptions.Item label="需补料">
-                    <Text strong type={orderDetailRecord.restockQty > 0 ? 'danger' : 'secondary'}>{renderQuantity(orderDetailRecord.restockQty)}</Text>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="备料在库数量">{renderQuantity(orderDetailRecord.stockInventoryQty)}</Descriptions.Item>
-                  <Descriptions.Item label="备料在途数量">{renderQuantity(orderDetailRecord.stockInTransitQty)}</Descriptions.Item>
-                  <Descriptions.Item label="备料采购数量">{renderQuantity(orderDetailRecord.stockPurchaseQty)}</Descriptions.Item>
-                </Descriptions>
-              )}
-            </Drawer>
-          </>
-        ) : (
-          <>
-            <Table<SalesStockingSuggestionListItem>
-              rowKey="id"
-              columns={salesColumns}
-              dataSource={salesRecords}
-              loading={loading}
-              pagination={{
-                current: page,
-                pageSize,
-                total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-                onChange: handleTableChange,
-                onShowSizeChange: (_current, nextSize) => {
-                  setPage(1);
-                  setPageSize(nextSize);
-                },
-                showTotal: (value) => `共 ${value} 条`,
-              }}
-              scroll={{ x: 980 }}
-            />
-            <Drawer
-              title="销量备料建议详情"
-              width={640}
-              open={detailOpen}
-              onClose={() => setDetailOpen(false)}
-              destroyOnClose
-            >
-              {detailRecord && (
-                <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                  <Descriptions column={1} bordered size="small">
-                    <Descriptions.Item label="物料名称">{detailRecord.materialName}</Descriptions.Item>
-                    <Descriptions.Item label="物料编号">{detailRecord.materialCode || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="款号">{detailRecord.styleNo || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="款名">{detailRecord.styleName || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="供应商">{detailRecord.supplier || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="物料类型">{detailRecord.materialCategory || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="颜色">{detailRecord.color || '--'}</Descriptions.Item>
-                    <Descriptions.Item label="周销量">{renderQuantity(detailRecord.weeklySales)}</Descriptions.Item>
-                    <Descriptions.Item label="销量来源">{detailRecord.weeklySalesSource === 'MANUAL' ? '手工覆盖' : '自动'}</Descriptions.Item>
-                    <Descriptions.Item label="统计周期">{detailRecord.salesWeeks == null ? '--' : `${detailRecord.salesWeeks} 周`}</Descriptions.Item>
-                    <Descriptions.Item label="覆盖周数">{`${renderQuantity(detailRecord.coverageWeeks)} 周`}</Descriptions.Item>
-                    <Descriptions.Item label="单耗">{`${renderQuantity(detailRecord.consumption)} ${detailRecord.unit ?? ''}`.trim()}</Descriptions.Item>
-                    <Descriptions.Item label="损耗率">{percentFormatter.format(detailRecord.lossRate ?? 0)}</Descriptions.Item>
-                    <Descriptions.Item label="建议库存">{`${renderQuantity(detailRecord.suggestedStockQty)} ${detailRecord.unit ?? ''}`.trim()}</Descriptions.Item>
-                    <Descriptions.Item label="当前可得量">{`${renderQuantity(detailRecord.availableQty)} ${detailRecord.unit ?? ''}`.trim()}</Descriptions.Item>
-                    <Descriptions.Item label="建议补货量">
-                      <Text strong type={detailRecord.suggestedReplenishQty > 0 ? 'danger' : 'secondary'}>
-                        {`${renderQuantity(detailRecord.suggestedReplenishQty)} ${detailRecord.unit ?? ''}`.trim()}
-                      </Text>
-                    </Descriptions.Item>
-                  </Descriptions>
-                </Space>
-              )}
-            </Drawer>
-          </>
-        )}
+      <Card title="物料需求明细">
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary">已将关键字段前置：合计需求量、需补料、备料在库、备料在途、备料采购；其余信息可点击“查看更多”。</Text>
+        </div>
+        <Table<OrderMaterialRequirementListItem>
+          rowKey="id"
+          columns={columns}
+          dataSource={records}
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            onChange: handleTableChange,
+            onShowSizeChange: (_current, nextSize) => {
+              setPage(1);
+              setPageSize(nextSize);
+            },
+            showTotal: (value) => `共 ${value} 条`,
+          }}
+          scroll={{ x: 980 }}
+        />
+        <Drawer
+          title="订单需求详情"
+          width={640}
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          destroyOnClose
+        >
+          {detailRecord && (
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="物料名称">{detailRecord.name}</Descriptions.Item>
+              <Descriptions.Item label="供应商">{detailRecord.supplier || '--'}</Descriptions.Item>
+              <Descriptions.Item label="物料类型">{detailRecord.materialCategory || '--'}</Descriptions.Item>
+              <Descriptions.Item label="颜色">{detailRecord.color || '--'}</Descriptions.Item>
+              <Descriptions.Item label="幅宽">{detailRecord.width || '--'}</Descriptions.Item>
+              <Descriptions.Item label="克重">{detailRecord.grammage || '--'}</Descriptions.Item>
+              <Descriptions.Item label="空差">{detailRecord.allowance || '--'}</Descriptions.Item>
+              <Descriptions.Item label="供应商型号">{detailRecord.supplierModel || '--'}</Descriptions.Item>
+              <Descriptions.Item label="供应商色号">{detailRecord.supplierColor || '--'}</Descriptions.Item>
+              <Descriptions.Item label="合计需求量">{renderQuantity(detailRecord.totalRequiredQty)}</Descriptions.Item>
+              <Descriptions.Item label="需补料">
+                <Text strong type={detailRecord.restockQty > 0 ? 'danger' : 'secondary'}>{renderQuantity(detailRecord.restockQty)}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="备料在库数量">{renderQuantity(detailRecord.stockInventoryQty)}</Descriptions.Item>
+              <Descriptions.Item label="备料在途数量">{renderQuantity(detailRecord.stockInTransitQty)}</Descriptions.Item>
+              <Descriptions.Item label="备料采购数量">{renderQuantity(detailRecord.stockPurchaseQty)}</Descriptions.Item>
+            </Descriptions>
+          )}
+        </Drawer>
       </Card>
     </Space>
   );
