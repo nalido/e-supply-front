@@ -76,8 +76,6 @@ export type SampleOrderCreateInput = {
   styleId?: string;
   styleCode: string;
   styleName: string;
-  styleSyncMode?: 'create_new' | 'update_existing' | 'keep_existing';
-  styleUpdateConfirmed?: boolean;
   styleVariantId?: string;
   quantity: number;
   unit?: string;
@@ -105,7 +103,7 @@ export type SampleOrderCreateInput = {
   }>;
   costs: Array<{ costItem: string; amount: number }>;
   materials?: Array<{
-    materialId: string;
+    materialId?: string;
     consumption: number;
     lossRate?: number;
     remark?: string;
@@ -185,6 +183,14 @@ const toNumber = (value?: string | number): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const buildMaterials = (payload: SampleOrderCreateInput) =>
+  payload.materials?.map((material) => ({
+    materialId: toNumber(material.materialId),
+    consumption: material.consumption,
+    lossRate: material.lossRate,
+    remark: material.remark?.trim() || undefined,
+  }));
+
 const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) => ({
   tenantId: Number(tenantId),
   sampleNo: payload.sampleNo,
@@ -193,8 +199,6 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
   styleId: toNumber(payload.styleId),
   styleCode: payload.styleCode,
   styleName: payload.styleName,
-  styleSyncMode: payload.styleSyncMode,
-  styleUpdateConfirmed: payload.styleUpdateConfirmed,
   styleVariantId: toNumber(payload.styleVariantId),
   quantity: payload.quantity,
   unit: payload.unit,
@@ -225,12 +229,58 @@ const buildCreateRequest = (tenantId: string, payload: SampleOrderCreateInput) =
     departmentId: toNumber(process.departmentId),
   })),
   costs: payload.costs?.map((cost) => ({ costItem: cost.costItem, amount: cost.amount })),
-  materials: payload.materials?.map((material) => ({
-    materialId: toNumber(material.materialId),
-    consumption: material.consumption,
-    lossRate: material.lossRate,
-    remark: material.remark,
+  materials: buildMaterials(payload),
+  assets: payload.assets?.map((asset, index) => ({
+    name: asset.name,
+    url: asset.url,
+    fileType: asset.fileType,
+    fileSize: asset.fileSize,
+    isMain: asset.isMain ?? false,
+    sortOrder: asset.sortOrder ?? index,
+    color: asset.color,
+    assetType: asset.type,
   })),
+});
+
+const buildUpdateRequest = (tenantId: string, payload: SampleOrderCreateInput) => ({
+  tenantId: Number(tenantId),
+  sampleNo: payload.sampleNo,
+  sampleTypeId: toNumber(payload.sampleTypeId),
+  followTemplateId: toNumber(payload.followTemplateId),
+  styleId: toNumber(payload.styleId),
+  styleCode: payload.styleCode,
+  styleName: payload.styleName,
+  styleVariantId: toNumber(payload.styleVariantId),
+  quantity: payload.quantity,
+  unit: payload.unit,
+  unitPrice: payload.unitPrice,
+  totalAmount: payload.totalAmount,
+  priority: payload.priority ? mapPriorityToBackend(payload.priority) : undefined,
+  deadline: payload.deadline,
+  expectedFinishDate: payload.expectedFinishDate,
+  orderDate: payload.orderDate,
+  slaHours: payload.slaHours,
+  designerId: toNumber(payload.designerId),
+  merchandiserId: toNumber(payload.merchandiserId),
+  patternMakerId: toNumber(payload.patternMakerId),
+  patternNo: payload.patternNo,
+  sampleSewerId: toNumber(payload.sampleSewerId),
+  sourceType: payload.sourceType,
+  remarks: payload.remarks,
+  description: payload.description,
+  skus: payload.skus?.map((sku) => ({
+    color: sku.color,
+    size: sku.size,
+    quantity: sku.quantity,
+  })),
+  processes: payload.processes?.map((process) => ({
+    processCatalogId: toNumber(process.processCatalogId),
+    sequence: process.sequence,
+    plannedDurationMinutes: process.plannedDurationMinutes,
+    departmentId: toNumber(process.departmentId),
+  })),
+  costs: payload.costs?.map((cost) => ({ costItem: cost.costItem, amount: cost.amount })),
+  materials: buildMaterials(payload),
   assets: payload.assets?.map((asset, index) => ({
     name: asset.name,
     url: asset.url,
@@ -316,7 +366,7 @@ export const sampleOrderApi = {
 
   async update(id: string, payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
     const tenantId = ensureTenantId();
-    const body = buildCreateRequest(tenantId, payload);
+    const body = buildUpdateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}/update`, body);
     return adaptSampleOrderDetail(data);
   },

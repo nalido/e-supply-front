@@ -20,6 +20,7 @@ import {
   Typography,
   message,
 } from 'antd';
+import { useSearchParams } from 'react-router-dom';
 import {
   CloudUploadOutlined,
   DownloadOutlined,
@@ -46,6 +47,8 @@ const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const isStockingMaterialType = (value: string | null): value is 'fabric' | 'accessory' =>
+  value === 'fabric' || value === 'accessory';
 
 const quantityFormatter = new Intl.NumberFormat('zh-CN');
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
@@ -105,6 +108,7 @@ type BatchReceiveModalState = {
 };
 
 const StockingPurchaseInbound = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [receiveForm] = Form.useForm<ReceiveFormValues>();
   const [batchReceiveForm] = Form.useForm<BatchReceiveFormValues>();
   const [meta, setMeta] = useState<StockingPurchaseMeta | null>(null);
@@ -119,7 +123,7 @@ const StockingPurchaseInbound = () => {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [tableLoading, setTableLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(searchParams.get('openCreate') === 'true');
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({
     open: false,
     submitting: false,
@@ -135,6 +139,19 @@ const StockingPurchaseInbound = () => {
     records: [],
   });
 
+  const createDraft = useMemo(() => {
+    if (searchParams.get('openCreate') !== 'true') {
+      return undefined;
+    }
+    return {
+      materialCode: searchParams.get('materialCode') ?? undefined,
+      materialName: searchParams.get('materialName') ?? undefined,
+      quantity: Number(searchParams.get('quantity') ?? '0'),
+      supplierName: searchParams.get('supplierName') ?? undefined,
+      remark: searchParams.get('remark') ?? undefined,
+    };
+  }, [searchParams]);
+
   useEffect(() => {
     const loadMeta = async () => {
       setMetaLoading(true);
@@ -142,7 +159,10 @@ const StockingPurchaseInbound = () => {
         const response = await stockingPurchaseInboundService.getMeta();
         setMeta(response);
         setStatusFilter(response.defaultStatus);
-        if (response.materialTypeTabs?.length) {
+        const materialTypeParam = searchParams.get('materialType');
+        if (isStockingMaterialType(materialTypeParam)) {
+          setMaterialType(materialTypeParam);
+        } else if (response.materialTypeTabs?.length) {
           setMaterialType(response.materialTypeTabs[0].value);
         }
       } catch (error) {
@@ -154,7 +174,12 @@ const StockingPurchaseInbound = () => {
     };
 
     void loadMeta();
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const nextOpen = searchParams.get('openCreate') === 'true';
+    setCreateModalOpen(nextOpen);
+  }, [searchParams]);
 
   const loadList = useCallback(async () => {
     setTableLoading(true);
@@ -793,11 +818,36 @@ const StockingPurchaseInbound = () => {
         <StockingPurchaseCreateModal
           open={createModalOpen}
           materialType={materialType}
-          onClose={() => setCreateModalOpen(false)}
+          initialDraft={createDraft}
+          onClose={() => {
+            setCreateModalOpen(false);
+            if (searchParams.get('openCreate') === 'true') {
+              const next = new URLSearchParams(searchParams);
+              next.delete('openCreate');
+              next.delete('materialType');
+              next.delete('materialCode');
+              next.delete('materialName');
+              next.delete('quantity');
+              next.delete('supplierName');
+              next.delete('remark');
+              setSearchParams(next, { replace: true });
+            }
+          }}
           onCreated={(summary) => {
             message.success(`已创建采购单 ${summary.orderNo}`);
             setCreateModalOpen(false);
             setSelectedRowKeys([]);
+            if (searchParams.get('openCreate') === 'true') {
+              const next = new URLSearchParams(searchParams);
+              next.delete('openCreate');
+              next.delete('materialType');
+              next.delete('materialCode');
+              next.delete('materialName');
+              next.delete('quantity');
+              next.delete('supplierName');
+              next.delete('remark');
+              setSearchParams(next, { replace: true });
+            }
             void loadList();
           }}
         />

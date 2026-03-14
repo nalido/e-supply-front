@@ -15,6 +15,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type {
   OrderMaterialRequirementListItem,
   OrderMaterialRequirementListParams,
@@ -48,23 +49,58 @@ const materialTabs = [
 ] as const satisfies { key: OrderMaterialRequirementType; label: string }[];
 
 const renderQuantity = (value: number): string => quantityFormatter.format(value ?? 0);
+const hasMeaningfulValue = (value?: string | null): value is string => Boolean(value && value !== '--' && value !== '-');
+
+const isValidMode = (value: string | null): value is OrderMaterialRequirementMode =>
+  value === 'order' || value === 'sales';
+
+const isValidMaterialType = (value: string | null): value is OrderMaterialRequirementType =>
+  value === 'fabric' || value === 'accessory' || value === 'packaging';
 
 const OrderMaterialRequirementReport = () => {
-  const [mode, setMode] = useState<OrderMaterialRequirementMode>('order');
-  const [materialType, setMaterialType] = useState<OrderMaterialRequirementType>('fabric');
-  const [restockOnly, setRestockOnly] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(undefined);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get('mode');
+  const materialTypeParam = searchParams.get('materialType');
+  const initialMode: OrderMaterialRequirementMode = isValidMode(modeParam) ? modeParam : 'order';
+  const initialMaterialType: OrderMaterialRequirementType = isValidMaterialType(materialTypeParam)
+    ? materialTypeParam
+    : 'fabric';
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
+  const [mode, setMode] = useState<OrderMaterialRequirementMode>(initialMode);
+  const [materialType, setMaterialType] = useState<OrderMaterialRequirementType>(initialMaterialType);
+  const [restockOnly, setRestockOnly] = useState(searchParams.get('restockOnly') === 'true');
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [records, setRecords] = useState<OrderMaterialRequirementListItem[]>([]);
   const [salesRecords, setSalesRecords] = useState<SalesStockingSuggestionListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const initialPage = Number(searchParams.get('page') ?? '1');
+  const initialPageSize = Number(searchParams.get('pageSize') ?? String(DEFAULT_PAGE_SIZE));
+  const [page, setPage] = useState(Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1);
+  const [pageSize, setPageSize] = useState(
+    Number.isFinite(initialPageSize) && initialPageSize > 0 ? initialPageSize : DEFAULT_PAGE_SIZE,
+  );
   const [total, setTotal] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState<SalesStockingSuggestionListItem | null>(null);
   const [orderDetailOpen, setOrderDetailOpen] = useState(false);
   const [orderDetailRecord, setOrderDetailRecord] = useState<OrderMaterialRequirementListItem | null>(null);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    nextParams.set('mode', mode);
+    nextParams.set('materialType', materialType);
+    nextParams.set('page', String(page));
+    nextParams.set('pageSize', String(pageSize));
+    if (restockOnly) {
+      nextParams.set('restockOnly', 'true');
+    }
+    if (appliedKeyword) {
+      nextParams.set('keyword', appliedKeyword);
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [appliedKeyword, materialType, mode, page, pageSize, restockOnly, setSearchParams]);
 
   const orderColumns: ColumnsType<OrderMaterialRequirementListItem> = useMemo(() => [
     {
@@ -209,7 +245,41 @@ const OrderMaterialRequirementReport = () => {
         </Button>
       ),
     },
-  ], []);
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button
+          type="link"
+          disabled={record.suggestedReplenishQty <= 0}
+          onClick={() => {
+            const targetMaterialType = materialType === 'packaging' ? 'accessory' : materialType;
+            const targetParams = new URLSearchParams({
+              openCreate: 'true',
+              materialType: targetMaterialType,
+              materialName: record.materialName ?? '',
+              quantity: String(record.suggestedReplenishQty ?? 0),
+            });
+            if (hasMeaningfulValue(record.materialCode)) {
+              targetParams.set('materialCode', record.materialCode);
+            }
+            if (hasMeaningfulValue(record.supplier)) {
+              targetParams.set('supplierName', record.supplier);
+            }
+            const remarkParts = [record.styleNo, record.styleName].filter(Boolean);
+            if (remarkParts.length) {
+              targetParams.set('remark', `来自销量备料建议：${remarkParts.join(' / ')}`);
+            }
+            navigate(`/material/purchase-prep?${targetParams.toString()}`);
+          }}
+        >
+          发起采购
+        </Button>
+      ),
+    },
+  ], [materialType, navigate]);
 
   const loadList = useCallback(async () => {
     setLoading(true);

@@ -1,3 +1,5 @@
+import type { MaterialBasicType } from './material';
+
 export type StyleStatus = 'active' | 'inactive';
 export type StyleWeeklySalesSource = 'AUTO' | 'MANUAL';
 
@@ -43,6 +45,23 @@ export interface StyleMaterialData {
   unit: string;
   consumption: number;
   lossRate: number;
+  imageUrl?: string;
+  unitPrice?: number;
+  remark?: string;
+}
+
+export interface StyleBomMaterialDraft {
+  uid: string;
+  materialId?: string;
+  materialType: MaterialBasicType;
+  name: string;
+  sku: string;
+  unit: string;
+  imageUrl?: string;
+  consumption: number;
+  lossRate: number;
+  unitPrice?: number;
+  remark?: string;
 }
 
 export interface StyleWeeklySalesConfig {
@@ -85,4 +104,13 @@ export interface StyleDetailSavePayload {
   sizes: string[];
   colorImages: StyleColorImageMap;
   weeklySalesConfig?: StyleWeeklySalesConfig;
+}
+
+export interface StyleBomUpdatePayload {
+  items: Array<{
+    materialId: string;
+    consumption: number;
+    lossRate?: number;
+    remark?: string;
+  }>;
 }

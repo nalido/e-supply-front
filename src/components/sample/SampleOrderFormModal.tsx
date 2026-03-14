@@ -21,7 +21,6 @@ import {
   List,
   Modal,
   Pagination,
-  Radio,
   Row,
   Select,
   Space,
@@ -48,13 +47,14 @@ import type {
   SampleCreationMeta,
   StaffOption,
 } from '../../types/sample-create';
-import type { StyleData } from '../../types/style';
+import type { StyleData, StyleDetailSavePayload, StyleMaterialData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
 import { sampleSettingsApi } from '../../api/sample-settings';
 import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order';
 import materialApi from '../../api/material';
 import stylesApi from '../../api/styles';
 import styleDetailApi from '../../api/style-detail';
+import styleBomApi, { buildStyleBomUpdatePayload } from '../../api/style-bom';
 import storageApi from '../../api/storage';
 import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
@@ -80,7 +80,6 @@ interface SampleOrderFormValues {
   styleId?: string;
   styleCode: string;
   styleName: string;
-  styleSyncMode?: 'create_new' | 'update_existing' | 'keep_existing';
   unit: string;
   orderNo?: string;
   sampleTypeId?: string;
@@ -138,14 +137,6 @@ type StyleListState = {
   data: StyleData[];
 };
 
-type SelectedStyleSnapshot = {
-  styleId: string;
-  styleCode: string;
-  styleName: string;
-  unit?: string;
-  variantKeys: string[];
-};
-
 const generateId = () => `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const generateSampleNo = () => `SMP-${dayjs().format('YYYYMMDDHHmmss')}`;
 
@@ -168,8 +159,6 @@ const sumMatrix = (matrix: SampleQuantityMatrix): number => {
     return grandTotal + Object.values(row).reduce((rowTotal, value) => rowTotal + Number(value || 0), 0);
   }, 0);
 };
-
-const buildVariantKey = (color?: string, size?: string): string => `${color || FALLBACK_COLOR}__${size || FALLBACK_SIZE}`;
 
 const COVER_SECTION_HEIGHT = 420;
 const FALLBACK_COLOR = '未指定颜色';
@@ -240,6 +229,21 @@ const mapColorImagesFromDetail = (
 };
 
 const toDayjsValue = (value?: string | null) => (value ? dayjs(value) : undefined);
+
+const mapStyleMaterialsToBomEntries = (materials: StyleMaterialData[]): BomEntry[] =>
+  materials.map((material, index) => ({
+    uid: `bom-style-${material.materialId}-${index}`,
+    materialId: String(material.materialId),
+    materialType: material.materialType === 'FABRIC' ? 'fabric' : 'accessory',
+    name: material.materialName,
+    sku: material.materialSku ?? '--',
+    unit: material.unit ?? '件',
+    imageUrl: material.imageUrl ?? undefined,
+    consumption: Number(material.consumption ?? 0),
+    lossRate: Number(material.lossRate ?? 0) * 100,
+    unitPrice: material.unitPrice,
+    remark: material.remark ?? '',
+  }));
 
 const SkuMatrixTable: React.FC<{
   colors: string[];
@@ -324,7 +328,8 @@ const StaffSelect: React.FC<{
   label: string;
   options: StaffOption[];
   setupEntry: SelectSetupConfig;
-}> = ({ role, label, options, setupEntry }) => (
+  showSetupHint?: boolean;
+}> = ({ role, label, options, setupEntry, showSetupHint = true }) => (
   <Space direction="vertical" size={4} style={{ width: '100%' }}>
     <Form.Item name={`${role}Id`} label={label}>
       <Select
@@ -332,7 +337,7 @@ const StaffSelect: React.FC<{
         showSearch
         placeholder={`请选择${label}`}
         optionFilterProp="label"
-        dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntry)}
+        dropdownRender={showSetupHint ? (menu) => renderSelectDropdownWithSetup(menu, setupEntry) : undefined}
         options={options.map((item) => ({
           label: item.name,
           value: item.id,
@@ -340,7 +345,7 @@ const StaffSelect: React.FC<{
         }))}
       />
     </Form.Item>
-    <SelectSetupHint config={setupEntry} marginTop={-18} marginBottom={8} />
+    {showSetupHint ? <SelectSetupHint config={setupEntry} marginTop={-18} marginBottom={8} /> : null}
   </Space>
 );
 
@@ -585,9 +590,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   initialSection,
 }) => {
   const [form] = Form.useForm<SampleOrderFormValues>();
-  const watchedStyleId = Form.useWatch('styleId', form);
   const [messageApi, messageContextHolder] = message.useMessage();
   const isEditMode = mode === 'edit';
+  const showSetupHints = !isEditMode;
   const [meta, setMeta] = useState<SampleCreationMeta>();
   const defaultFollowTemplateId = useMemo(() => {
     if (!meta?.followTemplates || meta.followTemplates.length === 0) {
@@ -633,7 +638,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     total: 0,
     data: [],
   });
-  const [selectedStyleSnapshot, setSelectedStyleSnapshot] = useState<SelectedStyleSnapshot>();
   const setupEntries = useMemo<Record<string, SelectSetupConfig>>(() => ({
     sampleType: {
       entityLabel: '样板类型',
@@ -669,12 +673,22 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   const createUid = useCallback(() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
   const fabricBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'fabric'), [bomItems]);
   const accessoryBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'accessory'), [bomItems]);
+  const detachSelectedStyleIfCreating = useCallback(() => {
+    if (isEditMode) {
+      return;
+    }
+    if (form.getFieldValue('styleId')) {
+      form.setFieldsValue({ styleId: undefined });
+    }
+  }, [form, isEditMode]);
   const handleBomFieldChange = useCallback((uid: string, patch: Partial<BomEntry>) => {
     setBomItems((prev) => prev.map((item) => (item.uid === uid ? { ...item, ...patch } : item)));
-  }, []);
+    detachSelectedStyleIfCreating();
+  }, [detachSelectedStyleIfCreating]);
   const handleBomRemove = useCallback((uid: string) => {
     setBomItems((prev) => prev.filter((item) => item.uid !== uid));
-  }, []);
+    detachSelectedStyleIfCreating();
+  }, [detachSelectedStyleIfCreating]);
   const handleMaterialPickerOpen = useCallback((type: MaterialBasicType) => {
     setMaterialPickerState({ open: true, type });
   }, []);
@@ -703,7 +717,8 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       return [...prev, entry];
     });
     setMaterialPickerState((prev) => ({ ...prev, open: false }));
-  }, [createUid, messageApi]);
+    detachSelectedStyleIfCreating();
+  }, [createUid, detachSelectedStyleIfCreating, messageApi]);
   const handleAddOtherCost = useCallback(() => {
     setOtherCosts((prev) => [...prev, { uid: `cost-${createUid()}`, costType: '', amount: 0 }]);
   }, [createUid]);
@@ -823,11 +838,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setOtherCosts([]);
     setSizeChartImage(undefined);
     setMaterialPickerState({ open: false, type: 'fabric' });
-    setSelectedStyleSnapshot(undefined);
     form.resetFields();
   }, [form]);
 
-  const hydrateFormFromDetail = useCallback((metaData: SampleCreationMeta, detail: SampleOrderDetailResponse) => {
+  const hydrateFormFromDetail = useCallback((
+    metaData: SampleCreationMeta,
+    detail: SampleOrderDetailResponse,
+    linkedStyleMaterials?: StyleMaterialData[],
+  ) => {
     const skuState = deriveSkuStateFromDetail(detail.skus);
     const fallbackColors = skuState.colors.length > 0 ? skuState.colors : metaData.colorPresets.slice(0, 2);
     const fallbackSizes = skuState.sizes.length > 0 ? skuState.sizes : metaData.sizePresets.slice(0, 4);
@@ -845,19 +863,21 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImageMap(nextColorImageMap);
     setColorImagesEnabled(Object.keys(nextColorImageMap).length > 0);
 
-    const materialEntries: BomEntry[] = (detail.materials ?? []).map((material, index) => ({
-      uid: `bom-${material.id ?? index}-${material.materialId ?? 'virtual'}`,
-      materialId: material.materialId ? String(material.materialId) : undefined,
-      materialType: material.materialType === 'FABRIC' ? 'fabric' : 'accessory',
-      name: material.materialName ?? `物料${index + 1}`,
-      sku: material.materialSku ?? '--',
-      unit: material.unit ?? '件',
-      imageUrl: material.imageUrl ?? undefined,
-      consumption: Number(material.consumption ?? 0),
-      lossRate: Number((material.lossRate ?? 0) * 100),
-      unitPrice: material.unitPrice ? Number(material.unitPrice) : undefined,
-      remark: material.remark ?? '',
-    }));
+    const materialEntries: BomEntry[] = linkedStyleMaterials
+      ? mapStyleMaterialsToBomEntries(linkedStyleMaterials)
+      : (detail.materials ?? []).map((material, index) => ({
+          uid: `bom-${material.id ?? index}-${material.materialId ?? 'virtual'}`,
+          materialId: material.materialId ? String(material.materialId) : undefined,
+          materialType: material.materialType === 'FABRIC' ? 'fabric' : 'accessory',
+          name: material.materialName ?? `物料${index + 1}`,
+          sku: material.materialSku ?? '--',
+          unit: material.unit ?? '件',
+          imageUrl: material.imageUrl ?? undefined,
+          consumption: Number(material.consumption ?? 0),
+          lossRate: Number((material.lossRate ?? 0) * 100),
+          unitPrice: material.unitPrice ? Number(material.unitPrice) : undefined,
+          remark: material.remark ?? '',
+        }));
     setBomItems(materialEntries);
 
     const nextCosts: OtherCostEntry[] = (detail.costs ?? []).map((cost, index) => ({
@@ -872,7 +892,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       styleId: detail.styleId ? String(detail.styleId) : undefined,
       styleCode: detail.styleNo ?? '',
       styleName: detail.styleName ?? '',
-      styleSyncMode: 'keep_existing',
       unit: detail.unit || metaData.units[0],
       orderNo: detail.sampleNo,
       sampleTypeId: detail.sampleTypeId ? String(detail.sampleTypeId) : undefined,
@@ -886,15 +905,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       sampleSewerId: detail.sampleSewerId ? String(detail.sampleSewerId) : undefined,
       remarks: detail.remarks,
     });
-    if (detail.styleId) {
-      setSelectedStyleSnapshot({
-        styleId: String(detail.styleId),
-        styleCode: detail.styleNo ?? '',
-        styleName: detail.styleName ?? '',
-        unit: detail.unit ?? undefined,
-        variantKeys: (detail.skus ?? []).map((item) => buildVariantKey(item.color ?? undefined, item.size ?? undefined)),
-      });
-    }
   }, [form]);
 
   useEffect(() => {
@@ -938,7 +948,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
             if (cancelled) {
               return;
             }
-            hydrateFormFromDetail(normalizedMeta, detailData);
+            const linkedStyleMaterials = detailData.styleId
+              ? await styleBomApi.fetch(String(detailData.styleId))
+              : undefined;
+            if (cancelled) {
+              return;
+            }
+            hydrateFormFromDetail(normalizedMeta, detailData, linkedStyleMaterials);
           } catch (detailError) {
             console.error(detailError);
             messageApi.error('加载样板单详情失败，请稍后重试');
@@ -957,21 +973,11 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
               styleId: initialStyle.id,
               styleCode: initialStyle.styleNo,
               styleName: initialStyle.styleName,
-              styleSyncMode: 'create_new',
             };
             if (initialStyle.defaultUnit) {
               presetValues.unit = initialStyle.defaultUnit;
             }
             form.setFieldsValue(presetValues);
-            setSelectedStyleSnapshot({
-              styleId: initialStyle.id,
-              styleCode: initialStyle.styleNo,
-              styleName: initialStyle.styleName,
-              unit: initialStyle.defaultUnit,
-              variantKeys: (initialStyle.colors ?? []).flatMap((color) =>
-                (initialStyle.sizes ?? []).map((size) => buildVariantKey(color, size)),
-              ),
-            });
             if (initialStyle.image) {
               setAttachments([
                 {
@@ -982,6 +988,32 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   createdAt: new Date().toISOString(),
                 },
               ]);
+            }
+            if (initialStyle.id) {
+              try {
+                const [initialDetail, initialBom] = await Promise.all([
+                  styleDetailApi.fetchDetail(initialStyle.id),
+                  styleBomApi.fetch(initialStyle.id),
+                ]);
+                if (cancelled) {
+                  return;
+                }
+                if (initialDetail.colors?.length) {
+                  setColors(initialDetail.colors);
+                }
+                if (initialDetail.sizes?.length) {
+                  setSizes(initialDetail.sizes);
+                }
+                if (initialDetail.defaultUnit) {
+                  form.setFieldsValue({ unit: initialDetail.defaultUnit });
+                }
+                setSizeChartImage(initialDetail.sizeChartImageUrl ?? undefined);
+                setColorImageMap(initialDetail.colorImages ?? {});
+                setColorImagesEnabled(Object.values(initialDetail.colorImages ?? {}).some((value) => Boolean(value)));
+                setBomItems(mapStyleMaterialsToBomEntries(initialBom));
+              } catch (initialStyleError) {
+                console.error('加载初始款式详情失败', initialStyleError);
+              }
             }
           }
         }
@@ -1044,20 +1076,23 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       });
       return next;
     });
-  }, [sizes]);
+    detachSelectedStyleIfCreating();
+  }, [detachSelectedStyleIfCreating, sizes]);
 
   const handleSizesUpdate = useCallback((nextSizes: string[]) => {
     const normalized = Array.from(new Set(nextSizes.map((item) => item.trim()).filter(Boolean)));
     setSizes(normalized);
     setMatrix((prev) => buildQuantityMatrix(colors, normalized, prev));
-  }, [colors]);
+    detachSelectedStyleIfCreating();
+  }, [colors, detachSelectedStyleIfCreating]);
 
   const handleColorImageChange = useCallback((color: string, imageUrl?: string) => {
     setColorImageMap((prev) => ({
       ...prev,
       [color]: imageUrl,
     }));
-  }, []);
+    detachSelectedStyleIfCreating();
+  }, [detachSelectedStyleIfCreating]);
 
   const handleAttachmentRemove = useCallback((id: string) => {
     setAttachments((prev) => {
@@ -1177,6 +1212,34 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     },
   }), [handleAttachmentUpload, messageApi]);
 
+  const syncLinkedStyle = useCallback(async (values: SampleOrderFormValues, styleId: string) => {
+    const stylePayload: StyleDetailSavePayload = {
+      styleNo: values.styleCode.trim(),
+      styleName: values.styleName.trim(),
+      defaultUnit: values.unit,
+      status: 'active',
+      colors,
+      sizes,
+      colorImages: colorImagesEnabled ? colorImageMap : {},
+      sizeChartImageUrl: sizeChartImage,
+      coverImageUrl: mainAttachment?.url,
+    };
+    const savedDetail = await styleDetailApi.update(styleId, stylePayload);
+    const savedMaterials = await styleBomApi.update(styleId, buildStyleBomUpdatePayload(bomItems));
+    form.setFieldsValue({
+      styleId,
+      styleCode: savedDetail.styleNo,
+      styleName: savedDetail.styleName,
+      unit: savedDetail.defaultUnit ?? values.unit,
+    });
+    setColors(savedDetail.colors?.length ? savedDetail.colors : colors);
+    setSizes(savedDetail.sizes?.length ? savedDetail.sizes : sizes);
+    setColorImageMap(savedDetail.colorImages ?? {});
+    setColorImagesEnabled(Object.values(savedDetail.colorImages ?? {}).some((value) => Boolean(value)));
+    setSizeChartImage(savedDetail.sizeChartImageUrl ?? undefined);
+    setBomItems(mapStyleMaterialsToBomEntries(savedMaterials));
+  }, [bomItems, colorImageMap, colorImagesEnabled, colors, form, mainAttachment?.url, sizes, sizeChartImage]);
+
   const handleSubmit = useCallback(async () => {
     try {
       const values = await form.validateFields();
@@ -1228,13 +1291,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         .filter((item) => item.costType.trim())
         .map((item) => ({ costItem: item.costType.trim(), amount: Number(item.amount ?? 0) }));
 
-      const materialsPayload = bomItems
+      const normalizedMaterials = bomItems
         .filter((item) => item.materialId)
         .map((item) => ({
-          materialId: item.materialId!,
-          consumption: item.consumption,
+          materialId: item.materialId,
+          consumption: Number(item.consumption ?? 0),
           lossRate: item.lossRate ? item.lossRate / 100 : undefined,
-          remark: item.remark,
+          remark: item.remark?.trim() || undefined,
         }));
 
       const sizeChartAssets = sizeChartImage
@@ -1246,90 +1309,36 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         }]
         : [];
 
-      const styleSyncMode = values.styleId
-        ? (values.styleSyncMode ?? 'create_new')
-        : 'create_new';
-      const currentVariantKeys = skus.map((item) => buildVariantKey(item.color, item.size));
-      const normalizedCurrentKeys = Array.from(new Set(currentVariantKeys)).sort();
-      const normalizedSnapshotKeys = Array.from(new Set(selectedStyleSnapshot?.variantKeys ?? [])).sort();
-      const styleChangedForUpdate = Boolean(
-        values.styleId
-          && styleSyncMode === 'update_existing'
-          && (
-            (values.styleCode ?? '').trim() !== (selectedStyleSnapshot?.styleCode ?? '').trim()
-            || (values.styleName ?? '').trim() !== (selectedStyleSnapshot?.styleName ?? '').trim()
-            || (values.unit ?? '').trim() !== (selectedStyleSnapshot?.unit ?? '').trim()
-            || normalizedCurrentKeys.join('|') !== normalizedSnapshotKeys.join('|')
-          ),
-      );
-
-      if (styleChangedForUpdate) {
-        Modal.confirm({
-          title: '确认更新已有款式信息？',
-          content: '检测到你修改了款号/款名/单位或SKU定义。确认后将覆盖所选已有款式信息。',
-          okText: '确认更新',
-          cancelText: '取消',
-          onOk: async () => {
-            setLoading(true);
-            const payload: SampleOrderCreateInput = {
-              sampleNo: values.orderNo?.trim() || generateSampleNo(),
-              sampleTypeId: values.sampleTypeId,
-              followTemplateId: values.followTemplateId,
-              styleId: values.styleId,
-              styleCode: values.styleCode.trim(),
-              styleName: values.styleName.trim(),
-              styleSyncMode,
-              styleUpdateConfirmed: true,
-              unit: values.unit,
-              quantity: totalQuantity,
-              unitPrice: values.patternPrice,
-              totalAmount: values.patternPrice && totalQuantity ? values.patternPrice * totalQuantity : undefined,
-              deadline: values.deliveryDate?.format('YYYY-MM-DD'),
-              expectedFinishDate: values.deliveryDate?.format('YYYY-MM-DD'),
-              orderDate: values.orderDate?.format('YYYY-MM-DD'),
-              merchandiserId: values.merchandiserId,
-              patternMakerId: values.patternMakerId,
-              sampleSewerId: values.sampleSewerId,
-              patternNo: values.patternNo,
-              remarks: values.remarks,
-              skus,
-              processes: [],
-              costs: normalizedCosts,
-              materials: materialsPayload,
-              assets: [...baseAttachments, ...colorAttachments, ...sizeChartAssets],
-            };
-            try {
-              if (isEditMode) {
-                if (!orderId) {
-                  messageApi.error('缺少样板单 ID，无法保存');
-                  return;
-                }
-                await sampleOrderApi.update(orderId, payload);
-                messageApi.success('样板单更新成功');
-                onOk({ mode: 'edit', orderId });
-              } else {
-                await sampleOrderApi.create(payload);
-                messageApi.success('样板单创建成功');
-                onOk({ mode: 'create' });
-              }
-              handleClose();
-            } finally {
-              setLoading(false);
-            }
-          },
-        });
-        return;
+      setLoading(true);
+      let styleId = values.styleId;
+      if (!isEditMode && !styleId) {
+        const styleDraftPayload: StyleDetailSavePayload = {
+          styleNo: values.styleCode.trim(),
+          styleName: values.styleName.trim(),
+          defaultUnit: values.unit,
+          status: 'active',
+          colors,
+          sizes,
+          colorImages: colorImagesEnabled ? colorImageMap : {},
+          sizeChartImageUrl: sizeChartImage,
+        };
+        const createdStyle = await styleDetailApi.create(styleDraftPayload);
+        if (!createdStyle.id) {
+          throw new Error('创建款式失败，未返回款式 ID');
+        }
+        styleId = createdStyle.id;
+        await styleBomApi.update(styleId, buildStyleBomUpdatePayload(bomItems));
+      } else if (styleId) {
+        await syncLinkedStyle(values, styleId);
       }
 
-      setLoading(true);
       const payload: SampleOrderCreateInput = {
         sampleNo: values.orderNo?.trim() || generateSampleNo(),
         sampleTypeId: values.sampleTypeId,
         followTemplateId: values.followTemplateId,
-        styleId: values.styleId,
+        styleId,
         styleCode: values.styleCode.trim(),
         styleName: values.styleName.trim(),
-        styleSyncMode,
         unit: values.unit,
         quantity: totalQuantity,
         unitPrice: values.patternPrice,
@@ -1345,7 +1354,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         skus,
         processes: [],
         costs: normalizedCosts,
-        materials: materialsPayload,
+        materials: normalizedMaterials,
         assets: [...baseAttachments, ...colorAttachments, ...sizeChartAssets],
       };
 
@@ -1379,21 +1388,23 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [form, meta, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage, selectedStyleSnapshot]);
+  }, [form, meta, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage, syncLinkedStyle]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     const presetValues: Partial<SampleOrderFormValues> = {
       styleId: style.id,
       styleCode: style.styleNo,
       styleName: style.styleName,
-      styleSyncMode: 'create_new',
     };
     if (style.defaultUnit) {
       presetValues.unit = style.defaultUnit;
     }
     form.setFieldsValue(presetValues);
-    handleColorsUpdate(style.colors?.length ? style.colors : []);
-    handleSizesUpdate(style.sizes?.length ? style.sizes : []);
+    const initialColors = style.colors?.length ? style.colors : [];
+    const initialSizes = style.sizes?.length ? style.sizes : [];
+    setColors(initialColors);
+    setSizes(initialSizes);
+    setMatrix(buildQuantityMatrix(initialColors, initialSizes));
     setColorImageMap({});
     setColorImagesEnabled(false);
     if (style.image) {
@@ -1408,13 +1419,15 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     }
     void (async () => {
       try {
-        const detail = await styleDetailApi.fetchDetail(style.id);
-        if (detail.colors?.length) {
-          handleColorsUpdate(detail.colors);
-        }
-        if (detail.sizes?.length) {
-          handleSizesUpdate(detail.sizes);
-        }
+        const [detail, styleMaterials] = await Promise.all([
+          styleDetailApi.fetchDetail(style.id),
+          styleBomApi.fetch(style.id),
+        ]);
+        const nextColors = detail.colors?.length ? detail.colors : [];
+        const nextSizes = detail.sizes?.length ? detail.sizes : [];
+        setColors(nextColors);
+        setSizes(nextSizes);
+        setMatrix(buildQuantityMatrix(nextColors, nextSizes));
         if (detail.defaultUnit) {
           form.setFieldsValue({ unit: detail.defaultUnit });
         }
@@ -1422,21 +1435,13 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         const images = detail.colorImages ?? {};
         setColorImageMap(images);
         setColorImagesEnabled(Object.values(images).some((value) => Boolean(value)));
-        setSelectedStyleSnapshot({
-          styleId: style.id,
-          styleCode: detail.styleNo ?? style.styleNo,
-          styleName: detail.styleName ?? style.styleName,
-          unit: detail.defaultUnit ?? style.defaultUnit,
-          variantKeys: (detail.colors ?? []).flatMap((color) =>
-            (detail.sizes ?? []).map((size) => buildVariantKey(color, size)),
-          ),
-        });
+        setBomItems(mapStyleMaterialsToBomEntries(styleMaterials));
       } catch (error) {
-        console.error('加载颜色图片失败', error);
-        messageApi.warning('加载颜色图片失败，请稍后重试');
+        console.error('加载款式资料失败', error);
+        messageApi.warning('加载款式资料失败，请稍后重试');
       }
     })();
-  }, [appendAttachment, form, handleColorsUpdate, handleSizesUpdate, messageApi]);
+  }, [appendAttachment, form, messageApi]);
 
   if (!visible) {
     return null;
@@ -1509,11 +1514,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       >
                         <Input
                           placeholder="请输入款号"
-                          disabled={isEditMode}
                           onChange={() => {
                             if (!isEditMode) {
-                              form.setFieldsValue({ styleId: undefined, styleSyncMode: 'create_new' });
-                              setSelectedStyleSnapshot(undefined);
+                              form.setFieldsValue({ styleId: undefined });
                             }
                           }}
                         />
@@ -1527,11 +1530,9 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                       >
                         <Input
                           placeholder="请输入款名"
-                          disabled={isEditMode}
                           onChange={() => {
                             if (!isEditMode && form.getFieldValue('styleId')) {
-                              form.setFieldsValue({ styleId: undefined, styleSyncMode: 'create_new' });
-                              setSelectedStyleSnapshot(undefined);
+                              form.setFieldsValue({ styleId: undefined });
                             }
                           }}
                         />
@@ -1540,18 +1541,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     <Form.Item name="styleId" hidden>
                       <Input />
                     </Form.Item>
-                    {!isEditMode && watchedStyleId ? (
-                      <Col span={24}>
-                        <Form.Item label="款式同步策略" name="styleSyncMode" initialValue="create_new">
-                          <Radio.Group
-                            options={[
-                              { label: '创建新款式', value: 'create_new' },
-                              { label: '更新已有款式', value: 'update_existing' },
-                            ]}
-                          />
-                        </Form.Item>
-                      </Col>
-                    ) : null}
                     <Col span={12}>
                       <Form.Item
                         name="unit"
@@ -1576,11 +1565,11 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                           <Select
                             allowClear
                             placeholder="请选择板类"
-                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.sampleType)}
+                            dropdownRender={showSetupHints ? (menu) => renderSelectDropdownWithSetup(menu, setupEntries.sampleType) : undefined}
                             options={meta?.sampleTypes.map((item) => ({ label: item.name, value: String(item.id) }))}
                           />
                         </Form.Item>
-                        <SelectSetupHint config={setupEntries.sampleType} marginTop={-18} marginBottom={8} />
+                        {showSetupHints ? <SelectSetupHint config={setupEntries.sampleType} marginTop={-18} marginBottom={8} /> : null}
                       </Space>
                     </Col>
                     <Col span={12}>
@@ -1595,14 +1584,14 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                             showSearch
                             placeholder="请选择跟进模板"
                             optionFilterProp="label"
-                            dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, setupEntries.followTemplate)}
+                            dropdownRender={showSetupHints ? (menu) => renderSelectDropdownWithSetup(menu, setupEntries.followTemplate) : undefined}
                             options={meta?.followTemplates?.map((item) => ({
                               label: item.name,
                               value: String(item.id),
                             })) ?? []}
                           />
                         </Form.Item>
-                        <SelectSetupHint config={setupEntries.followTemplate} marginTop={-18} marginBottom={8} />
+                        {showSetupHints ? <SelectSetupHint config={setupEntries.followTemplate} marginTop={-18} marginBottom={8} /> : null}
                       </Space>
                     </Col>
                     <Col span={24}>
@@ -1723,6 +1712,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     label="跟单员"
                     options={meta?.merchandisers ?? []}
                     setupEntry={setupEntries.staff}
+                    showSetupHint={showSetupHints}
                   />
                 </Col>
                 <Col span={12}>
@@ -1731,6 +1721,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     label="纸样师"
                     options={meta?.patternMakers ?? []}
                     setupEntry={setupEntries.staff}
+                    showSetupHint={showSetupHints}
                   />
                 </Col>
                 <Col span={12}>
@@ -1744,6 +1735,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     label="车板师"
                     options={meta?.sampleSewers ?? []}
                     setupEntry={setupEntries.staff}
+                    showSetupHint={showSetupHints}
                   />
                 </Col>
                   <Col span={24}>
@@ -1756,7 +1748,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
 
               <div ref={registerSection('materials')} className={getSectionClassName('materials')}>
                 <Divider orientation="left">物料清单</Divider>
-                <SelectSetupHint config={setupEntries.material} marginBottom={12} />
+                {showSetupHints ? <SelectSetupHint config={setupEntries.material} marginBottom={12} /> : null}
                 <Row gutter={16}>
                   <Col span={24} lg={12}>
                     <Card
@@ -1806,12 +1798,18 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     />
                   </Form.Item>
                 </Col>
-                <Col span={24}>
-                  <Space align="start" size={12}>
-                    <Switch checked={colorImagesEnabled} onChange={setColorImagesEnabled} />
+                  <Col span={24}>
+                    <Space align="start" size={12}>
+                    <Switch
+                      checked={colorImagesEnabled}
+                      onChange={(checked) => {
+                        setColorImagesEnabled(checked);
+                        detachSelectedStyleIfCreating();
+                      }}
+                    />
                     <Space direction="vertical" size={0}>
                       <Text>颜色图片</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>可直接上传或替换颜色图，保存后写入样板单</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>可直接上传或替换颜色图</Text>
                     </Space>
                   </Space>
                 </Col>
@@ -1851,8 +1849,8 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                               />
                               <ImageUploader
                                 module="sample-orders"
-                                value={image}
-                                onChange={(value) => handleColorImageChange(color, value)}
+                                  value={image}
+                                  onChange={(value) => handleColorImageChange(color, value)}
                                 tips="上传该颜色展示图（可选）"
                               />
                             </Space>
@@ -1878,7 +1876,10 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   <ImageUploader
                     module="sample-orders"
                     value={sizeChartImage}
-                    onChange={setSizeChartImage}
+                    onChange={(value) => {
+                      setSizeChartImage(value);
+                      detachSelectedStyleIfCreating();
+                    }}
                     tips="上传尺寸表图片，建议 1200x800px，支持 JPG/PNG"
                   />
                 </Card>

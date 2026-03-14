@@ -36,12 +36,19 @@ const { Text } = Typography;
 export type StockingPurchaseCreateModalProps = {
   open: boolean;
   materialType: MaterialStockType;
+  initialDraft?: {
+    materialCode?: string;
+    materialName?: string;
+    quantity?: number;
+    supplierName?: string;
+    remark?: string;
+  };
   onClose: () => void;
   onCreated: (summary: ProcurementOrderSummary) => void;
 };
 
 const DEFAULT_PAGE_SIZE = 10;
-const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
+const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
   const [selectedMaterials, setSelectedMaterials] = useState<MaterialItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -132,6 +139,15 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
         if (warehouseResult.list.length) {
           form.setFieldValue('warehouseId', warehouseResult.list[0].id);
         }
+        if (initialDraft?.supplierName) {
+          const matchedSupplier = supplierResult.list.find((item) => item.name === initialDraft.supplierName);
+          if (matchedSupplier) {
+            form.setFieldValue('supplierId', matchedSupplier.id);
+          }
+        }
+        if (initialDraft?.remark) {
+          form.setFieldValue('remark', initialDraft.remark);
+        }
       } catch (error) {
         console.error('failed to load suppliers/warehouses', error);
         message.error('加载供应商或仓库失败');
@@ -140,7 +156,42 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
       }
     };
     void loadMeta();
-  }, [form, materialType, open]);
+  }, [form, initialDraft?.remark, initialDraft?.supplierName, materialType, open]);
+
+  useEffect(() => {
+    const draft = initialDraft;
+    const materialKeyword = draft?.materialCode && draft.materialCode !== '--'
+      ? draft.materialCode
+      : draft?.materialName;
+    if (!open || !materialKeyword) {
+      return;
+    }
+    const loadInitialMaterial = async () => {
+      try {
+        const response = await materialApi.list({
+          page: 1,
+          pageSize: DEFAULT_PAGE_SIZE,
+          materialType,
+          keyword: materialKeyword,
+        });
+        const matchedMaterial =
+          response.list.find((item) => item.sku === draft?.materialCode)
+          ?? response.list.find((item) => item.name === draft?.materialName)
+          ?? response.list[0];
+        if (!matchedMaterial) {
+          return;
+        }
+        setSelectedMaterials([matchedMaterial]);
+        setQuantities({
+          [matchedMaterial.id]: Math.max(0, Number(draft?.quantity ?? 0)),
+        });
+      } catch (error) {
+        console.error('failed to load initial material draft', error);
+        message.warning('已打开采购创建弹窗，但未能自动匹配物料，请手动选择');
+      }
+    };
+    void loadInitialMaterial();
+  }, [initialDraft?.materialCode, initialDraft?.materialName, initialDraft?.quantity, materialType, open]);
 
   useEffect(() => {
     if (materialDrawerOpen) {
@@ -197,7 +248,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, onClose, onCreated }:
         render: (_value, record) => (
           <InputNumber
             min={0}
-            precision={0}
+            precision={2}
             value={quantities[record.id] ?? 0}
             onChange={(val) => handleQuantityChange(record.id, val)}
             addonAfter={record.unit}

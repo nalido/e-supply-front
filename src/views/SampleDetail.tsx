@@ -185,12 +185,12 @@ const SampleDetail = () => {
 
   const handleEditModalOk = useCallback(() => {
     setEditModalVisible(false);
-    void loadDetail();
-  }, [loadDetail]);
+  }, []);
 
   const handleEditModalCancel = useCallback(() => {
     setEditModalVisible(false);
-  }, []);
+    void loadDetail();
+  }, [loadDetail]);
 
   const quantityColumns = useMemo<ColumnsType<{ key: string; color: string; subtotal: number }>>(() => {
     if (!detail) {

@@ -597,7 +597,7 @@ const FactoryOrders = () => {
     } finally {
       setCreateOptionsLoading(false);
     }
-  }, [createForm, loadFactoryOptions]);
+  }, [loadFactoryOptions]);
 
   const handleOpenCreate = useCallback((presetStyleId?: number) => {
     setCreateModalOpen(true);
@@ -1456,14 +1456,12 @@ const FactoryOrders = () => {
   }, [
     allocationColors,
     allocationCreateForm,
-    allocationHistoryRows,
     allocationMatrix,
     allocationSizes,
     isCuttingProgressStage,
     loadProgressStats,
     progressActionModal.order,
     progressActionModal.stage,
-    progressStats.rows,
   ]);
 
   const handleSubmitCreate = async () => {
