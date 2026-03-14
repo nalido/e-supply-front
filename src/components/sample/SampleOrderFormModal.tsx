@@ -900,18 +900,19 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImageMap(styleDetail.colorImages ?? {});
     setColorImagesEnabled(Object.values(styleDetail.colorImages ?? {}).some((value) => Boolean(value)));
     setSizeChartImage(styleDetail.sizeChartImageUrl ?? undefined);
-    if (!styleDetail.coverImageUrl) {
+    const coverImageUrl = styleDetail.coverImageUrl;
+    if (!coverImageUrl) {
       return;
     }
     setAttachments((prev) => {
       const others = prev.filter((item) => !item.isMain);
       const currentMain = prev.find((item) => item.isMain);
       const nextMain: SampleCreationAttachment = currentMain
-        ? { ...currentMain, url: styleDetail.coverImageUrl }
+        ? { ...currentMain, url: coverImageUrl }
         : {
             id: generateId(),
-            url: styleDetail.coverImageUrl,
-            name: fallbackStyleName ? `${fallbackStyleName}主图` : extractFileNameFromUrl(styleDetail.coverImageUrl),
+            url: coverImageUrl,
+            name: fallbackStyleName ? `${fallbackStyleName}主图` : extractFileNameFromUrl(coverImageUrl),
             isMain: true,
             createdAt: new Date().toISOString(),
           };
