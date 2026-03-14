@@ -36,6 +36,9 @@ import { pieceworkService } from '../api/piecework';
 import warehouseApi from '../api/warehouse';
 import { settingsApi } from '../api/settings';
 import { materialStockService } from '../api/material-inventory';
+import { styleDetailApi } from '../api/style-detail';
+import type { MaterialStockListItem } from '../types/material-stock';
+import type { StyleMaterialData } from '../types/style';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 
@@ -79,6 +82,111 @@ type BedRecordModalState = {
 
 type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
+type StartMaterialOption = {
+  label: string;
+  value: number;
+  unit?: string;
+  availableQty: number;
+  isLinked: boolean;
+};
+
+const LINKED_FABRIC_TYPE = 'FABRIC';
+
+const buildMaterialOptionsForWarehouse = (
+  warehouseId: number,
+  stockItems: MaterialStockListItem[],
+  styleMaterials: StyleMaterialData[],
+): StartMaterialOption[] => {
+  const linkedFabricMap = new Map(
+    styleMaterials
+      .filter((item) => item.materialType === LINKED_FABRIC_TYPE)
+      .map((item) => [item.materialId, item]),
+  );
+
+  const grouped = stockItems
+    .filter((item) => Number(item.warehouseId) === warehouseId && Number(item.availableQty ?? 0) > 0)
+    .reduce<Record<string, StartMaterialOption>>((acc, item) => {
+      const key = String(item.materialId);
+      const current = acc[key];
+      const availableQty = Number(item.availableQty ?? 0);
+      const isLinked = linkedFabricMap.has(Number(item.materialId));
+      const prefix = isLinked ? '推荐 · ' : '';
+      if (!current) {
+        acc[key] = {
+          label: `${prefix}${item.materialCode} / ${item.materialName}（可用 ${availableQty}${item.unit ?? ''}）`,
+          value: Number(item.materialId),
+          unit: item.unit,
+          availableQty,
+          isLinked,
+        };
+        return acc;
+      }
+
+      const mergedQty = current.availableQty + availableQty;
+      acc[key] = {
+        ...current,
+        availableQty: mergedQty,
+        isLinked: current.isLinked || isLinked,
+        label: `${current.isLinked || isLinked ? '推荐 · ' : ''}${item.materialCode} / ${item.materialName}（可用 ${mergedQty}${item.unit ?? ''}）`,
+      };
+      return acc;
+    }, {});
+
+  return Object.values(grouped).sort((a, b) => {
+    if (a.isLinked !== b.isLinked) {
+      return a.isLinked ? -1 : 1;
+    }
+    if (a.availableQty !== b.availableQty) {
+      return b.availableQty - a.availableQty;
+    }
+    return a.label.localeCompare(b.label, 'zh-CN');
+  });
+};
+
+const pickRecommendedWarehouseId = (
+  warehouses: Array<{ label: string; value: number }>,
+  stockItems: MaterialStockListItem[],
+  styleMaterials: StyleMaterialData[],
+): number | undefined => {
+  const linkedFabricIds = new Set(
+    styleMaterials.filter((item) => item.materialType === LINKED_FABRIC_TYPE).map((item) => item.materialId),
+  );
+  if (linkedFabricIds.size === 0) {
+    return warehouses[0]?.value;
+  }
+
+  const warehouseScore = new Map<number, { matched: number; availableQty: number }>();
+  stockItems.forEach((item) => {
+    const warehouseId = Number(item.warehouseId);
+    const materialId = Number(item.materialId);
+    const availableQty = Number(item.availableQty ?? 0);
+    if (!Number.isFinite(warehouseId) || availableQty <= 0 || !linkedFabricIds.has(materialId)) {
+      return;
+    }
+    const current = warehouseScore.get(warehouseId) ?? { matched: 0, availableQty: 0 };
+    warehouseScore.set(warehouseId, {
+      matched: current.matched + 1,
+      availableQty: current.availableQty + availableQty,
+    });
+  });
+
+  return warehouses
+    .map((warehouse) => ({
+      value: warehouse.value,
+      matched: warehouseScore.get(warehouse.value)?.matched ?? 0,
+      availableQty: warehouseScore.get(warehouse.value)?.availableQty ?? 0,
+    }))
+    .sort((a, b) => {
+      if (a.matched !== b.matched) {
+        return b.matched - a.matched;
+      }
+      if (a.availableQty !== b.availableQty) {
+        return b.availableQty - a.availableQty;
+      }
+      return 0;
+    })[0]?.value;
+};
+
 const CuttingPendingPage = () => {
   const navigate = useNavigate();
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
@@ -101,8 +209,10 @@ const CuttingPendingPage = () => {
   const [completeForm] = Form.useForm();
   const [bedRecordForm] = Form.useForm();
   const [warehouseOptions, setWarehouseOptions] = useState<Array<{ label: string; value: number }>>([]);
-  const [materialOptions, setMaterialOptions] = useState<Array<{ label: string; value: number; unit?: string; availableQty: number }>>([]);
+  const [materialOptions, setMaterialOptions] = useState<StartMaterialOption[]>([]);
   const [cutterOptions, setCutterOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [linkedStyleMaterials, setLinkedStyleMaterials] = useState<StyleMaterialData[]>([]);
+  const [fabricInventoryItems, setFabricInventoryItems] = useState<MaterialStockListItem[]>([]);
   const [warehouseLoading, setWarehouseLoading] = useState(false);
   const [materialLoading, setMaterialLoading] = useState(false);
   const [cutterLoading, setCutterLoading] = useState(false);
@@ -114,51 +224,6 @@ const CuttingPendingPage = () => {
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
   const selectedStartMaterial =
     materialOptions.find((option) => option.value === Number(startMaterialId));
-
-  const loadMaterialOptionsByWarehouse = async (warehouseId: number) => {
-    setMaterialLoading(true);
-    try {
-      const response = await materialStockService.getList({
-      page: 0,
-      pageSize: 500,
-      materialType: 'fabric',
-      onlyInStock: true,
-      });
-      const grouped = response.list
-        .filter((item) => Number(item.warehouseId) === warehouseId && item.availableQty > 0)
-        .reduce<Record<string, { label: string; value: number; unit?: string; availableQty: number }>>((acc, item) => {
-            const key = String(item.materialId);
-            const current = acc[key];
-            const availableQty = Number(item.availableQty ?? 0);
-            if (!current) {
-              acc[key] = {
-                label: `${item.materialCode} / ${item.materialName}（可用 ${availableQty}${item.unit ?? ''}）`,
-                value: Number(item.materialId),
-                unit: item.unit,
-                availableQty,
-              };
-            } else {
-              const mergedQty = current.availableQty + availableQty;
-              acc[key] = {
-                ...current,
-                availableQty: mergedQty,
-                label: `${item.materialCode} / ${item.materialName}（可用 ${mergedQty}${item.unit ?? ''}）`,
-              };
-            }
-            return acc;
-          }, {});
-      const nextOptions = Object.values(grouped);
-      setMaterialOptions(nextOptions);
-      return nextOptions;
-    } catch (error) {
-      console.error('failed to load material stock options', error);
-      setMaterialOptions([]);
-      message.error('加载仓库可用面料失败');
-      return [];
-    } finally {
-      setMaterialLoading(false);
-    }
-  };
 
   const openStartModal = async (
     task: CuttingTask,
@@ -174,6 +239,8 @@ const CuttingPendingPage = () => {
     }
     startForm.resetFields();
     setMaterialOptions([]);
+    setLinkedStyleMaterials([]);
+    setFabricInventoryItems([]);
     setStartState({ open: true, task, submitting: false });
     startForm.setFieldsValue({
       bedNumber: preset?.bedNumber ?? `BED-${task.orderCode}`,
@@ -185,13 +252,22 @@ const CuttingPendingPage = () => {
     });
     setWarehouseLoading(true);
     setCutterLoading(true);
+    setMaterialLoading(true);
     try {
-      const [warehouseRes, membersRes] = await Promise.all([
+      const [warehouseRes, membersRes, detail, fabricInventory] = await Promise.all([
         warehouseApi.list({ page: 1, pageSize: 200, type: 'material', status: 'active' }),
         settingsApi.organization.list({ page: 1, pageSize: 200 }),
+        pieceworkService.getCuttingSheetDetail(task.workOrderId),
+        materialStockService.getList({
+          page: 0,
+          pageSize: 500,
+          materialType: 'fabric',
+          onlyInStock: true,
+        }),
       ]);
       const warehouses = warehouseRes.list.map((item) => ({ label: item.name, value: Number(item.id) }));
       setWarehouseOptions(warehouses);
+      setFabricInventoryItems(fabricInventory.list ?? []);
       const members = (membersRes.list ?? [])
         .filter((member) => member.status !== 'inactive')
         .map((member) => ({
@@ -200,10 +276,27 @@ const CuttingPendingPage = () => {
         }))
         .filter((option) => Number.isFinite(option.value));
       setCutterOptions(members);
-      const firstWarehouseId = Number(warehouseRes.list?.[0]?.id);
-      if (Number.isFinite(firstWarehouseId) && firstWarehouseId > 0) {
-        startForm.setFieldValue('warehouseId', firstWarehouseId);
-        await loadMaterialOptionsByWarehouse(firstWarehouseId);
+      const styleMaterials =
+        detail.styleId != null ? await styleDetailApi.fetchMaterials(String(detail.styleId)) : [];
+      setLinkedStyleMaterials(styleMaterials);
+      const recommendedWarehouseId = pickRecommendedWarehouseId(warehouses, fabricInventory.list ?? [], styleMaterials);
+      if (Number.isFinite(recommendedWarehouseId) && Number(recommendedWarehouseId) > 0) {
+        startForm.setFieldValue('warehouseId', recommendedWarehouseId);
+        const nextOptions = buildMaterialOptionsForWarehouse(
+          Number(recommendedWarehouseId),
+          fabricInventory.list ?? [],
+          styleMaterials,
+        );
+        setMaterialOptions(nextOptions);
+        const linkedOptions = nextOptions.filter((item) => item.isLinked);
+        const preferredOption =
+          linkedOptions.length === 1 ? linkedOptions[0] : nextOptions.length === 1 ? nextOptions[0] : undefined;
+        if (preferredOption) {
+          startForm.setFieldsValue({
+            materialId: preferredOption.value,
+            materialUnit: preferredOption.unit,
+          });
+        }
       } else {
         message.warning('未找到可用的物料仓库，请先在基础资料维护仓库');
       }
@@ -211,10 +304,13 @@ const CuttingPendingPage = () => {
       console.error('failed to load warehouse/material options', error);
       setWarehouseOptions([]);
       setMaterialOptions([]);
+      setLinkedStyleMaterials([]);
+      setFabricInventoryItems([]);
       message.error('加载仓库或面料选项失败');
     } finally {
       setWarehouseLoading(false);
       setCutterLoading(false);
+      setMaterialLoading(false);
     }
   };
 
@@ -925,6 +1021,8 @@ const CuttingPendingPage = () => {
         onCancel={() => {
           startForm.resetFields();
           setMaterialOptions([]);
+          setLinkedStyleMaterials([]);
+          setFabricInventoryItems([]);
           setStartState({ open: false, submitting: false });
         }}
         onOk={handleSubmitStart}
@@ -941,6 +1039,52 @@ const CuttingPendingPage = () => {
               description={`下单 ${startState.task.orderedQuantity.toLocaleString()} ${startState.task.unit}，已裁 ${startState.task.cutQuantity.toLocaleString()} ${startState.task.unit}`}
             />
           ) : null}
+          <Form.Item label="款式关联面辅料">
+            {linkedStyleMaterials.length === 0 ? (
+              <Text type="secondary">当前款式未关联 BOM 面辅料，开裁时只能手动选择面料。</Text>
+            ) : (
+              <div className="cutting-start-linked-materials">
+                {linkedStyleMaterials.map((item) => {
+                  const stockSummary = fabricInventoryItems
+                    .filter((stock) => Number(stock.materialId) === item.materialId)
+                    .reduce(
+                      (acc, stock) => ({
+                        availableQty: acc.availableQty + Number(stock.availableQty ?? 0),
+                        warehouseCount: acc.warehouseCount + (Number(stock.availableQty ?? 0) > 0 ? 1 : 0),
+                      }),
+                      { availableQty: 0, warehouseCount: 0 },
+                    );
+                  const isFabric = item.materialType === LINKED_FABRIC_TYPE;
+                  const hasStock = isFabric ? stockSummary.availableQty > 0 : true;
+                  return (
+                    <div key={`${item.materialId}-${item.materialType}`} className="cutting-start-linked-card">
+                      <div className="cutting-start-linked-top">
+                        <Tag color={isFabric ? 'blue' : item.materialType === 'ACCESSORY' ? 'purple' : 'default'}>
+                          {isFabric ? '面料' : item.materialType === 'ACCESSORY' ? '辅料' : '包装'}
+                        </Tag>
+                        <Text type="secondary">{item.materialSku || '未配置编码'}</Text>
+                      </div>
+                      <div className="cutting-start-linked-name">{item.materialName}</div>
+                      <div className="cutting-start-linked-meta">
+                        单耗 {item.consumption || 0}
+                        {item.unit || '件'}
+                        {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
+                      </div>
+                      {isFabric ? (
+                        <div className="cutting-start-linked-stock">
+                          <Tag color={hasStock ? 'success' : 'warning'}>
+                            {hasStock
+                              ? `库存已匹配 · ${stockSummary.warehouseCount} 仓可用 ${stockSummary.availableQty}${item.unit || ''}`
+                              : '库存未匹配'}
+                          </Tag>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Form.Item>
           <Form.Item label="床次" name="bedNumber" rules={[{ required: true, message: '请输入床次' }]}>
             <Input maxLength={32} />
           </Form.Item>
@@ -965,7 +1109,15 @@ const CuttingPendingPage = () => {
                 startForm.setFieldValue('materialId', undefined);
                 startForm.setFieldValue('materialUnit', undefined);
                 if (Number.isFinite(warehouseId)) {
-                  void loadMaterialOptionsByWarehouse(warehouseId);
+                  const nextOptions = buildMaterialOptionsForWarehouse(warehouseId, fabricInventoryItems, linkedStyleMaterials);
+                  setMaterialOptions(nextOptions);
+                  const linkedOptions = nextOptions.filter((item) => item.isLinked);
+                  if (linkedOptions.length === 1) {
+                    startForm.setFieldsValue({
+                      materialId: linkedOptions[0].value,
+                      materialUnit: linkedOptions[0].unit,
+                    });
+                  }
                 }
               }}
             />
@@ -978,6 +1130,7 @@ const CuttingPendingPage = () => {
               options={materialOptions}
               disabled={!startWarehouseId}
               placeholder={startWarehouseId ? '请选择面料' : '请先选择仓库'}
+              notFoundContent={startWarehouseId ? '该仓暂无可用面料' : '请先选择仓库'}
               onChange={(materialId: number) => {
                 const target = materialOptions.find((item) => item.value === materialId);
                 if (target?.unit) {
@@ -986,6 +1139,13 @@ const CuttingPendingPage = () => {
               }}
             />
           </Form.Item>
+          {startWarehouseId ? (
+            <Text type="secondary" className="cutting-start-helper">
+              {materialOptions.some((item) => item.isLinked)
+                ? '已优先展示当前款式 BOM 关联的面料；如需替换，也可选择同仓其他可用面料。'
+                : '当前仓未匹配到 BOM 关联面料，下面显示的是该仓全部可用面料。'}
+            </Text>
+          ) : null}
           <Form.Item label="物料单位（可选）" name="materialUnit">
             <Input maxLength={16} />
           </Form.Item>

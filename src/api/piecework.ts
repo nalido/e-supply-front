@@ -311,6 +311,7 @@ type CuttingTaskCreateItem = {
 type CuttingSheetDetailPayload = Partial<{
   workOrderId: number;
   productionOrderId: number;
+  styleId: number;
   orderCode: string;
   styleCode: string;
   styleName: string;
@@ -410,6 +411,7 @@ const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset
 const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingSheetDetail => ({
   workOrderId: Number(payload.workOrderId ?? 0),
   productionOrderId: Number(payload.productionOrderId ?? 0),
+  styleId: Number.isFinite(Number(payload.styleId)) ? Number(payload.styleId) : undefined,
   orderCode: payload.orderCode ?? '',
   styleCode: payload.styleCode,
   styleName: payload.styleName,

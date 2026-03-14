@@ -54,6 +54,7 @@ export type CuttingSheetColorRow = {
 export type CuttingSheetDetail = {
   workOrderId: number;
   productionOrderId: number;
+  styleId?: number;
   orderCode: string;
   styleCode?: string;
   styleName?: string;

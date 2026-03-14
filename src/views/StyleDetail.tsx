@@ -12,8 +12,11 @@ import {
   Space,
   Spin,
   Switch,
+  Table,
+  Tag,
   Typography,
 } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import type { FormInstance } from 'antd/es/form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styleDetailApi from '../api/style-detail';
@@ -22,6 +25,7 @@ import type {
   StyleDetailData,
   StyleDetailSavePayload,
   StyleFormMeta,
+  StyleMaterialData,
 } from '../types/style';
 import ImageUploader from '../components/upload/ImageUploader';
 import '../styles/style-detail.css';
@@ -67,12 +71,63 @@ const StyleDetail = () => {
   const [saving, setSaving] = useState(false);
   const [colorImages, setColorImages] = useState<StyleColorImageMap>({});
   const [detail, setDetail] = useState<StyleDetailData>();
+  const [materials, setMaterials] = useState<StyleMaterialData[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const initializingRef = useRef(false);
 
   const watchedColors = Form.useWatch('colors', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
+  const materialColumns = useMemo<ColumnsType<StyleMaterialData>>(
+    () => [
+      {
+        dataIndex: 'materialType',
+        title: '类型',
+        width: 100,
+        render: (value: StyleMaterialData['materialType']) => {
+          if (value === 'FABRIC') {
+            return <Tag color="blue">面料</Tag>;
+          }
+          if (value === 'ACCESSORY') {
+            return <Tag color="gold">辅料</Tag>;
+          }
+          return <Tag color="green">包装</Tag>;
+        },
+      },
+      {
+        dataIndex: 'materialName',
+        title: '物料名称',
+        width: 220,
+      },
+      {
+        dataIndex: 'materialSku',
+        title: '物料编号',
+        width: 160,
+        render: (value?: string) => value || '--',
+      },
+      {
+        dataIndex: 'unit',
+        title: '单位',
+        width: 90,
+        render: (value?: string) => value || '--',
+      },
+      {
+        dataIndex: 'consumption',
+        title: '单耗',
+        width: 120,
+        align: 'right',
+        render: (value?: number) => (value == null ? '--' : value),
+      },
+      {
+        dataIndex: 'lossRate',
+        title: '损耗率',
+        width: 120,
+        align: 'right',
+        render: (value?: number) => (value == null ? '--' : `${(value * 100).toFixed(1)}%`),
+      },
+    ],
+    [],
+  );
 
   const load = useCallback(
     async (formRef: FormInstance<StyleFormValues>) => {
@@ -83,11 +138,17 @@ const StyleDetail = () => {
         setMeta(metaPayload);
         let detailPayload: StyleDetailData | undefined;
         if (styleId) {
-          detailPayload = await styleDetailApi.fetchDetail(styleId);
+          const [detailResult, materialResult] = await Promise.all([
+            styleDetailApi.fetchDetail(styleId),
+            styleDetailApi.fetchMaterials(styleId),
+          ]);
+          detailPayload = { ...detailResult, materials: materialResult };
           setDetail(detailPayload);
+          setMaterials(materialResult);
           setColorImages(detailPayload.colorImages ?? {});
         } else {
           setColorImages({});
+          setMaterials([]);
         }
         const initialValues = buildInitialValues(detailPayload);
         formRef.setFieldsValue(initialValues);
@@ -319,6 +380,29 @@ const StyleDetail = () => {
               </div>
             )}
           </Card>
+
+          {isEditing && (
+            <Card variant="borderless" className="style-detail-card">
+              <div className="style-detail-materials-header">
+                <div>
+                  <Title level={5} style={{ marginBottom: 4 }}>关联面辅料</Title>
+                  <Text type="secondary">与样板单共用同一份款式物料数据，便于下大货与款式资料保持一致。</Text>
+                </div>
+              </div>
+              {materials.length === 0 ? (
+                <Text type="secondary">当前款式还没有同步到面辅料数据。</Text>
+              ) : (
+                <Table<StyleMaterialData>
+                  rowKey={(item) => `${item.materialId}-${item.materialType}`}
+                  columns={materialColumns}
+                  dataSource={materials}
+                  pagination={false}
+                  size="middle"
+                  scroll={{ x: 760 }}
+                />
+              )}
+            </Card>
+          )}
 
         </Form>
 

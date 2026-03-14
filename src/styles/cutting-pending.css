@@ -172,6 +172,50 @@
   border: 1px solid var(--ant-color-border, #f0f0f0);
 }
 
+.cutting-start-linked-materials {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.cutting-start-linked-card {
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, #fafcff 0%, #fff 100%);
+  display: grid;
+  gap: 6px;
+}
+
+.cutting-start-linked-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cutting-start-linked-name {
+  font-weight: 600;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+}
+
+.cutting-start-linked-meta {
+  font-size: 12px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
+}
+
+.cutting-start-linked-stock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cutting-start-helper {
+  display: block;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
 @media (max-width: 768px) {
   .cutting-task-quantities {
     grid-template-columns: 1fr;

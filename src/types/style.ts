@@ -34,6 +34,16 @@ export interface StyleFormMeta {
 
 export type StyleColorImageMap = Record<string, string | undefined>;
 
+export interface StyleMaterialData {
+  materialId: number;
+  materialName: string;
+  materialSku: string;
+  materialType: 'FABRIC' | 'ACCESSORY' | 'PACKAGING';
+  unit: string;
+  consumption: number;
+  lossRate: number;
+}
+
 export interface StyleDetailData {
   id?: string;
   styleNo: string;
@@ -47,6 +57,7 @@ export interface StyleDetailData {
   sizes: string[];
   colorImages: StyleColorImageMap;
   sizeChartImageUrl?: string;
+  materials?: StyleMaterialData[];
 }
 
 export interface StyleDetailSavePayload {

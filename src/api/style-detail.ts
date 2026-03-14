@@ -1,5 +1,6 @@
 import type {
   StyleDetailData,
+  StyleMaterialData,
   StyleDetailSavePayload,
   StyleFormMeta,
   StyleStatus,
@@ -181,7 +182,7 @@ export const styleDetailApi = {
     });
     return adaptDetail(response.data);
   },
-  async fetchMaterials(styleId: string) {
+  async fetchMaterials(styleId: string): Promise<StyleMaterialData[]> {
     const tenantId = ensureTenantId();
     const response = await http.get<BackendStyleMaterialResponse[]>(`/api/v1/styles/${styleId}/materials`, {
       params: { tenantId },
