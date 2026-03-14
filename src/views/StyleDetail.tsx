@@ -536,23 +536,23 @@ const StyleDetail = () => {
                     <Switch />
                   </Form.Item>
                 </div>
+                {colorImagesEnabled && normalizedColors.length > 0 && (
+                  <div className="style-detail-color-images">
+                    {normalizedColors.map((color) => (
+                      <div key={color} className="style-detail-color-item">
+                        <Text className="style-detail-color-label">{color}</Text>
+                        <ImageUploader
+                          module="styles"
+                          value={colorImages[color]}
+                          onChange={(value) => handleColorImageChange(color, value)}
+                          tips="为该颜色上传一张展示图"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            {colorImagesEnabled && normalizedColors.length > 0 && (
-              <div className="style-detail-color-images">
-                {normalizedColors.map((color) => (
-                  <div key={color} className="style-detail-color-item">
-                    <Text className="style-detail-color-label">{color}</Text>
-                    <ImageUploader
-                      module="styles"
-                      value={colorImages[color]}
-                      onChange={(value) => handleColorImageChange(color, value)}
-                      tips="为该颜色上传一张展示图"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
           </Card>
 
           {isEditing && (

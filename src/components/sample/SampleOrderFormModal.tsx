@@ -47,7 +47,7 @@ import type {
   SampleCreationMeta,
   StaffOption,
 } from '../../types/sample-create';
-import type { StyleData, StyleDetailSavePayload, StyleMaterialData } from '../../types/style';
+import type { StyleData, StyleDetailData, StyleDetailSavePayload, StyleMaterialData } from '../../types/style';
 import sampleOrderApi, { type SampleOrderCreateInput } from '../../api/sample-order';
 import { sampleSettingsApi } from '../../api/sample-settings';
 import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order';
@@ -673,22 +673,12 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   const createUid = useCallback(() => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, []);
   const fabricBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'fabric'), [bomItems]);
   const accessoryBomItems = useMemo(() => bomItems.filter((item) => item.materialType === 'accessory'), [bomItems]);
-  const detachSelectedStyleIfCreating = useCallback(() => {
-    if (isEditMode) {
-      return;
-    }
-    if (form.getFieldValue('styleId')) {
-      form.setFieldsValue({ styleId: undefined });
-    }
-  }, [form, isEditMode]);
   const handleBomFieldChange = useCallback((uid: string, patch: Partial<BomEntry>) => {
     setBomItems((prev) => prev.map((item) => (item.uid === uid ? { ...item, ...patch } : item)));
-    detachSelectedStyleIfCreating();
-  }, [detachSelectedStyleIfCreating]);
+  }, []);
   const handleBomRemove = useCallback((uid: string) => {
     setBomItems((prev) => prev.filter((item) => item.uid !== uid));
-    detachSelectedStyleIfCreating();
-  }, [detachSelectedStyleIfCreating]);
+  }, []);
   const handleMaterialPickerOpen = useCallback((type: MaterialBasicType) => {
     setMaterialPickerState({ open: true, type });
   }, []);
@@ -717,8 +707,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       return [...prev, entry];
     });
     setMaterialPickerState((prev) => ({ ...prev, open: false }));
-    detachSelectedStyleIfCreating();
-  }, [createUid, detachSelectedStyleIfCreating, messageApi]);
+  }, [createUid, messageApi]);
   const handleAddOtherCost = useCallback(() => {
     setOtherCosts((prev) => [...prev, { uid: `cost-${createUid()}`, costType: '', amount: 0 }]);
   }, [createUid]);
@@ -907,6 +896,29 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     });
   }, [form]);
 
+  const applyLinkedStyleVisuals = useCallback((styleDetail: StyleDetailData, fallbackStyleName?: string) => {
+    setColorImageMap(styleDetail.colorImages ?? {});
+    setColorImagesEnabled(Object.values(styleDetail.colorImages ?? {}).some((value) => Boolean(value)));
+    setSizeChartImage(styleDetail.sizeChartImageUrl ?? undefined);
+    if (!styleDetail.coverImageUrl) {
+      return;
+    }
+    setAttachments((prev) => {
+      const others = prev.filter((item) => !item.isMain);
+      const currentMain = prev.find((item) => item.isMain);
+      const nextMain: SampleCreationAttachment = currentMain
+        ? { ...currentMain, url: styleDetail.coverImageUrl }
+        : {
+            id: generateId(),
+            url: styleDetail.coverImageUrl,
+            name: fallbackStyleName ? `${fallbackStyleName}主图` : extractFileNameFromUrl(styleDetail.coverImageUrl),
+            isMain: true,
+            createdAt: new Date().toISOString(),
+          };
+      return [nextMain, ...others];
+    });
+  }, []);
+
   useEffect(() => {
     if (!visible) {
       return;
@@ -948,13 +960,19 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
             if (cancelled) {
               return;
             }
-            const linkedStyleMaterials = detailData.styleId
-              ? await styleBomApi.fetch(String(detailData.styleId))
-              : undefined;
+            const [linkedStyleMaterials, linkedStyleDetail] = detailData.styleId
+              ? await Promise.all([
+                  styleBomApi.fetch(String(detailData.styleId)),
+                  styleDetailApi.fetchDetail(String(detailData.styleId)),
+                ])
+              : [undefined, undefined];
             if (cancelled) {
               return;
             }
             hydrateFormFromDetail(normalizedMeta, detailData, linkedStyleMaterials);
+            if (linkedStyleDetail) {
+              applyLinkedStyleVisuals(linkedStyleDetail, detailData.styleName ?? undefined);
+            }
           } catch (detailError) {
             console.error(detailError);
             messageApi.error('加载样板单详情失败，请稍后重试');
@@ -1032,7 +1050,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, onCancel, initialStyle, form]);
+  }, [visible, resetForm, messageApi, isEditMode, orderId, hydrateFormFromDetail, applyLinkedStyleVisuals, onCancel, initialStyle, form]);
 
   useEffect(() => {
     if (!visible || isEditMode || !defaultFollowTemplateId) {
@@ -1076,23 +1094,20 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       });
       return next;
     });
-    detachSelectedStyleIfCreating();
-  }, [detachSelectedStyleIfCreating, sizes]);
+  }, [sizes]);
 
   const handleSizesUpdate = useCallback((nextSizes: string[]) => {
     const normalized = Array.from(new Set(nextSizes.map((item) => item.trim()).filter(Boolean)));
     setSizes(normalized);
     setMatrix((prev) => buildQuantityMatrix(colors, normalized, prev));
-    detachSelectedStyleIfCreating();
-  }, [colors, detachSelectedStyleIfCreating]);
+  }, [colors]);
 
   const handleColorImageChange = useCallback((color: string, imageUrl?: string) => {
     setColorImageMap((prev) => ({
       ...prev,
       [color]: imageUrl,
     }));
-    detachSelectedStyleIfCreating();
-  }, [detachSelectedStyleIfCreating]);
+  }, []);
 
   const handleAttachmentRemove = useCallback((id: string) => {
     setAttachments((prev) => {
@@ -1321,6 +1336,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           sizes,
           colorImages: colorImagesEnabled ? colorImageMap : {},
           sizeChartImageUrl: sizeChartImage,
+          coverImageUrl: mainAttachment?.url,
         };
         const createdStyle = await styleDetailApi.create(styleDraftPayload);
         if (!createdStyle.id) {
@@ -1388,7 +1404,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [form, meta, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage, syncLinkedStyle]);
+  }, [form, meta, colors, sizes, matrix, colorImagesEnabled, colorImageMap, attachments, mainAttachment?.url, onOk, handleClose, messageApi, isEditMode, orderId, otherCosts, bomItems, sizeChartImage, syncLinkedStyle]);
 
   const handleStyleSelect = useCallback((style: StyleData) => {
     const presetValues: Partial<SampleOrderFormValues> = {
@@ -1512,14 +1528,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         label="款号"
                         rules={[{ required: true, message: '请输入款号' }]}
                       >
-                        <Input
-                          placeholder="请输入款号"
-                          onChange={() => {
-                            if (!isEditMode) {
-                              form.setFieldsValue({ styleId: undefined });
-                            }
-                          }}
-                        />
+                        <Input placeholder="请输入款号" />
                       </Form.Item>
                     </Col>
                     <Col span={12}>
@@ -1528,14 +1537,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         label="款名"
                         rules={[{ required: true, message: '请输入款名' }]}
                       >
-                        <Input
-                          placeholder="请输入款名"
-                          onChange={() => {
-                            if (!isEditMode && form.getFieldValue('styleId')) {
-                              form.setFieldsValue({ styleId: undefined });
-                            }
-                          }}
-                        />
+                        <Input placeholder="请输入款名" />
                       </Form.Item>
                     </Col>
                     <Form.Item name="styleId" hidden>
@@ -1802,10 +1804,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     <Space align="start" size={12}>
                     <Switch
                       checked={colorImagesEnabled}
-                      onChange={(checked) => {
-                        setColorImagesEnabled(checked);
-                        detachSelectedStyleIfCreating();
-                      }}
+                      onChange={(checked) => setColorImagesEnabled(checked)}
                     />
                     <Space direction="vertical" size={0}>
                       <Text>颜色图片</Text>
@@ -1815,49 +1814,22 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 </Col>
                   {colorImagesEnabled ? (
                     <Col span={24}>
-                      <Space wrap size={16} style={{ marginTop: 12 }}>
+                      <div className="sample-order-color-images">
                       {colors.map((color) => {
                         const image = colorImageMap[color];
                         return (
-                          <Card key={color} size="small" style={{ width: 200 }}>
-                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                              <Text strong>{color}</Text>
-                              <ListImage
-                                src={image}
-                                alt={color}
-                                width="100%"
-                                height={140}
-                                borderRadius={4}
-                                background="#f5f5f5"
-                                fallback={
-                                  <div
-                                    style={{
-                                      width: '100%',
-                                      height: '100%',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      background: '#f5f5f5',
-                                      borderRadius: 4,
-                                    }}
-                                  >
-                                    <PictureOutlined style={{ fontSize: 36, color: '#bfbfbf' }} />
-                                    <Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>暂无图片</Text>
-                                  </div>
-                                }
-                              />
-                              <ImageUploader
-                                module="sample-orders"
-                                  value={image}
-                                  onChange={(value) => handleColorImageChange(color, value)}
-                                tips="上传该颜色展示图（可选）"
-                              />
-                            </Space>
-                          </Card>
+                          <div key={color} className="sample-order-color-item">
+                            <Text className="sample-order-color-label">{color}</Text>
+                            <ImageUploader
+                              module="sample-orders"
+                              value={image}
+                              onChange={(value) => handleColorImageChange(color, value)}
+                              tips="为该颜色上传一张展示图"
+                            />
+                          </div>
                         );
                       })}
-                    </Space>
+                    </div>
                     </Col>
                   ) : null}
                   <Col span={24}>
@@ -1878,7 +1850,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                     value={sizeChartImage}
                     onChange={(value) => {
                       setSizeChartImage(value);
-                      detachSelectedStyleIfCreating();
                     }}
                     tips="上传尺寸表图片，建议 1200x800px，支持 JPG/PNG"
                   />
