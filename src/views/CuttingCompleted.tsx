@@ -342,7 +342,10 @@ const CuttingCompletedPage = () => {
               <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
               <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
+              <Descriptions.Item label="超用备注">{sheetDetail?.usageRemark ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超裁原因">{sheetDetail?.overCutReasonText ?? sheetDetail?.overCutReasonCode ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超裁备注">{sheetDetail?.overCutRemark ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="订单备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
             </Descriptions>
             {sheetDetail ? (
               <>

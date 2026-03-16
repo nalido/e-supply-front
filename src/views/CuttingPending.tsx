@@ -60,6 +60,13 @@ const OVER_USAGE_REASON_OPTIONS = [
   { label: '其它', value: 'OTHER' },
 ];
 
+const OVER_CUT_REASON_OPTIONS = [
+  { label: '补裁返工', value: 'REWORK' },
+  { label: '备损预留', value: 'LOSS_RESERVE' },
+  { label: '面料瑕疵换片', value: 'DEFECT_REPLACEMENT' },
+  { label: '其它', value: 'OTHER' },
+];
+
 const getCuttingVarianceSummary = (detail?: CuttingSheetDetail | null, actualQty?: number) => {
   const planQty = Number(detail?.plannedFabricQty ?? 0);
   const normalizedActualQty = Number(actualQty ?? detail?.completeActualFabricQty ?? detail?.startActualFabricQty ?? 0);
@@ -237,11 +244,16 @@ const CuttingPendingPage = () => {
   const [cutterLoading, setCutterLoading] = useState(false);
   const completeActualFabricQty = Form.useWatch('actualFabricQty', completeForm);
   const completeUsageReasonCode = Form.useWatch('usageReasonCode', completeForm);
+  const completeOverCutReasonCode = Form.useWatch('overCutReasonCode', completeForm);
   const startWarehouseId = Form.useWatch('warehouseId', startForm);
   const startMaterialId = Form.useWatch('materialId', startForm);
   const startPlannedFabricQty = Form.useWatch('plannedFabricQty', startForm);
   const completeVariance = getCuttingVarianceSummary(sheetDetail, Number(completeActualFabricQty ?? 0));
   const completeIsOverPlan = completeVariance.overQty > 0;
+  const completeTargetQty = Object.values(completeQtyMap).reduce((sum, qty) => sum + Math.max(0, Math.round(Number(qty) || 0)), 0);
+  const completePlannedQty = Number(sheetDetail?.plannedQty ?? completeState.task?.orderedQuantity ?? 0);
+  const completeOverCutQty = Math.max(completeTargetQty - completePlannedQty, 0);
+  const completeIsOverCut = completeOverCutQty > 0;
 
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
   const selectedStartMaterial =
@@ -475,6 +487,10 @@ const CuttingPendingPage = () => {
         actualFabricQty: values.actualFabricQty,
         usageReasonCode: values.usageReasonCode,
         usageReasonText: values.usageReasonText,
+        usageRemark: values.usageRemark,
+        overCutReasonCode: values.overCutReasonCode,
+        overCutReasonText: values.overCutReasonText,
+        overCutRemark: values.overCutRemark,
         items,
       });
       message.success('裁床单已完成，已转入已裁');
@@ -592,6 +608,10 @@ const CuttingPendingPage = () => {
         actualFabricQty: detail.completeActualFabricQty ?? detail.startActualFabricQty ?? undefined,
         usageReasonCode: detail.usageReasonCode ?? undefined,
         usageReasonText: detail.usageReasonText ?? undefined,
+        usageRemark: detail.usageRemark ?? undefined,
+        overCutReasonCode: detail.overCutReasonCode ?? undefined,
+        overCutReasonText: detail.overCutReasonText ?? undefined,
+        overCutRemark: detail.overCutRemark ?? undefined,
       });
     } catch (error) {
       console.error('failed to load cutting sheet detail for complete', error);
@@ -929,7 +949,10 @@ const CuttingPendingPage = () => {
               <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
               <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
+              <Descriptions.Item label="超用备注">{sheetDetail?.usageRemark ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超裁原因">{sheetDetail?.overCutReasonText ?? sheetDetail?.overCutReasonCode ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超裁备注">{sheetDetail?.overCutRemark ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="订单备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
             </Descriptions>
             {sheetDetail ? (
               <>
@@ -1357,13 +1380,11 @@ const CuttingPendingPage = () => {
           ) : null}
           {typeof sheetDetail?.plannedFabricQty === 'number' ? (
             <Alert
-              type={completeIsOverPlan ? 'warning' : 'info'}
+              type={completeIsOverPlan || completeIsOverCut ? 'warning' : 'info'}
               showIcon
               style={{ marginBottom: 12 }}
-              message={`计划用量：${completeVariance.planQty}${sheetDetail.materialUnit ?? ''} ｜ 实际用量：${completeVariance.actualQty}${sheetDetail.materialUnit ?? ''}`}
-              description={completeIsOverPlan
-                ? `本次完工将超计划使用 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}。按一期方案，超用时必须填写原因与备注，库存仍按实际用量扣减。`
-                : `当前差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。本次不放开超裁件数，只处理实际用量差异。`}
+              message={`计划用量：${completeVariance.planQty}${sheetDetail.materialUnit ?? ''} ｜ 实际用量：${completeVariance.actualQty}${sheetDetail.materialUnit ?? ''} ｜ 计划件数：${completePlannedQty} ｜ 本次实裁件数：${completeTargetQty}`}
+              description={`${completeIsOverPlan ? `本次完工将超计划使用 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}，超用必须填写原因码、原因说明和备注。` : `当前用量差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。`} ${completeIsOverCut ? `本次将超裁 ${completeOverCutQty}${completeState.task?.unit ?? '件'}，必须单独填写超裁原因，不会自动扩张成品待入库。` : '未超裁时无需填写超裁原因。'}`}
             />
           ) : null}
           <Form.Item label="面料实际使用数量（完成）" name="actualFabricQty" rules={[{ required: true, message: '请输入完成用料' }]}> 
@@ -1396,6 +1417,62 @@ const CuttingPendingPage = () => {
             }]}
           >
             <Input.TextArea rows={3} placeholder={completeUsageReasonCode ? '请补充超用背景、处理说明或业务确认信息' : '实际用量超计划时必填'} />
+          </Form.Item>
+          <Form.Item
+            label="超用备注"
+            name="usageRemark"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverPlan || (typeof value === 'string' && value.trim())) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实际用量超计划时必须填写超用备注'));
+              },
+            }]}
+          >
+            <Input.TextArea rows={2} placeholder={completeUsageReasonCode ? '记录超用处理结果、确认人或补领说明' : '实际用量超计划时必填'} />
+          </Form.Item>
+          <Form.Item
+            label="超裁原因"
+            name="overCutReasonCode"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverCut || value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实裁件数超计划时必须选择超裁原因'));
+              },
+            }]}
+          >
+            <Select allowClear options={OVER_CUT_REASON_OPTIONS} placeholder="实裁件数超计划时必选" />
+          </Form.Item>
+          <Form.Item
+            label="超裁原因说明"
+            name="overCutReasonText"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverCut || (typeof value === 'string' && value.trim())) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实裁件数超计划时必须填写超裁原因说明'));
+              },
+            }]}
+          >
+            <Input.TextArea rows={2} placeholder={completeOverCutReasonCode ? '请说明补裁背景、业务确认或返工原因' : '实裁件数超计划时必填'} />
+          </Form.Item>
+          <Form.Item
+            label="超裁备注"
+            name="overCutRemark"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverCut || (typeof value === 'string' && value.trim())) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实裁件数超计划时必须填写超裁备注'));
+              },
+            }]}
+          >
+            <Input.TextArea rows={2} placeholder={completeOverCutReasonCode ? '记录审批人、补裁去向或追溯信息' : '实裁件数超计划时必填'} />
           </Form.Item>
           {sheetDetail ? (
             <Table

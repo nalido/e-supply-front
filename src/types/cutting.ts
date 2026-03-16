@@ -68,6 +68,10 @@ export type CuttingSheetDetail = {
   fabricUsageVarianceType?: 'NORMAL' | 'OVER' | 'UNDER' | string;
   usageReasonCode?: string;
   usageReasonText?: string;
+  usageRemark?: string;
+  overCutReasonCode?: string;
+  overCutReasonText?: string;
+  overCutRemark?: string;
   warehouseId?: number;
   warehouseName?: string;
   materialId?: number;
