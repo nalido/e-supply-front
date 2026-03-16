@@ -42,7 +42,7 @@ import type { StyleMaterialData } from '../types/style';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const initialDataset: CuttingTaskDataset = {
   summary: [],
@@ -588,6 +588,16 @@ const CuttingPendingPage = () => {
 
   return (
     <div className="cutting-pending-page">
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+          <Text type="secondary">计件中心 / 裁床 / 待裁</Text>
+          <Space align="baseline" wrap>
+            <Title level={3} style={{ margin: 0 }}>待裁任务工作台</Title>
+            <Text type="secondary">按“待裁 → 开裁 → 床次录入 → 裁剪完成”的闭环顺序推进当前可联调任务。</Text>
+          </Space>
+          <Text type="secondary">本轮仅收口已能联调的待裁页面，不继续深入成品车缝 → 入库链路。</Text>
+        </Space>
+      </Card>
       <section className="cutting-summary-section">
         <Space size={16} wrap>
           {dataset.summary.length > 0 ? dataset.summary.map(renderMetric) : null}
@@ -595,15 +605,20 @@ const CuttingPendingPage = () => {
       </section>
 
       <section className="cutting-toolbar">
-        <Input.Search
-          allowClear
-          placeholder="请输入订单号/款名/款号"
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          onSearch={handleSearch}
-          enterButton={<SearchOutlined />}
-          style={{ maxWidth: 420, flex: 1 }}
-        />
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap size={12} style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Input.Search
+              allowClear
+              placeholder="请输入订单号/款名/款号"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              onSearch={handleSearch}
+              enterButton={<SearchOutlined />}
+              style={{ maxWidth: 420, flex: 1 }}
+            />
+            <Text type="secondary">当前任务数：{dataset.total}，优先处理可直接开裁或已在裁剪中的任务。</Text>
+          </Space>
+        </Space>
       </section>
 
       {loading ? (
@@ -689,14 +704,15 @@ const CuttingPendingPage = () => {
                   </div>
                   <div className="cutting-task-actions">
                     <Button
-                      type="link"
+                      size="small"
                       onClick={() => handleViewDetail(task)}
                     >
                       查看详情
                     </Button>
                     {workOrderStatus === 'IN_PROGRESS' ? (
                       <Button
-                        type="link"
+                        size="small"
+                        type="primary"
                         onClick={() => void openCompleteModal(task)}
                         disabled={!task.workOrderId}
                         icon={<CheckCircleTwoTone twoToneColor="#52c41a" />}
@@ -705,7 +721,8 @@ const CuttingPendingPage = () => {
                       </Button>
                     ) : (
                       <Button
-                        type="link"
+                        size="small"
+                        type="primary"
                         onClick={() => void openStartModal(task)}
                         disabled={!task.workOrderId}
                         icon={<ScissorOutlined />}
@@ -714,8 +731,8 @@ const CuttingPendingPage = () => {
                       </Button>
                     )}
                     <Button
+                      size="small"
                       icon={<PictureOutlined />}
-                      type="link"
                       onClick={() => handleOpenPreview(task)}
                     >
                       颜色图
@@ -727,7 +744,7 @@ const CuttingPendingPage = () => {
                         onClick: handleMenuClick(task),
                       }}
                     >
-                      <Button icon={<MoreOutlined />} type="text">更多</Button>
+                      <Button size="small" icon={<MoreOutlined />}>更多</Button>
                     </Dropdown>
                   </div>
                 </div>

@@ -1,78 +1,85 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Layout, Menu, Breadcrumb, Space, Button } from 'antd';
-import type { MenuProps } from 'antd';
-import { Outlet, useLocation, Link } from 'react-router-dom';
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
-import { menuTree, toAntdMenuItems } from '../menu.config';
+import { useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+import { Layout, Menu, Breadcrumb, Space, Button } from 'antd'
+import type { MenuProps } from 'antd'
+import { Outlet, useLocation, Link } from 'react-router-dom'
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 
-const { Header, Sider, Content } = Layout;
+const { Header, Sider, Content } = Layout
 
 const deriveOpenKeys = (pathname: string): string[] => {
-  const segments = pathname.split('/').filter(Boolean);
-  if (!segments.length) {
-    return [];
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length <= 1) return []
+  return segments.slice(0, -1).map((_, index) => `/${segments.slice(0, index + 1).join('/')}`)
+}
+
+const readNodeLabel = (label: ReactNode): string => {
+  if (typeof label === 'string') return label
+  if (label && typeof label === 'object' && 'props' in label) {
+    const maybeChildren = (label as { props?: { children?: ReactNode } }).props?.children
+    if (typeof maybeChildren === 'string') return maybeChildren
   }
-  if (segments.length === 1) {
-    return [`/${segments[0]}`];
-  }
-  return segments.slice(0, -1).map((_, index) => `/${segments.slice(0, index + 1).join('/')}`);
-};
+  return '页面'
+}
+
+const buildLabelMap = (nodes: MenuNode[], map = new Map<string, string>()) => {
+  nodes.forEach((node) => {
+    map.set(node.key, readNodeLabel(node.label))
+    if (node.children) buildLabelMap(node.children, map)
+  })
+  return map
+}
+
+const LABEL_MAP = buildLabelMap(menuTree)
 
 const MainLayout = () => {
-  const location = useLocation();
-  const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname));
+  const location = useLocation()
+  const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname))
 
-  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), []);
+  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), [])
 
   const selectedKey = useMemo(() => {
-    if (location.pathname === '/sample') {
-      return '/sample/overview';
-    }
-    return location.pathname;
-  }, [location.pathname]);
+    if (location.pathname === '/sample') return '/sample/list'
+    return location.pathname
+  }, [location.pathname])
 
   useEffect(() => {
-    setOpenKeys(deriveOpenKeys(location.pathname));
-  }, [location.pathname]);
+    setOpenKeys(deriveOpenKeys(location.pathname))
+  }, [location.pathname])
 
   const breadcrumbItems = useMemo(() => {
-    const pathSnippets = location.pathname.split('/').filter(Boolean);
-    const items: Array<{ title: ReactNode }> = [{ title: <Link to="/">工作台</Link> }];
-    if (pathSnippets.length >= 2) {
-      items.push({ title: <span>{pathSnippets[0] === 'dashboard' ? '工作台' : pathSnippets[0]}</span> });
-      items.push({ title: <span>{pathSnippets[1]}</span> });
+    const pathSnippets = location.pathname.split('/').filter(Boolean)
+    const paths = pathSnippets.map((_segment, index) => `/${pathSnippets.slice(0, index + 1).join('/')}`)
+    const breadcrumbPaths = paths.slice(0, -1)
+
+    if (breadcrumbPaths.length === 0 && paths[0]) {
+      const label = LABEL_MAP.get(paths[0]) ?? pathSnippets[0]
+      return [{ title: <span>{label}</span> }]
     }
-    return items;
-  }, [location.pathname]);
+
+    return breadcrumbPaths.map((path, index) => {
+      const label = LABEL_MAP.get(path) ?? pathSnippets[index]
+      const isLast = index === breadcrumbPaths.length - 1
+      return {
+        title: isLast ? <span>{label}</span> : <Link to={path}>{label}</Link>,
+      }
+    })
+  }, [location.pathname])
 
   const handleOpenChange: MenuProps['onOpenChange'] = (keys) => {
-    setOpenKeys(keys as string[]);
-  };
+    setOpenKeys(keys as string[])
+  }
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={208} breakpoint="lg" collapsedWidth={64}>
-        <div
-          style={{
-            height: 48,
-            margin: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            color: '#fff',
-            fontWeight: 600,
-            fontSize: 28,
-            letterSpacing: 1,
-          }}
-        >
-          <img
-            src="/assets/images/logo.png"
-            alt="易供云"
-            style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6 }}
-          />
-          易供云
+    <Layout className="oc-app-shell">
+      <Sider width={244} breakpoint="lg" collapsedWidth={72} className="oc-sider">
+        <div className="oc-brand">
+          <img src="/assets/images/logo.png" alt="易供云" className="oc-brand__logo" />
+          <div className="oc-brand__text">
+            <div className="oc-brand__title">易供云</div>
+            <div className="oc-brand__subtitle">供应链与生产协同平台</div>
+          </div>
         </div>
         <Menu
           theme="dark"
@@ -83,25 +90,13 @@ const MainLayout = () => {
           items={menuItems}
         />
       </Sider>
-      <Layout>
-        <Header
-          style={{
-            background: '#fff',
-            padding: '0 24px',
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
-        >
+      <Layout className="oc-main">
+        <Header className="oc-topbar">
           <Breadcrumb items={breadcrumbItems} />
           <Space size={12}>
             <SignedOut>
               <SignInButton mode="modal">
-                <Button type="primary" size="small" ghost>
-                  登录账号
-                </Button>
+                <Button type="primary">登录账号</Button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
@@ -109,14 +104,14 @@ const MainLayout = () => {
             </SignedIn>
           </Space>
         </Header>
-        <Content style={{ margin: 16 }}>
-          <div>
+        <Content className="oc-content">
+          <div className="oc-content__inner">
             <Outlet />
           </div>
         </Content>
       </Layout>
     </Layout>
-  );
-};
+  )
+}
 
-export default MainLayout;
+export default MainLayout

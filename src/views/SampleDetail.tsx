@@ -452,6 +452,24 @@ const SampleDetail = () => {
       <Spin spinning={loading} delay={200}>
         {detail ? (
           <Space direction="vertical" size={24} style={{ width: '100%' }}>
+            <Card>
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Text type="secondary">样板管理 / 样板单详情</Text>
+                <Space align="baseline" wrap>
+                  <Title level={3} style={{ margin: 0 }}>{detail.sampleNo}</Title>
+                  <Text type="secondary">{detail.styleNo} · {detail.styleName}</Text>
+                </Space>
+                <Space wrap size={[8, 8]}>
+                  <Tag color="blue">交板：{detail.estimatedDeliveryDate ?? '-'}</Tag>
+                  <Tag color="purple">颜色 {detail.colors.length}</Tag>
+                  <Tag color="geekblue">尺码 {detail.sizes.length}</Tag>
+                  <Tag color="gold">附件 {detail.attachments.length}</Tag>
+                </Space>
+                <Text type="secondary">
+                  本页已将基础信息、数量结构、BOM/尺寸/附件与成本拆解收口到一页，便于业务在真实数据下连续检查。
+                </Text>
+              </Space>
+            </Card>
 
             <Card
               id={SECTION_IDS.base}
@@ -460,7 +478,7 @@ const SampleDetail = () => {
             >
               <Row gutter={[24, 24]}>
                 <Col xs={24} lg={16}>
-                  <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} labelStyle={{ width: 110 }}>
+                  <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} styles={{ label: { width: 110 } }}>
                     <Descriptions.Item label="款号">{detail.styleNo}</Descriptions.Item>
                     <Descriptions.Item label="样板单">{detail.sampleNo}</Descriptions.Item>
                     <Descriptions.Item label="跟单员">{detail.merchandiser ?? '-'}</Descriptions.Item>
@@ -470,25 +488,25 @@ const SampleDetail = () => {
                     <Descriptions.Item label="板类">{detail.patternType ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="下板日期">{detail.patternDate}</Descriptions.Item>
                     <Descriptions.Item label="纸样号">{detail.paperPatternNo ?? '-'}</Descriptions.Item>
-                    <Descriptions.Item label="备注" span={3}>{detail.remarks ?? '暂无备注'}</Descriptions.Item>
+                    <Descriptions.Item label="备注" span="filled">{detail.remarks ?? '暂无备注'}</Descriptions.Item>
                     <Descriptions.Item label="单位">{detail.unit}</Descriptions.Item>
                     <Descriptions.Item label="预计交板">{detail.estimatedDeliveryDate ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="车板师">{detail.sampleSewer ?? '-'}</Descriptions.Item>
-                    <Descriptions.Item label="加工类型" span={2}>
+                    <Descriptions.Item label="加工类型" span="filled">
                       <Space size={[8, 8]} wrap>
                         {detail.processingTypes.map((type) => (
                           <Tag key={type} color="blue">{type}</Tag>
                         ))}
                       </Space>
                     </Descriptions.Item>
-                    <Descriptions.Item label="颜色" span={2}>
+                    <Descriptions.Item label="颜色" span="filled">
                       <Space size={[8, 8]} wrap>
                         {detail.colors.map((color) => (
                           <Tag key={color} color="geekblue">{color}</Tag>
                         ))}
                       </Space>
                     </Descriptions.Item>
-                    <Descriptions.Item label="尺码" span={2}>
+                    <Descriptions.Item label="尺码" span="filled">
                       <Space size={[8, 8]} wrap>
                         {detail.sizes.map((size) => (
                           <Tag key={size} color="purple">{size}</Tag>

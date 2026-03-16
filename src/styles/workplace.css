@@ -1,84 +1,181 @@
-/* 工作台页面样式 */
+.workplace-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
 
-.quick-action-item {
+.workplace-hero-card,
+.workplace-todo-card,
+.workplace-panel-card {
+  border-radius: 22px !important;
+  border: 1px solid var(--oc-color-border) !important;
+  box-shadow: var(--oc-shadow-sm);
+}
+
+.workplace-hero-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.workplace-hero-card__main {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.workplace-hero-card__desc {
+  max-width: 520px;
+  color: var(--oc-color-text-secondary);
+}
+
+.workplace-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.workplace-kpi-item {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid var(--oc-color-border);
+}
+
+.workplace-kpi-item__label {
+  font-size: 12px;
+  color: var(--oc-color-text-secondary);
+}
+
+.workplace-kpi-item__value {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.workplace-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.oc-stat-card.workplace-stat-card {
   position: relative;
+  min-height: 148px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--oc-color-border);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: var(--oc-shadow-sm);
+  overflow: hidden;
 }
 
-.quick-action-item:hover {
-  background-color: rgba(24, 144, 255, 0.04);
-  border-radius: 6px;
+.oc-stat-card.workplace-stat-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -24px -28px auto;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0) 72%);
+  pointer-events: none;
 }
 
-.quick-action-item:hover .quick-action-icon {
-  background-color: #1890ff !important;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+.oc-stat-card.workplace-stat-card .oc-stat-card__eyebrow {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--oc-color-text-secondary);
 }
 
-.quick-action-item:hover .quick-action-icon > div {
-  color: #fff !important;
+.oc-stat-card.workplace-stat-card .oc-stat-card__value {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--oc-color-text);
 }
 
-/* 工作台统计卡片样式 */
-.workplace-stats-card {
-  transition: all 0.3s ease;
+.oc-stat-card.workplace-stat-card .oc-stat-card__suffix {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oc-color-text-tertiary);
 }
 
-.workplace-stats-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+.oc-stat-card.workplace-stat-card .oc-stat-card__footnote {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  max-width: calc(100% - 64px);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--oc-color-text-secondary);
 }
 
-/* 表格卡片样式 */
-.workplace-table-card {
-  transition: all 0.3s ease;
+.oc-stat-card.workplace-stat-card .oc-stat-card__icon {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.72);
 }
 
-.workplace-table-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+.workplace-todo-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--oc-color-border);
+  border-radius: 16px;
 }
 
-/* 公告样式 */
-.announcement-item {
-  transition: all 0.2s ease;
-  cursor: pointer;
+.workplace-panel-card__title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.announcement-item:hover {
-  background-color: #fafafa;
-  border-radius: 4px;
-  padding: 12px !important;
-  margin: 0 -12px;
+.workplace-announcement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-/* 公告内容区域滚动条样式 */
-.announcement-content-container::-webkit-scrollbar {
-  width: 6px;
+.workplace-announcement-item {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--oc-color-border);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
-.announcement-content-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
+.workplace-announcement-item__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
-.announcement-content-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-  transition: background 0.2s;
+.workplace-announcement-item__author {
+  color: var(--oc-color-text-tertiary);
+  font-size: 12px;
+  text-align: right;
 }
 
-.announcement-content-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .quick-action-item {
-    margin-bottom: 16px;
-  }
-  
-  .workplace-stats-card,
-  .workplace-table-card {
-    margin-bottom: 16px;
-  }
+.workplace-empty {
+  min-height: 360px;
+  display: grid;
+  place-items: center;
 }

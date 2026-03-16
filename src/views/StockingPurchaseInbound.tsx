@@ -9,7 +9,6 @@ import {
   Drawer,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -27,7 +26,6 @@ import {
   InboxOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { stockingPurchaseInboundService } from '../api/procurement';
@@ -42,6 +40,7 @@ import type {
   StockingReceivePayload,
 } from '../types/stocking-purchase-inbound';
 import dayjs from 'dayjs';
+import { BulkActionBar, FilterBar, NumberWithUnitInput, PageHeader, PageSection, SearchWithButton, TableToolbar } from '../components/page';
 
 const { Text } = Typography;
 
@@ -749,76 +748,70 @@ const StockingPurchaseInbound = () => {
   );
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Tabs
-        activeKey={materialType}
-        onChange={handleTabChange}
-        items={(meta?.materialTypeTabs ?? [
-          { value: 'fabric', label: '面料' },
-          { value: 'accessory', label: '辅料/包材' },
-        ]).map((tab) => ({ key: tab.value, label: tab.label }))}
-      />
-
-      <Card
-        variant="borderless"
-        loading={metaLoading}
-        title="备料采购列表"
-        extra={
-          <Space size={8} wrap>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
-              备料采购
-            </Button>
-            <Button icon={<InboxOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchReceive}>
-              批量收料
-            </Button>
-            <Button
-              icon={<SettingOutlined />}
-              disabled={!selectedRowKeys.length}
-              onClick={() => handleStatusUpdate('completed')}
-            >
-              设置完成
-            </Button>
-            <Button
-              icon={<SettingOutlined />}
-              disabled={!selectedRowKeys.length}
-              onClick={() => handleStatusUpdate('void')}
-            >
-              设置作废
-            </Button>
-            <Button icon={<CloudUploadOutlined />}>导入</Button>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
-              导出
-            </Button>
-          </Space>
+    <div className="oc-page">
+      <PageHeader
+        className="oc-page-header--compact"
+        title="备料采购入库"
+        extra={metaLoading ? <Text type="secondary">筛选项加载中…</Text> : null}
+        subtitle="将状态筛选收口到 FilterBar，列表区使用统一 TableToolbar 和批量动作条。"
+        stats={
+          <div className="oc-summary-strip">
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">当前类型</div><div className="oc-summary-chip__value">{materialType === 'fabric' ? '面料' : '辅料/包材'}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">当前状态</div><div className="oc-summary-chip__value">{(meta?.statusOptions ?? []).find((item) => item.value === statusFilter)?.label ?? statusFilter}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">列表条数</div><div className="oc-summary-chip__value">{total}</div></div>
+          </div>
         }
-      >
-        <Space size={12} wrap style={{ marginBottom: 16 }}>
-          <Select
-            value={statusFilter}
-            onChange={handleStatusChange}
-            options={(meta?.statusOptions ?? [
-              { value: 'all', label: '全部状态' },
-              { value: 'pending', label: '未完成' },
-              { value: 'completed', label: '已完成' },
-            ]).map((option) => ({ label: option.label, value: option.value }))}
-            style={{ width: 140 }}
+      />
+      <PageSection className="oc-page-section--compact">
+        <div className="oc-section-stack-tight">
+          <Tabs
+            activeKey={materialType}
+            onChange={handleTabChange}
+            items={(meta?.materialTypeTabs ?? [
+              { value: 'fabric', label: '面料' },
+              { value: 'accessory', label: '辅料/包材' },
+            ]).map((tab) => ({ key: tab.value, label: tab.label }))}
           />
-            <Input
-              allowClear
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="请输入物料/供应商/采购单号"
-              prefix={<SearchOutlined />}
-              style={{ width: 280 }}
-              onPressEnter={handleSearch}
+          <FilterBar
+            left={
+              <>
+                <Select
+                  value={statusFilter}
+                  onChange={handleStatusChange}
+                  options={(meta?.statusOptions ?? [
+                    { value: 'all', label: '全部状态' },
+                    { value: 'pending', label: '未完成' },
+                    { value: 'completed', label: '已完成' },
+                  ]).map((option) => ({ label: option.label, value: option.value }))}
+                  style={{ width: 140 }}
+                />
+                <SearchWithButton value={keywordInput} onChange={setKeywordInput} onSearch={handleSearch} placeholder="请输入物料/供应商/采购单号" className="oc-toolbar-block--grow" />
+              </>
+            }
+            right={<Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>}
+          />
+          <TableToolbar
+            left={
+              <div className="oc-toolbar-cluster">
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>备料采购</Button>
+                <Button icon={<InboxOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchReceive}>批量收料</Button>
+                <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('completed')}>设置完成</Button>
+                <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('void')}>设置作废</Button>
+              </div>
+            }
+            right={
+              <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
+                <Button icon={<CloudUploadOutlined />}>导入</Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+              </div>
+            }
+          />
+          {selectedRowKeys.length > 0 ? (
+            <BulkActionBar
+              selectionText={<Text>已选择 {selectedRowKeys.length} 条采购记录</Text>}
+              actions={<Button icon={<InboxOutlined />} onClick={handleBatchReceive}>批量收料</Button>}
             />
-          <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
-            查询
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={handleReset}>
-            重置
-          </Button>
-        </Space>
+          ) : null}
        <Table<StockingPurchaseRecord>
          rowKey={(record) => record.id}
          dataSource={records}
@@ -924,7 +917,7 @@ const StockingPurchaseInbound = () => {
                 },
               ]}
             >
-              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              <NumberWithUnitInput min={1} precision={0} style={{ width: '100%' }} unit={receiveModalState.record?.unit} />
             </Form.Item>
             <Form.Item
               label="收料时间"
@@ -1013,7 +1006,7 @@ const StockingPurchaseInbound = () => {
                               },
                             ]}
                           >
-                            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                            <NumberWithUnitInput min={1} precision={0} style={{ width: '100%' }} unit={record.unit} />
                           </Form.Item>
                           <Form.Item label="批次号" name={[field.name, 'batchNo']}>
                             <Input placeholder="可填写批次号" />
@@ -1073,8 +1066,9 @@ const StockingPurchaseInbound = () => {
             </Space>
           )}
         </Drawer>
-      </Card>
-    </Space>
+        </div>
+      </PageSection>
+    </div>
   );
 };
 

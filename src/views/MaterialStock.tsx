@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { Button, Card, Col, Input, Row, Space, Switch, Table, Tabs, Typography, message } from 'antd';
+import { Button, Space, Switch, Table, Tabs, Typography, message } from 'antd';
 import { DownloadOutlined, ProfileOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { materialStockService } from '../api/material-inventory';
 import type {
@@ -14,6 +14,7 @@ import type {
 import MaterialMovementsModal from '../components/material/MaterialMovementsModal';
 import MaterialIssueModal from '../components/material/MaterialIssueModal';
 import ListImage from '../components/common/ListImage';
+import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 
 const { Text } = Typography;
 
@@ -286,89 +287,80 @@ const MaterialStock = () => {
   const canShowDetails = selectedRows.length === 1;
 
   return (
-    <Card title="物料库存" variant="borderless" loading={metaLoading}>
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Tabs
-          items={tabItems.map((tab) => ({ key: tab.value, label: tab.label }))}
-          activeKey={materialType}
-          onChange={handleTabChange}
-        />
+    <div className="oc-page">
+      <PageHeader
+        className="oc-page-header--compact"
+        title="物料库存"
+        subtitle="以库存、可用量和在途量为核心，支持快速筛选、批量领料和明细追踪。"
+        stats={
+          <div className="oc-summary-strip">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="oc-summary-chip">
+                <div className="oc-summary-chip__label">{item.label}</div>
+                <div className="oc-summary-chip__value">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        }
+      />
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space size={12} wrap>
-            <Button
-              type="primary"
-              icon={<ShoppingOutlined />}
-              disabled={!hasSelection}
-              onClick={handleMaterialRequisition}
-            >
-              领料出库
-            </Button>
-            <Button icon={<ProfileOutlined />} disabled={!canShowDetails} onClick={handleShowDetails}>
-              显示进出明细
-            </Button>
-            <Space size={8} align="center">
-              <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
-              <Text>仅显示有库存</Text>
-            </Space>
-          </Space>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>
-            导出Excel
-          </Button>
+      <PageSection className="oc-page-section--compact" title="库存看板" description="切换物料类型后把汇总、筛选与批量动作压到同一视区，减少来回滚动。">
+        <div className="oc-section-stack-tight">
+          <Tabs
+            items={tabItems.map((tab) => ({ key: tab.value, label: tab.label }))}
+            activeKey={materialType}
+            onChange={handleTabChange}
+          />
+
+          <FilterBar
+            left={
+              <>
+                <Space size={8} align="center">
+                  <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
+                  <Text>仅显示有库存</Text>
+                </Space>
+                <SearchField allowClear placeholder="备注关键词" value={remarkKeyword} onChange={setRemarkKeyword} onPressEnter={handleSearch} style={{ width: 220 }} />
+                <SearchField allowClear placeholder="订单 / 款式" value={orderKeyword} onChange={setOrderKeyword} onPressEnter={handleSearch} style={{ width: 220 }} />
+              </>
+            }
+            right={
+              <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
+                <Button type="primary" onClick={handleSearch}>搜索</Button>
+                <Button onClick={handleReset}>重置</Button>
+              </div>
+            }
+          />
+
+          <TableToolbar
+            left={
+              <div className="oc-toolbar-cluster">
+                <Button type="primary" icon={<ShoppingOutlined />} disabled={!hasSelection} onClick={handleMaterialRequisition}>领料出库</Button>
+                <Button icon={<ProfileOutlined />} disabled={!canShowDetails} onClick={handleShowDetails}>进出明细</Button>
+              </div>
+            }
+            right={<Button icon={<DownloadOutlined />} onClick={handleExport}>导出 Excel</Button>}
+          />
         </div>
 
-        <Row gutter={[16, 16]} wrap>
-          <Col xs={24} sm={12} md={6}>
-            <Input
-              allowClear
-              placeholder="备注关键词"
-              value={remarkKeyword}
-              onChange={(event) => setRemarkKeyword(event.target.value)}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Input
-              allowClear
-              placeholder="订单/款式"
-              value={orderKeyword}
-              onChange={(event) => setOrderKeyword(event.target.value)}
-            />
-          </Col>
-          <Col xs={24} sm={24} md={12}>
-            <Space size={12} wrap>
-              <Button type="primary" onClick={handleSearch}>
-                搜索
-              </Button>
-              <Button onClick={handleReset}>重置</Button>
-            </Space>
-          </Col>
-        </Row>
-
-        <Space size={24} wrap>
-          {summaryItems.map((item) => (
-            <Text key={item.label} type="secondary">
-              {item.label}：<Text strong>{item.value}</Text>
-            </Text>
-          ))}
-        </Space>
-
-        <Table<MaterialStockListItem>
-          rowKey="id"
-          loading={tableLoading}
-          dataSource={materials}
-          columns={columns}
-          rowSelection={selection}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-            onChange: handleTableChange,
-            showTotal: (value) => `共 ${value} 条`,
-          }}
-          scroll={{ x: 'max-content' }}
-        />
+        <div style={{ marginTop: 16 }}>
+          <Table<MaterialStockListItem>
+            rowKey="id"
+            loading={tableLoading || metaLoading}
+            dataSource={materials}
+            columns={columns}
+            rowSelection={selection}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+              onChange: handleTableChange,
+              showTotal: (value) => `共 ${value} 条`,
+            }}
+            scroll={{ x: 'max-content' }}
+          />
+        </div>
         <MaterialMovementsModal
           open={movementModalOpen}
           material={movementMaterial}
@@ -384,8 +376,8 @@ const MaterialStock = () => {
             void loadList();
           }}
         />
-      </Space>
-    </Card>
+      </PageSection>
+    </div>
   );
 };
 

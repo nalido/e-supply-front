@@ -27,6 +27,7 @@ import styleBomApi, { buildStyleBomUpdatePayload } from '../api/style-bom';
 import styleDetailApi from '../api/style-detail';
 import ListImage from '../components/common/ListImage';
 import ImageUploader from '../components/upload/ImageUploader';
+import { NumberWithUnitInput, PageHeader, PageSection } from '../components/page';
 import type { MaterialBasicType, MaterialItem } from '../types/material';
 import type {
   StyleBomMaterialDraft,
@@ -136,7 +137,9 @@ const StyleDetail = () => {
   });
 
   const watchedColors = Form.useWatch('colors', form);
+  const watchedSizes = Form.useWatch('sizes', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
+  const normalizedSizes = useMemo(() => watchedSizes ?? [], [watchedSizes]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
 
   const fabricMaterials = useMemo(
@@ -342,16 +345,14 @@ const StyleDetail = () => {
               </div>
               <div className="sample-order-material-field">
                 <Text type="secondary">损耗(%)</Text>
-                <div className="sample-order-material-input-with-addon">
-                  <InputNumber
-                    min={0}
-                    precision={2}
-                    value={record.lossRate}
-                    style={{ width: '100%' }}
-                    onChange={(value) => handleBomFieldChange(record.uid, { lossRate: Number(value ?? 0) })}
-                  />
-                  <span className="sample-order-material-addon">%</span>
-                </div>
+                <NumberWithUnitInput
+                  min={0}
+                  precision={2}
+                  unit="%"
+                  value={record.lossRate}
+                  style={{ width: '100%' }}
+                  onChange={(value) => handleBomFieldChange(record.uid, { lossRate: Number(value ?? 0) })}
+                />
               </div>
               <div className="sample-order-material-field sample-order-material-field--remark">
                 <Text type="secondary">备注</Text>
@@ -443,24 +444,37 @@ const StyleDetail = () => {
   }, [colorImages, form, isEditing, load, materials, styleId]);
 
   const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
+  const overviewStats = useMemo(
+    () => [
+      { label: '颜色', value: normalizedColors.length || 0 },
+      { label: '尺码', value: normalizedSizes.length || 0 },
+      { label: 'BOM 物料', value: materials.length || 0 },
+    ],
+    [materials.length, normalizedColors.length, normalizedSizes.length],
+  );
 
   return (
     <Spin spinning={loading} tip="加载中...">
-      <div className="style-detail-page">
-        <div className="style-detail-header">
-          <div>
-            <Title level={3}>款式资料</Title>
-            <Text type="secondary">基础资料 &gt; 款式资料</Text>
-          </div>
-          <Space>
-            {detail?.styleNo && (
-              <Text type="secondary">当前款号：{detail.styleNo}</Text>
-            )}
-          </Space>
-        </div>
+      <div className="style-detail-page oc-page">
+        <PageHeader
+          className="oc-page-header--compact"
+          title="款式资料"
+          subtitle="压缩顶部说明区，首屏直接进入主图、关键字段与 BOM 维护。"
+          extra={detail?.styleNo ? <Text type="secondary">当前款号：{detail.styleNo}</Text> : null}
+          stats={
+            <div className="oc-summary-strip">
+              {overviewStats.map((item) => (
+                <div key={item.label} className="oc-summary-chip">
+                  <div className="oc-summary-chip__label">{item.label}</div>
+                  <div className="oc-summary-chip__value">{item.value}</div>
+                </div>
+              ))}
+            </div>
+          }
+        />
 
         <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange}>
-          <Card variant="borderless" className="style-detail-card style-detail-overview-card">
+          <PageSection className="oc-page-section--compact style-detail-card style-detail-overview-card">
             <div className="style-detail-overview">
               <div className="style-detail-gallery">
                 <div className="style-detail-gallery-title">款式主图</div>
@@ -553,10 +567,10 @@ const StyleDetail = () => {
                 )}
               </div>
             </div>
-          </Card>
+          </PageSection>
 
           {isEditing && (
-            <Card variant="borderless" className="style-detail-card">
+            <PageSection className="oc-page-section--compact style-detail-card">
               <div className="style-detail-materials-header">
                 <div>
                   <Title level={5} style={{ marginBottom: 4 }}>关联面辅料</Title>
@@ -583,7 +597,7 @@ const StyleDetail = () => {
                   </Card>
                 </Col>
               </Row>
-            </Card>
+            </PageSection>
           )}
         </Form>
 

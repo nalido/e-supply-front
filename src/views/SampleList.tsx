@@ -63,7 +63,7 @@ import SampleFollowNodeModal, { type FollowNodePayload } from '../components/sam
 const { Search } = Input;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 type ViewMode = 'card' | 'table';
 type StatCardKey = 'total' | 'unfinished' | 'completed' | 'thisMonth' | 'urgent';
@@ -1104,6 +1104,15 @@ const SampleList: React.FC = () => {
 
   return (
     <div style={{ padding: '0 24px 24px' }}>
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+          <Text type="secondary">样板管理 / 样板单</Text>
+          <Space align="baseline" wrap>
+            <Title level={3} style={{ margin: 0 }}>样板单工作台</Title>
+            <Text type="secondary">把列表筛选、状态推进和下大货入口收口到同一工作台，方便直接验收当前可联调链路。</Text>
+          </Space>
+        </Space>
+      </Card>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {STAT_CARD_LIST.map((card) => (
           <Col key={card.key} xs={12} sm={8} md={6} xl={3}>
@@ -1129,22 +1138,14 @@ const SampleList: React.FC = () => {
         ))}
       </Row>
 
-      <Card>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            alignItems: 'flex-end',
-          }}
-        >
+      <Card title="筛选与动作区" extra={<Text type="secondary">支持按状态、优先级、日期与视图模式快速切换</Text>}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Space size={12} wrap>
             <Search
               allowClear
               placeholder="搜索样板单号、款式名称..."
               onSearch={handleSearch}
-              style={{ width: 240 }}
+              style={{ width: 280 }}
               enterButton
             />
             <Select
@@ -1174,24 +1175,25 @@ const SampleList: React.FC = () => {
               value={filters.dateRange ?? null}
               onChange={handleRangeChange}
             />
-            <Button onClick={handleReset}>
+            <Button size="middle" onClick={handleReset}>
               重置
             </Button>
           </Space>
 
           <Space size={12} wrap>
             <Segmented options={viewOptions} value={viewMode} onChange={handleViewModeChange} />
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            <Button type="primary" size="middle" icon={<PlusOutlined />} onClick={handleCreate}>
               新建样板单
             </Button>
-            <Button icon={<ExportOutlined />} onClick={handleExport}>
+            <Button size="middle" icon={<ExportOutlined />} onClick={handleExport}>
               导出
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+            <Button size="middle" icon={<ReloadOutlined />} onClick={handleRefresh}>
               刷新
             </Button>
+            <Text type="secondary">当前显示 {pagination.total ?? 0} 条样板单</Text>
           </Space>
-        </div>
+        </Space>
 
         <div style={{ marginTop: 24 }}>
           {viewMode === 'card' ? (
