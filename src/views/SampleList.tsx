@@ -7,7 +7,6 @@ import {
   Col,
   DatePicker,
   Dropdown,
-  Input,
   List,
   Modal,
   message,
@@ -58,9 +57,8 @@ import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import SampleFollowProgress from '../components/sample/SampleFollowProgress';
 import ListImage from '../components/common/ListImage';
 import SampleFollowNodeModal, { type FollowNodePayload } from '../components/sample/SampleFollowNodeModal';
+import { SearchField } from '../components/page';
 
-
-const { Search } = Input;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -1109,7 +1107,7 @@ const SampleList: React.FC = () => {
           <Text type="secondary">样板管理 / 样板单</Text>
           <Space align="baseline" wrap>
             <Title level={3} style={{ margin: 0 }}>样板单工作台</Title>
-            <Text type="secondary">把列表筛选、状态推进和下大货入口收口到同一工作台，方便直接验收当前可联调链路。</Text>
+            <Text type="secondary">统一查看样板进度、处理状态流转，并快速发起下大货。</Text>
           </Space>
         </Space>
       </Card>
@@ -1141,7 +1139,7 @@ const SampleList: React.FC = () => {
       <Card title="筛选与动作区" extra={<Text type="secondary">支持按状态、优先级、日期与视图模式快速切换</Text>}>
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Space size={12} wrap>
-            <Search
+            <SearchField
               allowClear
               placeholder="搜索样板单号、款式名称..."
               onSearch={handleSearch}

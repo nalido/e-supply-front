@@ -23,6 +23,7 @@ import type {
 } from '../types';
 import operationTemplateApi from '../api/operation-template';
 import processTypeApi from '../api/process-type';
+import { SearchField } from '../components/page';
 import type { ProcessType } from '../types';
 import DraggableOperationTable from '../components/DraggableOperationTable';
 import type { TemplateOperationItem as OperationListItem } from '../components/DraggableOperationTable';
@@ -424,12 +425,12 @@ const OperationTemplatePage = () => {
   return (
     <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
-        <Input.Search
+        <SearchField
           allowClear
           placeholder="搜索模板名称"
           onSearch={handleSearch}
           value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           style={{ maxWidth: 280 }}
           enterButton
         />

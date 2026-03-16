@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent } from 'react';
 import type { ProgressProps } from 'antd/es/progress';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 import { ApartmentOutlined, CalendarOutlined, ProfileOutlined } from '@ant-design/icons';
@@ -8,7 +7,6 @@ import {
   Checkbox,
   Descriptions,
   Empty,
-  Input,
   Modal,
   Pagination,
   Progress,
@@ -26,6 +24,7 @@ import type {
   WorkshopStageStatus,
 } from '../types';
 import { pieceworkService } from '../api/piecework';
+import { SearchField } from '../components/page';
 import '../styles/workshop-progress.css';
 import ListImage from '../components/common/ListImage';
 
@@ -181,12 +180,12 @@ const WorkshopProgress = () => {
     setCurrentPage(1);
   };
 
-  const handleKeywordChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setKeyword(event.target.value);
+  const handleKeywordChange = (value: string) => {
+    setKeyword(value);
   };
 
-  const handleBedChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setBedKeyword(event.target.value);
+  const handleBedChange = (value: string) => {
+    setBedKeyword(value);
   };
 
   const handleIncludeCompletedChange = (event: CheckboxChangeEvent) => {
@@ -240,7 +239,7 @@ const WorkshopProgress = () => {
       </div>
 
       <div className="workshop-progress-filters">
-        <Input.Search
+        <SearchField
           allowClear
           style={{ flex: 1, minWidth: 240 }}
           placeholder="工厂订单号/工厂订单备注/款号/款名/客户名"
@@ -248,7 +247,7 @@ const WorkshopProgress = () => {
           onChange={handleKeywordChange}
           onSearch={handleSearch}
         />
-        <Input.Search
+        <SearchField
           allowClear
           style={{ width: 200 }}
           placeholder="床次（精确查询）"

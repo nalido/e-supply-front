@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
   Col,
   DatePicker,
   Empty,
-  Input,
   Pagination,
   Row,
   Select,
@@ -18,6 +17,7 @@ import {
 import type { Dayjs } from 'dayjs';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { SearchField } from '../components/page';
 import MonthlyAreaChart from '../components/charts/MonthlyAreaChart';
 import DonutChart from '../components/charts/DonutChart';
 import { bulkCostReportService } from '../api/bulk-cost-report';
@@ -304,8 +304,7 @@ const BulkCostReport = () => {
     setPage(1);
   };
 
-  const handleKeywordChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.target.value;
+  const handleKeywordChange = (nextValue: string) => {
     setKeyword(nextValue);
     if (!nextValue) {
       setPage(1);
@@ -397,7 +396,7 @@ const BulkCostReport = () => {
 
       <section className="bulk-cost-filter-row">
         <div className="bulk-cost-filter-group">
-          <Input.Search
+          <SearchField
             allowClear
             value={keyword}
             onChange={handleKeywordChange}

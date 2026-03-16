@@ -63,6 +63,11 @@ export type CuttingSheetDetail = {
   bedNumber?: string;
   cutterId?: number;
   plannedFabricQty?: number;
+  overUsedFabricQty?: number;
+  returnedFabricQty?: number;
+  fabricUsageVarianceType?: 'NORMAL' | 'OVER' | 'UNDER' | string;
+  usageReasonCode?: string;
+  usageReasonText?: string;
   warehouseId?: number;
   warehouseName?: string;
   materialId?: number;

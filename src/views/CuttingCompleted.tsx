@@ -4,7 +4,6 @@ import {
   Card,
   Descriptions,
   Empty,
-  Input,
   Modal,
   Pagination,
   Skeleton,
@@ -23,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
 import { pieceworkService } from '../api/piecework';
+import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 import { useNavigate } from 'react-router-dom';
@@ -147,11 +147,11 @@ const CuttingCompletedPage = () => {
       </section>
 
       <section className="cutting-toolbar">
-        <Input.Search
+        <SearchField
           allowClear
           placeholder="请输入订单号/款名/款号"
           value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           onSearch={handleSearch}
           enterButton={<SearchOutlined />}
           style={{ maxWidth: 420, flex: 1 }}
@@ -335,9 +335,13 @@ const CuttingCompletedPage = () => {
               <Descriptions.Item label="裁床状态">{sheetDetail?.status ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="床次">{sheetDetail?.bedNumber ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="裁剪人ID">{sheetDetail?.cutterId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="预计用料">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="计划用量">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="开裁实用">{sheetDetail?.startActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="完成实用">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="实际用量">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超计划用量">{sheetDetail?.overUsedFabricQty ?? Math.max((sheetDetail?.completeActualFabricQty ?? 0) - (sheetDetail?.plannedFabricQty ?? 0), 0)}</Descriptions.Item>
+              <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
+              <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
             </Descriptions>
             {sheetDetail ? (

@@ -7,7 +7,6 @@ import {
   DeploymentUnitOutlined,
   DatabaseOutlined,
   BuildOutlined,
-  BookOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -185,7 +184,6 @@ export const menuTree: MenuNode[] = [
       { key: '/settings/audit', label: <Link to="/settings/audit">操作日志</Link> },
     ],
   },
-  { key: '/guide', icon: <BookOutlined />, label: <Link to="/guide">操作指南</Link> },
 ];
 
 export const toAntdMenuItems = (nodes: MenuNode[]): ItemType[] =>

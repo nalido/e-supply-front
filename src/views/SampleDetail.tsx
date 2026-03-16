@@ -466,7 +466,7 @@ const SampleDetail = () => {
                   <Tag color="gold">附件 {detail.attachments.length}</Tag>
                 </Space>
                 <Text type="secondary">
-                  本页已将基础信息、数量结构、BOM/尺寸/附件与成本拆解收口到一页，便于业务在真实数据下连续检查。
+                  在同一页面查看样板基础信息、数量结构、BOM、尺寸、附件与成本明细，便于快速核对。
                 </Text>
               </Space>
             </Card>

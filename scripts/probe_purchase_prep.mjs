@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { chromium } from 'playwright';
+const appRoot='/Users/huangjianbing/codes/supply-and-sale/e-supply-front';
+const browser=await chromium.launch({headless:true, executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+const context=await browser.newContext({storageState:path.join(appRoot,'logs/route-sweep-auth.json'), viewport:{width:1440,height:960}});
+const page=await context.newPage();
+await page.goto('http://127.0.0.1:5173/material/purchase-prep',{waitUntil:'domcontentloaded'});
+await page.waitForTimeout(2500);
+fs.writeFileSync(path.join(appRoot,'logs/over-plan-linkage-20260316/purchase-prep.html'), await page.content());
+await page.screenshot({path:path.join(appRoot,'logs/over-plan-linkage-20260316/purchase-prep-probe.png'), fullPage:true});
+console.log(await page.title(), page.url());
+console.log((await page.locator('input').evaluateAll(els=>els.map(e=>({ph:e.getAttribute('placeholder'), type:e.getAttribute('type'), outer:e.outerHTML.slice(0,200)})))));
+await browser.close();

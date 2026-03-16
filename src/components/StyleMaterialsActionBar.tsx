@@ -1,5 +1,6 @@
-import { Button, Input, Space } from 'antd';
+import { Button, Space } from 'antd';
 import { ExportOutlined, ImportOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import SearchField from './page/SearchField';
 
 type StyleMaterialsActionBarProps = {
   keyword: string;
@@ -37,13 +38,13 @@ const StyleMaterialsActionBar = ({
           </Button>
         ) : null}
       </Space>
-      <Input.Search
+      <SearchField
         className="style-action-bar__search"
         placeholder="款号/款名"
         allowClear
         enterButton={<Button icon={<SearchOutlined />} loading={loading} />}
         value={keyword}
-        onChange={(event) => onKeywordChange(event.target.value)}
+        onChange={onKeywordChange}
         onSearch={() => onSubmit()}
       />
     </div>

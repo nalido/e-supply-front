@@ -37,6 +37,10 @@ export type StockingPurchaseRecord = {
   packagingInfo?: string;
   pendingQty: number;
   receivedQty: number;
+  actualReceivedQty?: number;
+  withinPlanReceivedQty?: number;
+  overReceivedQty?: number;
+  planPendingReceiveQty?: number;
   remark?: string;
 };
 
@@ -111,6 +115,8 @@ export type StockingReceiveItemPayload = {
   batchNo?: string;
   remark?: string;
   warehouseId?: string;
+  overReceiptReasonCode?: string;
+  overReceiptReasonText?: string;
 };
 
 export type StockingReceivePayload = {
@@ -135,6 +141,15 @@ export type StockingReceiptRecord = {
   unit?: string;
   batchNo?: string;
   remark?: string;
+  planQty?: number;
+  actualReceivedQty?: number;
+  withinPlanReceivedQty?: number;
+  overReceivedQty?: number;
+  planPendingReceiveQty?: number;
+  isOverReceipt?: boolean;
+  overReceiptQty?: number;
+  overReceiptReasonCode?: string;
+  overReceiptReasonText?: string;
 };
 
 export type StockingReceiptListResponse = {

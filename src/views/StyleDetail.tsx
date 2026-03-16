@@ -28,7 +28,7 @@ import styleBomApi, { buildStyleBomUpdatePayload } from '../api/style-bom';
 import styleDetailApi from '../api/style-detail';
 import ListImage from '../components/common/ListImage';
 import ImageUploader from '../components/upload/ImageUploader';
-import { NumberWithUnitInput, PageHeader, PageSection } from '../components/page';
+import { NumberWithUnitInput, PageHeader, PageSection, SearchField } from '../components/page';
 import type { MaterialBasicType, MaterialItem } from '../types/material';
 import type {
   StyleBomMaterialDraft,
@@ -629,12 +629,12 @@ const StyleDetail = () => {
         destroyOnHidden
       >
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Input.Search
+          <SearchField
             placeholder="搜索物料名称或编号"
             allowClear
             enterButton={<SearchOutlined />}
             value={materialPicker.keyword}
-            onChange={(event) => setMaterialPicker((prev) => ({ ...prev, keyword: event.target.value }))}
+            onChange={(value) => setMaterialPicker((prev) => ({ ...prev, keyword: value }))}
             onSearch={() => setMaterialPicker((prev) => ({ ...prev, page: 1 }))}
           />
           <Spin spinning={materialPicker.loading}>

@@ -510,7 +510,7 @@ const FinishedGoodsPendingReceipt = () => {
         className="oc-page-header--compact"
         title="待收货"
         extra={metaLoading ? <Text type="secondary">筛选项加载中…</Text> : null}
-        subtitle="统一按 PageHeader → FilterBar → TableToolbar → 表格组织，状态筛选与分组全部收口到筛选条。"
+        subtitle="支持按订单、款式、供应商和收货状态快速筛选待收货记录。"
         stats={
           <div className="oc-summary-strip">
             <div className="oc-summary-chip"><div className="oc-summary-chip__label">下单数</div><div className="oc-summary-chip__value">{quantityFormatter(tableSummary.orderedQty)}</div></div>

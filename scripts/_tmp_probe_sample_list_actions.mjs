@@ -1,0 +1,57 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { chromium } from 'playwright';
+
+const envPath = '/Users/huangjianbing/codes/supply-and-sale/e-supply-back/src/main/resources/.env.dev';
+const env = {};
+for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+  const s = line.trim();
+  if (!s || s.startsWith('#') || !s.includes('=')) continue;
+  const idx = s.indexOf('=');
+  env[s.slice(0, idx)] = s.slice(idx + 1).replace(/^["']|["']$/g, '');
+}
+const baseUrl = 'http://127.0.0.1:4173';
+const username = env.ESUPPLY_ADMIN_EMAIL || env.ESUPPLY_ADMIN_USERNAME || 'jambin';
+const password = env.ESUPPLY_ADMIN_PASSWORD;
+const outDir = `/Users/huangjianbing/.openclaw/workspace/outbox/sample-probe-${Date.now()}`;
+fs.mkdirSync(outDir, { recursive: true });
+const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
+const page = await context.newPage();
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const result = { outDir };
+async function login(){
+  await page.goto(`${baseUrl}/welcome`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const loginBtn = page.getByRole('button', { name: '登录系统' });
+  if (await loginBtn.count()) { await loginBtn.click().catch(()=>{}); await sleep(1200); }
+  const userInput = page.locator('input[name="identifier"], input[type="email"], input[name="username"], input[name="emailAddress"]').first();
+  await userInput.waitFor({ timeout: 30000 });
+  await userInput.fill(username);
+  await page.getByRole('button', { name: /继续|Continue|Sign in|下一步/i }).first().click();
+  const pwdInput = page.locator('input[type="password"]').first();
+  await pwdInput.waitFor({ timeout: 30000 });
+  await pwdInput.fill(password);
+  await page.getByRole('button', { name: /继续|Continue|Sign in|登录/i }).first().click();
+  await page.waitForLoadState('domcontentloaded');
+  await sleep(5000);
+}
+try {
+  await login();
+  await page.goto(`${baseUrl}/sample/list`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await sleep(3000);
+  result.url = page.url();
+  result.titleTexts = await page.locator('h1,h2,h3,.ant-page-header-heading-title,.ant-card-head-title').allInnerTexts().catch(()=>[]);
+  result.buttonTexts = (await page.locator('button').allInnerTexts().catch(()=>[])).slice(0,80);
+  result.linkTexts = (await page.locator('a').allInnerTexts().catch(()=>[])).slice(0,80);
+  result.bodySnippet = (await page.locator('body').innerText().catch(()=> '')).slice(0,4000);
+  await page.screenshot({ path: path.join(outDir, 'sample-list.png'), fullPage: true });
+  fs.writeFileSync(path.join(outDir, 'result.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
+} catch (error) {
+  result.error = String(error);
+  result.finalUrl = page.url();
+  await page.screenshot({ path: path.join(outDir, 'failure.png'), fullPage: true }).catch(()=>{});
+  fs.writeFileSync(path.join(outDir, 'result.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
+  process.exitCode = 1;
+} finally { await browser.close(); }

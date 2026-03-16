@@ -18,6 +18,7 @@ import {
 import { DeleteOutlined, EditOutlined, MailOutlined, PlusOutlined } from '@ant-design/icons';
 import type { Partner, PartnerDataset, PartnerType } from '../types';
 import partnersApi from '../api/partners';
+import { SearchField } from '../components/page';
 
 const defaultPageSize = 10;
 
@@ -301,7 +302,7 @@ const PartnersPage = () => {
     <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
         <Space size={16} wrap>
-          <Input.Search
+          <SearchField
             allowClear
             placeholder="搜索名称、联系人或手机号"
             style={{ width: 240 }}

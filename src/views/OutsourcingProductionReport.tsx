@@ -21,7 +21,6 @@ import {
   FilterOutlined,
   PrinterOutlined,
   ReloadOutlined,
-  SearchOutlined,
 } from '@ant-design/icons';
 import { outsourcingProductionReportService } from '../api/outsourcing-production-report';
 import type {
@@ -453,7 +452,6 @@ const OutsourcingProductionReport = () => {
           <Input
             allowClear
             placeholder="输入加工厂名称"
-            prefix={<SearchOutlined />}
             style={{ width: 220 }}
             value={subcontractorSearch}
             onChange={(event) => setSubcontractorSearch(event.target.value)}

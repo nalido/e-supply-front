@@ -61,6 +61,7 @@ import '../../styles/sample-order-form.css';
 import ListImage from '../common/ListImage';
 import type { MaterialItem, MaterialBasicType } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
+import SearchField from '../page/SearchField';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
@@ -398,7 +399,7 @@ const StyleSelectorDrawer: React.FC<{
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <SelectSetupHint config={setupEntry} />
-        <Input.Search
+        <SearchField
           allowClear
           placeholder="输入款号或款名搜索"
           enterButton={<SearchOutlined />}
@@ -530,12 +531,12 @@ const MaterialSelectorDrawer: React.FC<{
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <SelectSetupHint config={setupEntry} />
-        <Input.Search
+        <SearchField
           placeholder="搜索物料名称或编号"
           allowClear
           enterButton={<SearchOutlined />}
           value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           onSearch={handleSearch}
         />
         <Spin spinning={loading}>

@@ -143,6 +143,8 @@ export const stockingPurchaseInboundService = {
           batchNo: item.batchNo,
           remark: item.remark,
           warehouseId: item.warehouseId ? Number(item.warehouseId) : undefined,
+          overReceiptReasonCode: item.overReceiptReasonCode,
+          overReceiptReasonText: item.overReceiptReasonText,
         })),
       },
       { params: { tenantId } },

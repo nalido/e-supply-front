@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import {
   Button,
@@ -29,6 +28,7 @@ import type { Partner } from '../../types/partners';
 import type { Warehouse } from '../../types/warehouse';
 import type { MaterialItem } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
+import SearchField from '../page/SearchField';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 
 const { Text } = Typography;
@@ -305,8 +305,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     setMaterialDrawerKeyword(nextValue);
   };
 
-  const handleDrawerKeywordChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { value } = event.target;
+  const handleDrawerKeywordChange = (value: string) => {
     setMaterialDrawerInput(value);
     if (!value) {
       setMaterialOptionsPage(1);
@@ -507,7 +506,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       >
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <SelectSetupHint config={materialSetup} />
-          <Input.Search
+          <SearchField
             allowClear
             placeholder="搜索物料名称/编码"
             value={materialDrawerInput}

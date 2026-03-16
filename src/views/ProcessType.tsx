@@ -27,7 +27,6 @@ import {
   ImportOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import type {
@@ -38,6 +37,7 @@ import type {
   ProcessTypeStatus,
 } from '../types';
 import processTypeApi from '../api/process-type';
+import { SearchField } from '../components/page';
 import '../styles/process-type.css';
 
 const { Text } = Typography;
@@ -517,13 +517,12 @@ const ProcessTypePage = () => {
       </div>
 
       <div className="process-type-filters">
-        <Input.Search
+        <SearchField
           allowClear
-          prefix={<SearchOutlined />}
           placeholder="请输入加工类型名称 / 编码"
           style={{ maxWidth: 360 }}
           onSearch={handleSearch}
-          onChange={(event) => setKeyword(event.target.value)}
+          onChange={setKeyword}
           value={keyword}
         />
         <Space size={8} align="center">

@@ -59,6 +59,7 @@ import { partnersApi } from '../api/partners';
 import sampleOrderApi from '../api/sample-order';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import dayjs from 'dayjs';
+import { SearchField } from '../components/page';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
 
@@ -2316,14 +2317,14 @@ const FactoryOrders = () => {
         </div>
         <div className="factory-orders-toolbar">
           <Space size={12} wrap>
-            <Input.Search
+            <SearchField
               allowClear
               placeholder="搜索订单号、款号、款名、跟单员"
               enterButton
               value={searchValue}
               onSearch={handleSearch}
-              onChange={(event) => handleSearchChange(event.target.value)}
-              style={{ width: 260 }}
+              onChange={handleSearchChange}
+              style={{ width: 360 }}
             />
             <Select
               style={{ width: 180 }}

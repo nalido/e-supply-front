@@ -27,8 +27,8 @@ import {
   ExclamationCircleOutlined,
   MoreOutlined,
   PictureOutlined,
-  ScissorOutlined,
   SearchOutlined,
+  ScissorOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
@@ -37,6 +37,7 @@ import warehouseApi from '../api/warehouse';
 import { settingsApi } from '../api/settings';
 import { materialStockService } from '../api/material-inventory';
 import { styleDetailApi } from '../api/style-detail';
+import { SearchField } from '../components/page';
 import type { MaterialStockListItem } from '../types/material-stock';
 import type { StyleMaterialData } from '../types/style';
 import '../styles/cutting-pending.css';
@@ -50,6 +51,24 @@ const initialDataset: CuttingTaskDataset = {
   total: 0,
   page: 1,
   pageSize: 4,
+};
+
+const OVER_USAGE_REASON_OPTIONS = [
+  { label: '排料损耗超预估', value: 'LAY_LOSS' },
+  { label: '面料瑕疵 / 换片补裁', value: 'FABRIC_DEFECT' },
+  { label: '工艺调整导致追加用量', value: 'PROCESS_ADJUSTMENT' },
+  { label: '其它', value: 'OTHER' },
+];
+
+const getCuttingVarianceSummary = (detail?: CuttingSheetDetail | null, actualQty?: number) => {
+  const planQty = Number(detail?.plannedFabricQty ?? 0);
+  const normalizedActualQty = Number(actualQty ?? detail?.completeActualFabricQty ?? detail?.startActualFabricQty ?? 0);
+  return {
+    planQty,
+    actualQty: normalizedActualQty,
+    overQty: Number(detail?.overUsedFabricQty ?? Math.max(normalizedActualQty - planQty, 0)),
+    returnQty: Number(detail?.returnedFabricQty ?? Math.max(planQty - normalizedActualQty, 0)),
+  };
 };
 
 type ColorPreviewState = {
@@ -217,9 +236,12 @@ const CuttingPendingPage = () => {
   const [materialLoading, setMaterialLoading] = useState(false);
   const [cutterLoading, setCutterLoading] = useState(false);
   const completeActualFabricQty = Form.useWatch('actualFabricQty', completeForm);
+  const completeUsageReasonCode = Form.useWatch('usageReasonCode', completeForm);
   const startWarehouseId = Form.useWatch('warehouseId', startForm);
   const startMaterialId = Form.useWatch('materialId', startForm);
   const startPlannedFabricQty = Form.useWatch('plannedFabricQty', startForm);
+  const completeVariance = getCuttingVarianceSummary(sheetDetail, Number(completeActualFabricQty ?? 0));
+  const completeIsOverPlan = completeVariance.overQty > 0;
 
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
   const selectedStartMaterial =
@@ -451,6 +473,8 @@ const CuttingPendingPage = () => {
       setCompleteState((prev) => ({ ...prev, submitting: true }));
       await pieceworkService.completeCuttingSheet(completeState.task.workOrderId, {
         actualFabricQty: values.actualFabricQty,
+        usageReasonCode: values.usageReasonCode,
+        usageReasonText: values.usageReasonText,
         items,
       });
       message.success('裁床单已完成，已转入已裁');
@@ -566,6 +590,8 @@ const CuttingPendingPage = () => {
       setCompleteQtyMap(defaultQtyMap);
       completeForm.setFieldsValue({
         actualFabricQty: detail.completeActualFabricQty ?? detail.startActualFabricQty ?? undefined,
+        usageReasonCode: detail.usageReasonCode ?? undefined,
+        usageReasonText: detail.usageReasonText ?? undefined,
       });
     } catch (error) {
       console.error('failed to load cutting sheet detail for complete', error);
@@ -593,9 +619,9 @@ const CuttingPendingPage = () => {
           <Text type="secondary">计件中心 / 裁床 / 待裁</Text>
           <Space align="baseline" wrap>
             <Title level={3} style={{ margin: 0 }}>待裁任务工作台</Title>
-            <Text type="secondary">按“待裁 → 开裁 → 床次录入 → 裁剪完成”的闭环顺序推进当前可联调任务。</Text>
+            <Text type="secondary">集中处理待裁任务，依次完成开裁、床次录入与裁剪结果登记。</Text>
           </Space>
-          <Text type="secondary">本轮仅收口已能联调的待裁页面，不继续深入成品车缝 → 入库链路。</Text>
+          <Text type="secondary">支持按任务进度查看裁剪状态与用料执行情况。</Text>
         </Space>
       </Card>
       <section className="cutting-summary-section">
@@ -607,11 +633,11 @@ const CuttingPendingPage = () => {
       <section className="cutting-toolbar">
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Space wrap size={12} style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Input.Search
+            <SearchField
               allowClear
               placeholder="请输入订单号/款名/款号"
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={setKeyword}
               onSearch={handleSearch}
               enterButton={<SearchOutlined />}
               style={{ maxWidth: 420, flex: 1 }}
@@ -896,9 +922,13 @@ const CuttingPendingPage = () => {
               <Descriptions.Item label="裁床状态">{sheetDetail?.status ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="床次">{sheetDetail?.bedNumber ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="裁剪人ID">{sheetDetail?.cutterId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="预计用料">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="计划用量">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="开裁实用">{sheetDetail?.startActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="完成实用">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="实际用量">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超计划用量">{sheetDetail?.overUsedFabricQty ?? Math.max((sheetDetail?.completeActualFabricQty ?? 0) - (sheetDetail?.plannedFabricQty ?? 0), 0)}</Descriptions.Item>
+              <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
+              <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
             </Descriptions>
             {sheetDetail ? (
@@ -1327,24 +1357,45 @@ const CuttingPendingPage = () => {
           ) : null}
           {typeof sheetDetail?.plannedFabricQty === 'number' ? (
             <Alert
-              type={
-                typeof completeActualFabricQty === 'number'
-                && completeActualFabricQty > sheetDetail.plannedFabricQty
-                  ? 'warning'
-                  : 'info'
-              }
+              type={completeIsOverPlan ? 'warning' : 'info'}
               showIcon
               style={{ marginBottom: 12 }}
-              message={`预计用料：${sheetDetail.plannedFabricQty}`}
-              description={
-                typeof completeActualFabricQty === 'number'
-                  ? `当前完成用料：${completeActualFabricQty}，偏差：${(completeActualFabricQty - sheetDetail.plannedFabricQty).toFixed(2)}`
-                  : '请输入完成用料，系统将展示与预计用料的偏差'
-              }
+              message={`计划用量：${completeVariance.planQty}${sheetDetail.materialUnit ?? ''} ｜ 实际用量：${completeVariance.actualQty}${sheetDetail.materialUnit ?? ''}`}
+              description={completeIsOverPlan
+                ? `本次完工将超计划使用 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}。按一期方案，超用时必须填写原因与备注，库存仍按实际用量扣减。`
+                : `当前差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。本次不放开超裁件数，只处理实际用量差异。`}
             />
           ) : null}
-          <Form.Item label="面料实际使用数量（完成）" name="actualFabricQty" rules={[{ required: true, message: '请输入完成用料' }]}>
+          <Form.Item label="面料实际使用数量（完成）" name="actualFabricQty" rules={[{ required: true, message: '请输入完成用料' }]}> 
             <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            label="超用原因"
+            name="usageReasonCode"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverPlan || value) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实际用量超计划时必须选择超用原因'));
+              },
+            }]}
+          >
+            <Select allowClear options={OVER_USAGE_REASON_OPTIONS} placeholder="实际用量超计划时必选" />
+          </Form.Item>
+          <Form.Item
+            label="原因说明 / 备注"
+            name="usageReasonText"
+            rules={[{
+              validator: (_rule, value) => {
+                if (!completeIsOverPlan || (typeof value === 'string' && value.trim())) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(new Error('实际用量超计划时必须填写原因说明'));
+              },
+            }]}
+          >
+            <Input.TextArea rows={3} placeholder={completeUsageReasonCode ? '请补充超用背景、处理说明或业务确认信息' : '实际用量超计划时必填'} />
           </Form.Item>
           {sheetDetail ? (
             <Table

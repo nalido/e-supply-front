@@ -31,6 +31,7 @@ import type {
 import StyleInfo from '../components/common/StyleInfo';
 import ListImage from '../components/common/ListImage';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { SearchField } from '../components/page';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
@@ -613,11 +614,11 @@ const FinishedGoodsOutbound = () => {
                     <SelectSetupHint config={warehouseSetup} compact />
                   </Space>
                   <Form.Item label="订单/款式/发货单" style={{ marginBottom: 0 }}>
-                    <Input.Search
+                    <SearchField
                       allowClear
                       placeholder="输入订单号、款号或发货单号"
                       value={keyword}
-                      onChange={(event) => setKeyword(event.target.value)}
+                      onChange={setKeyword}
                       onSearch={handleSearch}
                       enterButton="查询"
                       style={{ width: 280 }}

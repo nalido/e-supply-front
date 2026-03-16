@@ -320,6 +320,11 @@ type CuttingSheetDetailPayload = Partial<{
   bedNumber: string;
   cutterId: number;
   plannedFabricQty: number;
+  overUsedFabricQty: number;
+  returnedFabricQty: number;
+  fabricUsageVarianceType: string;
+  usageReasonCode: string;
+  usageReasonText: string;
   warehouseId: number;
   warehouseName: string;
   materialId: number;
@@ -420,6 +425,11 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
   bedNumber: payload.bedNumber,
   cutterId: payload.cutterId,
   plannedFabricQty: payload.plannedFabricQty,
+  overUsedFabricQty: Number.isFinite(Number(payload.overUsedFabricQty)) ? Number(payload.overUsedFabricQty) : undefined,
+  returnedFabricQty: Number.isFinite(Number(payload.returnedFabricQty)) ? Number(payload.returnedFabricQty) : undefined,
+  fabricUsageVarianceType: payload.fabricUsageVarianceType,
+  usageReasonCode: payload.usageReasonCode,
+  usageReasonText: payload.usageReasonText,
   warehouseId: payload.warehouseId,
   warehouseName: payload.warehouseName,
   materialId: payload.materialId,
@@ -683,6 +693,8 @@ export const pieceworkService = {
     workOrderId: number,
     payload: {
       actualFabricQty: number;
+      usageReasonCode?: string;
+      usageReasonText?: string;
       items?: Array<{ color: string; size: string; quantity: number }>;
     },
   ): Promise<void> {

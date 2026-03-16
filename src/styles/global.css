@@ -305,7 +305,13 @@ a:hover { color: var(--oc-color-primary); }
 .oc-input-number-compact { width: 112px; }
 
 .oc-table-toolbar { justify-content: space-between; align-items: center; }
-.oc-input-action-group { min-width: min(100%, 360px); }
+.oc-input-action-group {
+  min-width: min(100%, 360px);
+  border-radius: 12px;
+}
+.oc-input-action-group.ant-space-compact {
+  overflow: hidden;
+}
 .oc-input-action-group .ant-input,
 .oc-input-action-group .ant-input-affix-wrapper,
 .oc-input-action-group .ant-btn,
@@ -313,6 +319,39 @@ a:hover { color: var(--oc-color-primary); }
 .oc-bulk-action-bar .ant-btn,
 .oc-table-toolbar .ant-btn,
 .oc-filter-bar .ant-btn { height: 38px; }
+.oc-input-action-group.ant-space-compact > :first-child,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input-affix-wrapper,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input-number {
+  border-start-start-radius: 12px !important;
+  border-end-start-radius: 12px !important;
+}
+.oc-input-action-group.ant-space-compact > :first-child,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input-affix-wrapper,
+.oc-input-action-group.ant-space-compact > :first-child .ant-input-number {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+  border-inline-end-width: 0 !important;
+}
+.oc-input-action-group.ant-space-compact > :last-child,
+.oc-input-action-group.ant-space-compact > :last-child.ant-btn,
+.oc-input-action-group.ant-space-compact > :last-child .ant-btn,
+.oc-input-action-group.ant-space-compact > :last-child .ant-input-group-addon {
+  border-start-end-radius: 12px !important;
+  border-end-end-radius: 12px !important;
+}
+.oc-input-action-group.ant-space-compact > :last-child,
+.oc-input-action-group.ant-space-compact > :last-child.ant-btn,
+.oc-input-action-group.ant-space-compact > :last-child .ant-btn,
+.oc-input-action-group.ant-space-compact > :last-child .ant-input-group-addon {
+  border-start-start-radius: 0 !important;
+  border-end-start-radius: 0 !important;
+}
+.oc-input-action-group.ant-space-compact > :last-child.ant-btn,
+.oc-input-action-group.ant-space-compact > :last-child .ant-btn {
+  border-inline-start-width: 1px !important;
+}
 .oc-bulk-action-bar {
   display: flex;
   align-items: center;
@@ -396,6 +435,8 @@ a:hover { color: var(--oc-color-primary); }
 .ant-picker,
 .ant-input-number,
 .ant-segmented { border-radius: 12px !important; }
+
+input.ant-input { text-indent: 4px; }
 
 .ant-input-search .ant-input-group,
 .ant-input-group,

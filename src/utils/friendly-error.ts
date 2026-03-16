@@ -40,6 +40,12 @@ const resolveSafeMessage = (message?: string): string | null => {
   if (normalized.includes('user not authenticated')) {
     return '登录状态已失效，请重新登录后重试。';
   }
+  if (normalized.includes('库存不足，无法领料') || normalized.includes('库存不足,无法领料')) {
+    return '库存不足，无法领料。请先补充库存或调整本次实际用量后再试。';
+  }
+  if (normalized.includes('超收必须填写原因编码、原因说明和备注')) {
+    return '超计划收料时必须填写超收原因、原因说明和业务备注。';
+  }
   return null;
 };
 
@@ -49,6 +55,16 @@ const rules: ErrorRule[] = [
     build: () => ({
       title: '请填写有效的数量',
       description: '请为至少一个颜色/尺码组合设置大于 0 的数量后再提交。',
+    }),
+  },
+  {
+    matcher: (message) => {
+      const normalized = normalize(message);
+      return normalized.includes('库存不足，无法领料') || normalized.includes('库存不足,无法领料');
+    },
+    build: (message) => ({
+      title: '库存不足，无法完成本次领料',
+      description: resolveSafeMessage(message) || '请先补充库存或调整本次实际用量后再试。',
     }),
   },
   {

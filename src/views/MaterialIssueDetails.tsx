@@ -116,14 +116,14 @@ const MaterialIssueDetails = () => {
     if (!record) {
       return;
     }
-    message.info(`后续将支持编辑：${record.materialName}`);
+    message.info(`暂不支持编辑：${record.materialName}`);
   };
 
   const handleDelete = () => {
     if (!selectedRowKeys.length) {
       return;
     }
-    message.warning('当前为演示环境，删除操作未开放');
+    message.warning('暂不支持删除已生成的出库明细');
   };
 
   const handleStatusUpdate = async (status: MaterialIssueStatus) => {

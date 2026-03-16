@@ -55,8 +55,6 @@ import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetai
 import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
 import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
 import QualityControlManagement from './views/QualityControlManagement';
-import OperationGuide from './views/OperationGuide';
-import GuideSectionPage from './views/guide/GuideSectionPage';
 import RegisterEnterprise from './views/auth/RegisterEnterprise';
 import Welcome from './views/auth/Welcome';
 import SignInPage from './views/auth/SignInPage';
@@ -246,8 +244,6 @@ const router = createBrowserRouter([
       { path: 'settlement', element: createPlaceholderElement('对账结算') },
       { path: 'basic', element: createPlaceholderElement('基础资料') },
       { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
-      { path: 'guide', element: React.createElement(OperationGuide) },
-      { path: 'guide/:sectionId', element: React.createElement(GuideSectionPage) },
     ],
   },
 ]);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -40,7 +41,7 @@ import type {
   StockingReceivePayload,
 } from '../types/stocking-purchase-inbound';
 import dayjs from 'dayjs';
-import { BulkActionBar, FilterBar, NumberWithUnitInput, PageHeader, PageSection, SearchWithButton, TableToolbar } from '../components/page';
+import { BulkActionBar, FilterBar, NumberWithUnitInput, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 
 const { Text } = Typography;
 
@@ -59,6 +60,25 @@ const currencyFormatter = new Intl.NumberFormat('zh-CN', {
 const formatQuantity = (value: number) => quantityFormatter.format(value ?? 0);
 const formatCurrency = (value: number) => currencyFormatter.format(value ?? 0);
 
+const OVER_PLAN_REASON_OPTIONS = [
+  { label: '供应商补发 / 尾数补足', value: 'SUPPLIER_EXTRA' },
+  { label: '业务确认追加收料', value: 'BUSINESS_CONFIRMED' },
+  { label: '到货盘点差异修正', value: 'INVENTORY_ADJUSTMENT' },
+  { label: '其它', value: 'OTHER' },
+];
+
+const getActualReceivedQty = (record: StockingPurchaseRecord | StockingReceiptRecord) =>
+  Number(record.actualReceivedQty ?? record.receivedQty ?? 0);
+
+const getWithinPlanReceivedQty = (record: StockingPurchaseRecord | StockingReceiptRecord, planQty: number) =>
+  Number(record.withinPlanReceivedQty ?? Math.min(getActualReceivedQty(record), planQty));
+
+const getOverReceivedQty = (record: StockingPurchaseRecord | StockingReceiptRecord, planQty: number) =>
+  Number(record.overReceivedQty ?? Math.max(getActualReceivedQty(record) - planQty, 0));
+
+const getPlanPendingReceiveQty = (record: StockingPurchaseRecord | StockingReceiptRecord, planQty: number) =>
+  Number(record.planPendingReceiveQty ?? Math.max(planQty - getWithinPlanReceivedQty(record, planQty), 0));
+
 const statusColorMap: Record<StockingPurchaseRecord['status'], string> = {
   pending: 'orange',
   partial: 'blue',
@@ -71,6 +91,8 @@ type ReceiveFormValues = {
   receiveQty?: number;
   receivedAt?: dayjs.Dayjs;
   batchNo?: string;
+  overReceiptReasonCode?: string;
+  overReceiptReasonText?: string;
   remark?: string;
 };
 
@@ -91,6 +113,8 @@ type BatchReceiveItemFormValue = {
   lineId: string;
   receiveQty?: number;
   batchNo?: string;
+  overReceiptReasonCode?: string;
+  overReceiptReasonText?: string;
   remark?: string;
 };
 
@@ -151,6 +175,16 @@ const StockingPurchaseInbound = () => {
     submitting: false,
     records: [],
   });
+  const receiveQtyWatch = Form.useWatch('receiveQty', receiveForm);
+  const batchItemsWatch = Form.useWatch('items', batchReceiveForm);
+
+  const receivePlanQty = receiveModalState.record?.orderQty ?? 0;
+  const receiveActualBeforeQty = receiveModalState.record
+    ? getActualReceivedQty(receiveModalState.record)
+    : 0;
+  const receiveActualAfterQty = receiveActualBeforeQty + Number(receiveQtyWatch ?? 0);
+  const receiveOverAfterQty = Math.max(receiveActualAfterQty - receivePlanQty, 0);
+  const receiveIsOverPlan = Boolean(receiveModalState.record) && receiveOverAfterQty > 0;
 
   const createDraft = useMemo(() => {
     if (searchParams.get('openCreate') !== 'true') {
@@ -264,9 +298,13 @@ const StockingPurchaseInbound = () => {
       setReceiveModalState({ open: true, submitting: false, record });
       receiveForm.setFieldsValue({
         warehouseId: record.warehouseId,
-        receiveQty: record.pendingQty > 0 ? record.pendingQty : undefined,
+        receiveQty: record.planPendingReceiveQty && record.planPendingReceiveQty > 0
+          ? record.planPendingReceiveQty
+          : (record.pendingQty > 0 ? record.pendingQty : undefined),
         receivedAt: dayjs(),
         batchNo: undefined,
+        overReceiptReasonCode: undefined,
+        overReceiptReasonText: undefined,
         remark: undefined,
       });
     },
@@ -295,6 +333,8 @@ const StockingPurchaseInbound = () => {
             receiveQty: values.receiveQty ?? 0,
             batchNo: values.batchNo,
             remark: values.remark,
+            overReceiptReasonCode: values.overReceiptReasonCode,
+            overReceiptReasonText: values.overReceiptReasonText,
           },
         ],
       };
@@ -401,8 +441,12 @@ const StockingPurchaseInbound = () => {
       remark: undefined,
       items: selectedRecords.map((record) => ({
         lineId: record.id,
-        receiveQty: record.pendingQty > 0 ? record.pendingQty : undefined,
+        receiveQty: getPlanPendingReceiveQty(record, record.orderQty) > 0
+          ? getPlanPendingReceiveQty(record, record.orderQty)
+          : undefined,
         batchNo: undefined,
+        overReceiptReasonCode: undefined,
+        overReceiptReasonText: undefined,
         remark: undefined,
       })),
     });
@@ -442,6 +486,8 @@ const StockingPurchaseInbound = () => {
           receiveQty: input.receiveQty,
           batchNo: input.batchNo,
           remark: input.remark,
+          overReceiptReasonCode: input.overReceiptReasonCode,
+          overReceiptReasonText: input.overReceiptReasonText,
         });
       });
       if (!grouped.size) {
@@ -526,6 +572,68 @@ const StockingPurchaseInbound = () => {
   const columns: ColumnsType<StockingPurchaseRecord> = useMemo(
     () => [
       {
+        title: '物料 / 规格',
+        dataIndex: 'materialName',
+        key: 'materialName',
+        width: 260,
+        fixed: 'left',
+        render: (value: string, record) => {
+          const specParts = [record.color, record.width, record.weight].filter(Boolean);
+          return (
+            <Space direction="vertical" size={2}>
+              <Text strong>{value}</Text>
+              <Space size={6} wrap>
+                {record.materialCategory ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {record.materialCategory}
+                  </Text>
+                ) : null}
+                {specParts.length ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {specParts.join(' / ')}
+                  </Text>
+                ) : null}
+              </Space>
+            </Space>
+          );
+        },
+      },
+      {
+        title: '采购量',
+        dataIndex: 'orderQty',
+        key: 'orderQty',
+        align: 'right',
+        width: 120,
+        render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
+      },
+      {
+        title: '累计实收',
+        dataIndex: 'actualReceivedQty',
+        key: 'actualReceivedQty',
+        align: 'right',
+        width: 132,
+        render: (_value: number, record) => `${formatQuantity(getActualReceivedQty(record))} ${record.unit}`,
+      },
+      {
+        title: '计划待收',
+        dataIndex: 'planPendingReceiveQty',
+        key: 'planPendingReceiveQty',
+        align: 'right',
+        width: 132,
+        render: (_value: number, record) => `${formatQuantity(getPlanPendingReceiveQty(record, record.orderQty))} ${record.unit}`,
+      },
+      {
+        title: '超收量',
+        dataIndex: 'overReceivedQty',
+        key: 'overReceivedQty',
+        align: 'right',
+        width: 120,
+        render: (_value: number, record) => {
+          const overQty = getOverReceivedQty(record, record.orderQty);
+          return overQty > 0 ? <Text type="warning">{formatQuantity(overQty)} {record.unit}</Text> : `0 ${record.unit}`;
+        },
+      },
+      {
         title: '状态',
         dataIndex: 'statusLabel',
         key: 'statusLabel',
@@ -553,46 +661,6 @@ const StockingPurchaseInbound = () => {
         key: 'warehouseName',
         width: 180,
         render: (value?: string) => value ?? '-',
-      },
-      {
-        title: '物料名称',
-        dataIndex: 'materialName',
-        key: 'materialName',
-        width: 240,
-        render: (value: string, record) => (
-          <Space direction="vertical" size={2}>
-            <Text>{value}</Text>
-            {record.materialCategory ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {record.materialCategory}
-              </Text>
-            ) : null}
-          </Space>
-        ),
-      },
-      {
-        title: '采购数',
-        dataIndex: 'orderQty',
-        key: 'orderQty',
-        align: 'right',
-        width: 120,
-        render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
-      },
-      {
-        title: '待收料',
-        dataIndex: 'pendingQty',
-        key: 'pendingQty',
-        align: 'right',
-        width: 120,
-        render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
-      },
-      {
-        title: '已收料',
-        dataIndex: 'receivedQty',
-        key: 'receivedQty',
-        align: 'right',
-        width: 120,
-        render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
       },
       {
         title: '采购日期',
@@ -672,7 +740,7 @@ const StockingPurchaseInbound = () => {
         fixed: 'right',
         width: 200,
         render: (_value, record) => {
-          const disableReceive = !record.orderId || record.pendingQty <= 0;
+          const disableReceive = !record.orderId || record.status === 'void';
           return (
             <Space size={8}>
               <Button size="small" type="link" disabled={disableReceive} onClick={() => openReceiveModal(record)}>
@@ -692,22 +760,38 @@ const StockingPurchaseInbound = () => {
   const receiptItemColumns: ColumnsType<StockingReceiptRecord> = useMemo(
     () => [
       {
-        title: '收料数量',
+        title: '本次收料量',
         dataIndex: 'receivedQty',
         key: 'receivedQty',
         align: 'right',
-        width: 140,
-        render: (value: number, record) =>
-          `${quantityFormatter.format(value ?? 0)} ${record.unit ?? ''}`,
+        width: 120,
+        render: (value: number, record) => `${quantityFormatter.format(value ?? 0)} ${record.unit ?? ''}`,
       },
       {
-        title: '待收余额',
-        dataIndex: 'pendingQty',
-        key: 'pendingQty',
+        title: '本次超收量',
+        dataIndex: 'overReceiptQty',
+        key: 'overReceiptQty',
         align: 'right',
-        width: 140,
-        render: (value: number, record) =>
-          `${quantityFormatter.format(value ?? 0)} ${record.unit ?? ''}`,
+        width: 120,
+        render: (value: number | undefined, record) => {
+          const overQty = Number(value ?? (record.isOverReceipt ? Math.max((record.receivedQty ?? 0) - (record.pendingQty ?? 0), 0) : 0));
+          return overQty > 0 ? <Text type="warning">{quantityFormatter.format(overQty)} {record.unit ?? ''}</Text> : `0 ${record.unit ?? ''}`;
+        },
+      },
+      {
+        title: '计划待收量',
+        dataIndex: 'planPendingReceiveQty',
+        key: 'planPendingReceiveQty',
+        align: 'right',
+        width: 132,
+        render: (value: number | undefined, record) => `${quantityFormatter.format(value ?? record.pendingQty ?? 0)} ${record.unit ?? ''}`,
+      },
+      {
+        title: '超收原因',
+        dataIndex: 'overReceiptReasonText',
+        key: 'overReceiptReasonText',
+        width: 180,
+        render: (_value: string | undefined, record) => record.overReceiptReasonText ?? record.overReceiptReasonCode ?? '-',
       },
       {
         title: '批次号',
@@ -753,7 +837,7 @@ const StockingPurchaseInbound = () => {
         className="oc-page-header--compact"
         title="备料采购入库"
         extra={metaLoading ? <Text type="secondary">筛选项加载中…</Text> : null}
-        subtitle="将状态筛选收口到 FilterBar，列表区使用统一 TableToolbar 和批量动作条。"
+        subtitle="按物料类型、入库状态和关键字快速查询采购入库记录。"
         stats={
           <div className="oc-summary-strip">
             <div className="oc-summary-chip"><div className="oc-summary-chip__label">当前类型</div><div className="oc-summary-chip__value">{materialType === 'fabric' ? '面料' : '辅料/包材'}</div></div>
@@ -785,7 +869,7 @@ const StockingPurchaseInbound = () => {
                   ]).map((option) => ({ label: option.label, value: option.value }))}
                   style={{ width: 140 }}
                 />
-                <SearchWithButton value={keywordInput} onChange={setKeywordInput} onSearch={handleSearch} placeholder="请输入物料/供应商/采购单号" className="oc-toolbar-block--grow" />
+                <SearchField value={keywordInput} onChange={setKeywordInput} onPressEnter={handleSearch} placeholder="请输入物料/供应商/采购单号" className="oc-toolbar-block--grow" />
               </>
             }
             right={<Button icon={<ReloadOutlined />} onClick={handleReset}>重置</Button>}
@@ -895,6 +979,17 @@ const StockingPurchaseInbound = () => {
             <Form.Item label="收料仓库">
               <Input value={receiveModalState.record?.warehouseName ?? '-'} disabled />
             </Form.Item>
+            {receiveModalState.record ? (
+              <Alert
+                showIcon
+                type={receiveIsOverPlan ? 'warning' : 'info'}
+                style={{ marginBottom: 12 }}
+                message={`计划量：${formatQuantity(receivePlanQty)} ${receiveModalState.record.unit} ｜ 当前累计实收：${formatQuantity(receiveActualBeforeQty)} ${receiveModalState.record.unit}`}
+                description={receiveIsOverPlan
+                  ? `本次提交后累计实收将变为 ${formatQuantity(receiveActualAfterQty)} ${receiveModalState.record.unit}，超收 ${formatQuantity(receiveOverAfterQty)} ${receiveModalState.record.unit}。超计划录入时，原因与备注必填。`
+                  : `计划待收量：${formatQuantity(getPlanPendingReceiveQty(receiveModalState.record, receivePlanQty))} ${receiveModalState.record.unit}。一期支持超计划录入，但会做显式告警与审计。`}
+              />
+            ) : null}
             <Form.Item
               label="收料数量"
               name="receiveQty"
@@ -907,10 +1002,6 @@ const StockingPurchaseInbound = () => {
                     }
                     if (value <= 0) {
                       return Promise.reject(new Error('收料数量需大于 0'));
-                    }
-                    const pending = receiveModalState.record?.pendingQty ?? 0;
-                    if (pending > 0 && value > pending) {
-                      return Promise.reject(new Error(`不能超过待收料 ${formatQuantity(pending)}`));
                     }
                     return Promise.resolve();
                   },
@@ -929,8 +1020,47 @@ const StockingPurchaseInbound = () => {
             <Form.Item label="批次号" name="batchNo">
               <Input placeholder="可填写批次号" />
             </Form.Item>
-            <Form.Item label="备注" name="remark">
-              <Input.TextArea rows={3} placeholder="可填写备注信息" />
+            <Form.Item
+              label="超收原因"
+              name="overReceiptReasonCode"
+              rules={[{
+                validator: (_rule, value) => {
+                  if (!receiveIsOverPlan || value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('超计划收料时必须选择超收原因'));
+                },
+              }]}
+            >
+              <Select allowClear options={OVER_PLAN_REASON_OPTIONS} placeholder="超计划收料时必选" />
+            </Form.Item>
+            <Form.Item
+              label="原因说明 / 备注"
+              name="overReceiptReasonText"
+              rules={[{
+                validator: (_rule, value) => {
+                  if (!receiveIsOverPlan || (typeof value === 'string' && value.trim())) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('超计划收料时必须填写原因说明'));
+                },
+              }]}
+            >
+              <Input.TextArea rows={3} placeholder="请说明超收原因、到货背景或业务确认信息" />
+            </Form.Item>
+            <Form.Item
+              label="业务备注"
+              name="remark"
+              rules={[{
+                validator: (_rule, value) => {
+                  if (!receiveIsOverPlan || (typeof value === 'string' && value.trim())) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('超计划收料时必须填写备注'));
+                },
+              }]}
+            >
+              <Input.TextArea rows={3} placeholder="超计划收料时必填，可补充批次、沟通人、处理说明" />
             </Form.Item>
           </Form>
         </Modal>
@@ -966,7 +1096,6 @@ const StockingPurchaseInbound = () => {
                     if (!record) {
                       return null;
                     }
-                    const pendingQty = record.pendingQty ?? 0;
                     return (
                       <Card key={`${record.id}-${field.key}`} size="small" variant="outlined">
                         <Space direction="vertical" size={8} style={{ width: '100%' }}>
@@ -977,12 +1106,31 @@ const StockingPurchaseInbound = () => {
                             </Text>
                           </div>
                           <Space size={16} wrap style={{ fontSize: 12, color: '#666' }}>
-                            <span>待收料：{formatQuantity(pendingQty)} {record.unit}</span>
+                            <span>计划量：{formatQuantity(record.orderQty)} {record.unit}</span>
+                            <span>累计实收：{formatQuantity(getActualReceivedQty(record))} {record.unit}</span>
+                            <span>计划待收：{formatQuantity(getPlanPendingReceiveQty(record, record.orderQty))} {record.unit}</span>
                             <span>仓库：{record.warehouseName ?? '-'}</span>
                           </Space>
                           <Form.Item name={[field.name, 'lineId']} initialValue={record.id} hidden>
                             <Input />
                           </Form.Item>
+                          <Alert
+                            showIcon
+                            type={(() => {
+                              const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
+                              const nextActualQty = getActualReceivedQty(record) + currentQty;
+                              return nextActualQty > record.orderQty ? 'warning' : 'info';
+                            })()}
+                            message={(() => {
+                              const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
+                              const nextActualQty = getActualReceivedQty(record) + currentQty;
+                              const overQty = Math.max(nextActualQty - record.orderQty, 0);
+                              return overQty > 0
+                                ? `提交后累计实收 ${formatQuantity(nextActualQty)} ${record.unit}，超收 ${formatQuantity(overQty)} ${record.unit}`
+                                : `本次按计划口径收料，提交后累计实收 ${formatQuantity(nextActualQty)} ${record.unit}`;
+                            })()}
+                            description="批量场景下，如本条发生超计划收料，仍需逐条填写超收原因与备注。"
+                          />
                           <Form.Item
                             label="收料数量"
                             name={[field.name, 'receiveQty']}
@@ -996,11 +1144,6 @@ const StockingPurchaseInbound = () => {
                                   if (value <= 0) {
                                     return Promise.reject(new Error('收料数量需大于 0'));
                                   }
-                                  if (pendingQty > 0 && value > pendingQty) {
-                                    return Promise.reject(
-                                      new Error(`不能超过待收料 ${formatQuantity(pendingQty)}`),
-                                    );
-                                  }
                                   return Promise.resolve();
                                 },
                               },
@@ -1011,8 +1154,53 @@ const StockingPurchaseInbound = () => {
                           <Form.Item label="批次号" name={[field.name, 'batchNo']}>
                             <Input placeholder="可填写批次号" />
                           </Form.Item>
-                          <Form.Item label="备注" name={[field.name, 'remark']}>
-                            <Input.TextArea rows={2} placeholder="可填写备注信息" />
+                          <Form.Item
+                            label="超收原因"
+                            name={[field.name, 'overReceiptReasonCode']}
+                            rules={[{
+                              validator: (_rule, value) => {
+                                const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
+                                const nextActualQty = getActualReceivedQty(record) + currentQty;
+                                if (nextActualQty <= record.orderQty || value) {
+                                  return Promise.resolve();
+                                }
+                                return Promise.reject(new Error('超计划收料时必须选择超收原因'));
+                              },
+                            }]}
+                          >
+                            <Select allowClear options={OVER_PLAN_REASON_OPTIONS} placeholder="超计划收料时必选" />
+                          </Form.Item>
+                          <Form.Item
+                            label="原因说明 / 备注"
+                            name={[field.name, 'overReceiptReasonText']}
+                            rules={[{
+                              validator: (_rule, value) => {
+                                const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
+                                const nextActualQty = getActualReceivedQty(record) + currentQty;
+                                if (nextActualQty <= record.orderQty || (typeof value === 'string' && value.trim())) {
+                                  return Promise.resolve();
+                                }
+                                return Promise.reject(new Error('超计划收料时必须填写原因说明'));
+                              },
+                            }]}
+                          >
+                            <Input.TextArea rows={2} placeholder="请说明超收原因" />
+                          </Form.Item>
+                          <Form.Item
+                            label="业务备注"
+                            name={[field.name, 'remark']}
+                            rules={[{
+                              validator: (_rule, value) => {
+                                const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
+                                const nextActualQty = getActualReceivedQty(record) + currentQty;
+                                if (nextActualQty <= record.orderQty || (typeof value === 'string' && value.trim())) {
+                                  return Promise.resolve();
+                                }
+                                return Promise.reject(new Error('超计划收料时必须填写备注'));
+                              },
+                            }]}
+                          >
+                            <Input.TextArea rows={2} placeholder="超计划收料时必填" />
                           </Form.Item>
                         </Space>
                       </Card>
