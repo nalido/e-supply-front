@@ -28,7 +28,7 @@ import { SelectSetupHint } from '../components/common/SelectSetupHint';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -270,6 +270,15 @@ const SettlementCustomerReceipts = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card variant="borderless">
+        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+          <Text type="secondary">结算中心 / 客户收款</Text>
+          <Space align="baseline" wrap>
+            <Title level={3} style={{ margin: 0 }}>客户收款台账</Title>
+            <Text type="secondary">聚焦应收、已收、欠款与登记动作，便于业务在同一屏完成核对和补录。</Text>
+          </Space>
+        </Space>
+      </Card>
       <Card variant="borderless" loading={metaLoading}>
         <Space size={16} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
           <Statistic
@@ -294,36 +303,37 @@ const SettlementCustomerReceipts = () => {
           />
         </Space>
       </Card>
-      <Card variant="borderless">
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Input
-            allowClear
-            placeholder="客户"
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            style={{ width: 220 }}
-          />
-          <RangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            style={{ width: 300 }}
-            allowEmpty={[true, true]}
-          />
-          <Space>
-            <Button type="primary" onClick={handleSearch}>
+      <Card variant="borderless" title="筛选与动作区" extra={<Text type="secondary">先筛客户与时间，再登记收款或导出当前结果</Text>}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space wrap size={12}>
+            <Input
+              allowClear
+              placeholder="搜索客户名称"
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              style={{ width: 240 }}
+            />
+            <RangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              style={{ width: 320 }}
+              allowEmpty={[true, true]}
+            />
+            <Button type="primary" size="middle" onClick={handleSearch}>
               查询
             </Button>
-            <Button onClick={handleReset}>
+            <Button size="middle" onClick={handleReset}>
               重置
             </Button>
           </Space>
-          <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openReceiptModal()}>
-              新建收款
+          <Space wrap size={12}>
+            <Button type="primary" size="middle" icon={<PlusOutlined />} onClick={() => openReceiptModal()}>
+              登记收款
             </Button>
-            <Button icon={<DownloadOutlined />} onClick={handleExport}>
-              导出
+            <Button size="middle" icon={<DownloadOutlined />} onClick={handleExport}>
+              导出当前结果
             </Button>
+            <Text type="secondary">当前共 {total} 条客户收款汇总记录</Text>
           </Space>
         </Space>
         <Table<CustomerReceiptRecord>

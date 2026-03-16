@@ -1,8 +1,8 @@
 .style-detail-page {
-  padding: 16px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .style-detail-header {
@@ -21,7 +21,7 @@
 }
 
 .style-detail-card .ant-card-body {
-  padding: 24px 28px;
+  padding: 14px 16px;
 }
 
 .style-detail-overview-card {
@@ -30,14 +30,15 @@
 
 .style-detail-overview {
   display: flex;
-  gap: 32px;
+  gap: 14px;
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .style-detail-gallery {
-  flex: 0 0 320px;
-  padding: 16px;
-  border-radius: 16px;
+  flex: 0 0 248px;
+  padding: 10px;
+  border-radius: 14px;
   background: #f7f8fb;
   border: 1px solid #edf0f5;
   display: flex;
@@ -72,7 +73,7 @@
 .style-detail-cover-item .ant-upload-list-picture-card-container,
 .style-detail-cover-item .ant-upload-list-item-container,
 .style-detail-cover-item .ant-upload-list-picture-card .ant-upload-list-item {
-  height: 320px !important;
+  height: 200px !important;
   margin: 0;
 }
 
@@ -97,13 +98,13 @@
 .style-detail-info {
   flex: 1;
   min-width: 280px;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid #edf0f5;
   background: #fff;
-  padding: 16px 20px 8px;
+  padding: 10px 14px 4px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .style-detail-info .ant-form-item {
@@ -121,8 +122,8 @@
 .style-detail-color-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: 20px;
   background: #f4f6fb;
   border: 1px solid #e1e6f0;
@@ -136,10 +137,10 @@
 }
 
 .style-detail-color-images {
-  margin-top: 8px;
+  margin-top: 4px;
   width: 100%;
   display: flex;
-  gap: 16px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
   padding: 8px 2px 4px;
@@ -147,11 +148,11 @@
 }
 
 .style-detail-color-item {
-  flex: 0 0 210px;
+  flex: 0 0 196px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 12px;
+  gap: 10px;
+  padding: 12px 10px;
   border: 1px dashed #d9d9d9;
   border-radius: 6px;
   background: #fafafa;

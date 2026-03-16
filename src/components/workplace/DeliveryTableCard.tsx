@@ -1,25 +1,22 @@
-import { Card, Table, Typography, Empty } from 'antd';
-import type { DeliveryItem } from '../../types/workplace';
-import { createColumns } from './table-columns';
+import { Card, Empty, Table, Tag, Typography } from 'antd'
+import type { DeliveryItem } from '../../types/workplace'
+import { createColumns } from './table-columns'
 
 interface PaginationConfig {
-  current: number;
-  pageSize: number;
-  total: number;
+  current: number
+  pageSize: number
+  total: number
 }
 
 interface DeliveryTableCardProps {
-  title: string;
-  dataSource: DeliveryItem[];
-  loading: boolean;
-  pagination: PaginationConfig;
-  onPaginationChange: (page: number, pageSize: number) => void;
-  withType?: boolean; // 是否包含加工类型列（区分客户表格和工厂表格）
+  title: string
+  dataSource: DeliveryItem[]
+  loading: boolean
+  pagination: PaginationConfig
+  onPaginationChange: (page: number, pageSize: number) => void
+  withType?: boolean
 }
 
-/**
- * 交货列表表格卡片组件
- */
 const DeliveryTableCard: React.FC<DeliveryTableCardProps> = ({
   title,
   dataSource,
@@ -29,41 +26,37 @@ const DeliveryTableCard: React.FC<DeliveryTableCardProps> = ({
   withType = false,
 }) => {
   return (
-    <Card 
+    <Card
+      className="workplace-panel-card"
       title={
-        <Typography.Title level={5} style={{ margin: 0 }}>
-          {title}
-        </Typography.Title>
+        <div className="workplace-panel-card__title">
+          <Typography.Title level={4} style={{ margin: 0 }}>{title}</Typography.Title>
+          <Tag color="blue">7天预警</Tag>
+        </div>
       }
-      style={{ minHeight: '550px', display: 'flex', flexDirection: 'column' }}
-      styles={{ body: { flex: 1, padding: '16px' } }}
-      loading={loading}
+      styles={{ body: { padding: 0 } }}
     >
       <Table
         rowKey="id"
         columns={createColumns(withType)}
         dataSource={dataSource}
+        loading={loading}
         pagination={{
           current: pagination.current,
           pageSize: pagination.pageSize,
           total: pagination.total,
           showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-          size: 'small',
-          simple: false,
           showSizeChanger: true,
           pageSizeOptions: ['10', '20', '50', '100'],
           onChange: onPaginationChange,
-          onShowSizeChange: onPaginationChange
+          onShowSizeChange: onPaginationChange,
         }}
-        locale={{ emptyText: <Empty description="无数据" /> }}
+        locale={{ emptyText: <Empty description="暂无待交货数据" /> }}
         size="small"
-        scroll={{ 
-          x: withType ? 1300 : 1200, 
-          y: 350 
-        }}
+        scroll={{ x: withType ? 1300 : 1200, y: 360 }}
       />
     </Card>
-  );
-};
+  )
+}
 
-export default DeliveryTableCard;
+export default DeliveryTableCard

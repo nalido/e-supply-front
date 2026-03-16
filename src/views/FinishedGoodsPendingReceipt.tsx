@@ -32,6 +32,7 @@ import type {
   FinishedGoodsPendingReceiptReceivePayload,
 } from '../types/finished-goods-pending-receipt';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
+import { BulkActionBar, FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
@@ -504,104 +505,83 @@ const FinishedGoodsPendingReceipt = () => {
   };
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card variant="borderless" loading={metaLoading}>
-        <Row gutter={[16, 16]} align="middle" justify="space-between">
-          <Col flex="auto">
-            <Space wrap size={16}>
-              <Button type="primary" disabled={isReceiveDisabled} icon={<InboxOutlined />} onClick={openReceiveModal}>
-                收货
-              </Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExport}>
-                导出
-              </Button>
-              <Checkbox checked={includeCompleted} onChange={handleIncludeCompletedChange}>
-                包含已完成
-              </Checkbox>
-              <Checkbox.Group
-                options={groupingOptions}
-                value={groupBy}
-                onChange={handleGroupingChange}
-              />
-            </Space>
-          </Col>
-          <Col>
-            <Space size={12}>
-              <Select
-                allowClear
-                placeholder="订单类型"
-                style={{ width: 160 }}
-                value={orderTypeFilter}
-                options={meta?.orderTypes?.map((item) => ({ value: item.value, label: item.label }))}
-                onChange={handleOrderTypeChange}
-              />
-              <Input
-                allowClear
-                placeholder="订单/款式"
-                value={orderKeyword}
-                onChange={(event) => setOrderKeyword(event.target.value)}
-                style={{ width: 200 }}
-              />
-              <Input
-                allowClear
-                placeholder="客户名称"
-                value={customerKeyword}
-                onChange={(event) => setCustomerKeyword(event.target.value)}
-                style={{ width: 200 }}
-              />
-              <Input
-                allowClear
-                placeholder="SKU"
-                value={skuKeyword}
-                onChange={(event) => setSkuKeyword(event.target.value)}
-                style={{ width: 200 }}
-              />
-              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
-                查询
-              </Button>
-              <Button onClick={handleReset}>重置</Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
-
-      <Card variant="borderless">
-        <Table<TableRecord>
-          rowKey={(record) => record.id}
-          loading={tableLoading}
-          dataSource={displayedData}
-          columns={columns}
-          pagination={{
-            current: page,
-            pageSize,
-            total: listState.total,
-            pageSizeOptions: PAGE_SIZE_OPTIONS,
-            showSizeChanger: true,
-            onChange: handleTableChange,
-          }}
-          rowSelection={rowSelection}
-          scroll={{ x: 1200 }}
-          summary={() => (
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={summaryLeadingSpan}>
-                <Text strong>合计</Text>
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
-                {quantityFormatter(tableSummary.orderedQty)}
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} align="right">
-                {quantityFormatter(tableSummary.producedQty)}
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={3} align="right">
-                {quantityFormatter(tableSummary.pendingQty)}
-              </Table.Summary.Cell>
-              <Table.Summary.Cell index={4} align="right">
-                {quantityFormatter(tableSummary.receivedQty)}
-              </Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
-        />
-      </Card>
+    <div className="oc-page">
+      <PageHeader
+        className="oc-page-header--compact"
+        title="待收货"
+        extra={metaLoading ? <Text type="secondary">筛选项加载中…</Text> : null}
+        subtitle="统一按 PageHeader → FilterBar → TableToolbar → 表格组织，状态筛选与分组全部收口到筛选条。"
+        stats={
+          <div className="oc-summary-strip">
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">下单数</div><div className="oc-summary-chip__value">{quantityFormatter(tableSummary.orderedQty)}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">生产数</div><div className="oc-summary-chip__value">{quantityFormatter(tableSummary.producedQty)}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">待收货</div><div className="oc-summary-chip__value">{quantityFormatter(tableSummary.pendingQty)}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">已收货</div><div className="oc-summary-chip__value">{quantityFormatter(tableSummary.receivedQty)}</div></div>
+          </div>
+        }
+      />
+      <PageSection className="oc-page-section--compact">
+        <div className="oc-section-stack-tight">
+          <FilterBar
+            left={
+              <>
+                <Select allowClear placeholder="订单类型" style={{ width: 160 }} value={orderTypeFilter} options={meta?.orderTypes?.map((item) => ({ value: item.value, label: item.label }))} onChange={handleOrderTypeChange} />
+                <SearchField value={orderKeyword} onChange={setOrderKeyword} onPressEnter={handleSearch} placeholder="订单/款式" style={{ width: 200 }} />
+                <SearchField value={customerKeyword} onChange={setCustomerKeyword} onPressEnter={handleSearch} placeholder="客户名称" style={{ width: 200 }} />
+                <SearchField value={skuKeyword} onChange={setSkuKeyword} onPressEnter={handleSearch} placeholder="SKU" style={{ width: 200 }} />
+              </>
+            }
+            right={
+              <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
+                <Checkbox checked={includeCompleted} onChange={handleIncludeCompletedChange}>包含已完成</Checkbox>
+                <Checkbox.Group options={groupingOptions} value={groupBy} onChange={handleGroupingChange} />
+                <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>查询</Button>
+                <Button onClick={handleReset}>重置</Button>
+              </div>
+            }
+          />
+          <TableToolbar
+            left={groupBy.length ? <Text type="secondary">已启用分组汇总，列表进入只读模式。</Text> : null}
+            right={
+              <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
+                <Button type="primary" disabled={isReceiveDisabled} icon={<InboxOutlined />} onClick={openReceiveModal}>收货</Button>
+                <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+              </div>
+            }
+          />
+          {!groupBy.length && selectedRowKeys.length > 0 ? (
+            <BulkActionBar
+              selectionText={<Text>已选择 {selectedRowKeys.length} 条待收货记录</Text>}
+              actions={<Button type="primary" disabled={isReceiveDisabled} icon={<InboxOutlined />} onClick={openReceiveModal}>去收货</Button>}
+            />
+          ) : null}
+          <Table<TableRecord>
+            rowKey={(record) => record.id}
+            loading={tableLoading}
+            dataSource={displayedData}
+            columns={columns}
+            pagination={{
+              current: page,
+              pageSize,
+              total: listState.total,
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
+              showSizeChanger: true,
+              onChange: handleTableChange,
+            }}
+            rowSelection={rowSelection}
+            scroll={{ x: 1200 }}
+            summary={() => (
+              <Table.Summary.Row>
+                <Table.Summary.Cell index={0} colSpan={summaryLeadingSpan}><Text strong>合计</Text></Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">{quantityFormatter(tableSummary.orderedQty)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="right">{quantityFormatter(tableSummary.producedQty)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={3} align="right">{quantityFormatter(tableSummary.pendingQty)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={4} align="right">{quantityFormatter(tableSummary.receivedQty)}</Table.Summary.Cell>
+              </Table.Summary.Row>
+            )}
+          />
+        </div>
+      </PageSection>
 
       <Modal
         title="成品收货"
@@ -710,7 +690,7 @@ const FinishedGoodsPendingReceipt = () => {
           </Form.List>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 };
 

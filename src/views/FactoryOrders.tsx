@@ -190,6 +190,10 @@ const materialStatusOptions = [
   { label: '已齐备（已发料）', value: 'ALLOCATED' },
 ];
 
+const materialStatusLabelMap = new Map(
+  materialStatusOptions.map((option) => [option.value, option.label]),
+);
+
 const hiddenOrderStatusTags = new Set(['DRAFT', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
 
 const progressNodeCodeMap: Record<string, string> = {
@@ -210,6 +214,13 @@ const getOverallStatusMeta = (isCompleted?: boolean, statusKey?: string) =>
   resolveOverallCompleted(isCompleted, statusKey)
     ? { label: '已完成', color: '#52c41a' }
     : { label: '未完成', color: '#1890ff' };
+
+const getMaterialStatusLabel = (value?: string) => {
+  if (!value) {
+    return '-';
+  }
+  return materialStatusLabelMap.get(value) ?? value;
+};
 
 const normalizeProgressLabel = (stage: FactoryOrderProgress): string => {
   if (stage.key === 'accessory_arrived') {
@@ -669,7 +680,7 @@ const FactoryOrders = () => {
           : '-',
       ],
       ['预计交货', printPreviewRecord.expectedDelivery ?? '-'],
-      ['物料状态', printPreviewRecord.materialStatus ?? '-'],
+      ['物料状态', getMaterialStatusLabel(printPreviewRecord.materialStatus)],
       ['生产阶段', printPreviewRecord.productionStage ?? '-'],
     ];
     const html = `<!DOCTYPE html>
@@ -1712,7 +1723,7 @@ const FactoryOrders = () => {
       dataIndex: 'materialStatus',
       width: 140,
       render: (value: string) =>
-        value && value !== 'PENDING' ? <Tag color={getMaterialTagColor(value)}>{value}</Tag> : '-',
+        value && value !== 'PENDING' ? <Tag color={getMaterialTagColor(value)}>{getMaterialStatusLabel(value)}</Tag> : '-',
     },
     {
       title: '生产进度',
@@ -2033,7 +2044,7 @@ const FactoryOrders = () => {
                           </Space>
                           {order.materialStatus && order.materialStatus !== 'PENDING' ? (
                             <div className="factory-order-material-tag">
-                              <Tag color={getMaterialTagColor(order.materialStatus)}>{order.materialStatus}</Tag>
+                              <Tag color={getMaterialTagColor(order.materialStatus)}>{getMaterialStatusLabel(order.materialStatus)}</Tag>
                             </div>
                           ) : null}
                           <div className="factory-order-tags">
@@ -3110,7 +3121,7 @@ const FactoryOrders = () => {
                 {typeof costDetailRecord.orderQuantity === 'number' ? `${costDetailRecord.orderQuantity.toLocaleString()} 件` : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="预计交货">{costDetailRecord.expectedDelivery ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="物料状态">{costDetailRecord.materialStatus ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="物料状态">{getMaterialStatusLabel(costDetailRecord.materialStatus)}</Descriptions.Item>
               <Descriptions.Item label="生产阶段">{costDetailRecord.productionStage ?? '-'}</Descriptions.Item>
             </Descriptions>
             <Table
