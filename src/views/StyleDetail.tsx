@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
@@ -437,7 +438,16 @@ const StyleDetail = () => {
         return;
       }
       console.error('保存款式资料失败', error);
-      message.error('保存失败，请稍后重试');
+      const backendMessage = axios.isAxiosError(error)
+        ? error.response?.data?.message ?? error.message
+        : error instanceof Error
+          ? error.message
+          : '';
+      if (backendMessage.includes('Style number already exists')) {
+        message.error('款号已存在，请更换后重试');
+      } else {
+        message.error(backendMessage || '保存失败，请稍后重试');
+      }
     } finally {
       setSaving(false);
     }
