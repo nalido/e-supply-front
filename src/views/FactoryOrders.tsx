@@ -53,6 +53,7 @@ import type {
   FactoryOrderTableRow,
 } from '../types';
 import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
+import { pieceworkService } from '../api/piecework';
 import { stylesApi } from '../api/styles';
 import { styleDetailApi } from '../api/style-detail';
 import { partnersApi } from '../api/partners';
@@ -137,6 +138,8 @@ type AllocationHistoryRow = {
   key: string;
   completedAt?: string;
   bedNumber?: string;
+  source?: string;
+  workOrderId?: number;
   factoryId?: number;
   unitPrice?: number;
   totalQty: number;
@@ -876,12 +879,16 @@ const FactoryOrders = () => {
             allocations?: Array<{
               completedAt?: unknown;
               bedNumber?: unknown;
+              source?: unknown;
+              workOrderId?: unknown;
               subcontractorId?: unknown;
               unitPrice?: unknown;
               items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
             }>;
             completedAt?: unknown;
             bedNumber?: unknown;
+            source?: unknown;
+            workOrderId?: unknown;
             subcontractorId?: unknown;
             unitPrice?: unknown;
             items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
@@ -905,6 +912,10 @@ const FactoryOrders = () => {
               key: `${stageNodeCode}-${index}`,
               completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
               bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
+              source: typeof allocation.source === 'string' ? allocation.source : undefined,
+              workOrderId: Number.isFinite(Number(allocation.workOrderId))
+                ? Number(allocation.workOrderId)
+                : undefined,
               factoryId: Number.isFinite(Number(allocation.subcontractorId))
                 ? Number(allocation.subcontractorId)
                 : undefined,
@@ -1419,6 +1430,23 @@ const FactoryOrders = () => {
 
   const handleOpenFactoryGuide = useCallback(() => {
     navigate('/basic/partners?type=factory');
+  }, [navigate]);
+
+  const handleNavigateToCuttingSheet = useCallback(async (record: AllocationHistoryRow) => {
+    if (!record.workOrderId || !record.source?.startsWith('CUTTING_SHEET')) {
+      return;
+    }
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(record.workOrderId);
+      const targetPath =
+        detail.status === 'COMPLETED'
+          ? '/piecework/cutting/done'
+          : '/piecework/cutting/pending';
+      navigate(`${targetPath}?workOrderId=${record.workOrderId}&openDetail=1`);
+    } catch (error) {
+      console.error('failed to resolve cutting sheet route', error);
+      message.error('跳转裁床单失败，请稍后重试');
+    }
   }, [navigate]);
 
   const handleOpenAllocationCreate = useCallback(() => {
@@ -2795,11 +2823,22 @@ const FactoryOrders = () => {
                         return (
                           <div key={record.key} style={{ marginBottom: 16 }}>
                             <div style={{ marginBottom: 6 }}>
-                              <Text strong>
-                                {isCuttingProgressStage
-                                  ? `床次：${record.bedNumber ?? '-'}`
-                                  : `工厂：${factoryLabel}`}
-                              </Text>
+                              {isCuttingProgressStage ? (
+                                record.workOrderId && record.source?.startsWith('CUTTING_SHEET') ? (
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    style={{ padding: 0, height: 'auto' }}
+                                    onClick={() => void handleNavigateToCuttingSheet(record)}
+                                  >
+                                    {`床次：${record.bedNumber ?? '-'}`}
+                                  </Button>
+                                ) : (
+                                  <Text strong>{`床次：${record.bedNumber ?? '-'}`}</Text>
+                                )
+                              ) : (
+                                <Text strong>{`工厂：${factoryLabel}`}</Text>
+                              )}
                               {isCuttingProgressStage ? (
                                 <Text type="secondary" style={{ marginLeft: 12 }}>
                                   工厂：{factoryLabel}

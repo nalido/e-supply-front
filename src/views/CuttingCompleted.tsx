@@ -23,7 +23,7 @@ import { pieceworkService } from '../api/piecework';
 import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 
 const { Text } = Typography;
@@ -48,6 +48,7 @@ type DetailModalState = {
 
 const CuttingCompletedPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -131,6 +132,30 @@ const CuttingCompletedPage = () => {
       })
       .finally(() => setDetailLoading(false));
   };
+
+  useEffect(() => {
+    const rawWorkOrderId = Number(searchParams.get('workOrderId') ?? 0);
+    const openDetail = searchParams.get('openDetail') === '1';
+    if (!openDetail || !Number.isFinite(rawWorkOrderId) || rawWorkOrderId <= 0 || loading) {
+      return;
+    }
+    const targetTask = dataset.list.find((task) => Number(task.workOrderId) === rawWorkOrderId);
+    if (!targetTask) {
+      return;
+    }
+    if (detailState.task?.workOrderId === rawWorkOrderId && detailState.open) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('workOrderId');
+      next.delete('openDetail');
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    handleViewDetail(targetTask);
+    const next = new URLSearchParams(searchParams);
+    next.delete('workOrderId');
+    next.delete('openDetail');
+    setSearchParams(next, { replace: true });
+  }, [dataset.list, detailState.open, detailState.task?.workOrderId, loading, searchParams, setSearchParams]);
 
   const renderMetric = (metric: CuttingTaskMetric) => (
     <Card
