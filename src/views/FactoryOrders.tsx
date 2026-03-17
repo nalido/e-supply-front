@@ -53,12 +53,14 @@ import type {
   FactoryOrderTableRow,
 } from '../types';
 import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
+import { finishedGoodsReceivedService } from '../api/finished-goods';
 import { pieceworkService } from '../api/piecework';
 import { stylesApi } from '../api/styles';
 import { styleDetailApi } from '../api/style-detail';
 import { partnersApi } from '../api/partners';
 import sampleOrderApi from '../api/sample-order';
 import { SampleStatus as SampleStatusEnum } from '../types/sample';
+import type { FinishedGoodsReceivedRecord } from '../types/finished-goods-received';
 import dayjs from 'dayjs';
 import { SearchField } from '../components/page';
 import '../styles/factory-orders.css';
@@ -156,11 +158,13 @@ type InOutSummaryRow = {
 };
 type InOutDetailRow = {
   key: string;
-  factoryId?: number;
+  receiptNo: string;
+  receiptDate: string;
+  warehouseName: string;
+  processorName?: string;
   color: string;
   size: string;
-  dispatchQty: number;
-  doneQty: number;
+  quantity: number;
 };
 
 type PendingSampleProduceContext = {
@@ -209,6 +213,8 @@ const progressNodeCodeMap: Record<string, string> = {
   inbound: 'INBOUND',
   completed: 'COMPLETED',
 };
+
+const CUTTING_SHEET_START_SOURCE = 'CUTTING_SHEET_START';
 
 const resolveOverallCompleted = (isCompleted?: boolean, statusKey?: string) =>
   Boolean(isCompleted || statusKey === 'COMPLETED' || statusKey === 'CANCELLED');
@@ -830,6 +836,11 @@ const FactoryOrders = () => {
   const loadProgressStats = useCallback(async (orderId: string, stageKey: 'cutting' | 'sewing') => {
     setProgressStats({ loading: true, rows: [] });
     try {
+      const shouldIncludeAllocation = (
+        source: unknown,
+        currentStageKey: 'cutting' | 'sewing',
+      ) => !(currentStageKey === 'cutting' && source === CUTTING_SHEET_START_SOURCE);
+
       const parseAllocationNodeItems = (node?: FactoryOrderProgressNode): Array<{ color: string; size: string; quantity: number }> => {
         if (!node?.payloadJson) {
           return [];
@@ -837,11 +848,14 @@ const FactoryOrders = () => {
         try {
           const payload = JSON.parse(node.payloadJson) as {
             allocations?: Array<{
+              source?: unknown;
               items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
             }>;
             items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
           };
-          const sourceAllocations = Array.isArray(payload.allocations) ? payload.allocations : [];
+          const sourceAllocations = Array.isArray(payload.allocations)
+            ? payload.allocations.filter((allocation) => shouldIncludeAllocation(allocation.source, stageKey))
+            : [];
           const normalizedItems = sourceAllocations.flatMap((allocation) => allocation.items ?? []);
           const fallbackItems = normalizedItems.length > 0 ? normalizedItems : (payload.items ?? []);
           const mergedMap = new Map<string, { color: string; size: string; quantity: number }>();
@@ -897,6 +911,9 @@ const FactoryOrders = () => {
             ? payload.allocations
             : [payload];
           allocations.forEach((allocation, index) => {
+            if (!shouldIncludeAllocation(allocation.source, stageKey)) {
+              return;
+            }
             const items = (allocation.items ?? [])
               .map((item) => ({
                 color: typeof item.color === 'string' ? item.color : '-',
@@ -993,32 +1010,21 @@ const FactoryOrders = () => {
   const loadInOutData = useCallback(async (orderId: string) => {
     setInOutData({ loading: true, summaryRows: [], detailRows: [] });
     try {
-      const parseNodeItems = (node?: FactoryOrderProgressNode): Array<{ color: string; size: string; quantity: number }> => {
-        if (!node?.payloadJson) {
-          return [];
-        }
-        try {
-          const payload = JSON.parse(node.payloadJson) as { items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }> };
-          return (payload.items ?? [])
-            .map((item) => ({
-              color: normalizeSpecLabel(typeof item.color === 'string' ? item.color : undefined),
-              size: normalizeSpecLabel(typeof item.size === 'string' ? item.size : undefined),
-              quantity: Number(item.quantity ?? 0),
-            }))
-            .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0);
-        } catch {
-          return [];
-        }
-      };
-
-      const [nodes, detail] = await Promise.all([
+      const [nodes, detail, received] = await Promise.all([
         factoryOrdersApi.getProgress(orderId),
         factoryOrdersApi.getDetail(orderId),
+        finishedGoodsReceivedService.getList({
+          page: 0,
+          pageSize: 200,
+          viewMode: 'spec',
+          productionOrderId: orderId,
+        }),
       ]);
       const inboundNode = nodes.find((item) => item.nodeCode === 'INBOUND');
       const targetNode = inboundNode;
       const doneMap = new Map<string, number>();
-      parseNodeItems(targetNode).forEach((item) => {
+      const receiptRecords = received.list.filter((item): item is FinishedGoodsReceivedRecord => 'receiptNo' in item);
+      receiptRecords.forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
         doneMap.set(key, (doneMap.get(key) ?? 0) + item.quantity);
       });
@@ -1050,61 +1056,31 @@ const FactoryOrders = () => {
           const doneQty = Number.isFinite(rawDoneQty) ? Number(rawDoneQty) : (isDone ? row.totalQty : 0);
           return {
             ...row,
-            doneQty: Math.min(doneQty, row.totalQty),
+            doneQty,
             pendingQty: Math.max(row.totalQty - doneQty, 0),
           };
         })
         .sort((a, b) => (a.color !== b.color ? a.color.localeCompare(b.color, 'zh-CN') : a.size.localeCompare(b.size, 'zh-CN')));
-
-      const sewingNode = nodes.find((item) => item.nodeCode === 'SEWING');
-      const detailMap = new Map<string, InOutDetailRow>();
-      if (sewingNode?.payloadJson) {
-        try {
-          const payload = JSON.parse(sewingNode.payloadJson) as {
-            allocations?: Array<{
-              subcontractorId?: unknown;
-              items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
-            }>;
-          };
-          (payload.allocations ?? []).forEach((allocation, index) => {
-            const factoryId = Number.isFinite(Number(allocation.subcontractorId))
-              ? Number(allocation.subcontractorId)
-              : undefined;
-            (allocation.items ?? []).forEach((item, itemIndex) => {
-              const dispatchQty = Number(item.quantity ?? 0);
-              if (!Number.isFinite(dispatchQty) || dispatchQty <= 0) {
-                return;
-              }
-              const color = normalizeSpecLabel(typeof item.color === 'string' ? item.color : undefined);
-              const size = normalizeSpecLabel(typeof item.size === 'string' ? item.size : undefined);
-              const key = `${factoryId ?? '-'}::${buildSpecKey(color, size)}`;
-              const existing = detailMap.get(key);
-              if (existing) {
-                existing.dispatchQty += dispatchQty;
-                return;
-              }
-              detailMap.set(key, {
-                key: `${index}-${itemIndex}`,
-                factoryId,
-                color,
-                size,
-                dispatchQty,
-                doneQty: isDone ? dispatchQty : 0,
-              });
-            });
-          });
-        } catch {
-          // ignore parse failure
-        }
-      }
       setInOutData({
         loading: false,
         summaryRows,
-        detailRows: Array.from(detailMap.values()).sort((a, b) => {
-          const leftFactory = String(a.factoryId ?? '');
-          const rightFactory = String(b.factoryId ?? '');
-          if (leftFactory !== rightFactory) {
-            return leftFactory.localeCompare(rightFactory, 'zh-CN');
+        detailRows: receiptRecords
+          .map((item) => ({
+            key: item.id,
+            receiptNo: item.receiptNo,
+            receiptDate: item.receiptDate,
+            warehouseName: item.warehouseName,
+            processorName: item.processorName,
+            color: normalizeSpecLabel(item.color),
+            size: normalizeSpecLabel(item.size),
+            quantity: Number(item.quantity ?? 0),
+          }))
+          .sort((a, b) => {
+          if (a.receiptDate !== b.receiptDate) {
+            return String(b.receiptDate).localeCompare(String(a.receiptDate), 'zh-CN');
+          }
+          if (a.receiptNo !== b.receiptNo) {
+            return a.receiptNo.localeCompare(b.receiptNo, 'zh-CN');
           }
           if (a.color !== b.color) {
             return a.color.localeCompare(b.color, 'zh-CN');
@@ -1171,6 +1147,10 @@ const FactoryOrders = () => {
     try {
       const values = await progressActionForm.validateFields();
       const payload: Record<string, unknown> = {};
+      if (nodeCode === 'INBOUND') {
+        message.info('入库节点状态由成品入库记录自动联动，请到成品入库中处理。');
+        return;
+      }
       if (nodeCode === 'FABRIC_ARRIVED' || nodeCode === 'ACCESSORY_ARRIVED') {
         payload.arrivedAt = values.arrivedAt ? values.arrivedAt.toISOString() : dayjs().toISOString();
       }
@@ -2694,11 +2674,32 @@ const FactoryOrders = () => {
           allocationCreateForm.resetFields();
           progressActionForm.resetFields();
         }}
-        onOk={inOutStageCompleted ? undefined : handleSubmitProgressAction}
+        onOk={isInOutProgressStage || inOutStageCompleted ? undefined : handleSubmitProgressAction}
         confirmLoading={progressActionModal.submitting}
         footer={
           progressActionModal.stage?.key === 'cutting' || progressActionModal.stage?.key === 'sewing'
             ? null
+            : isInOutProgressStage
+              ? [
+                <Button
+                  key="close"
+                  onClick={() => {
+                    setProgressActionModal({ open: false, submitting: false });
+                    setAllocationCreateModalOpen(false);
+                    setAllocationCreateSubmitting(false);
+                    setProgressTabKey('stats');
+                    setProgressStats({ loading: false, rows: [] });
+                    setAllocationColors([]);
+                    setAllocationSizes([]);
+                    setAllocationMatrix({});
+                    setAllocationHistoryRows([]);
+                    allocationCreateForm.resetFields();
+                    progressActionForm.resetFields();
+                  }}
+                >
+                  关闭
+                </Button>,
+              ]
             : inOutStageCompleted
               ? [
                 <Button
@@ -2967,21 +2968,13 @@ const FactoryOrders = () => {
                           dataSource={inOutData.detailRows}
                           locale={{ emptyText: `暂无${inOutDetailLabel}数据` }}
                           columns={[
-                            {
-                              title: '工厂',
-                              dataIndex: 'factoryId',
-                              width: 220,
-                              render: (value: number | undefined) => {
-                                if (!Number.isFinite(value)) {
-                                  return '-';
-                                }
-                                return factoryOptions.find((item) => item.value === value)?.label ?? `工厂ID:${value}`;
-                              },
-                            },
+                            { title: '入库单号', dataIndex: 'receiptNo', width: 180 },
+                            { title: '入库时间', dataIndex: 'receiptDate', width: 180 },
+                            { title: '仓库', dataIndex: 'warehouseName', width: 180 },
+                            { title: '加工方', dataIndex: 'processorName', width: 180, render: (value?: string) => value || '-' },
                             { title: '颜色', dataIndex: 'color', width: 140 },
                             { title: '尺码', dataIndex: 'size', width: 140 },
-                            { title: '下货数量', dataIndex: 'dispatchQty', width: 140 },
-                            { title: inOutDoneLabel, dataIndex: 'doneQty', width: 140 },
+                            { title: inOutDoneLabel, dataIndex: 'quantity', width: 140 },
                           ]}
                         />
                       )

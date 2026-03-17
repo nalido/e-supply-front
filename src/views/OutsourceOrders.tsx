@@ -33,8 +33,11 @@ import type {
   OutsourceReceiptPayload,
 } from '../types';
 import collaborationApi from '../api/collaboration';
+import { outsourcingManagementApi } from '../api/outsourcing-management';
+import OutsourcingReceiptItemsMatrix from '../components/OutsourcingReceiptItemsMatrix';
 import '../styles/outsource-orders.css';
 import ListImage from '../components/common/ListImage';
+import type { OutsourcingReceiptPlan } from '../types/outsourcing-management';
 
 const { Text, Title } = Typography;
 
@@ -75,6 +78,8 @@ const OutsourceOrders = () => {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
   const [receiptTargets, setReceiptTargets] = useState<string[]>([]);
+  const [receiptPlan, setReceiptPlan] = useState<OutsourcingReceiptPlan | null>(null);
+  const [receiptQtyMap, setReceiptQtyMap] = useState<Record<string, number>>({});
   const [materialTarget, setMaterialTarget] = useState<OutsourceOrder | null>(null);
   const [pagination, setPagination] = useState<{ current: number; pageSize: number; total: number }>(
     { current: 1, pageSize: 10, total: 0 },
@@ -128,14 +133,32 @@ const OutsourceOrders = () => {
 
   const openReceiptModal = (targetIds: string[]) => {
     if (!targetIds.length) return;
+    if (targetIds.length > 1) {
+      message.warning('按颜色尺码收货暂不支持批量操作，请逐单确认');
+      return;
+    }
     setReceiptTargets(targetIds);
     receiptForm.resetFields();
     setReceiptModalOpen(true);
+    void outsourcingManagementApi.getReceiptPlan(targetIds[0])
+      .then((plan) => {
+        setReceiptPlan(plan);
+        setReceiptQtyMap(
+          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, 0])),
+        );
+      })
+      .catch((error) => {
+        console.error('failed to load receipt plan', error);
+        message.error('加载收货规格失败');
+        setReceiptModalOpen(false);
+      });
   };
 
   const closeReceiptModal = () => {
     setReceiptModalOpen(false);
     setReceiptTargets([]);
+    setReceiptPlan(null);
+    setReceiptQtyMap({});
     receiptForm.resetFields();
   };
 
@@ -143,12 +166,23 @@ const OutsourceOrders = () => {
     if (!receiptTargets.length) return;
     try {
       const values = await receiptForm.validateFields();
-      if (!values.receivedQuantity || values.receivedQuantity <= 0) {
-        message.warning('请输入本次收货数量');
+      const items = Object.entries(receiptQtyMap)
+        .map(([productionOrderLineId, receivedQty]) => ({
+          productionOrderLineId,
+          receivedQty: Math.max(0, Math.round(Number(receivedQty) || 0)),
+        }))
+        .filter((item) => item.receivedQty > 0);
+      const goodQty = items.reduce((sum, item) => sum + item.receivedQty, 0);
+      if (goodQty <= 0) {
+        message.warning('请至少填写一个颜色尺码的收货数量');
         return;
       }
       setBulkUpdating(true);
-      await collaborationApi.confirmOutsourceReceipt(receiptTargets, values);
+      await collaborationApi.confirmOutsourceReceipt(receiptTargets, {
+        ...values,
+        receivedQuantity: goodQty + Number(values.defectQuantity ?? 0),
+        items,
+      });
       message.success('收货信息已更新');
       closeReceiptModal();
       await loadOrders(currentPage, pageSize);
@@ -419,12 +453,17 @@ const OutsourceOrders = () => {
         destroyOnHidden
       >
         <Form form={receiptForm} layout="vertical" preserve={false}>
-          <Form.Item
-            label="本次收货数量"
-            name="receivedQuantity"
-            rules={[{ required: true, message: '请输入收货数量' }]}
-          >
-            <InputNumber min={1} style={{ width: '100%' }} />
+          <Form.Item label="本次合格接收数量">
+            <OutsourcingReceiptItemsMatrix
+              plan={receiptPlan}
+              qtyMap={receiptQtyMap}
+              onChange={(lineId, value) => {
+                setReceiptQtyMap((prev) => ({
+                  ...prev,
+                  [lineId]: value,
+                }));
+              }}
+            />
           </Form.Item>
           <Form.Item label="次品数量" name="defectQuantity">
             <InputNumber min={0} style={{ width: '100%' }} />

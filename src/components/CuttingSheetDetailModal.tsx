@@ -71,6 +71,7 @@ type Props = {
   loading: boolean;
   task?: CuttingTask;
   detail: CuttingSheetDetail | null;
+  zIndex?: number;
   onClose: () => void;
   onNavigateToFactoryOrder: (orderCode?: string) => void;
   onNavigate: (path: string) => void;
@@ -84,6 +85,7 @@ export default function CuttingSheetDetailModal({
   loading,
   task,
   detail,
+  zIndex,
   onClose,
   onNavigateToFactoryOrder,
   onNavigate,
@@ -137,6 +139,7 @@ export default function CuttingSheetDetailModal({
     <Modal
       title={task ? `裁床任务详情 - ${task.orderCode}` : '裁床任务详情'}
       open={open}
+      zIndex={zIndex}
       onCancel={onClose}
       width={1200}
       footer={(

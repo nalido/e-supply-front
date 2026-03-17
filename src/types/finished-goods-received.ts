@@ -15,6 +15,7 @@ export type FinishedGoodsReceivedListParams = {
   pageSize: number;
   viewMode: FinishedGoodsReceivedViewMode;
   warehouseId?: string;
+  productionOrderId?: string;
   keywordOrderOrStyle?: string;
   keywordProcessor?: string;
 };

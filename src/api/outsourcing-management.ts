@@ -7,6 +7,7 @@ import type {
   OutsourcingManagementMeta,
   OutsourcingManagementProcessorOption,
   OutsourcingReceivePayload,
+  OutsourcingReceiptPlan,
   OutsourcingOrderDetail,
 } from '../types/outsourcing-management';
 import type { PartnerDataset } from '../types';
@@ -245,9 +246,22 @@ export const outsourcingManagementApi = {
         reworkQty: payload.reworkQty ?? 0,
         receivedAt: payload.receivedAt,
         remark: payload.remark,
+        items: payload.items.map((item) => ({
+          productionOrderLineId: Number(item.productionOrderLineId),
+          receivedQty: item.receivedQty,
+        })),
       },
       { params: { tenantId } },
     );
+  },
+
+  async getReceiptPlan(orderId: string): Promise<OutsourcingReceiptPlan> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<OutsourcingReceiptPlan>(
+      `/api/v1/outsourcing-orders/${Number(orderId)}/receipt-plan`,
+      { params: { tenantId } },
+    );
+    return data;
   },
 
   async export(params: OutsourcingManagementListParams): Promise<{ fileUrl: string }> {

@@ -59,6 +59,31 @@ export interface OutsourcingReceivePayload {
   reworkQty?: number;
   receivedAt: string;
   remark?: string;
+  items: OutsourcingReceiveItemPayload[];
+}
+
+export interface OutsourcingReceiveItemPayload {
+  productionOrderLineId: string;
+  receivedQty: number;
+}
+
+export interface OutsourcingReceiptPlanItem {
+  productionOrderLineId: string;
+  styleVariantId?: string;
+  color: string;
+  size: string;
+  plannedQty: number;
+  receivedQty: number;
+  pendingQty: number;
+}
+
+export interface OutsourcingReceiptPlan {
+  orderId: string;
+  orderNo: string;
+  dispatchQty: number;
+  receivedQty: number;
+  pendingQty: number;
+  items: OutsourcingReceiptPlanItem[];
 }
 
 export interface OutsourcingOrderDetail {

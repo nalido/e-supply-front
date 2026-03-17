@@ -171,6 +171,10 @@ const confirmOutsourceReceiptRequest = (
       receivedQuantity: payload.receivedQuantity,
       defectQuantity: payload.defectQuantity,
       remark: payload.remark,
+      items: payload.items.map((item) => ({
+        productionOrderLineId: Number(item.productionOrderLineId),
+        receivedQty: item.receivedQty,
+      })),
     },
     { params: { tenantId } },
   );

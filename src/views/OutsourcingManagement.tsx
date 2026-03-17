@@ -26,6 +26,7 @@ import {
 import { DownloadOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
+import OutsourcingReceiptItemsMatrix from '../components/OutsourcingReceiptItemsMatrix';
 import type {
   OutsourcingManagementListItem,
   OutsourcingManagementListParams,
@@ -33,6 +34,7 @@ import type {
   OutsourcingManagementMeta,
   OutsourcingOrderDetail,
   OutsourcingOrderReceipt,
+  OutsourcingReceiptPlan,
   OutsourcingMaterialRequestRecord,
   OutsourcingTaskStatus,
 } from '../types/outsourcing-management';
@@ -137,6 +139,8 @@ const OutsourcingManagement = () => {
     record?: OutsourcingManagementListItem;
   }>({ visible: false });
   const [submittingReceive, setSubmittingReceive] = useState(false);
+  const [receivePlan, setReceivePlan] = useState<OutsourcingReceiptPlan | null>(null);
+  const [receiveQtyMap, setReceiveQtyMap] = useState<Record<string, number>>({});
   const [exporting, setExporting] = useState(false);
   const [receiveForm] = Form.useForm();
   const [createForm] = Form.useForm<OutsourcingCreateForm>();
@@ -323,17 +327,33 @@ const OutsourcingManagement = () => {
     }
     try {
       const values = await receiveForm.validateFields();
+      const items = Object.entries(receiveQtyMap)
+        .map(([productionOrderLineId, receivedQty]) => ({
+          productionOrderLineId,
+          receivedQty: Math.max(0, Math.round(Number(receivedQty) || 0)),
+        }))
+        .filter((item) => item.receivedQty > 0);
+      const goodQty = items.reduce((sum, item) => sum + item.receivedQty, 0);
+      if (goodQty <= 0) {
+        message.warning('请至少填写一个颜色尺码的接收数量');
+        return;
+      }
       setSubmittingReceive(true);
       await outsourcingManagementApi.confirmReceive({
         orderId: receiveModalState.record.id,
-        receivedQty: Number(values.receivedQty),
+        receivedQty: goodQty + Number(values.defectQty ?? 0) + Number(values.reworkQty ?? 0),
         defectQty: Number(values.defectQty ?? 0),
         reworkQty: Number(values.reworkQty ?? 0),
-        receivedAt: values.receivedAt?.format('YYYY-MM-DD') ?? dayjs().format('YYYY-MM-DD'),
+        receivedAt:
+          values.receivedAt?.format('YYYY-MM-DDTHH:mm:ss') ??
+          dayjs().format('YYYY-MM-DDTHH:mm:ss'),
         remark: values.remark?.trim() || undefined,
+        items,
       });
       message.success('已提交接收记录');
       setReceiveModalState({ visible: false });
+      setReceivePlan(null);
+      setReceiveQtyMap({});
       receiveForm.resetFields();
       void loadList();
     } catch (error: unknown) {
@@ -349,18 +369,31 @@ const OutsourcingManagement = () => {
 
   const handleReceiveCancel = () => {
     setReceiveModalState({ visible: false });
+    setReceivePlan(null);
+    setReceiveQtyMap({});
     receiveForm.resetFields();
   };
 
   const handleConfirmReceive = useCallback((record: OutsourcingManagementListItem) => {
     setReceiveModalState({ visible: true, record });
     receiveForm.setFieldsValue({
-      receivedQty: record.receivedQty || record.dispatchedQty,
       defectQty: 0,
       reworkQty: 0,
       receivedAt: dayjs(),
       remark: '',
     });
+    void outsourcingManagementApi.getReceiptPlan(record.id)
+      .then((plan) => {
+        setReceivePlan(plan);
+        setReceiveQtyMap(
+          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, 0])),
+        );
+      })
+      .catch((error) => {
+        console.error('failed to load outsourcing receipt plan', error);
+        message.error('加载接收规格失败');
+        setReceiveModalState({ visible: false });
+      });
   }, [receiveForm]);
 
   const handleViewDetail = useCallback(async (record: OutsourcingManagementListItem) => {
@@ -907,12 +940,17 @@ const OutsourcingManagement = () => {
         destroyOnHidden
       >
         <Form layout="vertical" form={receiveForm} preserve={false}>
-          <Form.Item
-            label="接收数量"
-            name="receivedQty"
-            rules={[{ required: true, message: '请输入接收数量' }]}
-          >
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
+          <Form.Item label="本次合格接收数量">
+            <OutsourcingReceiptItemsMatrix
+              plan={receivePlan}
+              qtyMap={receiveQtyMap}
+              onChange={(lineId, value) => {
+                setReceiveQtyMap((prev) => ({
+                  ...prev,
+                  [lineId]: value,
+                }));
+              }}
+            />
           </Form.Item>
           <Form.Item label="不良数量" name="defectQty">
             <InputNumber min={0} precision={0} style={{ width: '100%' }} />

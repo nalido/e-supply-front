@@ -142,6 +142,7 @@ export const finishedGoodsReceivedService = {
         tenantId,
         viewMode: params.viewMode,
         warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
+        productionOrderId: params.productionOrderId ? Number(params.productionOrderId) : undefined,
         keywordOrderOrStyle: params.keywordOrderOrStyle,
         keywordProcessor: params.keywordProcessor,
         page: params.page,

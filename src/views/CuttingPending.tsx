@@ -44,6 +44,7 @@ import type { StyleMaterialData } from '../types/style';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
+import CuttingBedRecordModal from '../components/CuttingBedRecordModal';
 
 const { Text, Title } = Typography;
 
@@ -157,6 +158,8 @@ type StartMaterialOption = {
 };
 
 const LINKED_FABRIC_TYPE = 'FABRIC';
+const DETAIL_MODAL_Z_INDEX = 1000;
+const BED_RECORD_MODAL_Z_INDEX = 1100;
 
 const buildMaterialOptionsForWarehouse = (
   warehouseId: number,
@@ -1004,6 +1007,7 @@ const CuttingPendingPage = () => {
         loading={detailLoading}
         task={detailState.task}
         detail={sheetDetail}
+        zIndex={bedRecordState.open ? DETAIL_MODAL_Z_INDEX : undefined}
         onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
@@ -1209,94 +1213,27 @@ const CuttingPendingPage = () => {
         </Form>
       </Modal>
 
-      <Modal
+      <CuttingBedRecordModal
         open={bedRecordState.open}
-        title={bedRecordState.task ? `手动录入床次 - ${bedRecordState.task.orderCode}` : '手动录入床次'}
-        width={1080}
+        task={bedRecordState.task}
+        detail={sheetDetail}
+        qtyMap={bedRecordQtyMap}
+        form={bedRecordForm}
+        submitting={bedRecordState.submitting}
+        zIndex={BED_RECORD_MODAL_Z_INDEX}
+        onQtyChange={(key, value) => {
+          setBedRecordQtyMap((prev) => ({
+            ...prev,
+            [key]: value,
+          }));
+        }}
         onCancel={() => {
           bedRecordForm.resetFields();
           setBedRecordQtyMap({});
           setBedRecordState({ open: false, submitting: false });
         }}
-        onOk={handleSubmitBedRecord}
-        confirmLoading={bedRecordState.submitting}
-      >
-        <Form form={bedRecordForm} layout="vertical">
-          <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
-            <Input maxLength={32} />
-          </Form.Item>
-          <Form.Item
-            label={`当前床次实际用料${sheetDetail?.materialUnit ? `（${sheetDetail.materialUnit}）` : ''}`}
-            name="actualFabricQty"
-            rules={[
-              { required: true, message: '请输入当前床次实际用料' },
-              {
-                validator: (_rule, value: number | undefined) => {
-                  if (value === undefined || value === null) {
-                    return Promise.resolve();
-                  }
-                  if (Number(value) <= 0) {
-                    return Promise.reject(new Error('当前床次实际用料必须大于 0'));
-                  }
-                  return Promise.resolve();
-                },
-              },
-            ]}
-          >
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-          </Form.Item>
-          {sheetDetail?.rows?.length ? (
-            <div className="factory-create-matrix-wrap">
-              <table className="factory-create-matrix-table">
-                <thead>
-                  <tr>
-                    <th>颜色 \\ 尺码</th>
-                    {sheetDetail.sizes.map((size) => (
-                      <th key={`bed-record-head-${size}`}>{size}</th>
-                    ))}
-                    <th>小计</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sheetDetail.rows.map((row) => (
-                    <tr key={`bed-record-row-${row.color}`}>
-                      <td>{row.color}</td>
-                      {sheetDetail.sizes.map((size) => {
-                        const key = buildSpecKey(row.color, size);
-                        const value = bedRecordQtyMap[key] ?? 0;
-                        return (
-                          <td key={`bed-record-${row.color}-${size}`}>
-                            <InputNumber
-                              min={0}
-                              precision={0}
-                              controls={false}
-                              value={value}
-                              onChange={(nextValue) => {
-                                const qty = Math.max(0, Math.round(Number(nextValue) || 0));
-                                setBedRecordQtyMap((prev) => ({
-                                  ...prev,
-                                  [key]: qty,
-                                }));
-                              }}
-                              style={{ width: '100%' }}
-                              placeholder="填写实裁数量"
-                            />
-                          </td>
-                        );
-                      })}
-                      <td>
-                        {sheetDetail.sizes.reduce((sum, size) => sum + (bedRecordQtyMap[buildSpecKey(row.color, size)] ?? 0), 0)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Text type="secondary">暂无可录入的颜色尺码数据</Text>
-          )}
-        </Form>
-      </Modal>
+        onSubmit={handleSubmitBedRecord}
+      />
 
       <Modal
         open={completeState.open}
