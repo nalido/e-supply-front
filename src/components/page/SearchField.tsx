@@ -27,8 +27,6 @@ const SearchField = ({
   allowClear = true,
   style,
   className,
-  enterButton,
-  buttonProps,
   onPressEnter,
 }: SearchFieldProps) => {
   const [innerValue, setInnerValue] = useState(value ?? defaultValue ?? '')
