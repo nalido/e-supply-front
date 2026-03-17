@@ -381,6 +381,15 @@
   gap: 16px;
 }
 
+.factory-orders-card-list .ant-row > div {
+  flex: 0 0 100% !important;
+  max-width: 100% !important;
+}
+
+.factory-orders-card-list .ant-list-item {
+  width: 100%;
+}
+
 .factory-order-card {
   background-color: #fff;
   border: 1px solid var(--ant-color-border, #f0f0f0);
@@ -517,6 +526,8 @@
 }
 
 .factory-order-progress-panel {
+  flex: 1 0 100%;
+  width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 18px;
   background: linear-gradient(180deg, #f8fbff 0%, #f5f8fd 100%);
@@ -552,22 +563,25 @@
   display: flex;
   align-items: stretch;
   gap: 8px;
-  min-width: fit-content;
+  width: 100%;
+  min-width: 0;
 }
 
 .factory-order-progress-step {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .factory-order-progress-node {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 116px;
-  flex: 0 0 116px;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 6px;
   padding: 12px 10px;
   border-radius: 16px;
@@ -766,8 +780,6 @@
   }
 
   .factory-order-progress-node {
-    width: 108px;
-    flex: 0 0 108px;
     padding: 8px;
   }
 

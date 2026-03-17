@@ -699,15 +699,11 @@ export const pieceworkService = {
 
   async completeCuttingSheet(
     workOrderId: number,
-    payload: {
-      actualFabricQty: number;
+    payload?: {
       usageReasonCode?: string;
-      usageReasonText?: string;
       usageRemark?: string;
       overCutReasonCode?: string;
-      overCutReasonText?: string;
       overCutRemark?: string;
-      items?: Array<{ color: string; size: string; quantity: number }>;
     },
   ): Promise<void> {
     const tenantId = ensureTenantId();

@@ -204,7 +204,6 @@ const progressNodeCodeMap: Record<string, string> = {
   cutting: 'CUTTING',
   sewing: 'SEWING',
   inbound: 'INBOUND',
-  outbound: 'OUTBOUND',
   completed: 'COMPLETED',
 };
 
@@ -247,6 +246,33 @@ const parseAllocationCompletionValue = (value?: string) => {
   };
 };
 
+const resolveProgressStageState = (stage: FactoryOrderProgress) => {
+  const status = String(stage.status ?? 'default').toLowerCase();
+  const breakdown = parseAllocationCompletionValue(stage.value);
+  const isOrderPlaced = stage.key === 'order_placed';
+  const isOvercut = status === 'danger';
+  const isPartial =
+    !isOvercut
+    && (status === 'warning' || (typeof stage.value === 'string' && stage.value.includes('部分完成')));
+  const isCompleted =
+    isOrderPlaced
+    || (isOvercut && (breakdown?.completedPercent ?? 0) >= 100)
+    || status === 'success'
+    || status === 'completed'
+    || (typeof stage.value === 'string' && stage.value.includes('已完成'));
+  const isInProgress = !isCompleted && (isPartial || isOvercut);
+  const progressStateClass = isOvercut ? 'overcut' : isCompleted ? 'completed' : isPartial ? 'partial' : 'pending';
+  return {
+    breakdown,
+    isCompleted,
+    isInProgress,
+    isOrderPlaced,
+    isOvercut,
+    isPartial,
+    progressStateClass,
+  };
+};
+
 const normalizeTagValues = (values?: string[]) =>
   Array.from(
     new Set(
@@ -280,6 +306,7 @@ const buildCreateMatrix = (
 const FactoryOrders = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [metrics, setMetrics] = useState<FactoryOrderMetric[]>([]);
   const [statusTabs, setStatusTabs] = useState<FactoryOrderStatusSummary[]>([]);
   const [cardOrders, setCardOrders] = useState<FactoryOrderItem[]>([]);
@@ -293,8 +320,8 @@ const FactoryOrders = () => {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadingCards, setLoadingCards] = useState(false);
   const [loadingTable, setLoadingTable] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [searchValue, setSearchValue] = useState(initialKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState(initialKeyword);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [activeStatus, setActiveStatus] = useState<OverallStatus>('unfinished');
   const [sortKey, setSortKey] = useState('order-desc');
@@ -952,7 +979,7 @@ const FactoryOrders = () => {
     }
   }, []);
 
-  const loadInOutData = useCallback(async (orderId: string, stageKey: 'inbound' | 'outbound') => {
+  const loadInOutData = useCallback(async (orderId: string) => {
     setInOutData({ loading: true, summaryRows: [], detailRows: [] });
     try {
       const parseNodeItems = (node?: FactoryOrderProgressNode): Array<{ color: string; size: string; quantity: number }> => {
@@ -978,8 +1005,7 @@ const FactoryOrders = () => {
         factoryOrdersApi.getDetail(orderId),
       ]);
       const inboundNode = nodes.find((item) => item.nodeCode === 'INBOUND');
-      const outboundNode = nodes.find((item) => item.nodeCode === 'OUTBOUND');
-      const targetNode = stageKey === 'inbound' ? inboundNode : outboundNode;
+      const targetNode = inboundNode;
       const doneMap = new Map<string, number>();
       parseNodeItems(targetNode).forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
@@ -1076,7 +1102,7 @@ const FactoryOrders = () => {
         }),
       });
     } catch (error) {
-      console.error('failed to load inbound/outbound data', error);
+      console.error('failed to load inbound data', error);
       setInOutData({ loading: false, summaryRows: [], detailRows: [] });
     }
   }, []);
@@ -1097,8 +1123,8 @@ const FactoryOrders = () => {
           message.error('加载工厂列表失败，请稍后重试');
         });
       setInOutData({ loading: false, summaryRows: [], detailRows: [] });
-    } else if (stage.key === 'inbound' || stage.key === 'outbound') {
-      void loadInOutData(record.orderId, stage.key);
+    } else if (stage.key === 'inbound') {
+      void loadInOutData(record.orderId);
       void loadFactoryOptions()
         .then((options) => setFactoryOptions(options))
         .catch(() => undefined);
@@ -1340,11 +1366,11 @@ const FactoryOrders = () => {
   const progressStageKey = progressActionModal.stage?.key;
   const isCuttingProgressStage = progressStageKey === 'cutting';
   const isWideProgressStage = progressStageKey === 'cutting' || progressStageKey === 'sewing';
-  const isInOutProgressStage = progressStageKey === 'inbound' || progressStageKey === 'outbound';
+  const isInOutProgressStage = progressStageKey === 'inbound';
   const inOutIsInbound = progressStageKey === 'inbound';
-  const inOutPendingLabel = inOutIsInbound ? '待收货' : '待出货';
-  const inOutDetailLabel = inOutIsInbound ? '收货明细' : '出货明细';
-  const inOutDoneLabel = inOutIsInbound ? '已收货' : '已出货';
+  const inOutPendingLabel = inOutIsInbound ? '待收货' : '待处理';
+  const inOutDetailLabel = inOutIsInbound ? '收货明细' : '处理明细';
+  const inOutDoneLabel = inOutIsInbound ? '已收货' : '已处理';
   const inOutStageStatus = String(progressActionModal.stage?.status ?? '').toLowerCase();
   const inOutStageCompleted = isInOutProgressStage
     && (
@@ -2006,6 +2032,7 @@ const FactoryOrders = () => {
     return (
       <>
         <List
+          className="factory-orders-card-list"
           rowKey="id"
           grid={{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}
           dataSource={cardOrders}
@@ -2115,41 +2142,24 @@ const FactoryOrders = () => {
                     <div className="factory-order-progress">
                     <div className="factory-order-progress-track">
                       {order.progress.map((stage, index) => {
-                        const status = stage.status ?? 'default';
-                        const isOrderPlaced = stage.key === 'order_placed';
-                        const normalizedStatus = String(status).toLowerCase();
-                        const stageBreakdown = parseAllocationCompletionValue(stage.value);
-                        const isOvercut = normalizedStatus === 'danger';
-                        const isPartial =
-                          !isOvercut && (
-                            normalizedStatus === 'warning'
-                            || (typeof stage.value === 'string' && stage.value.includes('部分完成'))
-                          );
-                        const isCompleted =
-                          isOrderPlaced ||
-                          (isOvercut && (stageBreakdown?.completedPercent ?? 0) >= 100) ||
-                          normalizedStatus === 'success' ||
-                          normalizedStatus === 'completed' ||
-                          (typeof stage.value === 'string' && stage.value.includes('已完成'));
-                        const isInProgress = !isCompleted && (isPartial || isOvercut);
-                        const progressStateClass = isOvercut ? 'overcut' : isCompleted ? 'completed' : isPartial ? 'partial' : 'pending';
+                        const {
+                          breakdown: stageBreakdown,
+                          isCompleted,
+                          isInProgress,
+                          isOrderPlaced,
+                          isOvercut,
+                          progressStateClass,
+                        } = resolveProgressStageState(stage);
                         const predecessorBlockedStage = order.progress
                           .slice(0, index)
                           .find((prev) => {
-                            if (prev.key === 'order_placed') {
-                              return false;
-                            }
-                            const prevStatus = String(prev.status ?? '').toLowerCase();
-                            return !(
-                              prevStatus === 'success' ||
-                              prevStatus === 'completed' ||
-                              (typeof prev.value === 'string' && prev.value.includes('已完成'))
-                            );
+                            const prevState = resolveProgressStageState(prev);
+                            return !prevState.isCompleted;
                           });
                         const predecessorBlockedName = predecessorBlockedStage
                           ? normalizeProgressLabel(predecessorBlockedStage)
                           : '';
-                        const alwaysViewable = stage.key === 'inbound' || stage.key === 'outbound';
+                        const alwaysViewable = stage.key === 'inbound';
                         const repeatOpen = stage.key === 'cutting'
                           || stage.key === 'sewing'
                           || stage.key === 'fabric_arrived'
@@ -2872,7 +2882,7 @@ const FactoryOrders = () => {
               ]}
             />
           ) : null}
-          {progressActionModal.stage?.key === 'inbound' || progressActionModal.stage?.key === 'outbound' ? (
+          {progressActionModal.stage?.key === 'inbound' ? (
             <>
               <Tabs
                 activeKey={inOutTabKey}

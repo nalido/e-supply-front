@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
-  Descriptions,
   Empty,
   Modal,
   Pagination,
   Skeleton,
   Space,
   Tag,
-  Table,
   Typography,
   message,
 } from 'antd';
@@ -26,6 +24,7 @@ import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 import { useNavigate } from 'react-router-dom';
+import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 
 const { Text } = Typography;
 
@@ -59,6 +58,14 @@ const CuttingCompletedPage = () => {
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
+
+  const navigateToFactoryOrder = (orderCode?: string) => {
+    const normalized = orderCode?.trim();
+    if (!normalized) {
+      return;
+    }
+    navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}`);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -189,7 +196,17 @@ const CuttingCompletedPage = () => {
                       </div>
                       <div className="cutting-task-meta">
                         <Space size={12} wrap>
-                          <span>订单号：{task.orderCode}</span>
+                          <span>
+                            订单号：
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingInline: 4 }}
+                              onClick={() => navigateToFactoryOrder(task.orderCode)}
+                            >
+                              {task.orderCode}
+                            </Button>
+                          </span>
                           <span>床次：{task.bedNumber || '-'}</span>
                           <span>
                             <CalendarOutlined style={{ marginRight: 4 }} />
@@ -297,187 +314,18 @@ const CuttingCompletedPage = () => {
         ) : null}
       </Modal>
 
-      <Modal
-        title={detailState.task ? `裁床任务详情 - ${detailState.task.orderCode}` : '裁床任务详情'}
+      <CuttingSheetDetailModal
         open={detailState.open}
-        footer={(
-          <Space>
-            <Button onClick={() => setDetailState({ open: false })}>关闭</Button>
-          </Space>
-        )}
-        onCancel={() => {
+        loading={detailLoading}
+        task={detailState.task}
+        detail={sheetDetail}
+        onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
         }}
-        width={1200}
-      >
-        {detailLoading ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
-        ) : detailState.task ? (
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="订单号">{detailState.task.orderCode}</Descriptions.Item>
-              <Descriptions.Item label="款号">{detailState.task.styleCode}</Descriptions.Item>
-              <Descriptions.Item label="款名">{detailState.task.styleName}</Descriptions.Item>
-              <Descriptions.Item label="客户">{detailState.task.customer || '-'}</Descriptions.Item>
-              <Descriptions.Item label="下单日期">{detailState.task.orderDate}</Descriptions.Item>
-              <Descriptions.Item label="计划排床">{detailState.task.scheduleDate || '-'}</Descriptions.Item>
-              <Descriptions.Item label="下单数量">
-                {detailState.task.orderedQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="已裁数量">
-                {detailState.task.cutQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="待裁数量">
-                {detailState.task.pendingQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="面料">{detailState.task.fabricSummary || '-'}</Descriptions.Item>
-              <Descriptions.Item label="裁床状态">{sheetDetail?.status ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="床次">{sheetDetail?.bedNumber ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="裁剪人ID">{sheetDetail?.cutterId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="计划用量">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="开裁实用">{sheetDetail?.startActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="实际用量">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超计划用量">{sheetDetail?.overUsedFabricQty ?? Math.max((sheetDetail?.completeActualFabricQty ?? 0) - (sheetDetail?.plannedFabricQty ?? 0), 0)}</Descriptions.Item>
-              <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
-              <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超用备注">{sheetDetail?.usageRemark ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁数量">{Math.max((sheetDetail?.completedQty ?? 0) - (sheetDetail?.plannedQty ?? 0), 0) || '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁原因">{sheetDetail?.overCutReasonText ?? sheetDetail?.overCutReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁备注">{sheetDetail?.overCutRemark ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="订单备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
-            </Descriptions>
-            {sheetDetail ? (
-              <>
-                <Card title="床次信息" size="small">
-                  {sheetDetail.bedRecords && sheetDetail.bedRecords.length > 0 ? (
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      {sheetDetail.bedRecords.map((record, index) => {
-                        const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
-                          if (!matrix[item.color]) {
-                            matrix[item.color] = {};
-                          }
-                          matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
-                          return matrix;
-                        }, {});
-                        const matrixColors = Array.from(new Set([
-                          ...sheetDetail.rows.map((row) => row.color),
-                          ...record.items.map((item) => item.color),
-                        ]));
-                        const matrixSizes = Array.from(new Set([
-                          ...sheetDetail.sizes,
-                          ...record.items.map((item) => item.size),
-                        ]));
-                        return (
-                          <Card
-                            key={`${record.bedNumber}-${record.recordedAt ?? index}`}
-                            size="small"
-                            title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
-                            extra={<Text type="secondary">{record.recordedAt ?? '-'}</Text>}
-                          >
-                            <div style={{ marginBottom: 8 }}>
-                              <Text type="secondary">
-                                床次实用：
-                                {typeof record.actualFabricQty === 'number'
-                                  ? `${record.actualFabricQty}${sheetDetail.materialUnit ?? ''}`
-                                  : '-'}
-                              </Text>
-                            </div>
-                            <div className="factory-create-matrix-wrap">
-                              <table className="factory-create-matrix-table">
-                                <thead>
-                                  <tr>
-                                    <th>颜色</th>
-                                    {matrixSizes.map((size) => (
-                                      <th key={`${record.bedNumber}-head-${size}`}>{size}</th>
-                                    ))}
-                                    <th>小计</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {matrixColors.map((color) => {
-                                    const rowTotal = matrixSizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
-                                    return (
-                                      <tr key={`${record.bedNumber}-row-${color}`}>
-                                        <td>{color}</td>
-                                        {matrixSizes.map((size) => (
-                                          <td key={`${record.bedNumber}-${color}-${size}`}>{recordMatrix[color]?.[size] ?? 0}</td>
-                                        ))}
-                                        <td>{rowTotal}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </Space>
-                  ) : (
-                    <Text type="secondary">暂无床次裁剪数据</Text>
-                  )}
-                </Card>
-                <Table
-                  rowKey={(row) => row.color}
-                  bordered
-                  pagination={false}
-                  dataSource={sheetDetail.rows}
-                  columns={[
-                    { title: '颜色', dataIndex: 'color', width: 120, fixed: 'left' },
-                    ...sheetDetail.sizes.map((size) => ({
-                      title: size,
-                      dataIndex: 'cells',
-                      width: 120,
-                      render: (_value: unknown, row: CuttingSheetDetail['rows'][number]) => {
-                        const cell = row.cells.find((item) => item.size === size);
-                        if (!cell) return '0/0';
-                        return `${cell.completedQty}/${cell.orderedQty}`;
-                      },
-                    })),
-                    { title: '小计', width: 140, render: (_value: unknown, row: CuttingSheetDetail['rows'][number]) => `${row.completedSubtotal}/${row.orderedSubtotal}` },
-                  ]}
-                  scroll={{ x: 720 }}
-                />
-                <Card title="库存单据" size="small">
-                  <Table
-                    rowKey={(row) => `${row.documentCategory}-${row.documentId}`}
-                    bordered
-                    pagination={false}
-                    dataSource={sheetDetail.materialDocuments ?? []}
-                    locale={{ emptyText: '暂无关联领退料单据' }}
-                    columns={[
-                      { title: '单据类型', dataIndex: 'documentTypeLabel', width: 120 },
-                      { title: '单据号', dataIndex: 'documentNo', width: 180 },
-                      { title: '数量', dataIndex: 'quantity', width: 120, render: (v: number) => v.toLocaleString() },
-                      { title: '时间', dataIndex: 'issuedAt', width: 180, render: (v?: string) => v ?? '-' },
-                      {
-                        title: '操作',
-                        width: 120,
-                        render: (_value: unknown, row: NonNullable<CuttingSheetDetail['materialDocuments']>[number]) => (
-                          <Button
-                            type="link"
-                            onClick={() => {
-                              if (row.documentCategory === 'ISSUE') {
-                                navigate(`/material/issue?keyword=${encodeURIComponent(row.documentNo)}`);
-                                return;
-                              }
-                              navigate(`/material/report/overview?keyword=${encodeURIComponent(sheetDetail.materialCode ?? '')}`);
-                            }}
-                          >
-                            查看并跳转
-                          </Button>
-                        ),
-                      },
-                    ]}
-                  />
-                </Card>
-              </>
-            ) : null}
-          </Space>
-        ) : null}
-      </Modal>
+        onNavigateToFactoryOrder={navigateToFactoryOrder}
+        onNavigate={navigate}
+      />
     </div>
   );
 };

@@ -43,6 +43,7 @@ import type { MaterialStockListItem } from '../types/material-stock';
 import type { StyleMaterialData } from '../types/style';
 import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
+import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 
 const { Text, Title } = Typography;
 
@@ -272,7 +273,6 @@ const CuttingPendingPage = () => {
   const [completeQtyMap, setCompleteQtyMap] = useState<Record<string, number>>({});
   const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number>>({});
   const [startForm] = Form.useForm();
-  const [completeForm] = Form.useForm();
   const [completeReasonForm] = Form.useForm();
   const [bedRecordForm] = Form.useForm();
   const [warehouseOptions, setWarehouseOptions] = useState<Array<{ label: string; value: number }>>([]);
@@ -283,13 +283,17 @@ const CuttingPendingPage = () => {
   const [warehouseLoading, setWarehouseLoading] = useState(false);
   const [materialLoading, setMaterialLoading] = useState(false);
   const [cutterLoading, setCutterLoading] = useState(false);
-  const completeActualFabricQty = Form.useWatch('actualFabricQty', completeForm);
-  const completeUsageReasonCode = Form.useWatch('usageReasonCode', completeReasonForm);
-  const completeOverCutReasonCode = Form.useWatch('overCutReasonCode', completeReasonForm);
   const startWarehouseId = Form.useWatch('warehouseId', startForm);
   const startMaterialId = Form.useWatch('materialId', startForm);
   const startPlannedFabricQty = Form.useWatch('plannedFabricQty', startForm);
-  const completeVariance = getCuttingVarianceSummary(sheetDetail, Number(completeActualFabricQty ?? 0));
+  const completeDisplayActualFabricQty =
+    sumBedRecordFabricQty(sheetDetail)
+    ?? sheetDetail?.completeActualFabricQty
+    ?? sheetDetail?.startActualFabricQty;
+  const completeVariance = getCuttingVarianceSummary(
+    sheetDetail,
+    completeDisplayActualFabricQty == null ? undefined : Number(completeDisplayActualFabricQty),
+  );
   const completeIsOverPlan = completeVariance.overQty > 0;
   const completeTargetQty = Object.values(completeQtyMap).reduce((sum, qty) => sum + Math.max(0, Math.round(Number(qty) || 0)), 0);
   const completePlannedQty = Number(sheetDetail?.plannedQty ?? completeState.task?.orderedQuantity ?? 0);
@@ -300,59 +304,38 @@ const CuttingPendingPage = () => {
   const selectedStartMaterial =
     materialOptions.find((option) => option.value === Number(startMaterialId));
 
+  const navigateToFactoryOrder = (orderCode?: string) => {
+    const normalized = orderCode?.trim();
+    if (!normalized) {
+      return;
+    }
+    navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}`);
+  };
+
   const closeCompleteModal = () => {
-    completeForm.resetFields();
     completeReasonForm.resetFields();
     setCompleteQtyMap({});
     setCompleteReasonState({ open: false });
     setCompleteState({ open: false, submitting: false });
   };
 
-  const buildCompletionItems = () => Object.entries(completeQtyMap)
-    .map(([key, quantity]) => {
-      const [color, size] = key.split('::');
-      return { color, size, quantity: Math.max(0, Math.round(Number(quantity) || 0)) };
-    })
-    .filter((item) => item.quantity > 0);
-
-  const submitCompleteSheet = async (
-    actualFabricQty: number,
-    reasonValues?: {
-      usageReasonCode?: string;
-      usageReasonText?: string;
-      usageRemark?: string;
-      overCutReasonCode?: string;
-      overCutReasonText?: string;
-      overCutRemark?: string;
-    },
-  ) => {
+  const submitCompleteSheet = async (reasonValues?: {
+    usageReasonCode?: string;
+    usageRemark?: string;
+    overCutReasonCode?: string;
+    overCutRemark?: string;
+  }) => {
     if (!completeState.task?.workOrderId) {
       return;
     }
 
-    const items = buildCompletionItems();
-    if (items.length === 0) {
-      message.warning('请至少填写一个颜色尺码的实裁数量');
-      return;
-    }
-
-    const variance = getCuttingVarianceSummary(sheetDetail, Number(actualFabricQty));
-    const isOverPlan = variance.overQty > 0;
-    const targetQty = items.reduce((sum, item) => sum + item.quantity, 0);
-    const plannedQty = Number(sheetDetail?.plannedQty ?? completeState.task?.orderedQuantity ?? 0);
-    const isOverCut = targetQty > plannedQty;
-
     setCompleteState((prev) => ({ ...prev, submitting: true }));
     try {
       await pieceworkService.completeCuttingSheet(completeState.task.workOrderId, {
-        actualFabricQty,
-        usageReasonCode: isOverPlan ? reasonValues?.usageReasonCode : undefined,
-        usageReasonText: isOverPlan ? reasonValues?.usageReasonText : undefined,
-        usageRemark: isOverPlan ? reasonValues?.usageReasonText : undefined,
-        overCutReasonCode: isOverCut ? reasonValues?.overCutReasonCode : undefined,
-        overCutReasonText: isOverCut ? reasonValues?.overCutReasonText : undefined,
-        overCutRemark: isOverCut ? reasonValues?.overCutReasonText : undefined,
-        items,
+        usageReasonCode: completeIsOverPlan ? reasonValues?.usageReasonCode : undefined,
+        usageRemark: completeIsOverPlan ? reasonValues?.usageRemark : undefined,
+        overCutReasonCode: completeIsOverCut ? reasonValues?.overCutReasonCode : undefined,
+        overCutRemark: completeIsOverCut ? reasonValues?.overCutRemark : undefined,
       });
       message.success('裁床单已完成，已转入已裁');
       completeReasonForm.resetFields();
@@ -592,38 +575,21 @@ const CuttingPendingPage = () => {
       return;
     }
     try {
-      const values = await completeForm.validateFields();
-      const items = buildCompletionItems();
-      if (items.length === 0) {
-        message.warning('请至少填写一个颜色尺码的实裁数量');
-        return;
-      }
-      const variance = getCuttingVarianceSummary(sheetDetail, Number(values.actualFabricQty));
-      const isOverPlan = variance.overQty > 0;
-      const targetQty = items.reduce((sum, item) => sum + item.quantity, 0);
-      const plannedQty = Number(sheetDetail?.plannedQty ?? completeState.task?.orderedQuantity ?? 0);
-      const isOverCut = targetQty > plannedQty;
-
-      if (isOverPlan || isOverCut) {
+      if (completeIsOverPlan || completeIsOverCut) {
         setCompleteReasonState({ open: true });
         return;
       }
-
-      await submitCompleteSheet(values.actualFabricQty);
+      await submitCompleteSheet();
     } catch (error) {
-      if (error && typeof error === 'object' && 'errorFields' in error) {
-        return;
-      }
-      console.error('failed to prepare complete cutting sheet', error);
-      message.error('校验完工信息失败');
+      console.error('failed to complete cutting sheet', error);
+      message.error(error instanceof Error ? error.message : '完成失败');
     }
   };
 
   const handleSubmitCompleteReason = async () => {
     try {
-      const values = await completeForm.validateFields();
       const reasonValues = await completeReasonForm.validateFields();
-      await submitCompleteSheet(values.actualFabricQty, reasonValues);
+      await submitCompleteSheet(reasonValues);
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) {
         return;
@@ -711,7 +677,7 @@ const CuttingPendingPage = () => {
     }
     setCompleteState({ open: true, task, submitting: false });
     setCompleteReasonState({ open: false });
-    completeForm.setFieldsValue({ actualFabricQty: undefined });
+    completeReasonForm.resetFields();
     try {
       const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
       setSheetDetail(detail);
@@ -732,16 +698,12 @@ const CuttingPendingPage = () => {
             : Math.max(0, Number(cell.completedQty ?? 0));
         });
       });
-      const totalBedFabricQty = sumBedRecordFabricQty(detail);
       setCompleteQtyMap(defaultQtyMap);
-      completeForm.setFieldsValue({
-        actualFabricQty: totalBedFabricQty ?? detail.completeActualFabricQty ?? detail.startActualFabricQty ?? undefined,
-      });
       completeReasonForm.setFieldsValue({
         usageReasonCode: detail.usageReasonCode ?? undefined,
-        usageReasonText: detail.usageReasonText ?? detail.usageRemark ?? undefined,
+        usageRemark: detail.usageRemark ?? undefined,
         overCutReasonCode: detail.overCutReasonCode ?? undefined,
-        overCutReasonText: detail.overCutReasonText ?? detail.overCutRemark ?? undefined,
+        overCutRemark: detail.overCutRemark ?? undefined,
       });
     } catch (error) {
       console.error('failed to load cutting sheet detail for complete', error);
@@ -832,7 +794,17 @@ const CuttingPendingPage = () => {
                       </div>
                       <div className="cutting-task-meta">
                         <Space size={12} wrap>
-                          <span>订单号：{task.orderCode}</span>
+                          <span>
+                            订单号：
+                            <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingInline: 4 }}
+                              onClick={() => navigateToFactoryOrder(task.orderCode)}
+                            >
+                              {task.orderCode}
+                            </Button>
+                          </span>
                           <span>床次：{task.bedNumber || '-'}</span>
                           <span>
                             <CalendarOutlined style={{ marginRight: 4 }} />
@@ -872,7 +844,7 @@ const CuttingPendingPage = () => {
                         ) : null}
                         {task.pendingQuantity <= 0 ? (
                           <Tag color="success" bordered={false}>
-                            已完成
+                            已裁满
                           </Tag>
                         ) : null}
                       </div>
@@ -1002,229 +974,37 @@ const CuttingPendingPage = () => {
         ) : null}
       </Modal>
 
-      <Modal
-        title={detailState.task ? `裁床任务详情 - ${detailState.task.orderCode}` : '裁床任务详情'}
+      <CuttingSheetDetailModal
         open={detailState.open}
-        onCancel={() => {
+        loading={detailLoading}
+        task={detailState.task}
+        detail={sheetDetail}
+        onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
         }}
-        width={1200}
-        footer={(
-          <Space>
-            {sheetDetail?.status === 'IN_PROGRESS' ? (
-              <Button
-                type="primary"
-                onClick={() => {
-                  if (!detailState.task) {
-                    return;
-                  }
-                  void openCompleteModal(detailState.task);
-                }}
-              >
-                完成
-              </Button>
-            ) : null}
-            {sheetDetail?.status === 'IN_PROGRESS' ? (
-              <Button
-                onClick={() => {
-                  if (!detailState.task) {
-                    return;
-                  }
-                  void openBedRecordModal(detailState.task);
-                }}
-              >
-                手动录入床次
-              </Button>
-            ) : null}
-            {sheetDetail?.status === 'NOT_STARTED' ? (
-              <Button
-                type="primary"
-                onClick={() => {
-                  if (!detailState.task) {
-                    return;
-                  }
-                  void openStartModal(detailState.task, {
-                    bedNumber: sheetDetail.bedNumber ?? `BED-${detailState.task?.orderCode ?? ''}`,
-                    cutterId: sheetDetail.cutterId,
-                    plannedFabricQty: sheetDetail.plannedFabricQty,
-                  });
-                }}
-              >
-                配布开裁
-              </Button>
-            ) : null}
-            <Button onClick={() => setDetailState({ open: false })}>关闭</Button>
-          </Space>
-        )}
-      >
-        {detailLoading ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
-        ) : detailState.task ? (
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="订单号">{detailState.task.orderCode}</Descriptions.Item>
-              <Descriptions.Item label="款号">{detailState.task.styleCode}</Descriptions.Item>
-              <Descriptions.Item label="款名">{detailState.task.styleName}</Descriptions.Item>
-              <Descriptions.Item label="客户">{detailState.task.customer || '-'}</Descriptions.Item>
-              <Descriptions.Item label="下单日期">{detailState.task.orderDate}</Descriptions.Item>
-              <Descriptions.Item label="计划排床">{detailState.task.scheduleDate || '-'}</Descriptions.Item>
-              <Descriptions.Item label="下单数量">
-                {detailState.task.orderedQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="已裁数量">
-                {detailState.task.cutQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="待裁数量">
-                {detailState.task.pendingQuantity.toLocaleString()} {detailState.task.unit}
-              </Descriptions.Item>
-              <Descriptions.Item label="面料">{detailState.task.fabricSummary || '-'}</Descriptions.Item>
-              <Descriptions.Item label="裁床状态">{sheetDetail?.status ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="床次">{sheetDetail?.bedNumber ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="裁剪人ID">{sheetDetail?.cutterId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="计划用量">{sheetDetail?.plannedFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="开裁实用">{sheetDetail?.startActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="实际用量">{sheetDetail?.completeActualFabricQty ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超计划用量">{sheetDetail?.overUsedFabricQty ?? Math.max((sheetDetail?.completeActualFabricQty ?? 0) - (sheetDetail?.plannedFabricQty ?? 0), 0)}</Descriptions.Item>
-              <Descriptions.Item label="节约回退量">{sheetDetail?.returnedFabricQty ?? Math.max((sheetDetail?.plannedFabricQty ?? 0) - (sheetDetail?.completeActualFabricQty ?? 0), 0)}</Descriptions.Item>
-              <Descriptions.Item label="差异类型">{sheetDetail?.fabricUsageVarianceType ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超用原因">{sheetDetail?.usageReasonText ?? sheetDetail?.usageReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超用备注">{sheetDetail?.usageRemark ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁数量">{Math.max((sheetDetail?.completedQty ?? 0) - (sheetDetail?.plannedQty ?? 0), 0) || '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁原因">{sheetDetail?.overCutReasonText ?? sheetDetail?.overCutReasonCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="超裁备注">{sheetDetail?.overCutRemark ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="订单备注" span={2}>{detailState.task.remarks || '-'}</Descriptions.Item>
-            </Descriptions>
-            {sheetDetail ? (
-              <>
-                <Card title="床次信息" size="small">
-                  {sheetDetail.bedRecords && sheetDetail.bedRecords.length > 0 ? (
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      {sheetDetail.bedRecords.map((record, index) => {
-                        const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
-                          if (!matrix[item.color]) {
-                            matrix[item.color] = {};
-                          }
-                          matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
-                          return matrix;
-                        }, {});
-                        const matrixColors = Array.from(new Set([
-                          ...sheetDetail.rows.map((row) => row.color),
-                          ...record.items.map((item) => item.color),
-                        ]));
-                        const matrixSizes = Array.from(new Set([
-                          ...sheetDetail.sizes,
-                          ...record.items.map((item) => item.size),
-                        ]));
-                        return (
-                          <Card
-                            key={`${record.bedNumber}-${record.recordedAt ?? index}`}
-                            size="small"
-                            title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
-                            extra={<Text type="secondary">{record.recordedAt ?? '-'}</Text>}
-                          >
-                            <div style={{ marginBottom: 8 }}>
-                              <Text type="secondary">
-                                床次实用：
-                                {typeof record.actualFabricQty === 'number'
-                                  ? `${record.actualFabricQty}${sheetDetail.materialUnit ?? ''}`
-                                  : '-'}
-                              </Text>
-                            </div>
-                            <div className="factory-create-matrix-wrap">
-                              <table className="factory-create-matrix-table">
-                                <thead>
-                                  <tr>
-                                    <th>颜色</th>
-                                    {matrixSizes.map((size) => (
-                                      <th key={`${record.bedNumber}-head-${size}`}>{size}</th>
-                                    ))}
-                                    <th>小计</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {matrixColors.map((color) => {
-                                    const rowTotal = matrixSizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
-                                    return (
-                                      <tr key={`${record.bedNumber}-row-${color}`}>
-                                        <td>{color}</td>
-                                        {matrixSizes.map((size) => (
-                                          <td key={`${record.bedNumber}-${color}-${size}`}>{recordMatrix[color]?.[size] ?? 0}</td>
-                                        ))}
-                                        <td>{rowTotal}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </Space>
-                  ) : (
-                    <Text type="secondary">暂无床次裁剪数据</Text>
-                  )}
-                </Card>
-                <Table
-                  rowKey={(row) => row.color}
-                  bordered
-                  pagination={false}
-                  dataSource={sheetDetail.rows}
-                  columns={[
-                    { title: '颜色', dataIndex: 'color', width: 120, fixed: 'left' },
-                    ...sheetDetail.sizes.map((size) => ({
-                      title: size,
-                      dataIndex: 'cells',
-                      width: 120,
-                      render: (_value: unknown, row: CuttingSheetDetail['rows'][number]) => {
-                        const cell = row.cells.find((item) => item.size === size);
-                        if (!cell) return '0/0';
-                        return `${cell.completedQty}/${cell.orderedQty}`;
-                      },
-                    })),
-                    { title: '小计', width: 140, render: (_value: unknown, row: CuttingSheetDetail['rows'][number]) => `${row.completedSubtotal}/${row.orderedSubtotal}` },
-                  ]}
-                  scroll={{ x: 720 }}
-                />
-                <Card title="库存单据" size="small">
-                  <Table
-                    rowKey={(row) => `${row.documentCategory}-${row.documentId}`}
-                    bordered
-                    pagination={false}
-                    dataSource={sheetDetail.materialDocuments ?? []}
-                    locale={{ emptyText: '暂无关联领退料单据' }}
-                    columns={[
-                      { title: '单据类型', dataIndex: 'documentTypeLabel', width: 120 },
-                      { title: '单据号', dataIndex: 'documentNo', width: 180 },
-                      { title: '数量', dataIndex: 'quantity', width: 120, render: (v: number) => v.toLocaleString() },
-                      { title: '时间', dataIndex: 'issuedAt', width: 180, render: (v?: string) => v ?? '-' },
-                      {
-                        title: '操作',
-                        width: 120,
-                        render: (_value: unknown, row: NonNullable<CuttingSheetDetail['materialDocuments']>[number]) => (
-                          <Button
-                            type="link"
-                            onClick={() => {
-                              if (row.documentCategory === 'ISSUE') {
-                                navigate(`/material/issue?keyword=${encodeURIComponent(row.documentNo)}`);
-                                return;
-                              }
-                              navigate(`/material/report/overview?keyword=${encodeURIComponent(sheetDetail.materialCode ?? '')}`);
-                            }}
-                          >
-                            查看并跳转
-                          </Button>
-                        ),
-                      },
-                    ]}
-                  />
-                </Card>
-              </>
-            ) : null}
-          </Space>
-        ) : null}
-      </Modal>
+        onNavigateToFactoryOrder={navigateToFactoryOrder}
+        onNavigate={navigate}
+        onComplete={sheetDetail?.status === 'IN_PROGRESS' && detailState.task
+          ? () => {
+              void openCompleteModal(detailState.task!);
+            }
+          : undefined}
+        onRecordBed={sheetDetail?.status === 'IN_PROGRESS' && detailState.task
+          ? () => {
+              void openBedRecordModal(detailState.task!);
+            }
+          : undefined}
+        onStart={sheetDetail?.status === 'NOT_STARTED' && detailState.task
+          ? () => {
+              void openStartModal(detailState.task!, {
+                bedNumber: sheetDetail?.bedNumber ?? `BED-${detailState.task?.orderCode ?? ''}`,
+                cutterId: sheetDetail?.cutterId,
+                plannedFabricQty: sheetDetail?.plannedFabricQty,
+              });
+            }
+          : undefined}
+      />
 
       <Modal
         open={startState.open}
@@ -1501,7 +1281,7 @@ const CuttingPendingPage = () => {
         onOk={handleSubmitComplete}
         confirmLoading={completeState.submitting}
       >
-        <Form form={completeForm} layout="vertical">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
           {sheetDetail ? (
             <Descriptions bordered size="small" column={1} style={{ marginBottom: 12 }}>
               <Descriptions.Item label="使用面料">
@@ -1521,12 +1301,65 @@ const CuttingPendingPage = () => {
               showIcon
               style={{ marginBottom: 12 }}
               message={`计划用量：${completeVariance.planQty}${sheetDetail.materialUnit ?? ''} ｜ 实际用量：${completeVariance.actualQty}${sheetDetail.materialUnit ?? ''} ｜ 计划件数：${completePlannedQty} ｜ 本次实裁件数：${completeTargetQty}`}
-              description={`${completeIsOverPlan ? `本次完工将超计划使用 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}，超用必须填写原因码、原因说明和备注。` : `当前用量差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。`} ${completeIsOverCut ? `本次将超裁 ${completeOverCutQty}${completeState.task?.unit ?? '件'}，必须单独填写超裁原因，不会自动扩张成品待入库。` : '未超裁时无需填写超裁原因。'}`}
+              description={`${completeIsOverPlan ? `当前完工用量高于计划 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}。` : `当前用量差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。`} ${completeIsOverCut ? `当前累计实裁超出计划 ${completeOverCutQty}${completeState.task?.unit ?? '件'}。` : '当前累计实裁未超计划。'}`}
             />
           ) : null}
-          <Form.Item label="面料实际使用数量（完成）" name="actualFabricQty" rules={[{ required: true, message: '请输入完成用料' }]}> 
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-          </Form.Item>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {[
+              {
+                label: '实际用量',
+                value: completeDisplayActualFabricQty == null ? '-' : `${completeDisplayActualFabricQty}${sheetDetail?.materialUnit ?? ''}`,
+                hint: '按已录床次汇总',
+              },
+              {
+                label: '计划用量',
+                value: `${completeVariance.planQty}${sheetDetail?.materialUnit ?? ''}`,
+                hint: '开裁时配置',
+              },
+              {
+                label: '实裁件数',
+                value: `${completeTargetQty}${completeState.task?.unit ?? '件'}`,
+                hint: '来自床次记录',
+              },
+              {
+                label: '差异结果',
+                value: completeIsOverPlan
+                  ? `超用 ${completeVariance.overQty}${sheetDetail?.materialUnit ?? ''}`
+                  : completeVariance.returnQty > 0
+                    ? `回退 ${completeVariance.returnQty}${sheetDetail?.materialUnit ?? ''}`
+                    : '刚好一致',
+                hint: completeIsOverCut
+                  ? `超裁 ${completeOverCutQty}${completeState.task?.unit ?? '件'}`
+                  : '未超裁',
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  border: '1px solid #f0f0f0',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  background: '#fafafa',
+                }}
+              >
+                <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                  {item.label}
+                </Text>
+                <Text strong style={{ display: 'block', fontSize: 18, lineHeight: 1.4 }}>
+                  {item.value}
+                </Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {item.hint}
+                </Text>
+              </div>
+            ))}
+          </div>
           {sheetDetail ? (
             <Table
               rowKey={(row) => row.color}
@@ -1547,18 +1380,7 @@ const CuttingPendingPage = () => {
                     return (
                       <Space direction="vertical" size={4} style={{ width: '100%' }}>
                         <Text type="secondary">下单 {cell.orderedQty}</Text>
-                        <InputNumber
-                          min={0}
-                          precision={0}
-                          style={{ width: '100%' }}
-                          value={completeQtyMap[key] ?? 0}
-                          onChange={(value) => {
-                            setCompleteQtyMap((prev) => ({
-                              ...prev,
-                              [key]: Math.max(0, Math.round(Number(value) || 0)),
-                            }));
-                          }}
-                        />
+                        <Text strong style={{ fontSize: 16 }}>{completeQtyMap[key] ?? 0}</Text>
                       </Space>
                     );
                   },
@@ -1577,7 +1399,7 @@ const CuttingPendingPage = () => {
               scroll={{ x: 900 }}
             />
           ) : null}
-        </Form>
+        </Space>
       </Modal>
 
       <Modal
@@ -1592,8 +1414,8 @@ const CuttingPendingPage = () => {
           <Alert
             type="warning"
             showIcon
-            message="检测到本次完工存在超用或超裁"
-            description={`${completeIsOverPlan ? `超用 ${completeVariance.overQty}${sheetDetail?.materialUnit ?? ''}` : ''}${completeIsOverPlan && completeIsOverCut ? '，' : ''}${completeIsOverCut ? `超裁 ${completeOverCutQty}${completeState.task?.unit ?? '件'}` : ''}，提交前必须补录原因和说明。`}
+            message="当前完工需要补录原因"
+            description={`${completeIsOverPlan ? `实际用量超计划 ${completeVariance.overQty}${sheetDetail?.materialUnit ?? ''}` : ''}${completeIsOverPlan && completeIsOverCut ? '，' : ''}${completeIsOverCut ? `实裁件数超计划 ${completeOverCutQty}${completeState.task?.unit ?? '件'}` : ''}。请填写原因后再提交。`}
           />
           <Form form={completeReasonForm} layout="vertical">
             {completeIsOverPlan ? (
@@ -1601,20 +1423,19 @@ const CuttingPendingPage = () => {
                 <Form.Item
                   label="超用原因"
                   name="usageReasonCode"
-                  rules={[{ required: true, message: '实际用量超计划时必须选择超用原因' }]}
+                  rules={[{ required: true, message: '请选择超用原因' }]}
                 >
-                  <Select allowClear options={OVER_USAGE_REASON_OPTIONS} placeholder="实际用量超计划时必选" />
+                  <Select
+                    allowClear
+                    options={OVER_USAGE_REASON_OPTIONS}
+                    placeholder="请选择超用原因"
+                  />
                 </Form.Item>
                 <Form.Item
-                  label="超用说明"
-                  name="usageReasonText"
-                  rules={[{
-                    validator: (_rule, value) => (typeof value === 'string' && value.trim()
-                      ? Promise.resolve()
-                      : Promise.reject(new Error('实际用量超计划时必须填写超用说明'))),
-                  }]}
+                  label="超用备注"
+                  name="usageRemark"
                 >
-                  <Input.TextArea rows={3} placeholder={completeUsageReasonCode ? '请补充超用背景、处理说明或业务确认信息' : '实际用量超计划时必填'} />
+                  <Input.TextArea rows={2} placeholder="可选，补充备注" />
                 </Form.Item>
               </>
             ) : null}
@@ -1623,20 +1444,19 @@ const CuttingPendingPage = () => {
                 <Form.Item
                   label="超裁原因"
                   name="overCutReasonCode"
-                  rules={[{ required: true, message: '实裁件数超计划时必须选择超裁原因' }]}
+                  rules={[{ required: true, message: '请选择超裁原因' }]}
                 >
-                  <Select allowClear options={OVER_CUT_REASON_OPTIONS} placeholder="实裁件数超计划时必选" />
+                  <Select
+                    allowClear
+                    options={OVER_CUT_REASON_OPTIONS}
+                    placeholder="请选择超裁原因"
+                  />
                 </Form.Item>
                 <Form.Item
-                  label="超裁说明"
-                  name="overCutReasonText"
-                  rules={[{
-                    validator: (_rule, value) => (typeof value === 'string' && value.trim()
-                      ? Promise.resolve()
-                      : Promise.reject(new Error('实裁件数超计划时必须填写超裁说明'))),
-                  }]}
+                  label="超裁备注"
+                  name="overCutRemark"
                 >
-                  <Input.TextArea rows={3} placeholder={completeOverCutReasonCode ? '请说明补裁背景、业务确认或返工原因' : '实裁件数超计划时必填'} />
+                  <Input.TextArea rows={2} placeholder="可选，补充备注" />
                 </Form.Item>
               </>
             ) : null}
