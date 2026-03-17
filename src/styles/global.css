@@ -76,6 +76,12 @@ a:hover { color: var(--oc-color-primary); }
   color: #f8fafc;
 }
 
+.oc-sider.ant-layout-sider-collapsed .oc-brand {
+  justify-content: center;
+  margin-inline: 10px;
+  padding-inline: 10px;
+}
+
 .oc-brand__logo {
   width: 40px;
   height: 40px;
@@ -87,6 +93,7 @@ a:hover { color: var(--oc-color-primary); }
 
 .oc-brand__title { font-size: 18px; font-weight: 700; letter-spacing: 0.04em; }
 .oc-brand__subtitle { color: rgba(226, 232, 240, 0.72); font-size: 12px; }
+.oc-brand__text.is-collapsed { display: none; }
 
 .oc-sider .ant-menu {
   margin: 10px 12px 20px !important;
@@ -124,6 +131,19 @@ a:hover { color: var(--oc-color-primary); }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.oc-topbar__toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #0f172a;
+  background: rgba(226, 232, 240, 0.6);
+}
+
+.oc-topbar__toggle:hover {
+  color: var(--oc-color-primary) !important;
+  background: rgba(191, 219, 254, 0.72) !important;
 }
 
 .oc-content.ant-layout-content { margin: 14px; }

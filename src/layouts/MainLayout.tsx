@@ -4,6 +4,7 @@ import { Layout, Menu, Breadcrumb, Space, Button } from 'antd'
 import type { MenuProps } from 'antd'
 import { Outlet, useLocation, Link } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 
 const { Header, Sider, Content } = Layout
@@ -36,6 +37,7 @@ const LABEL_MAP = buildLabelMap(menuTree)
 const MainLayout = () => {
   const location = useLocation()
   const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname))
+  const [collapsed, setCollapsed] = useState(false)
 
   const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), [])
 
@@ -73,10 +75,17 @@ const MainLayout = () => {
 
   return (
     <Layout className="oc-app-shell">
-      <Sider width={244} breakpoint="lg" collapsedWidth={72} className="oc-sider">
+      <Sider
+        width={244}
+        breakpoint="lg"
+        collapsedWidth={72}
+        collapsed={collapsed}
+        onCollapse={(value) => setCollapsed(value)}
+        className="oc-sider"
+      >
         <div className="oc-brand">
           <img src="/assets/images/logo.png" alt="易供云" className="oc-brand__logo" />
-          <div className="oc-brand__text">
+          <div className={`oc-brand__text${collapsed ? ' is-collapsed' : ''}`}>
             <div className="oc-brand__title">易供云</div>
             <div className="oc-brand__subtitle">供应链与生产协同平台</div>
           </div>
@@ -92,7 +101,16 @@ const MainLayout = () => {
       </Sider>
       <Layout className="oc-main">
         <Header className="oc-topbar">
-          <Breadcrumb items={breadcrumbItems} />
+          <Space size={12} align="center">
+            <Button
+              type="text"
+              className="oc-topbar__toggle"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed((prev) => !prev)}
+              aria-label={collapsed ? '展开左侧菜单' : '折叠左侧菜单'}
+            />
+            <Breadcrumb items={breadcrumbItems} />
+          </Space>
           <Space size={12}>
             <SignedOut>
               <SignInButton mode="modal">
