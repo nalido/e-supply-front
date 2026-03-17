@@ -16,7 +16,7 @@ const { Text } = Typography;
 const initialDataset: CuttingReportDataset = {
   list: [],
   total: 0,
-  summary: { cuttingQuantity: 0, ticketQuantity: 0 },
+  summary: { cuttingQuantity: 0, ticketQuantity: 0, overCutQuantity: 0, overCutSheets: 0 },
   page: 1,
   pageSize: 10,
 };
@@ -167,27 +167,42 @@ const CuttingReportPage = () => {
     { title: '款号', dataIndex: 'styleCode', width: 120 },
     { title: '款名', dataIndex: 'styleName', width: 180 },
     {
-      title: '订单备注',
-      dataIndex: 'orderRemark',
-      width: 200,
-      ellipsis: true,
-      render: (value?: string) => value ?? '-',
-    },
-    {
       title: '订单数量',
       dataIndex: 'orderQuantity',
       width: 120,
       align: 'right',
       render: (value: number) => `${toNumber(value)} 件`,
     },
+    {
+      title: '裁床计划',
+      dataIndex: 'plannedQuantity',
+      width: 120,
+      align: 'right',
+      render: (value: number) => `${toNumber(value)} 件`,
+    },
     { title: '床次', dataIndex: 'bedNumber', width: 100 },
     {
-      title: '裁床备注',
-      dataIndex: 'cuttingRemark',
-      width: 200,
-      ellipsis: true,
-      render: (value?: string) => value ?? '-',
+      title: '裁床数量',
+      dataIndex: 'cuttingQuantity',
+      width: 120,
+      align: 'right',
+      render: (value: number) => `${toNumber(value)} 件`,
     },
+    {
+      title: '超裁',
+      dataIndex: 'overCutQuantity',
+      width: 120,
+      align: 'right',
+      render: (value: number) => (value > 0 ? <Tag color="error">+{toNumber(value)} 件</Tag> : '-'),
+    },
+    {
+      title: '菲票数量',
+      dataIndex: 'ticketQuantity',
+      width: 120,
+      align: 'right',
+      render: (value: number) => `${toNumber(value)} 张`,
+    },
+    { title: '裁剪人', dataIndex: 'cutter', width: 120 },
     {
       title: '颜色明细',
       dataIndex: 'colorDetails',
@@ -217,20 +232,19 @@ const CuttingReportPage = () => {
       ),
     },
     {
-      title: '裁床数量',
-      dataIndex: 'cuttingQuantity',
-      width: 120,
-      align: 'right',
-      render: (value: number) => `${toNumber(value)} 件`,
+      title: '订单备注',
+      dataIndex: 'orderRemark',
+      width: 200,
+      ellipsis: true,
+      render: (value?: string) => value ?? '-',
     },
     {
-      title: '菲票数量',
-      dataIndex: 'ticketQuantity',
-      width: 120,
-      align: 'right',
-      render: (value: number) => `${toNumber(value)} 张`,
+      title: '裁床备注',
+      dataIndex: 'cuttingRemark',
+      width: 200,
+      ellipsis: true,
+      render: (value?: string) => value ?? '-',
     },
-    { title: '裁剪人', dataIndex: 'cutter', width: 120 },
     {
       title: '操作',
       dataIndex: 'actions',
@@ -350,21 +364,28 @@ const CuttingReportPage = () => {
               setPageSize(nextSize ?? pageSize);
             },
           }}
-          scroll={{ x: 1600 }}
+          scroll={{ x: 1720 }}
           summary={() => (
             <Table.Summary fixed>
               <Table.Summary.Row>
-                <Table.Summary.Cell index={0} colSpan={12}>
+                <Table.Summary.Cell index={0} colSpan={13}>
                   <Text strong>合计</Text>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={12} align="right">
+                <Table.Summary.Cell index={13} align="right">
                   <Text>{`${toNumber(dataset.summary.cuttingQuantity)} 件`}</Text>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={13} align="right">
+                <Table.Summary.Cell index={14} align="right">
+                  <Text type={dataset.summary.overCutQuantity > 0 ? 'danger' : undefined}>
+                    {dataset.summary.overCutQuantity > 0
+                      ? `+${toNumber(dataset.summary.overCutQuantity)} 件 / ${toNumber(dataset.summary.overCutSheets)} 单`
+                      : '-'}
+                  </Text>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={15} align="right">
                   <Text>{`${toNumber(dataset.summary.ticketQuantity)} 张`}</Text>
                 </Table.Summary.Cell>
-                <Table.Summary.Cell index={14} />
-                <Table.Summary.Cell index={15} />
+                <Table.Summary.Cell index={16} />
+                <Table.Summary.Cell index={17} />
               </Table.Summary.Row>
             </Table.Summary>
           )}
@@ -385,10 +406,14 @@ const CuttingReportPage = () => {
               <Descriptions.Item label="订单号">{detailRecord.orderCode}</Descriptions.Item>
               <Descriptions.Item label="款号">{detailRecord.styleCode}</Descriptions.Item>
               <Descriptions.Item label="款名">{detailRecord.styleName}</Descriptions.Item>
+              <Descriptions.Item label="裁床计划">{toNumber(detailRecord.plannedQuantity)} 件</Descriptions.Item>
               <Descriptions.Item label="床次">{detailRecord.bedNumber}</Descriptions.Item>
               <Descriptions.Item label="裁剪人">{detailRecord.cutter}</Descriptions.Item>
               <Descriptions.Item label="订单数量">{toNumber(detailRecord.orderQuantity)} 件</Descriptions.Item>
               <Descriptions.Item label="裁床数量">{toNumber(detailRecord.cuttingQuantity)} 件</Descriptions.Item>
+              <Descriptions.Item label="超裁数量">
+                {detailRecord.overCutQuantity > 0 ? `+${toNumber(detailRecord.overCutQuantity)} 件` : '-'}
+              </Descriptions.Item>
               <Descriptions.Item label="菲票数量">{toNumber(detailRecord.ticketQuantity)} 张</Descriptions.Item>
               <Descriptions.Item label="订单备注">{detailRecord.orderRemark ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="裁床备注" span={2}>{detailRecord.cuttingRemark ?? '-'}</Descriptions.Item>

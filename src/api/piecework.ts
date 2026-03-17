@@ -412,7 +412,7 @@ const adaptCuttingDataset = (payload: CuttingDatasetPayload): CuttingTaskDataset
 const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset => ({
   list: payload.list ?? [],
   total: payload.total ?? 0,
-  summary: payload.summary ?? { cuttingQuantity: 0, ticketQuantity: 0 },
+  summary: payload.summary ?? { cuttingQuantity: 0, ticketQuantity: 0, overCutQuantity: 0, overCutSheets: 0 },
   page: payload.page ?? 1,
   pageSize: payload.pageSize ?? (payload.list?.length ?? 0),
 });

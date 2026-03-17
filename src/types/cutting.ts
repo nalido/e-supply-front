@@ -134,12 +134,14 @@ export type CuttingReportRecord = {
   styleName: string;
   orderRemark?: string;
   orderQuantity: number;
+  plannedQuantity: number;
   bedNumber: string;
   cuttingRemark?: string;
   colorDetails: CuttingReportColorDetail[];
   sizeDetails: CuttingReportSizeDetail[];
   cuttingQuantity: number;
   ticketQuantity: number;
+  overCutQuantity: number;
   cutter: string;
   thumbnail: string;
 };
@@ -147,6 +149,8 @@ export type CuttingReportRecord = {
 export type CuttingReportSummary = {
   cuttingQuantity: number;
   ticketQuantity: number;
+  overCutQuantity: number;
+  overCutSheets: number;
 };
 
 export type CuttingReportDataset = {

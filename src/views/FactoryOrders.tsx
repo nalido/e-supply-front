@@ -1502,6 +1502,7 @@ const FactoryOrders = () => {
       setCreateSubmitting(true);
       await factoryOrdersApi.createOrder({
         orderNo: values.orderNo,
+        sourceSampleOrderId: pendingSampleProduceContext?.sampleOrderId,
         styleId: values.styleId,
         totalQuantity,
         unitPrice: values.unitPrice,

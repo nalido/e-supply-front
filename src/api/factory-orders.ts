@@ -128,6 +128,7 @@ export type FactoryOrderDetail = {
 
 export type FactoryOrderCreatePayload = {
   orderNo?: string;
+  sourceSampleOrderId?: string | number;
   styleId: number;
   totalQuantity?: number;
   unitPrice?: number;
@@ -578,6 +579,7 @@ export const factoryOrdersApi = {
     await http.post('/api/v1/production-orders', {
       tenantId,
       orderNo: payload.orderNo?.trim() || undefined,
+      sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
       styleId: Number(payload.styleId),
       expectedDelivery: payload.expectedDelivery,
       status: payload.status,
