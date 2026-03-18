@@ -135,6 +135,10 @@ type ProgressStatRow = {
   cuttingQty: number;
   sewingQty: number;
 };
+type ProgressNodeQuantitySnapshot = {
+  cuttingCompletedQty?: number;
+  sewingAllocatedQty?: number;
+};
 type AllocationQuantityMatrix = Record<string, Record<string, number>>;
 type AllocationHistoryRow = {
   key: string;
@@ -299,6 +303,43 @@ const normalizeQtyValue = (value?: number | null) => {
   return Math.floor(parsed);
 };
 
+const normalizeNonNegativeNumber = (value: unknown): number | undefined => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+};
+
+const parseProgressNodePayload = (node?: FactoryOrderProgressNode) => {
+  if (!node?.payloadJson) {
+    return {};
+  }
+  try {
+    const payload = JSON.parse(node.payloadJson) as {
+      orderedQuantity?: unknown;
+      allocatedQuantity?: unknown;
+      completedQuantity?: unknown;
+    };
+    return {
+      orderedQuantity: normalizeNonNegativeNumber(payload.orderedQuantity),
+      allocatedQuantity: normalizeNonNegativeNumber(payload.allocatedQuantity),
+      completedQuantity: normalizeNonNegativeNumber(payload.completedQuantity),
+    };
+  } catch {
+    return {};
+  }
+};
+
+const formatProgressPercent = (current: number, total: number) => {
+  if (!(total > 0) || !(current >= 0)) {
+    return '0%';
+  }
+  const percent = (current / total) * 100;
+  const rounded = Math.round(percent * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded.toFixed(0)}%` : `${rounded.toFixed(1)}%`;
+};
+
 const buildCreateMatrix = (
   colors: string[],
   sizes: string[],
@@ -382,6 +423,7 @@ const FactoryOrders = () => {
     loading: false,
     rows: [],
   });
+  const [progressNodeQuantities, setProgressNodeQuantities] = useState<ProgressNodeQuantitySnapshot>({});
   const [allocationColors, setAllocationColors] = useState<string[]>([]);
   const [allocationSizes, setAllocationSizes] = useState<string[]>([]);
   const [allocationMatrix, setAllocationMatrix] = useState<AllocationQuantityMatrix>({});
@@ -835,6 +877,7 @@ const FactoryOrders = () => {
 
   const loadProgressStats = useCallback(async (orderId: string, stageKey: 'cutting' | 'sewing') => {
     setProgressStats({ loading: true, rows: [] });
+    setProgressNodeQuantities({});
     try {
       const shouldIncludeAllocation = (
         source: unknown,
@@ -884,6 +927,10 @@ const FactoryOrders = () => {
         factoryOrdersApi.getProgress(orderId),
         factoryOrdersApi.getDetail(orderId),
       ]);
+      const cuttingNode = nodes.find((item) => item.nodeCode === 'CUTTING');
+      const sewingNode = nodes.find((item) => item.nodeCode === 'SEWING');
+      const cuttingNodePayload = parseProgressNodePayload(cuttingNode);
+      const sewingNodePayload = parseProgressNodePayload(sewingNode);
       const stageNodeCode = stageKey === 'cutting' ? 'CUTTING' : 'SEWING';
       const stageNode = nodes.find((item) => item.nodeCode === stageNodeCode);
       const historyRows: AllocationHistoryRow[] = [];
@@ -961,7 +1008,7 @@ const FactoryOrders = () => {
         row.orderedQty += Number(line.orderedQty ?? 0);
       });
 
-      parseAllocationNodeItems(nodes.find((item) => item.nodeCode === 'CUTTING')).forEach((item) => {
+      parseAllocationNodeItems(cuttingNode).forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
         if (!specMap.has(key)) {
           specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0 });
@@ -969,7 +1016,7 @@ const FactoryOrders = () => {
         specMap.get(key)!.cuttingQty += item.quantity;
       });
 
-      parseAllocationNodeItems(nodes.find((item) => item.nodeCode === 'SEWING')).forEach((item) => {
+      parseAllocationNodeItems(sewingNode).forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
         if (!specMap.has(key)) {
           specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0 });
@@ -984,6 +1031,10 @@ const FactoryOrders = () => {
         return a.size.localeCompare(b.size, 'zh-CN');
       });
       setProgressStats({ loading: false, rows });
+      setProgressNodeQuantities({
+        cuttingCompletedQty: cuttingNodePayload.completedQuantity,
+        sewingAllocatedQty: sewingNodePayload.allocatedQuantity,
+      });
       const colors = Array.from(new Set(rows.map((row) => row.color)));
       const sizes = Array.from(new Set(rows.map((row) => row.size)));
       setAllocationColors(colors);
@@ -1000,6 +1051,7 @@ const FactoryOrders = () => {
     } catch (error) {
       console.error('failed to load progress stats', error);
       setProgressStats({ loading: false, rows: [] });
+      setProgressNodeQuantities({});
       setAllocationColors([]);
       setAllocationSizes([]);
       setAllocationMatrix({});
@@ -1117,6 +1169,7 @@ const FactoryOrders = () => {
         .catch(() => undefined);
     } else {
       setProgressStats({ loading: false, rows: [] });
+      setProgressNodeQuantities({});
       setAllocationColors([]);
       setAllocationSizes([]);
       setAllocationMatrix({});
@@ -1359,6 +1412,7 @@ const FactoryOrders = () => {
 
   const progressStageKey = progressActionModal.stage?.key;
   const isCuttingProgressStage = progressStageKey === 'cutting';
+  const isSewingProgressStage = progressStageKey === 'sewing';
   const isWideProgressStage = progressStageKey === 'cutting' || progressStageKey === 'sewing';
   const isInOutProgressStage = progressStageKey === 'inbound';
   const inOutIsInbound = progressStageKey === 'inbound';
@@ -1376,14 +1430,14 @@ const FactoryOrders = () => {
 
   const handleLoadRemainingAllocation = useCallback(() => {
     if (!allocationColors.length || !allocationSizes.length) {
-      message.warning('暂无可加载的颜色/尺码裁剪数据');
+      message.warning(isCuttingProgressStage ? '暂无可加载的颜色/尺码裁剪数据' : '暂无可加载的车缝可领取数据');
       return;
     }
-    const orderedMatrix = progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
+    const capacityMatrix = progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
       if (!matrix[row.color]) {
         matrix[row.color] = {};
       }
-      matrix[row.color][row.size] = row.orderedQty;
+      matrix[row.color][row.size] = isCuttingProgressStage ? row.orderedQty : row.cuttingQty;
       return matrix;
     }, {});
     const historyMatrix = allocationHistoryRows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
@@ -1395,21 +1449,35 @@ const FactoryOrders = () => {
       });
       return matrix;
     }, {});
-    setAllocationMatrix((prev) =>
-      allocationColors.reduce<AllocationQuantityMatrix>((matrix, color) => {
+    setAllocationMatrix((prev) => {
+      const globalRemaining = isCuttingProgressStage
+        ? Number.POSITIVE_INFINITY
+        : Math.max(
+          (progressNodeQuantities.cuttingCompletedQty ?? progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0))
+            - allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0),
+          0,
+        );
+      let distributableRemaining = globalRemaining;
+      return allocationColors.reduce<AllocationQuantityMatrix>((matrix, color) => {
         matrix[color] = allocationSizes.reduce<Record<string, number>>((row, size) => {
-          const ordered = orderedMatrix[color]?.[size] ?? 0;
+          const capacity = capacityMatrix[color]?.[size] ?? 0;
           const historyAllocated = historyMatrix[color]?.[size] ?? 0;
           const current = normalizeQtyValue(prev[color]?.[size]);
-          const remaining = Math.max(ordered - historyAllocated - current, 0);
-          row[size] = current + remaining;
+          const specRemaining = Math.max(capacity - historyAllocated - current, 0);
+          const loadable = isCuttingProgressStage
+            ? specRemaining
+            : Math.max(Math.min(specRemaining, distributableRemaining), 0);
+          row[size] = current + loadable;
+          if (!isCuttingProgressStage) {
+            distributableRemaining = Math.max(distributableRemaining - loadable, 0);
+          }
           return row;
         }, {});
         return matrix;
-      }, {}),
-    );
-    message.success('已加载剩余未录入数量');
-  }, [allocationColors, allocationHistoryRows, allocationSizes, progressStats.rows]);
+      }, {});
+    });
+    message.success(isCuttingProgressStage ? '已加载剩余未录入数量' : '已加载当前可继续领取数量');
+  }, [allocationColors, allocationHistoryRows, allocationSizes, isCuttingProgressStage, progressNodeQuantities.cuttingCompletedQty, progressStats.rows]);
 
   const handleOpenFactoryGuide = useCallback(() => {
     navigate('/basic/partners?type=factory');
@@ -1434,7 +1502,7 @@ const FactoryOrders = () => {
 
   const handleOpenAllocationCreate = useCallback(() => {
     if (!allocationColors.length || !allocationSizes.length) {
-      message.warning('暂无可录入的颜色/尺码数据');
+      message.warning(isCuttingProgressStage ? '暂无可录入的颜色/尺码数据' : '暂无可领取的颜色/尺码数据');
       return;
     }
     setAllocationMatrix(
@@ -1481,14 +1549,45 @@ const FactoryOrders = () => {
       ).filter((item) => item.quantity > 0);
       const totalAllocated = matrixItems.reduce((sum, item) => sum + item.quantity, 0);
       if (totalAllocated <= 0) {
-        message.warning('请在裁剪矩阵中填写大于 0 的数量');
+        message.warning(isCuttingProgressStage ? '请在裁剪矩阵中填写大于 0 的数量' : '请在领取矩阵中填写大于 0 的数量');
         return;
+      }
+      if (!isCuttingProgressStage) {
+        const currentCuttingCompletedTotal = progressNodeQuantities.cuttingCompletedQty
+          ?? progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0);
+        const currentAllocationRemainingTotal = Math.max(currentCuttingCompletedTotal - allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0), 0);
+        const rowMap = new Map(progressStats.rows.map((row) => [buildSpecKey(row.color, row.size), row]));
+        const historyMap = allocationHistoryRows.reduce<Map<string, number>>((map, row) => {
+          row.items.forEach((item) => {
+            const key = buildSpecKey(item.color, item.size);
+            map.set(key, (map.get(key) ?? 0) + item.quantity);
+          });
+          return map;
+        }, new Map<string, number>());
+        const exceededItem = matrixItems.find((item) => {
+          const color = normalizeSpecLabel(item.color);
+          const size = normalizeSpecLabel(item.size);
+          const row = rowMap.get(buildSpecKey(color, size));
+          const capacityQty = row?.cuttingQty ?? 0;
+          const historyAllocatedQty = historyMap.get(buildSpecKey(color, size)) ?? 0;
+          return item.quantity > Math.max(capacityQty - historyAllocatedQty, 0);
+        });
+        if (exceededItem) {
+          const color = normalizeSpecLabel(exceededItem.color);
+          const size = normalizeSpecLabel(exceededItem.size);
+          message.warning(`颜色 ${color} / 尺码 ${size} 的领取量超过当前可放量`);
+          return;
+        }
+        if (totalAllocated > currentAllocationRemainingTotal) {
+          message.warning(`本次最多还能领取 ${currentAllocationRemainingTotal}，当前填写为 ${totalAllocated}`);
+          return;
+        }
       }
       payload.items = matrixItems;
 
       setAllocationCreateSubmitting(true);
       await factoryOrdersApi.completeProgress(progressActionModal.order.orderId, nodeCode, { payload });
-      message.success('裁剪数据已提交');
+      message.success(isCuttingProgressStage ? '裁剪数据已提交' : '车缝领取已提交');
       setAllocationCreateModalOpen(false);
       allocationCreateForm.resetFields();
       await loadProgressStats(progressActionModal.order.orderId, progressActionModal.stage.key as 'cutting' | 'sewing');
@@ -1498,17 +1597,20 @@ const FactoryOrders = () => {
         return;
       }
       console.error('failed to submit allocation', error);
-      message.error(error instanceof Error ? error.message : '提交裁剪数据失败');
+      message.error(error instanceof Error ? error.message : (isCuttingProgressStage ? '提交裁剪数据失败' : '提交车缝领取失败'));
     } finally {
       setAllocationCreateSubmitting(false);
     }
   }, [
+    allocationHistoryRows,
     allocationColors,
     allocationCreateForm,
     allocationMatrix,
     allocationSizes,
     isCuttingProgressStage,
     loadProgressStats,
+    progressNodeQuantities.cuttingCompletedQty,
+    progressStats.rows,
     progressActionModal.order,
     progressActionModal.stage,
   ]);
@@ -1872,15 +1974,15 @@ const FactoryOrders = () => {
     () => Object.values(createColumnTotals).reduce((sum, value) => sum + value, 0),
     [createColumnTotals],
   );
-  const allocationOrderedMatrix = useMemo(
+  const allocationCapacityMatrix = useMemo(
     () => progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
       if (!matrix[row.color]) {
         matrix[row.color] = {};
       }
-      matrix[row.color][row.size] = row.orderedQty;
+      matrix[row.color][row.size] = isCuttingProgressStage ? row.orderedQty : row.cuttingQty;
       return matrix;
     }, {}),
-    [progressStats.rows],
+    [isCuttingProgressStage, progressStats.rows],
   );
   const allocationRowTotals = useMemo(
     () => allocationColors.reduce<Record<string, number>>((acc, color) => {
@@ -1900,8 +2002,16 @@ const FactoryOrders = () => {
     () => Object.values(allocationColumnTotals).reduce((sum, value) => sum + value, 0),
     [allocationColumnTotals],
   );
-  const allocationRequiredTotal = useMemo(
+  const orderedTotal = useMemo(
     () => progressStats.rows.reduce((sum, row) => sum + row.orderedQty, 0),
+    [progressStats.rows],
+  );
+  const cuttingCompletedTotalFromRows = useMemo(
+    () => progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0),
+    [progressStats.rows],
+  );
+  const sewingAllocatedTotalFromRows = useMemo(
+    () => progressStats.rows.reduce((sum, row) => sum + row.sewingQty, 0),
     [progressStats.rows],
   );
   const allocationDisplayColors = useMemo(() => {
@@ -1938,16 +2048,16 @@ const FactoryOrders = () => {
       }, {}),
     [progressActionModal.stage?.key, progressStats.rows],
   );
-  const statsOrderedMatrix = useMemo(
+  const statsCapacityMatrix = useMemo(
     () =>
       progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
         if (!matrix[row.color]) {
           matrix[row.color] = {};
         }
-        matrix[row.color][row.size] = row.orderedQty;
+        matrix[row.color][row.size] = isCuttingProgressStage ? row.orderedQty : row.cuttingQty;
         return matrix;
       }, {}),
-    [progressStats.rows],
+    [isCuttingProgressStage, progressStats.rows],
   );
   const statsDoneRowTotals = useMemo(
     () =>
@@ -1957,13 +2067,13 @@ const FactoryOrders = () => {
       }, {}),
     [statsDisplayColors, statsDisplaySizes, statsDoneMatrix],
   );
-  const statsOrderedRowTotals = useMemo(
+  const statsCapacityRowTotals = useMemo(
     () =>
       statsDisplayColors.reduce<Record<string, number>>((acc, color) => {
-        acc[color] = statsDisplaySizes.reduce((sum, size) => sum + (statsOrderedMatrix[color]?.[size] ?? 0), 0);
+        acc[color] = statsDisplaySizes.reduce((sum, size) => sum + (statsCapacityMatrix[color]?.[size] ?? 0), 0);
         return acc;
       }, {}),
-    [statsDisplayColors, statsDisplaySizes, statsOrderedMatrix],
+    [statsCapacityMatrix, statsDisplayColors, statsDisplaySizes],
   );
   const statsDoneColumnTotals = useMemo(
     () =>
@@ -1973,33 +2083,33 @@ const FactoryOrders = () => {
       }, {}),
     [statsDisplayColors, statsDisplaySizes, statsDoneMatrix],
   );
-  const statsOrderedColumnTotals = useMemo(
+  const statsCapacityColumnTotals = useMemo(
     () =>
       statsDisplaySizes.reduce<Record<string, number>>((acc, size) => {
-        acc[size] = statsDisplayColors.reduce((sum, color) => sum + (statsOrderedMatrix[color]?.[size] ?? 0), 0);
+        acc[size] = statsDisplayColors.reduce((sum, color) => sum + (statsCapacityMatrix[color]?.[size] ?? 0), 0);
         return acc;
       }, {}),
-    [statsDisplayColors, statsDisplaySizes, statsOrderedMatrix],
+    [statsCapacityMatrix, statsDisplayColors, statsDisplaySizes],
   );
   const statsDoneTotal = useMemo(
     () => Object.values(statsDoneColumnTotals).reduce((sum, value) => sum + value, 0),
     [statsDoneColumnTotals],
   );
-  const allocationOrderedRowTotals = useMemo(
+  const allocationCapacityRowTotals = useMemo(
     () =>
       allocationDisplayColors.reduce<Record<string, number>>((acc, color) => {
-        acc[color] = allocationDisplaySizes.reduce((sum, size) => sum + (allocationOrderedMatrix[color]?.[size] ?? 0), 0);
+        acc[color] = allocationDisplaySizes.reduce((sum, size) => sum + (allocationCapacityMatrix[color]?.[size] ?? 0), 0);
         return acc;
       }, {}),
-    [allocationDisplayColors, allocationDisplaySizes, allocationOrderedMatrix],
+    [allocationCapacityMatrix, allocationDisplayColors, allocationDisplaySizes],
   );
-  const allocationOrderedColumnTotals = useMemo(
+  const allocationCapacityColumnTotals = useMemo(
     () =>
       allocationDisplaySizes.reduce<Record<string, number>>((acc, size) => {
-        acc[size] = allocationDisplayColors.reduce((sum, color) => sum + (allocationOrderedMatrix[color]?.[size] ?? 0), 0);
+        acc[size] = allocationDisplayColors.reduce((sum, color) => sum + (allocationCapacityMatrix[color]?.[size] ?? 0), 0);
         return acc;
       }, {}),
-    [allocationDisplayColors, allocationDisplaySizes, allocationOrderedMatrix],
+    [allocationCapacityMatrix, allocationDisplayColors, allocationDisplaySizes],
   );
   const allocationHistoryMatrix = useMemo(
     () =>
@@ -2018,6 +2128,17 @@ const FactoryOrders = () => {
     () => allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0),
     [allocationHistoryRows],
   );
+  const cuttingCompletedTotal = progressNodeQuantities.cuttingCompletedQty ?? cuttingCompletedTotalFromRows;
+  const sewingAllocatedTotal = progressNodeQuantities.sewingAllocatedQty ?? sewingAllocatedTotalFromRows;
+  const allocationCapacityTotal = isCuttingProgressStage ? orderedTotal : cuttingCompletedTotal;
+  const allocationRemainingTotal = Math.max(allocationCapacityTotal - allocationHistoryTotal, 0);
+  const progressPercentLabel = isCuttingProgressStage ? '裁床进度' : '车缝进度';
+  const progressPercentValue = formatProgressPercent(
+    isCuttingProgressStage ? cuttingCompletedTotal : sewingAllocatedTotal,
+    orderedTotal,
+  );
+  const statsPrimaryLabel = isCuttingProgressStage ? '已裁' : '已领取';
+  const statsCapacityLabel = isCuttingProgressStage ? '下单量' : '裁床已完成';
   const renderCardView = () => {
     if (loadingCards && cardOrders.length === 0) {
       return (
@@ -2167,8 +2288,15 @@ const FactoryOrders = () => {
                             const prevState = resolveProgressStageState(prev);
                             return !prevState.isCompleted;
                           });
-                        const predecessorBlockedName = predecessorBlockedStage
-                          ? normalizeProgressLabel(predecessorBlockedStage)
+                        const predecessorCuttingBreakdown = predecessorBlockedStage
+                          ? parseAllocationCompletionValue(predecessorBlockedStage.value)
+                          : null;
+                        const allowSewingWithPartialCutting = stage.key === 'sewing'
+                          && predecessorBlockedStage?.key === 'cutting'
+                          && (predecessorCuttingBreakdown?.completedPercent ?? 0) > 0;
+                        const effectiveBlockedStage = allowSewingWithPartialCutting ? undefined : predecessorBlockedStage;
+                        const predecessorBlockedName = effectiveBlockedStage
+                          ? normalizeProgressLabel(effectiveBlockedStage)
                           : '';
                         const alwaysViewable = stage.key === 'inbound';
                         const repeatOpen = stage.key === 'cutting'
@@ -2179,7 +2307,7 @@ const FactoryOrders = () => {
                         const clickable = Boolean(
                           progressNodeCodeMap[stage.key]
                           && (!isCompleted || repeatOpen)
-                          && (!predecessorBlockedStage || alwaysViewable),
+                          && (!effectiveBlockedStage || alwaysViewable),
                         );
                         const nodeStatusContent = isOrderPlaced ? (
                           <span>{`下单数量：${order.quantityValue}`}</span>
@@ -2200,7 +2328,7 @@ const FactoryOrders = () => {
                             <div
                               className={`factory-order-progress-node ${progressStateClass}${clickable ? ' clickable' : ''}`}
                               onClick={() => {
-                                if (predecessorBlockedStage && !alwaysViewable) {
+                                if (effectiveBlockedStage && !alwaysViewable) {
                                   message.warning(`请先完成前置节点：${predecessorBlockedName}`);
                                   return;
                                 }
@@ -2670,6 +2798,7 @@ const FactoryOrders = () => {
           setAllocationCreateSubmitting(false);
           setProgressTabKey('stats');
           setProgressStats({ loading: false, rows: [] });
+          setProgressNodeQuantities({});
           setAllocationColors([]);
           setAllocationSizes([]);
           setAllocationMatrix({});
@@ -2692,6 +2821,7 @@ const FactoryOrders = () => {
                     setAllocationCreateSubmitting(false);
                     setProgressTabKey('stats');
                     setProgressStats({ loading: false, rows: [] });
+                    setProgressNodeQuantities({});
                     setAllocationColors([]);
                     setAllocationSizes([]);
                     setAllocationMatrix({});
@@ -2713,6 +2843,7 @@ const FactoryOrders = () => {
                     setAllocationCreateSubmitting(false);
                     setProgressTabKey('stats');
                     setProgressStats({ loading: false, rows: [] });
+                    setProgressNodeQuantities({});
                     setAllocationColors([]);
                     setAllocationSizes([]);
                     setAllocationMatrix({});
@@ -2752,66 +2883,86 @@ const FactoryOrders = () => {
                       ) : statsDisplayColors.length === 0 || statsDisplaySizes.length === 0 ? (
                         <Text type="secondary">暂无统计数据</Text>
                       ) : (
-                        <div className="factory-create-matrix-wrap">
-                          <table className="factory-create-matrix-table">
-                            <thead>
-                              <tr>
-                                <th>颜色</th>
-                                {statsDisplaySizes.map((size) => (
-                                  <th key={`stats-head-${size}`}>{size}</th>
-                                ))}
-                                <th>小计</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {statsDisplayColors.map((color) => (
-                                <tr key={`stats-row-${color}`}>
-                                  <td>{color}</td>
+                        <>
+                          <Alert
+                            type={isSewingProgressStage && sewingAllocatedTotal > orderedTotal ? 'warning' : 'info'}
+                            showIcon
+                            style={{ marginBottom: 8 }}
+                            message={
+                              isCuttingProgressStage
+                                ? `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
+                                : `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，车缝累计已领取：${sewingAllocatedTotal}，当前剩余可领：${allocationRemainingTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
+                            }
+                          />
+                          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                            {isCuttingProgressStage
+                              ? '矩阵口径：已裁 / 下单量'
+                              : '矩阵口径：已领取 / 裁床已完成；进度百分比仍按下单总量计算'}
+                          </Text>
+                          <div className="factory-create-matrix-wrap">
+                            <table className="factory-create-matrix-table">
+                              <thead>
+                                <tr>
+                                  <th>颜色</th>
                                   {statsDisplaySizes.map((size) => (
-                                    <td key={`stats-${color}-${size}`}>
-                                      {(statsDoneMatrix[color]?.[size] ?? 0)}
+                                    <th key={`stats-head-${size}`}>{size}</th>
+                                  ))}
+                                  <th>小计</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {statsDisplayColors.map((color) => (
+                                  <tr key={`stats-row-${color}`}>
+                                    <td>{color}</td>
+                                    {statsDisplaySizes.map((size) => (
+                                      <td key={`stats-${color}-${size}`}>
+                                        {(statsDoneMatrix[color]?.[size] ?? 0)}
+                                        {' / '}
+                                        {(statsCapacityMatrix[color]?.[size] ?? 0)}
+                                      </td>
+                                    ))}
+                                    <td>
+                                      {(statsDoneRowTotals[color] ?? 0)}
                                       {' / '}
-                                      {(statsOrderedMatrix[color]?.[size] ?? 0)}
+                                      {(statsCapacityRowTotals[color] ?? 0)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td>合计</td>
+                                  {statsDisplaySizes.map((size) => (
+                                    <td key={`stats-sum-${size}`}>
+                                      {(statsDoneColumnTotals[size] ?? 0)}
+                                      {' / '}
+                                      {(statsCapacityColumnTotals[size] ?? 0)}
                                     </td>
                                   ))}
                                   <td>
-                                    {(statsDoneRowTotals[color] ?? 0)}
+                                    {statsDoneTotal}
                                     {' / '}
-                                    {(statsOrderedRowTotals[color] ?? 0)}
+                                    {allocationCapacityTotal}
                                   </td>
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr>
-                                <td>合计</td>
-                                {statsDisplaySizes.map((size) => (
-                                  <td key={`stats-sum-${size}`}>
-                                    {(statsDoneColumnTotals[size] ?? 0)}
-                                    {' / '}
-                                    {(statsOrderedColumnTotals[size] ?? 0)}
-                                  </td>
-                                ))}
-                                <td>
-                                  {statsDoneTotal}
-                                  {' / '}
-                                  {allocationRequiredTotal}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
+                              </tfoot>
+                            </table>
+                          </div>
+                          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                            {`${statsPrimaryLabel} / ${statsCapacityLabel}`}
+                          </Text>
+                        </>
                       )}
                     </>
                   ),
                 },
                 {
                   key: 'allocation',
-                  label: isCuttingProgressStage ? '裁剪数据' : '分配信息',
+                  label: isCuttingProgressStage ? '裁剪数据' : '领取记录',
                   children: (
                     <>
                       {allocationHistoryRows.length === 0 ? (
-                        <Text type="secondary">{isCuttingProgressStage ? '暂无裁剪记录' : '暂无分配记录'}</Text>
+                        <Text type="secondary">{isCuttingProgressStage ? '暂无裁剪记录' : '暂无领取记录'}</Text>
                       ) : allocationHistoryRows.map((record) => {
                         const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
                           if (!matrix[item.color]) {
@@ -2849,7 +3000,7 @@ const FactoryOrders = () => {
                                 </Text>
                               ) : null}
                               <Text type="secondary" style={{ marginLeft: 12 }}>
-                                {isCuttingProgressStage ? '录入时间' : '分配时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
+                                {isCuttingProgressStage ? '录入时间' : '领取时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
                               </Text>
                               <Text type="secondary" style={{ marginLeft: 12 }}>
                                 工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
@@ -2869,7 +3020,7 @@ const FactoryOrders = () => {
                                 <tbody>
                                   {allocationDisplayColors.map((color) => {
                                     const rowAssigned = allocationDisplaySizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
-                                    const rowOrdered = allocationOrderedRowTotals[color] ?? 0;
+                                    const rowCapacity = allocationCapacityRowTotals[color] ?? 0;
                                     return (
                                       <tr key={`${record.key}-row-${color}`}>
                                         <td>{color}</td>
@@ -2877,13 +3028,13 @@ const FactoryOrders = () => {
                                           <td key={`${record.key}-${color}-${size}`}>
                                             {(recordMatrix[color]?.[size] ?? 0)}
                                             {' / '}
-                                            {(allocationOrderedMatrix[color]?.[size] ?? 0)}
+                                            {(allocationCapacityMatrix[color]?.[size] ?? 0)}
                                           </td>
                                         ))}
                                         <td>
                                           {rowAssigned}
                                           {' / '}
-                                          {rowOrdered}
+                                          {rowCapacity}
                                         </td>
                                       </tr>
                                     );
@@ -2898,14 +3049,14 @@ const FactoryOrders = () => {
                                         <td key={`${record.key}-sum-${size}`}>
                                           {assigned}
                                           {' / '}
-                                          {(allocationOrderedColumnTotals[size] ?? 0)}
+                                          {(allocationCapacityColumnTotals[size] ?? 0)}
                                         </td>
                                       );
                                     })}
                                     <td>
                                       {recordTotal}
                                       {' / '}
-                                      {allocationRequiredTotal}
+                                      {allocationCapacityTotal}
                                     </td>
                                   </tr>
                                 </tfoot>
@@ -2916,7 +3067,7 @@ const FactoryOrders = () => {
                       })}
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                         <Button type="primary" onClick={handleOpenAllocationCreate}>
-                          {isCuttingProgressStage ? '手动录入' : '新建分配'}
+                          {isCuttingProgressStage ? '手动录入' : '新建领取'}
                         </Button>
                       </div>
                     </>
@@ -2992,7 +3143,7 @@ const FactoryOrders = () => {
 
       <Modal
         open={allocationCreateModalOpen}
-        title={isCuttingProgressStage ? '手动录入裁剪数据' : '新建分配'}
+        title={isCuttingProgressStage ? '手动录入裁剪数据' : '新建车缝领取'}
         onCancel={() => {
           setAllocationCreateModalOpen(false);
           setAllocationCreateSubmitting(false);
@@ -3039,25 +3190,30 @@ const FactoryOrders = () => {
             <InputNumber min={0} precision={2} style={{ width: '100%' }} />
           </Form.Item>
           <div className="factory-allocation-toolbar">
-            <Text strong>{isCuttingProgressStage ? '颜色/尺码裁剪矩阵' : '颜色/尺码数量矩阵'}</Text>
+            <Text strong>{isCuttingProgressStage ? '颜色/尺码裁剪矩阵' : '颜色/尺码领取矩阵'}</Text>
             <Button type="link" size="small" onClick={handleLoadRemainingAllocation}>
-              {isCuttingProgressStage ? '加载剩余待裁' : '加载剩余数量'}
+              {isCuttingProgressStage ? '加载剩余待裁' : '加载当前可领'}
             </Button>
           </div>
           {allocationColors.length === 0 || allocationSizes.length === 0 ? (
-            <Text type="secondary">{isCuttingProgressStage ? '暂无可录入的颜色/尺码裁剪数据' : '暂无可分配的颜色/尺码数据'}</Text>
+            <Text type="secondary">{isCuttingProgressStage ? '暂无可录入的颜色/尺码裁剪数据' : '暂无可领取的颜色/尺码数据'}</Text>
           ) : (
             <>
               <Alert
-                type={allocationHistoryTotal + allocationGrandTotal > allocationRequiredTotal ? 'warning' : 'info'}
+                type={allocationHistoryTotal + allocationGrandTotal > allocationCapacityTotal ? 'warning' : 'info'}
                 showIcon
                 style={{ marginBottom: 8 }}
                 message={
                   isCuttingProgressStage
-                    ? `下单总量：${allocationRequiredTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`
-                    : `下单总量：${allocationRequiredTotal}，已分配：${allocationHistoryTotal}，本次分配：${allocationGrandTotal}，分配后：${allocationHistoryTotal + allocationGrandTotal}`
+                    ? `下单总量：${orderedTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`
+                    : `裁床累计已完成：${cuttingCompletedTotal}，车缝累计已领取：${allocationHistoryTotal}，本次领取：${allocationGrandTotal}，领取后累计已领：${allocationHistoryTotal + allocationGrandTotal}，剩余可领：${Math.max(allocationCapacityTotal - allocationHistoryTotal - allocationGrandTotal, 0)}`
                 }
               />
+              {!isCuttingProgressStage ? (
+                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  领取口径按“裁床累计已完成 - 车缝累计已领取”控制；进度百分比仍按下单总量计算。
+                </Text>
+              ) : null}
               <div className="factory-create-matrix-wrap">
                 <table className="factory-create-matrix-table">
                   <thead>
@@ -3074,29 +3230,29 @@ const FactoryOrders = () => {
                       <tr key={`alloc-create-row-${color}`}>
                         <td>{color}</td>
                         {allocationSizes.map((size) => {
-                          const orderedQty = allocationOrderedMatrix[color]?.[size] ?? 0;
+                          const capacityQty = allocationCapacityMatrix[color]?.[size] ?? 0;
                           const historyAllocatedQty = allocationHistoryMatrix[color]?.[size] ?? 0;
                           const allocatedQty = normalizeQtyValue(allocationMatrix[color]?.[size]);
-                          const remainingQty = Math.max(orderedQty - historyAllocatedQty - allocatedQty, 0);
-                          const availableQty = Math.max(orderedQty - historyAllocatedQty, 0);
-                          const exceededQty = Math.max(historyAllocatedQty + allocatedQty - orderedQty, 0);
+                          const remainingQty = Math.max(capacityQty - historyAllocatedQty - allocatedQty, 0);
+                          const availableQty = Math.max(capacityQty - historyAllocatedQty, 0);
+                          const exceededQty = Math.max(historyAllocatedQty + allocatedQty - capacityQty, 0);
                           return (
                             <td key={`alloc-create-${color}-${size}`}>
                               <div style={{ display: 'grid', gap: 4 }}>
                                 <InputNumber
                                   min={0}
                                   precision={0}
-                                  max={!isCuttingProgressStage && availableQty > 0 ? availableQty : undefined}
+                                  max={isCuttingProgressStage ? undefined : availableQty}
                                   value={allocatedQty}
                                   onChange={(value) => handleAllocationMatrixQtyChange(color, size, value)}
                                   controls={false}
                                   style={{ width: '100%' }}
-                                  placeholder={!isCuttingProgressStage ? `最多 ${availableQty}` : '填写裁剪数量'}
+                                  placeholder={!isCuttingProgressStage ? `最多可领 ${availableQty}` : '填写裁剪数量'}
                                 />
                                 <Text type="secondary" style={{ fontSize: 11 }}>
                                   {isCuttingProgressStage
-                                    ? `${historyAllocatedQty + allocatedQty}/${orderedQty}${exceededQty > 0 ? `（超裁 ${exceededQty}）` : ''}`
-                                    : `${orderedQty}/${remainingQty}`}
+                                    ? `${historyAllocatedQty + allocatedQty}/${capacityQty}${exceededQty > 0 ? `（超裁 ${exceededQty}）` : ''}`
+                                    : `已领后 ${historyAllocatedQty + allocatedQty}/${capacityQty}，剩余可领 ${remainingQty}`}
                                 </Text>
                               </div>
                             </td>
