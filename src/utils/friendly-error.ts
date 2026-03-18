@@ -7,6 +7,34 @@ type ErrorRule = {
 
 const normalize = (message?: string) => message?.trim().toLowerCase() ?? '';
 
+const looksReadableBusinessMessage = (message?: string): boolean => {
+  const text = message?.trim();
+  if (!text) {
+    return false;
+  }
+  if (text.length > 120) {
+    return false;
+  }
+  const normalized = text.toLowerCase();
+  const technicalMarkers = [
+    'exception',
+    'error:',
+    'stack trace',
+    'traceback',
+    'sqlstate',
+    'jdbc',
+    'java.',
+    'org.springframework',
+    'com.mysql',
+    'axioserror',
+    'network error',
+    'request failed with status code',
+    '<html',
+    'doctype html',
+  ];
+  return !technicalMarkers.some((marker) => normalized.includes(marker));
+};
+
 const resolveSafeMessage = (message?: string): string | null => {
   const normalized = normalize(message);
   if (!normalized) {
@@ -91,13 +119,28 @@ const rules: ErrorRule[] = [
 ];
 
 export const buildFriendlyError = (message?: string, status?: number): GlobalErrorPayload => {
+  const safeMessage = resolveSafeMessage(message);
+  if (safeMessage) {
+    const matchedRule = rules.find((rule) => rule.matcher(message, status));
+    if (matchedRule) {
+      return matchedRule.build(message);
+    }
+  }
+
+  if (looksReadableBusinessMessage(message)) {
+    return {
+      title: '操作失败',
+      description: message?.trim(),
+    };
+  }
+
   const matchedRule = rules.find((rule) => rule.matcher(message, status));
   if (matchedRule) {
     return matchedRule.build(message);
   }
-  const safeMessage = resolveSafeMessage(message);
+
   return {
     title: '操作失败',
-    description: safeMessage || '请求失败，请稍后再试。',
+    description: '请求失败，请稍后再试。',
   };
 };
