@@ -350,7 +350,9 @@ const CuttingPendingPage = () => {
       setDetailState({ open: false });
     } catch (error) {
       console.error('failed to complete cutting sheet', error);
-      message.error(error instanceof Error ? error.message : '完成失败');
+      if (!(error && typeof error === 'object' && 'response' in error)) {
+        message.error(error instanceof Error ? error.message : '完成失败');
+      }
       setCompleteState((prev) => ({ ...prev, submitting: false }));
     }
   };
@@ -610,7 +612,9 @@ const CuttingPendingPage = () => {
       await submitCompleteSheet();
     } catch (error) {
       console.error('failed to complete cutting sheet', error);
-      message.error(error instanceof Error ? error.message : '完成失败');
+      if (!(error && typeof error === 'object' && 'response' in error)) {
+        message.error(error instanceof Error ? error.message : '完成失败');
+      }
     }
   };
 

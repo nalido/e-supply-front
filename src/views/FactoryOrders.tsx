@@ -1191,6 +1191,9 @@ const FactoryOrders = () => {
         return;
       }
       console.error('failed to complete progress node', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        return;
+      }
       message.error(error instanceof Error ? error.message : '节点执行失败');
     } finally {
       setProgressActionModal((prev) => ({ ...prev, submitting: false }));
