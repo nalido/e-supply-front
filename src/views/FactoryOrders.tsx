@@ -1180,7 +1180,6 @@ const FactoryOrders = () => {
       progressActionForm.setFieldsValue({ arrivedAt: dayjs() });
     } else if (stage.key === 'cutting' || stage.key === 'sewing') {
       progressActionForm.setFieldsValue({
-        unitPrice: 0,
         items: [{ quantity: 1 }],
       });
     } else {
@@ -1209,7 +1208,7 @@ const FactoryOrders = () => {
       }
       if (nodeCode === 'CUTTING' || nodeCode === 'SEWING') {
         payload.subcontractorId = values.factoryId;
-        payload.unitPrice = values.unitPrice ?? 0;
+        payload.unitPrice = values.unitPrice;
         const requiredTotal = progressStats.rows.reduce((sum, row) => sum + row.orderedQty, 0);
         const matrixItems = allocationColors.flatMap((color) =>
           allocationSizes.map((size) => ({
@@ -1515,7 +1514,6 @@ const FactoryOrders = () => {
       }, {}),
     );
     allocationCreateForm.setFieldsValue({
-      unitPrice: 0,
       bedNumber: isCuttingProgressStage
         ? `BED-${dayjs().format('MMDD-HHmmss')}`
         : undefined,
@@ -3186,8 +3184,12 @@ const FactoryOrders = () => {
               </Button>
             </div>
           ) : null}
-          <Form.Item label="工价（元/件）" name="unitPrice">
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
+          <Form.Item
+            label="工价（元/件）"
+            name="unitPrice"
+            rules={[{ required: true, message: '请输入工价' }]}
+          >
+            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="请输入工价" />
           </Form.Item>
           <div className="factory-allocation-toolbar">
             <Text strong>{isCuttingProgressStage ? '颜色/尺码裁剪矩阵' : '颜色/尺码领取矩阵'}</Text>
