@@ -86,21 +86,14 @@ const FinishedGoodsDispatchModal = ({ open, records, meta, onClose, onDispatched
         return;
       }
       const baseRecord = records[0];
-      const productionOrders = new Set(
-        rowsWithQuantity.map((record) => record.productionOrderId || '__unknown__'),
-      );
-      if (productionOrders.size > 1) {
-        message.error('暂不支持跨生产订单一次性出库，请按生产订单拆分。');
-        return;
-      }
       const payload: FinishedGoodsDispatchCreatePayload = {
         warehouseId: baseRecord.warehouseId,
         logisticsProviderId: values.logisticsProviderId,
         dispatchAt: values.dispatchAt ? values.dispatchAt.toISOString() : undefined,
         remark: values.remark?.trim() || undefined,
-        productionOrderId: baseRecord.productionOrderId,
         trackingNo: values.trackingNo?.trim() || undefined,
         items: rowsWithQuantity.map((record) => ({
+          productionOrderId: record.productionOrderId,
           styleVariantId: record.styleVariantId!,
           quantity: Math.floor(quantities[record.id]),
           unitPrice: Number(unitPrices[record.id] ?? 0),
@@ -218,7 +211,7 @@ const FinishedGoodsDispatchModal = ({ open, records, meta, onClose, onDispatched
           message={
             <Space direction="vertical" size={4}>
               <Text>将从「{records[0]?.warehouseName ?? '未选择仓库'}」出库 {rowsWithQuantity.length} 个 SKU。</Text>
-              <Text type="secondary">出库成功后库存将实时扣减。</Text>
+              <Text type="secondary">支持同仓库内混合不同生产订单来源批量出库，库存将按每行来源分别扣减。</Text>
             </Space>
           }
         />

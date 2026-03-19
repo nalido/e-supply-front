@@ -1,458 +1,637 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import type { ColumnsType } from 'antd/es/table';
-import type { TableRowSelection } from 'antd/es/table/interface';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Button,
   Card,
-  Checkbox,
-  Col,
+  DatePicker,
+  Drawer,
+  Empty,
+  Form,
   Input,
-  Row,
+  InputNumber,
   Select,
   Space,
-  Switch,
   Table,
+  Tag,
   Typography,
   message,
 } from 'antd';
-import { DownloadOutlined, ExportOutlined, SwapOutlined } from '@ant-design/icons';
-import { finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
+import type { ColumnsType } from 'antd/es/table';
+import dayjs, { type Dayjs } from 'dayjs';
+import { finishedGoodsDispatchService, finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
 import type {
-  FinishedGoodsStockGrouping,
-  FinishedGoodsStockListParams,
   FinishedGoodsStockMeta,
-  FinishedGoodsStockRecord,
+  FinishedGoodsStockStyleListParams,
+  FinishedGoodsStockStyleMatrixItem,
+  FinishedGoodsStockStyleRecord,
 } from '../types/finished-goods-stock';
-import type { FinishedGoodsOutboundMeta } from '../types/finished-goods-outbound';
-import FinishedGoodsDispatchModal from '../components/finished-goods/FinishedGoodsDispatchModal';
-import StyleInfo from '../components/common/StyleInfo';
+import type { FinishedGoodsDispatchCreatePayload, FinishedGoodsOutboundMeta } from '../types/finished-goods-outbound';
 import ListImage from '../components/common/ListImage';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-const FALLBACK_GROUPING: FinishedGoodsStockGrouping[] = ['spec'];
+const ALL_WAREHOUSES = '__all__';
+
+type DispatchFormValues = {
+  customerId?: string;
+  logisticsProviderId?: string;
+  dispatchAt?: Dayjs;
+  trackingNo?: string;
+  remark?: string;
+};
+
+type PendingStyle = FinishedGoodsStockStyleRecord & {
+  entryKey: string;
+  items: FinishedGoodsStockStyleMatrixItem[];
+  quantities: Record<string, number | undefined>;
+};
 
 const quantityFormatter = (value: number): string => value.toLocaleString('zh-CN');
 
-const sanitizeGroupingValues = (values?: FinishedGoodsStockGrouping[]): FinishedGoodsStockGrouping[] => {
-  if (!values || values.length === 0) {
-    return FALLBACK_GROUPING;
+const buildStyleEntryKey = (styleId: string, warehouseId: string) => `${warehouseId}-${styleId}`;
+
+const buildMatrixMeta = (items: FinishedGoodsStockStyleMatrixItem[]) => {
+  const colors = Array.from(new Set(items.map((item) => item.color || 'N/A')));
+  const sizes = Array.from(new Set(items.map((item) => item.size || 'STD')));
+  const itemMap = items.reduce<Record<string, FinishedGoodsStockStyleMatrixItem>>((acc, item) => {
+    acc[`${item.color}__${item.size}`] = item;
+    return acc;
+  }, {});
+  return { colors, sizes, itemMap };
+};
+
+const sumPendingStyleQty = (style: PendingStyle) =>
+  Object.values(style.quantities).reduce<number>((sum, value) => sum + (Number(value) || 0), 0);
+
+type MatrixTableProps = {
+  items: FinishedGoodsStockStyleMatrixItem[];
+  quantities?: Record<string, number | undefined>;
+  editable?: boolean;
+  onQuantityChange?: (styleVariantId: string, value: number | undefined) => void;
+};
+
+const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: MatrixTableProps) => {
+  if (!items.length) {
+    return <Text type="secondary">暂无颜色尺码库存数据</Text>;
   }
-  const filtered = values.filter((item) => item !== 'order');
-  return filtered.length ? filtered : FALLBACK_GROUPING;
+
+  const { colors, sizes, itemMap } = buildMatrixMeta(items);
+
+  return (
+    <div className="factory-create-matrix-wrap">
+      <table className="factory-create-matrix-table">
+        <thead>
+          <tr>
+            <th>颜色 \\ 尺码</th>
+            {sizes.map((size) => (
+              <th key={`head-${size}`}>{size}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {colors.map((color) => (
+            <tr key={`row-${color}`}>
+              <td>{color}</td>
+              {sizes.map((size) => {
+                const item = itemMap[`${color}__${size}`];
+                if (!item) {
+                  return <td key={`${color}-${size}`}>-</td>;
+                }
+                return (
+                  <td key={`${color}-${size}`}>
+                    {editable ? (
+                      <InputNumber
+                        min={0}
+                        max={item.availableQuantity}
+                        precision={0}
+                        controls={false}
+                        value={quantities?.[item.styleVariantId]}
+                        onChange={(value) => {
+                          const normalized = Math.max(0, Math.round(Number(value) || 0));
+                          onQuantityChange?.(
+                            item.styleVariantId,
+                            Number.isFinite(Number(value)) ? Math.min(normalized, item.availableQuantity) : undefined,
+                          );
+                        }}
+                        style={{ width: '100%' }}
+                        placeholder={`可用 ${quantityFormatter(item.availableQuantity)} ${item.unit}`}
+                      />
+                    ) : (
+                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                        <Text strong>{quantityFormatter(item.quantity)} {item.unit}</Text>
+                        <Text type="secondary">可用 {quantityFormatter(item.availableQuantity)} {item.unit}</Text>
+                      </Space>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 };
 
 const FinishedGoodsStock = () => {
   const [meta, setMeta] = useState<FinishedGoodsStockMeta | null>(null);
+  const [outboundMeta, setOutboundMeta] = useState<FinishedGoodsOutboundMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
-  const [records, setRecords] = useState<FinishedGoodsStockRecord[]>([]);
-  const [summaryQty, setSummaryQty] = useState(0);
-  const [tableLoading, setTableLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [onlyInStock, setOnlyInStock] = useState(true);
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
-  const [skuKeyword, setSkuKeyword] = useState('');
-  const [mixedKeyword, setMixedKeyword] = useState('');
-  const [appliedSku, setAppliedSku] = useState<string | undefined>();
-  const [appliedMixed, setAppliedMixed] = useState<string | undefined>();
-  const [groupBy, setGroupBy] = useState<FinishedGoodsStockGrouping[]>(FALLBACK_GROUPING);
+  const [warehouseId, setWarehouseId] = useState<string>();
+  const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState<string>();
+  const [styles, setStyles] = useState<FinishedGoodsStockStyleRecord[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectedRows, setSelectedRows] = useState<FinishedGoodsStockRecord[]>([]);
-  const [metaInitialized, setMetaInitialized] = useState(false);
-  const [outboundMeta, setOutboundMeta] = useState<FinishedGoodsOutboundMeta | null>(null);
-  const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
-  const [dispatchRecords, setDispatchRecords] = useState<FinishedGoodsStockRecord[]>([]);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+  const [matrixCache, setMatrixCache] = useState<Record<string, FinishedGoodsStockStyleMatrixItem[]>>({});
+  const [pendingStyles, setPendingStyles] = useState<PendingStyle[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [dispatchForm] = Form.useForm<DispatchFormValues>();
 
   useEffect(() => {
     const loadMeta = async () => {
       setMetaLoading(true);
       try {
-        const response = await finishedGoodsStockService.getMeta();
-        setMeta(response);
-        const defaultGrouping = sanitizeGroupingValues(response.defaultGrouping);
-        setGroupBy(defaultGrouping);
+        const [stockMeta, outboundMetaResponse] = await Promise.all([
+          finishedGoodsStockService.getMeta(),
+          finishedGoodsOutboundService.getMeta(),
+        ]);
+        setMeta(stockMeta);
+        setOutboundMeta(outboundMetaResponse);
       } catch (error) {
         console.error('failed to load finished goods stock meta', error);
         message.error('加载成品库存配置失败');
-        setGroupBy(FALLBACK_GROUPING);
       } finally {
         setMetaLoading(false);
-        setMetaInitialized(true);
       }
     };
 
-    const loadOutboundMeta = async () => {
-      try {
-        const response = await finishedGoodsOutboundService.getMeta();
-        setOutboundMeta(response);
-      } catch (error) {
-        console.error('failed to load outbound meta', error);
-      }
-    };
+    void loadMeta();
+    dispatchForm.setFieldsValue({ dispatchAt: dayjs() });
+  }, [dispatchForm]);
 
-    loadMeta();
-    void loadOutboundMeta();
-  }, []);
-
-  const loadList = useCallback(async () => {
-    if (!metaInitialized) {
-      return;
-    }
-    setTableLoading(true);
+  const loadStyleList = useCallback(async () => {
+    setListLoading(true);
     try {
-      const params: FinishedGoodsStockListParams = {
+      const params: FinishedGoodsStockStyleListParams = {
         page,
         pageSize,
         onlyInStock,
         warehouseId,
-        keywordSku: appliedSku,
-        keywordMixed: appliedMixed,
-        groupBy,
+        keyword: appliedKeyword,
       };
-      const response = await finishedGoodsStockService.getList(params);
-      setRecords(response.list);
+      const response = await finishedGoodsStockService.getStyleList(params);
+      setStyles(response.list);
       setTotal(response.total);
-      setSummaryQty(response.summary.quantityTotal);
-      const validKeys = new Set(response.list.map((item) => item.id));
-      setSelectedRowKeys((prev) => {
-        const next = prev.filter((key) => validKeys.has(String(key)));
-        return next.length === prev.length ? prev : next;
-      });
-      setSelectedRows((prev) => {
-        const next = prev.filter((item) => validKeys.has(item.id));
-        return next.length === prev.length ? prev : next;
-      });
     } catch (error) {
-      console.error('failed to load finished goods stock list', error);
-      message.error('获取成品库存列表失败');
+      console.error('failed to load finished goods stock styles', error);
+      message.error('获取成品库存款式列表失败');
     } finally {
-      setTableLoading(false);
+      setListLoading(false);
     }
-  }, [appliedMixed, appliedSku, groupBy, metaInitialized, onlyInStock, page, pageSize, warehouseId]);
+  }, [appliedKeyword, onlyInStock, page, pageSize, warehouseId]);
 
   useEffect(() => {
-    void loadList();
-  }, [loadList]);
+    void loadStyleList();
+  }, [loadStyleList]);
 
-  const handleOnlyInStockChange = (checked: boolean) => {
-    setOnlyInStock(checked);
+  const ensureStyleMatrix = useCallback(
+    async (style: FinishedGoodsStockStyleRecord) => {
+      const entryKey = buildStyleEntryKey(style.styleId, style.warehouseId);
+      if (matrixCache[entryKey]) {
+        return matrixCache[entryKey];
+      }
+      const response = await finishedGoodsStockService.getStyleMatrix(style.styleId, style.warehouseId);
+      setMatrixCache((prev) => ({ ...prev, [entryKey]: response.items }));
+      return response.items;
+    },
+    [matrixCache],
+  );
+
+  const handleSearch = () => {
+    setAppliedKeyword(keyword.trim() || undefined);
     setPage(1);
   };
 
   const handleWarehouseChange = (value?: string) => {
+    if (pendingStyles.length > 0 && value !== warehouseId) {
+      setPendingStyles([]);
+      message.info('切换仓库后已清空待出货列表');
+    }
     setWarehouseId(value);
     setPage(1);
+    setExpandedRowKeys([]);
   };
 
-  const handleGroupingChange = (values: Array<string | number>) => {
-    setGroupBy(sanitizeGroupingValues(values as FinishedGoodsStockGrouping[]));
-    setPage(1);
-    setSelectedRowKeys([]);
-    setSelectedRows([]);
+  const handleExpand = async (expanded: boolean, record: FinishedGoodsStockStyleRecord) => {
+    const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
+    if (expanded) {
+      try {
+        await ensureStyleMatrix(record);
+        setExpandedRowKeys((prev) => Array.from(new Set([...prev, entryKey])));
+      } catch (error) {
+        console.error('failed to load stock style matrix', error);
+        message.error('加载颜色尺码库存矩阵失败');
+      }
+      return;
+    }
+    setExpandedRowKeys((prev) => prev.filter((key) => key !== entryKey));
   };
 
-  const handleSearch = () => {
-    const sku = skuKeyword.trim();
-    const mixed = mixedKeyword.trim();
-    setAppliedSku(sku || undefined);
-    setAppliedMixed(mixed || undefined);
-    setPage(1);
-  };
+  const handleAddPendingStyle = useCallback(async (style: FinishedGoodsStockStyleRecord) => {
+    const entryKey = buildStyleEntryKey(style.styleId, style.warehouseId);
+    if (pendingStyles.some((item) => item.entryKey === entryKey)) {
+      message.info('该款式已在待出货列表中');
+      return;
+    }
+    if (pendingStyles.length > 0 && pendingStyles[0].warehouseId !== style.warehouseId) {
+      message.warning(`一次出货操作仅支持同一仓库，当前待出货列表仓库为「${pendingStyles[0].warehouseName}」`);
+      return;
+    }
+    try {
+      const items = await ensureStyleMatrix(style);
+      const quantities = items.reduce<Record<string, number | undefined>>((acc, item) => {
+        acc[item.styleVariantId] = undefined;
+        return acc;
+      }, {});
+      setPendingStyles((prev) => [...prev, { ...style, entryKey, items, quantities }]);
+      message.success(`已添加 ${style.styleNo}（${style.warehouseName}）到待出货列表`);
+    } catch (error) {
+      console.error('failed to add pending style', error);
+      message.error('添加待出货款式失败');
+    }
+  }, [ensureStyleMatrix, pendingStyles]);
 
-  const handleReset = () => {
-    const defaultGrouping = meta?.defaultGrouping?.length
-      ? meta.defaultGrouping
-      : FALLBACK_GROUPING;
-    setOnlyInStock(true);
-    setWarehouseId(undefined);
-    setSkuKeyword('');
-    setMixedKeyword('');
-    setAppliedSku(undefined);
-    setAppliedMixed(undefined);
-    setGroupBy(defaultGrouping);
-    setPage(1);
-    setPageSize(DEFAULT_PAGE_SIZE);
-    setSelectedRowKeys([]);
-    setSelectedRows([]);
-  };
+  const handleRemovePendingStyle = useCallback((entryKey: string) => {
+    setPendingStyles((prev) => prev.filter((item) => item.entryKey !== entryKey));
+  }, []);
 
-  const handleTableChange = (nextPage: number, nextPageSize?: number) => {
-    setPage(nextPage);
-    if (nextPageSize && nextPageSize !== pageSize) {
-      setPageSize(nextPageSize);
+  const handlePendingQtyChange = useCallback((styleId: string, styleVariantId: string, value: number | undefined) => {
+    setPendingStyles((prev) =>
+      prev.map((style) =>
+        style.styleId === styleId
+          ? {
+              ...style,
+              quantities: {
+                ...style.quantities,
+                [styleVariantId]: value,
+              },
+            }
+          : style,
+      ),
+    );
+  }, []);
+
+  const selectedStyleCount = pendingStyles.length;
+
+  const handleSubmitDispatch = async () => {
+    const dispatchWarehouseId = pendingStyles[0]?.warehouseId;
+    const dispatchWarehouseName = pendingStyles[0]?.warehouseName;
+    if (!dispatchWarehouseId) {
+      message.warning('请先添加待出货款式');
+      return;
+    }
+    if (pendingStyles.some((style) => style.warehouseId !== dispatchWarehouseId)) {
+      message.error('一次出货操作仅支持同一仓库');
+      return;
+    }
+    const items = pendingStyles.flatMap((style) =>
+      style.items
+        .map((item) => ({
+          item,
+          quantity: style.quantities[item.styleVariantId],
+        }))
+        .filter((entry) => (entry.quantity ?? 0) > 0)
+        .map((entry) => ({
+          styleVariantId: entry.item.styleVariantId,
+          quantity: entry.quantity!,
+          unitPrice: entry.item.unitPrice ?? 0,
+        })),
+    );
+    if (!items.length) {
+      message.warning('请在待出货列表中至少填写一个大于 0 的出货数量');
+      return;
+    }
+    const exceeded = pendingStyles
+      .flatMap((style) =>
+        style.items.map((item) => ({
+          styleNo: style.styleNo,
+          color: item.color,
+          size: item.size,
+          quantity: style.quantities[item.styleVariantId] ?? 0,
+          availableQuantity: item.availableQuantity,
+          unit: item.unit,
+        })),
+      )
+      .find((entry) => entry.quantity > entry.availableQuantity);
+    if (exceeded) {
+      message.error(
+        `${exceeded.styleNo} ${exceeded.color}/${exceeded.size} 的出货数量超过可用库存（${exceeded.unit}）`,
+      );
+      return;
+    }
+
+    try {
+      const values = await dispatchForm.validateFields();
+      const payload: FinishedGoodsDispatchCreatePayload = {
+        warehouseId: dispatchWarehouseId,
+        customerId: values.customerId,
+        logisticsProviderId: values.logisticsProviderId,
+        dispatchAt: values.dispatchAt ? values.dispatchAt.toISOString() : undefined,
+        trackingNo: values.trackingNo?.trim() || undefined,
+        remark: values.remark?.trim() || undefined,
+        items,
+      };
+      setSubmitting(true);
+      const result = await finishedGoodsDispatchService.create(payload);
+      message.success(`已创建出库单 ${result.dispatchNo}`);
+      setPendingStyles([]);
+      setDrawerOpen(false);
+      dispatchForm.setFieldsValue({
+        customerId: undefined,
+        logisticsProviderId: undefined,
+        dispatchAt: dayjs(),
+        trackingNo: undefined,
+        remark: undefined,
+      });
+      void loadStyleList();
+    } catch (error) {
+      if ((error as { errorFields?: unknown[] } | undefined)?.errorFields) {
+        return;
+      }
+      console.error('failed to dispatch finished goods', error);
+      message.error(dispatchWarehouseName ? `确认出货失败：${dispatchWarehouseName}` : '确认出货失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const rowSelection: TableRowSelection<FinishedGoodsStockRecord> = useMemo(
-    () => ({
-      selectedRowKeys,
-      onChange: (keys, rows) => {
-        setSelectedRowKeys(keys);
-        setSelectedRows(rows);
-      },
-      preserveSelectedRowKeys: true,
-    }),
-    [selectedRowKeys],
-  );
-
-  const columns: ColumnsType<FinishedGoodsStockRecord> = useMemo(() => {
-    const includeCustomer = groupBy.includes('customer');
-    const includeSpec = groupBy.includes('spec');
-
-    const cols: ColumnsType<FinishedGoodsStockRecord>[number][] = [
-      {
-        title: '序号',
-        dataIndex: 'index',
-        width: 64,
-        fixed: 'left',
-        align: 'right',
-        render: (_value, _record, index) => (page - 1) * pageSize + index + 1,
-      },
+  const columns: ColumnsType<FinishedGoodsStockStyleRecord> = useMemo(
+    () => [
       {
         title: '图片',
         dataIndex: 'imageUrl',
         width: 88,
-        fixed: 'left',
-        render: (value: string | undefined, record) => (
-          <ListImage src={value} alt={record.styleName || record.styleNo} />
-        ),
+        render: (value: string | undefined, record) => <ListImage src={value} alt={record.styleName} />,
       },
       {
         title: '款式',
         dataIndex: 'styleNo',
-        width: 220,
-        fixed: 'left',
         render: (_value, record) => (
-          <StyleInfo
-            styleNo={record.styleNo}
-            styleName={record.styleName}
-            color={record.color}
-            size={record.size}
-          />
+          <Space direction="vertical" size={2}>
+            <Text strong>{record.styleNo}</Text>
+            <Text type="secondary">{record.styleName}</Text>
+          </Space>
         ),
       },
-    ];
-
-    cols.push({ title: '仓库', dataIndex: 'warehouseName', width: 160 });
-
-    if (includeCustomer) {
-      cols.push({
-        title: '客户',
-        dataIndex: 'customerName',
-        width: 200,
-        ellipsis: true,
-        render: (value?: string) => (value ? value : <Text type="secondary">-</Text>),
-      });
-    }
-
-    if (includeSpec) {
-      cols.push(
-        {
-          title: '款名',
-          dataIndex: 'styleName',
-          width: 220,
-          ellipsis: true,
-          render: (value?: string) => (value ? value : <Text type="secondary">-</Text>),
-        },
-        { title: '颜色', dataIndex: 'color', width: 120, render: (value?: string) => value ?? '-' },
-        { title: '尺码', dataIndex: 'size', width: 92, render: (value?: string) => value ?? '-' },
-        { title: 'SKU', dataIndex: 'sku', width: 220 },
-      );
-    }
-
-    cols.push({
-      title: '数量',
-      dataIndex: 'quantity',
-      width: 120,
-      align: 'right',
-      render: (_value, record) => (
-        <Space direction="vertical" size={0}>
-          <Text type={record.quantity > 0 ? undefined : 'secondary'} strong={record.quantity > 0}>
-            {quantityFormatter(record.quantity)}
-          </Text>
-          <Text type="secondary">可用 {quantityFormatter(record.availableQuantity)}</Text>
-        </Space>
-      ),
-    });
-
-    return cols;
-  }, [groupBy, page, pageSize]);
-
-  const groupingOptions = useMemo(() => {
-    const options =
-      meta?.groupingOptions ?? [
-        { label: '分客户', value: 'customer' as FinishedGoodsStockGrouping },
-        { label: '分规格', value: 'spec' as FinishedGoodsStockGrouping },
-      ];
-    return options.filter((option) => option.value !== 'order');
-  }, [meta]);
-
-  const hasSelection = selectedRowKeys.length > 0;
-
-  const handleOutbound = () => {
-    if (!hasSelection) {
-      message.warning('请先选择需要出库的库存记录');
-      return;
-    }
-    const invalidSku = selectedRows.find((item) => !item.styleVariantId);
-    if (invalidSku) {
-      message.error('存在缺少 SKU 的记录，无法出库');
-      return;
-    }
-    const uniqueWarehouse = new Set(selectedRows.map((item) => item.warehouseId));
-    if (uniqueWarehouse.size > 1) {
-      message.error('仅支持同一仓库的库存批量出库');
-      return;
-    }
-    const uniqueOrders = new Set(selectedRows.map((item) => item.productionOrderId || '__unknown__'));
-    if (uniqueOrders.size > 1) {
-      message.error('仅支持同一生产订单下的库存批量出库');
-      return;
-    }
-    if (!selectedRows.some((item) => item.availableQuantity > 0)) {
-      message.warning('所选记录可用数量为 0，无法出库');
-      return;
-    }
-    setDispatchRecords(selectedRows);
-    setDispatchModalOpen(true);
-  };
-
-  const handleAdjustWarehouse = () => {
-    if (!hasSelection) {
-      return;
-    }
-    message.success('已提交仓库调整申请，稍后可在任务中心查看');
-  };
-
-  const handleExport = () => {
-    message.success('已生成成品库存导出任务，请稍后到下载中心查看');
-  };
-
-  const handleDispatchModalClose = () => {
-    setDispatchModalOpen(false);
-    setDispatchRecords([]);
-  };
-
-  const handleDispatchSuccess = () => {
-    handleDispatchModalClose();
-    setSelectedRowKeys([]);
-    setSelectedRows([]);
-    void loadList();
-  };
+      {
+        title: '仓库',
+        dataIndex: 'warehouseName',
+        width: 140,
+      },
+      {
+        title: 'SKU数',
+        dataIndex: 'skuCount',
+        width: 100,
+        align: 'right',
+      },
+      {
+        title: '库存汇总',
+        dataIndex: 'quantity',
+        width: 160,
+        render: (_value, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{quantityFormatter(record.quantity)} {record.unit}</Text>
+            <Text type="secondary">可用 {quantityFormatter(record.availableQuantity)} {record.unit}</Text>
+          </Space>
+        ),
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: 140,
+        render: (_value, record) =>
+          pendingStyles.some((item) => item.entryKey === buildStyleEntryKey(record.styleId, record.warehouseId)) ? (
+            <Button onClick={() => handleRemovePendingStyle(buildStyleEntryKey(record.styleId, record.warehouseId))}>移出待出货</Button>
+          ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
+            <Button disabled>仓库不一致</Button>
+          ) : (
+            <Button type="primary" onClick={() => void handleAddPendingStyle(record)}>
+              添加到待出货
+            </Button>
+          ),
+      },
+    ],
+    [handleAddPendingStyle, handleRemovePendingStyle, pendingStyles],
+  );
 
   return (
-    <Fragment>
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card variant="borderless" loading={metaLoading}>
-        <Row gutter={[16, 16]} align="middle" wrap>
-          <Col flex="auto">
-            <Space size={12} wrap>
-              <Button
-                type="primary"
-                icon={<ExportOutlined />}
-                disabled={!hasSelection}
-                onClick={handleOutbound}
-              >
-                出库
-              </Button>
-              <Button icon={<SwapOutlined />} disabled={!hasSelection} onClick={handleAdjustWarehouse}>
-                调整仓库
-              </Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExport}>
-                导出Excel
-              </Button>
-              <Space size={8} align="center">
-                <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
-                <Text>仅显示有库存</Text>
-              </Space>
-              <Checkbox.Group
-                options={groupingOptions}
-                value={groupBy}
-                onChange={handleGroupingChange}
-              />
-            </Space>
-          </Col>
-        </Row>
-
-        <Card variant="outlined" style={{ marginTop: 16 }}>
-          <Row gutter={[16, 16]} wrap align="middle">
-            <Col xs={24} sm={12} md={6}>
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card loading={metaLoading}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              成品库存
+            </Title>
+            <Text type="secondary">
+              按款式查看当前仓库库存，并在需要时把款式加入待出货列表进行出货操作。
+            </Text>
+          </div>
+          <Space size={16} wrap>
+            <div style={{ minWidth: 220 }}>
+              <Text type="secondary">仓库</Text>
               <Select
                 allowClear
-                placeholder="仓库"
-                style={{ width: '100%' }}
-                value={warehouseId}
-                onChange={handleWarehouseChange}
-                options={meta?.warehouses?.map((item) => ({ label: item.name, value: item.id })) ?? []}
+                style={{ width: '100%', marginTop: 4 }}
+                value={warehouseId ?? ALL_WAREHOUSES}
+                onChange={(value) => handleWarehouseChange(value === ALL_WAREHOUSES ? undefined : value)}
+                options={[
+                  { label: '全部仓库', value: ALL_WAREHOUSES },
+                  ...(meta?.warehouses.map((item) => ({ label: item.name, value: item.id })) ?? []),
+                ]}
+                placeholder="全部仓库"
               />
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Input
-                allowClear
-                placeholder="SKU"
-                value={skuKeyword}
-                onChange={(event) => setSkuKeyword(event.target.value)}
+            </div>
+            <div style={{ minWidth: 280 }}>
+              <Text type="secondary">搜索款号/款名</Text>
+              <Input.Search
+                style={{ width: '100%', marginTop: 4 }}
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                onSearch={handleSearch}
+                placeholder="搜索款号或款名"
               />
-            </Col>
-            <Col xs={24} sm={24} md={12}>
-              <Input
-                allowClear
-                placeholder="订单/款式/客户"
-                value={mixedKeyword}
-                onChange={(event) => setMixedKeyword(event.target.value)}
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <Text type="secondary">只看有库存</Text>
+              <Select
+                style={{ width: '100%', marginTop: 4 }}
+                value={onlyInStock ? 'yes' : 'no'}
+                onChange={(value) => {
+                  setOnlyInStock(value === 'yes');
+                  setPage(1);
+                }}
+                options={[
+                  { label: '是', value: 'yes' },
+                  { label: '否', value: 'no' },
+                ]}
               />
-            </Col>
-            <Col xs={24} sm={24} md={12}>
-              <Space size={12} wrap>
-                <Button type="primary" onClick={handleSearch}>
-                  搜索
-                </Button>
-                <Button onClick={handleReset}>重置</Button>
+            </div>
+            <Card size="small" style={{ minWidth: 180 }}>
+              <Space direction="vertical" size={0}>
+                <Text type="secondary">匹配款式数</Text>
+                <Title level={4} style={{ margin: 0 }}>
+                  {total}
+                </Title>
               </Space>
-            </Col>
-          </Row>
-        </Card>
+            </Card>
+          </Space>
+        </Space>
       </Card>
 
-        <Card variant="borderless">
-          <Table<FinishedGoodsStockRecord>
-            rowKey={(record) => record.id}
-            loading={tableLoading}
-            dataSource={records}
-            columns={columns}
-            rowSelection={rowSelection}
-            pagination={{
-              current: page,
-              pageSize,
-              total,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-              onChange: handleTableChange,
-              showTotal: (value) => `共 ${value} 条`,
-            }}
-            scroll={{ x: 1200 }}
-            footer={() => (
-              <div style={{ textAlign: 'right' }}>
-                <Text type="secondary">
-                  当前筛选合计库存：<Text strong>{quantityFormatter(summaryQty)}</Text>
-                </Text>
-              </div>
-            )}
-          />
-        </Card>
-      </Space>
-      <FinishedGoodsDispatchModal
-        open={dispatchModalOpen}
-        records={dispatchRecords}
-        meta={outboundMeta}
-        onClose={handleDispatchModalClose}
-        onDispatched={handleDispatchSuccess}
-      />
-    </Fragment>
+      <Card title="库存列表">
+        <Table<FinishedGoodsStockStyleRecord>
+          rowKey={(record) => buildStyleEntryKey(record.styleId, record.warehouseId)}
+          loading={listLoading}
+          columns={columns}
+          dataSource={styles}
+          expandable={{
+            expandedRowKeys,
+            expandRowByClick: true,
+            onExpand: (expanded, record) => void handleExpand(expanded, record),
+            expandedRowRender: (record) => (
+              <MatrixTable items={matrixCache[buildStyleEntryKey(record.styleId, record.warehouseId)] ?? []} />
+            ),
+          }}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              if (nextPageSize !== pageSize) {
+                setPageSize(nextPageSize);
+              }
+            },
+          }}
+        />
+      </Card>
+
+      <div
+        style={{
+          position: 'fixed',
+          right: 24,
+          bottom: 24,
+          zIndex: 1000,
+        }}
+      >
+        <Button type="primary" size="large" onClick={() => setDrawerOpen(true)}>
+          待出货款式 {selectedStyleCount}
+        </Button>
+      </div>
+
+      <Drawer
+        title={`待出货款式列表 (${selectedStyleCount})`}
+        placement="bottom"
+        height="78vh"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        {!pendingStyles.length ? (
+          <Empty description="从上面的款式列表中添加待出货款式" />
+        ) : (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Alert
+              type="info"
+              showIcon
+              message={`当前已选 ${pendingStyles.length} 款，展开每个款式后可直接录入颜色尺码出货数量`}
+            />
+            {pendingStyles.map((style) => (
+              <Card
+                key={style.entryKey}
+                size="small"
+                title={
+                  <Space size={12}>
+                    <Text strong>{style.styleNo}</Text>
+                    <Text type="secondary">{style.styleName}</Text>
+                    <Tag>{style.warehouseName}</Tag>
+                    <Tag>{style.skuCount} 个 SKU</Tag>
+                    <Tag color="gold">已填 {quantityFormatter(sumPendingStyleQty(style))} {style.unit}</Tag>
+                  </Space>
+                }
+                extra={<Button onClick={() => handleRemovePendingStyle(style.entryKey)}>移除</Button>}
+              >
+                <MatrixTable
+                  items={style.items}
+                  quantities={style.quantities}
+                  editable
+                  onQuantityChange={(styleVariantId, value) =>
+                    handlePendingQtyChange(style.styleId, styleVariantId, value)
+                  }
+                />
+              </Card>
+            ))}
+
+            <Card size="small" title="出货信息">
+              <Form<DispatchFormValues> form={dispatchForm} layout="vertical">
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 16,
+                  }}
+                >
+                  <Form.Item label="客户（可选）" name="customerId" style={{ marginBottom: 0 }}>
+                    <Select
+                      allowClear
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="选择客户"
+                      options={outboundMeta?.customers.map((item) => ({ label: item.name, value: item.id })) ?? []}
+                    />
+                  </Form.Item>
+                  <Form.Item label="物流公司" name="logisticsProviderId" style={{ marginBottom: 0 }}>
+                    <Select
+                      allowClear
+                      placeholder="选择物流公司"
+                      options={outboundMeta?.logistics.map((item) => ({ label: item.name, value: item.id })) ?? []}
+                    />
+                  </Form.Item>
+                  <Form.Item label="出货时间" name="dispatchAt" style={{ marginBottom: 0 }}>
+                    <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm" />
+                  </Form.Item>
+                  <Form.Item label="物流单号" name="trackingNo" style={{ marginBottom: 0 }}>
+                    <Input allowClear placeholder="填写物流单号" />
+                  </Form.Item>
+                  <Form.Item
+                    label="备注"
+                    name="remark"
+                    style={{ marginBottom: 0, gridColumn: '1 / -1' }}
+                  >
+                    <Input.TextArea rows={2} placeholder="填写备注" />
+                  </Form.Item>
+                </div>
+              </Form>
+            </Card>
+
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button type="primary" loading={submitting} onClick={() => void handleSubmitDispatch()}>
+                确定出货
+              </Button>
+            </Space>
+          </Space>
+        )}
+      </Drawer>
+    </Space>
   );
 };
 

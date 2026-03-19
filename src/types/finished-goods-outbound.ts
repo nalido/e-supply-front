@@ -79,6 +79,7 @@ export type FinishedGoodsOutboundListResponse = {
 };
 
 export type FinishedGoodsDispatchLinePayload = {
+  productionOrderId?: string;
   styleVariantId: string;
   quantity: number;
   unitPrice: number;
@@ -87,7 +88,6 @@ export type FinishedGoodsDispatchLinePayload = {
 export type FinishedGoodsDispatchCreatePayload = {
   warehouseId: string;
   customerId?: string;
-  productionOrderId?: string;
   logisticsProviderId?: string;
   dispatchAt?: string;
   trackingNo?: string;

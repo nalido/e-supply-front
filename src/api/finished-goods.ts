@@ -2,6 +2,9 @@ import type {
   FinishedGoodsStockListParams,
   FinishedGoodsStockListResponse,
   FinishedGoodsStockMeta,
+  FinishedGoodsStockStyleListParams,
+  FinishedGoodsStockStyleListResponse,
+  FinishedGoodsStockStyleMatrixResponse,
 } from '../types/finished-goods-stock';
 import type {
   FinishedGoodsPendingReceiptListParams,
@@ -76,6 +79,33 @@ export const finishedGoodsStockService = {
         pageSize: params.pageSize,
       },
     });
+    return data;
+  },
+  async getStyleList(params: FinishedGoodsStockStyleListParams): Promise<FinishedGoodsStockStyleListResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<FinishedGoodsStockStyleListResponse>('/api/v1/finished-goods/stock/styles', {
+      params: {
+        tenantId,
+        onlyInStock: params.onlyInStock,
+        warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
+        keyword: params.keyword,
+        page: params.page,
+        pageSize: params.pageSize,
+      },
+    });
+    return data;
+  },
+  async getStyleMatrix(styleId: string, warehouseId: string): Promise<FinishedGoodsStockStyleMatrixResponse> {
+    const tenantId = ensureTenantId();
+    const { data } = await http.get<FinishedGoodsStockStyleMatrixResponse>(
+      `/api/v1/finished-goods/stock/styles/${styleId}/matrix`,
+      {
+        params: {
+          tenantId,
+          warehouseId: Number(warehouseId),
+        },
+      },
+    );
     return data;
   },
 };
@@ -299,12 +329,12 @@ export const finishedGoodsDispatchService = {
     const tenantId = ensureTenantId();
     const requestBody: Record<string, unknown> = {
       warehouseId: Number(payload.warehouseId),
-      productionOrderId: payload.productionOrderId ? Number(payload.productionOrderId) : undefined,
       logisticsProviderId: payload.logisticsProviderId ? Number(payload.logisticsProviderId) : undefined,
       dispatchAt: payload.dispatchAt,
       remark: payload.remark,
       transferReference: payload.trackingNo,
       items: payload.items.map((item) => ({
+        productionOrderId: item.productionOrderId ? Number(item.productionOrderId) : undefined,
         styleVariantId: Number(item.styleVariantId),
         quantity: Math.floor(item.quantity),
         unitPrice: item.unitPrice,

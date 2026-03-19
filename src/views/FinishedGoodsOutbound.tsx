@@ -52,6 +52,13 @@ const groupingOptions: { label: string; value: FinishedGoodsOutboundGrouping }[]
 const quantityFormatter = (value: number): string => value.toLocaleString('zh-CN');
 const currencyFormatter = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 });
 const formatCurrency = (value: number): string => currencyFormatter.format(value ?? 0);
+const formatLocalDateTime = (value?: string): string => {
+  if (!value) {
+    return '-';
+  }
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : value;
+};
 
 type TableRecord =
   | (FinishedGoodsOutboundRecord & { recordType: 'detail' })
@@ -405,7 +412,7 @@ const FinishedGoodsOutbound = () => {
         render: (value: string, record) => (
           <Space direction="vertical" size={0}>
             <Text>{value}</Text>
-            {record.dispatchDate ? <Text type="secondary">{record.dispatchDate}</Text> : null}
+            {record.dispatchDate ? <Text type="secondary">{formatLocalDateTime(record.dispatchDate)}</Text> : null}
           </Space>
         ),
       },
@@ -469,6 +476,7 @@ const FinishedGoodsOutbound = () => {
       title: '出库日期',
       dataIndex: 'dispatchDate',
       width: 140,
+      render: (value?: string) => formatLocalDateTime(value),
     };
 
     const quantityColumn: ColumnsType<TableRecord>[number] = {
