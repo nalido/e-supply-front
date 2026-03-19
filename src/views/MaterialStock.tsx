@@ -7,7 +7,6 @@ import { materialStockService } from '../api/material-inventory';
 import type {
   MaterialStockListItem,
   MaterialStockListParams,
-  MaterialStockListResponse,
   MaterialStockMeta,
   MaterialStockType,
 } from '../types/material-stock';
@@ -20,6 +19,12 @@ const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const currencyFormatter = new Intl.NumberFormat('zh-CN', {
+  style: 'currency',
+  currency: 'CNY',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 const DEFAULT_TABS: MaterialStockMeta['materialTabs'] = [
   { value: 'fabric', label: '面料' },
@@ -27,15 +32,28 @@ const DEFAULT_TABS: MaterialStockMeta['materialTabs'] = [
 ];
 
 const formatQuantity = (value: number): string => value.toLocaleString('zh-CN');
+const formatCurrency = (value: number): string => currencyFormatter.format(value ?? 0);
+const MATERIAL_TYPES: MaterialStockType[] = ['fabric', 'accessory'];
+const sortTabs = (tabs?: MaterialStockMeta['materialTabs']): MaterialStockMeta['materialTabs'] => {
+  const source = tabs?.length ? tabs : DEFAULT_TABS;
+  const order = new Map(MATERIAL_TYPES.map((value, index) => [value, index]));
+  return [...source].sort((left, right) => {
+    const leftOrder = order.get(left.value) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = order.get(right.value) ?? Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder;
+  });
+};
 
 const MaterialStock = () => {
   const [meta, setMeta] = useState<MaterialStockMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [materials, setMaterials] = useState<MaterialStockListItem[]>([]);
-  const [summary, setSummary] = useState<MaterialStockListResponse['summary']>({
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState({
     stockQtyTotal: 0,
     availableQtyTotal: 0,
     inTransitQtyTotal: 0,
+    stockAmountTotal: 0,
   });
   const [tableLoading, setTableLoading] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
@@ -46,7 +64,6 @@ const MaterialStock = () => {
   const [appliedOrderKeyword, setAppliedOrderKeyword] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [total, setTotal] = useState(0);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<MaterialStockListItem[]>([]);
   const [movementModalOpen, setMovementModalOpen] = useState(false);
@@ -69,9 +86,10 @@ const MaterialStock = () => {
       setMetaLoading(true);
       try {
         const response = await materialStockService.getMeta();
-        setMeta(response);
-        if (response.materialTabs?.length) {
-          setMaterialType(response.materialTabs[0].value);
+        const sortedTabs = sortTabs(response.materialTabs);
+        setMeta({ ...response, materialTabs: sortedTabs });
+        if (sortedTabs.length) {
+          setMaterialType(sortedTabs[0].value);
         }
       } catch (error) {
         console.error('failed to load material stock meta', error);
@@ -107,7 +125,6 @@ const MaterialStock = () => {
       const response = await materialStockService.getList(params);
       setMaterials(response.list);
       setTotal(response.total);
-      setSummary(response.summary);
       const validIds = new Set(response.list.map((item) => item.id));
       setSelectedRowKeys((prev) => prev.filter((key) => validIds.has(String(key))));
       setSelectedRows((prev) => prev.filter((item) => validIds.has(item.id)));
@@ -123,9 +140,22 @@ const MaterialStock = () => {
     void loadList();
   }, [loadList]);
 
+  const loadSummary = useCallback(async () => {
+    try {
+      const response = await materialStockService.getSummary();
+      setSummary(response);
+    } catch (error) {
+      console.error('failed to load material stock summary', error);
+      message.error('获取物料库存汇总失败');
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
+
   const handleTabChange = (value: string) => {
     setMaterialType(value as MaterialStockType);
-    setPage(1);
     setSelectedRowKeys([]);
     setSelectedRows([]);
   };
@@ -272,15 +302,15 @@ const MaterialStock = () => {
     },
   ], []);
 
-  const tabItems = useMemo(() => (meta?.materialTabs?.length ? meta.materialTabs : DEFAULT_TABS), [meta]);
-
+  const tabItems = useMemo(() => sortTabs(meta?.materialTabs), [meta]);
   const summaryItems = useMemo(
     () => [
       { label: '库存总数', value: `${formatQuantity(summary.stockQtyTotal)}` },
       { label: '可用总数', value: `${formatQuantity(summary.availableQtyTotal)}` },
       { label: '采购在途', value: `${formatQuantity(summary.inTransitQtyTotal)}` },
+      { label: '库存金额', value: formatCurrency(summary.stockAmountTotal) },
     ],
-    [summary.availableQtyTotal, summary.inTransitQtyTotal, summary.stockQtyTotal],
+    [summary.availableQtyTotal, summary.inTransitQtyTotal, summary.stockAmountTotal, summary.stockQtyTotal],
   );
 
   const hasSelection = selectedRowKeys.length > 0;

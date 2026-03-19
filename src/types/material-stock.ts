@@ -31,6 +31,7 @@ export type MaterialStockListSummary = {
   stockQtyTotal: number;
   availableQtyTotal: number;
   inTransitQtyTotal: number;
+  stockAmountTotal: number;
 };
 
 export type MaterialStockListParams = {
@@ -45,7 +46,6 @@ export type MaterialStockListParams = {
 export type MaterialStockListResponse = {
   list: MaterialStockListItem[];
   total: number;
-  summary: MaterialStockListSummary;
 };
 
 export type MaterialStockMeta = {

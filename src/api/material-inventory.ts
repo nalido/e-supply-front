@@ -24,6 +24,7 @@ import type {
   MaterialStockListParams,
   MaterialStockListResponse,
   MaterialStockMeta,
+  MaterialStockListSummary,
 } from '../types/material-stock';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
@@ -34,6 +35,20 @@ const ensureTenantId = (): string => {
     throw new Error('未找到企业信息，请重新选择');
   }
   return tenantId;
+};
+
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+const withInflightDedup = <T>(key: string, factory: () => Promise<T>): Promise<T> => {
+  const existing = inflightRequests.get(key);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+  const request = factory().finally(() => {
+    inflightRequests.delete(key);
+  });
+  inflightRequests.set(key, request);
+  return request;
 };
 
 const toBackendMaterialType = (value?: string) => {
@@ -57,26 +72,41 @@ const buildInventoryParams = (
 export const materialStockService = {
   async getMeta(): Promise<MaterialStockMeta> {
     const tenantId = ensureTenantId();
-    const response = await http.get<MaterialStockMeta>('/api/v1/inventory/materials/meta', {
-      params: { tenantId },
+    return withInflightDedup(`material-stock-meta:${tenantId}`, async () => {
+      const response = await http.get<MaterialStockMeta>('/api/v1/inventory/materials/meta', {
+        params: { tenantId },
+      });
+      return response.data;
     });
-    return response.data;
   },
 
   async getList(params: MaterialStockListParams): Promise<MaterialStockListResponse> {
     const tenantId = ensureTenantId();
-    const response = await http.get<MaterialStockListResponse>('/api/v1/inventory/materials', {
-      params: {
-        tenantId,
-        materialType: params.materialType,
-        onlyInStock: params.onlyInStock,
-        keywordRemark: params.keywordRemark,
-        keywordOrderStyle: params.keywordOrderStyle,
-        page: params.page,
-        size: params.pageSize,
-      },
+    const query = {
+      tenantId,
+      materialType: params.materialType,
+      onlyInStock: params.onlyInStock,
+      keywordRemark: params.keywordRemark,
+      keywordOrderStyle: params.keywordOrderStyle,
+      page: params.page,
+      size: params.pageSize,
+    };
+    return withInflightDedup(`material-stock-list:${JSON.stringify(query)}`, async () => {
+      const response = await http.get<MaterialStockListResponse>('/api/v1/inventory/materials', {
+        params: query,
+      });
+      return response.data;
     });
-    return response.data;
+  },
+
+  async getSummary(): Promise<MaterialStockListSummary> {
+    const tenantId = ensureTenantId();
+    return withInflightDedup(`material-stock-summary:${tenantId}`, async () => {
+      const response = await http.get<MaterialStockListSummary>('/api/v1/inventory/materials/summary', {
+        params: { tenantId },
+      });
+      return response.data;
+    });
   },
 
   async getMovements(
