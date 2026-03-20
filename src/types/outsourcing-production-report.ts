@@ -2,9 +2,12 @@ export type OutsourcingOrderStatus = '未开始' | '进行中' | '已完成' | '
 
 export interface OutsourcingProductionOrderInfo {
   imageUrl?: string;
+  styleNo?: string;
   styleName: string;
   orderNumber: string;
+  bedNo?: string;
   quantity: number;
+  unit?: string;
 }
 
 export interface OutsourcingProductionReportListItem {

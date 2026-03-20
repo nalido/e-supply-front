@@ -3,7 +3,6 @@ import type { CSSProperties, Key } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { SorterResult, TablePaginationConfig } from 'antd/es/table/interface';
 import {
-  Avatar,
   Button,
   Card,
   Col,
@@ -23,6 +22,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { outsourcingProductionReportService } from '../api/outsourcing-production-report';
+import ListImage from '../components/common/ListImage';
 import type {
   OutsourcingOrderStatus,
   OutsourcingProductionReportListItem,
@@ -303,19 +303,63 @@ const OutsourcingProductionReport = () => {
       {
         title: '订单信息',
         dataIndex: 'orderInfo',
-        render: (value) => (
-          <Space>
-            <Avatar shape="square" size={48} src={value.imageUrl}>
-              {value.styleName.slice(0, 1)}
-            </Avatar>
-            <Space direction="vertical" size={0}>
-              <Text strong>{value.styleName}</Text>
-              <Text type="secondary">订单号：{value.orderNumber}</Text>
-              <Text type="secondary">下单量：{formatQuantity(value.quantity)}</Text>
-            </Space>
-          </Space>
-        ),
-        width: 320,
+        onHeaderCell: () => ({
+          style: {
+            width: 280,
+            minWidth: 280,
+            maxWidth: 280,
+          },
+        }),
+        onCell: () => ({
+          style: {
+            width: 280,
+            minWidth: 280,
+            maxWidth: 280,
+          },
+        }),
+        render: (value) => {
+          const styleTitle = [value.styleNo, value.styleName].filter(Boolean).join(' ');
+          return (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                minWidth: 0,
+              }}
+            >
+              <ListImage src={value.imageUrl} alt={value.styleName} width={56} height={56} borderRadius={8} />
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              >
+                <Text strong ellipsis={{ tooltip: styleTitle || value.styleName || '-' }}>
+                  {styleTitle || value.styleName || '-'}
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12 }}
+                  ellipsis={{ tooltip: value.orderNumber || '-' }}
+                >
+                  {value.orderNumber || '-'}
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12 }}
+                  ellipsis={{ tooltip: `${formatQuantity(value.quantity)} ${value.unit ?? '件'}` }}
+                >
+                  {formatQuantity(value.quantity)} {value.unit ?? '件'}
+                </Text>
+              </div>
+            </div>
+          );
+        },
+        width: 280,
       },
       {
         title: '加工类型',
@@ -347,49 +391,49 @@ const OutsourcingProductionReport = () => {
       {
         title: '加工厂报数',
         dataIndex: 'reportedQty',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '加工厂发货',
         dataIndex: 'shippedQty',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '按期收货',
         dataIndex: 'onTimeReceived',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '逾期收货',
         dataIndex: 'overdueReceived',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '收货数量',
         dataIndex: 'totalReceived',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '实收数',
         dataIndex: 'actualReceived',
-        width: 140,
+        width: 110,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '欠数',
         dataIndex: 'owedQty',
-        width: 120,
+        width: 100,
         align: 'right',
         sorter: true,
         sortOrder: sortOrderFor('owedQty'),
@@ -398,7 +442,7 @@ const OutsourcingProductionReport = () => {
       {
         title: '完成率',
         dataIndex: 'completionRate',
-        width: 130,
+        width: 100,
         align: 'right',
         sorter: true,
         sortOrder: sortOrderFor('completionRate'),
@@ -407,28 +451,28 @@ const OutsourcingProductionReport = () => {
       {
         title: '返工数量',
         dataIndex: 'reworkQty',
-        width: 130,
+        width: 100,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '返工率',
         dataIndex: 'reworkRate',
-        width: 120,
+        width: 100,
         align: 'right',
         render: (value: number) => formatPercent(value),
       },
       {
         title: '次品数量',
         dataIndex: 'defectQty',
-        width: 130,
+        width: 100,
         align: 'right',
         render: (value: number) => formatQuantity(value),
       },
       {
         title: '次品率',
         dataIndex: 'defectRate',
-        width: 120,
+        width: 100,
         align: 'right',
         sorter: true,
         sortOrder: sortOrderFor('defectRate'),
@@ -559,6 +603,7 @@ const OutsourcingProductionReport = () => {
               <Table<OutsourcingProductionReportListItem>
                 rowKey="id"
                 bordered
+                tableLayout="fixed"
                 scroll={{ x: 1700 }}
                 loading={tableLoading}
                 dataSource={records}
