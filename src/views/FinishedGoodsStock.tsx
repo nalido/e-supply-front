@@ -472,21 +472,6 @@ const FinishedGoodsStock = () => {
         render: (value: number, record) => <span className="finished-goods-stock-total-cell">{quantityFormatter(value)} {record.unit}</span>,
       },
       {
-        title: '状态',
-        key: 'status',
-        width: 116,
-        render: (_value, record) => {
-          const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
-          if (pendingStyles.some((item) => item.entryKey === entryKey)) {
-            return <Tag color="blue">已加入</Tag>;
-          }
-          if (pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId) {
-            return <Tag>仓库不一致</Tag>;
-          }
-          return <Tag color="green">可加入</Tag>;
-        },
-      },
-      {
         title: '操作',
         key: 'action',
         width: 160,
