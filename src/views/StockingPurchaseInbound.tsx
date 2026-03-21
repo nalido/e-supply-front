@@ -92,7 +92,6 @@ type ReceiveFormValues = {
   receivedAt?: dayjs.Dayjs;
   batchNo?: string;
   overReceiptReasonCode?: string;
-  overReceiptReasonText?: string;
   remark?: string;
 };
 
@@ -114,7 +113,6 @@ type BatchReceiveItemFormValue = {
   receiveQty?: number;
   batchNo?: string;
   overReceiptReasonCode?: string;
-  overReceiptReasonText?: string;
   remark?: string;
 };
 
@@ -151,7 +149,7 @@ const StockingPurchaseInbound = () => {
   const [meta, setMeta] = useState<StockingPurchaseMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [materialType, setMaterialType] = useState<'fabric' | 'accessory'>('fabric');
-  const [statusFilter, setStatusFilter] = useState<StockingPurchaseStatusFilter>('pending');
+  const [statusFilter, setStatusFilter] = useState<StockingPurchaseStatusFilter>('all');
   const [keywordInput, setKeywordInput] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(undefined);
   const [records, setRecords] = useState<StockingPurchaseRecord[]>([]);
@@ -304,7 +302,6 @@ const StockingPurchaseInbound = () => {
         receivedAt: dayjs(),
         batchNo: undefined,
         overReceiptReasonCode: undefined,
-        overReceiptReasonText: undefined,
         remark: undefined,
       });
     },
@@ -334,7 +331,6 @@ const StockingPurchaseInbound = () => {
             batchNo: values.batchNo,
             remark: values.remark,
             overReceiptReasonCode: values.overReceiptReasonCode,
-            overReceiptReasonText: values.overReceiptReasonText,
           },
         ],
       };
@@ -394,7 +390,7 @@ const StockingPurchaseInbound = () => {
         setMaterialType(meta.materialTypeTabs[0].value);
       }
     } else {
-      setStatusFilter('pending');
+      setStatusFilter('all');
       setMaterialType('fabric');
     }
     setAppliedKeyword(undefined);
@@ -446,7 +442,6 @@ const StockingPurchaseInbound = () => {
           : undefined,
         batchNo: undefined,
         overReceiptReasonCode: undefined,
-        overReceiptReasonText: undefined,
         remark: undefined,
       })),
     });
@@ -487,7 +482,6 @@ const StockingPurchaseInbound = () => {
           batchNo: input.batchNo,
           remark: input.remark,
           overReceiptReasonCode: input.overReceiptReasonCode,
-          overReceiptReasonText: input.overReceiptReasonText,
         });
       });
       if (!grouped.size) {
@@ -788,10 +782,10 @@ const StockingPurchaseInbound = () => {
       },
       {
         title: '超收原因',
-        dataIndex: 'overReceiptReasonText',
-        key: 'overReceiptReasonText',
+        dataIndex: 'overReceiptReasonCode',
+        key: 'overReceiptReasonCode',
         width: 180,
-        render: (_value: string | undefined, record) => record.overReceiptReasonText ?? record.overReceiptReasonCode ?? '-',
+        render: (value?: string) => value ?? '-',
       },
       {
         title: '批次号',
@@ -986,7 +980,7 @@ const StockingPurchaseInbound = () => {
                 style={{ marginBottom: 12 }}
                 message={`计划量：${formatQuantity(receivePlanQty)} ${receiveModalState.record.unit} ｜ 当前累计实收：${formatQuantity(receiveActualBeforeQty)} ${receiveModalState.record.unit}`}
                 description={receiveIsOverPlan
-                  ? `本次提交后累计实收将变为 ${formatQuantity(receiveActualAfterQty)} ${receiveModalState.record.unit}，超收 ${formatQuantity(receiveOverAfterQty)} ${receiveModalState.record.unit}。超计划录入时，原因与备注必填。`
+                  ? `本次提交后累计实收将变为 ${formatQuantity(receiveActualAfterQty)} ${receiveModalState.record.unit}，超收 ${formatQuantity(receiveOverAfterQty)} ${receiveModalState.record.unit}。超计划录入时，超收原因必选，业务备注必填。`
                   : `计划待收量：${formatQuantity(getPlanPendingReceiveQty(receiveModalState.record, receivePlanQty))} ${receiveModalState.record.unit}。一期支持超计划录入，但会做显式告警与审计。`}
               />
             ) : null}
@@ -1033,20 +1027,6 @@ const StockingPurchaseInbound = () => {
               }]}
             >
               <Select allowClear options={OVER_PLAN_REASON_OPTIONS} placeholder="超计划收料时必选" />
-            </Form.Item>
-            <Form.Item
-              label="原因说明 / 备注"
-              name="overReceiptReasonText"
-              rules={[{
-                validator: (_rule, value) => {
-                  if (!receiveIsOverPlan || (typeof value === 'string' && value.trim())) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('超计划收料时必须填写原因说明'));
-                },
-              }]}
-            >
-              <Input.TextArea rows={3} placeholder="请说明超收原因、到货背景或业务确认信息" />
             </Form.Item>
             <Form.Item
               label="业务备注"
@@ -1129,7 +1109,7 @@ const StockingPurchaseInbound = () => {
                                 ? `提交后累计实收 ${formatQuantity(nextActualQty)} ${record.unit}，超收 ${formatQuantity(overQty)} ${record.unit}`
                                 : `本次按计划口径收料，提交后累计实收 ${formatQuantity(nextActualQty)} ${record.unit}`;
                             })()}
-                            description="批量场景下，如本条发生超计划收料，仍需逐条填写超收原因与备注。"
+                            description="批量场景下，如本条发生超计划收料，仍需逐条选择超收原因并填写业务备注。"
                           />
                           <Form.Item
                             label="收料数量"
@@ -1169,22 +1149,6 @@ const StockingPurchaseInbound = () => {
                             }]}
                           >
                             <Select allowClear options={OVER_PLAN_REASON_OPTIONS} placeholder="超计划收料时必选" />
-                          </Form.Item>
-                          <Form.Item
-                            label="原因说明 / 备注"
-                            name={[field.name, 'overReceiptReasonText']}
-                            rules={[{
-                              validator: (_rule, value) => {
-                                const currentQty = Number(batchItemsWatch?.[field.name]?.receiveQty ?? 0);
-                                const nextActualQty = getActualReceivedQty(record) + currentQty;
-                                if (nextActualQty <= record.orderQty || (typeof value === 'string' && value.trim())) {
-                                  return Promise.resolve();
-                                }
-                                return Promise.reject(new Error('超计划收料时必须填写原因说明'));
-                              },
-                            }]}
-                          >
-                            <Input.TextArea rows={2} placeholder="请说明超收原因" />
                           </Form.Item>
                           <Form.Item
                             label="业务备注"
@@ -1235,9 +1199,6 @@ const StockingPurchaseInbound = () => {
                     contentStyle={{ marginLeft: 8 }}
                   >
                     <Descriptions.Item label="收料单号">{header.receiptNo}</Descriptions.Item>
-                    <Descriptions.Item label="状态">
-                      <Tag color={header.statusTagColor}>{header.statusLabel}</Tag>
-                    </Descriptions.Item>
                     <Descriptions.Item label="收料时间">{header.receivedAt ?? '-'}</Descriptions.Item>
                     <Descriptions.Item label="收料仓库">{header.warehouseName ?? '-'}</Descriptions.Item>
                   </Descriptions>
@@ -1247,6 +1208,7 @@ const StockingPurchaseInbound = () => {
                     columns={receiptItemColumns}
                     pagination={false}
                     size="small"
+                    scroll={{ x: 'max-content' }}
                     style={{ marginTop: 12 }}
                   />
                 </Card>

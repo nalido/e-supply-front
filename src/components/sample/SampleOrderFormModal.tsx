@@ -702,7 +702,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
         imageUrl: material.imageUrl,
         consumption: 1,
         lossRate: 0,
-        unitPrice: material.price,
+        unitPrice: material.referencePrice,
         remark: '',
       };
       return [...prev, entry];
@@ -757,7 +757,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                   {record.name || '未命名物料'}
                 </Text>
                 <Text type="secondary" className="sample-order-material-meta">
-                  {[record.sku, record.unit ? `单位：${record.unit}` : null, record.unitPrice !== undefined ? `单价 ¥${record.unitPrice.toFixed(2)}` : null]
+                  {[record.sku, record.unit ? `单位：${record.unit}` : null, record.unitPrice !== undefined ? `参考单价 ¥${record.unitPrice.toFixed(2)}` : null]
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>

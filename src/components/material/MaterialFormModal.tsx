@@ -8,7 +8,7 @@ type MaterialFormValues = {
   sku?: string;
   name: string;
   unit: MaterialUnit;
-  price?: number;
+  referencePrice?: number;
   width?: string;
   grammage?: string;
   tolerance?: string;
@@ -62,7 +62,7 @@ const MaterialFormModal = ({
         sku: initialValues?.sku,
         name: initialValues?.name ?? '',
         unit: initialValues?.unit ?? '米',
-        price: initialValues?.price,
+        referencePrice: initialValues?.referencePrice,
         width: initialValues?.width,
         grammage: initialValues?.grammage,
         tolerance: initialValues?.tolerance,
@@ -123,14 +123,16 @@ const MaterialFormModal = ({
         </Row>
         <Row gutter={16}>
           <Col xs={24} md={12}>
-            <Form.Item label="单价" name="price">
-              <InputNumber
-                min={0}
-                precision={2}
-                style={{ width: '100%' }}
-                addonBefore="¥"
-                placeholder="请输入单价"
-              />
+            <Form.Item label="参考单价" name="referencePrice">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#6b7280', fontSize: 14, lineHeight: 1 }}>¥</span>
+                <InputNumber
+                  min={0}
+                  precision={2}
+                  style={{ width: '100%' }}
+                  placeholder="请输入参考单价"
+                />
+              </div>
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>

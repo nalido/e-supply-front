@@ -118,6 +118,7 @@ export const stockingPurchaseInboundService = {
           materialId: Number(line.materialId),
           orderQty: line.quantity,
           unit: line.unit,
+          unitPrice: line.unitPrice,
         })),
       },
       { params: { tenantId } },

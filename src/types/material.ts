@@ -13,7 +13,7 @@ export type MaterialItem = {
   grammage?: string;
   tolerance?: string;
   unit: MaterialUnit;
-  price?: number;
+  referencePrice?: number;
   colors: string[];
   remarks?: string;
   status?: 'active' | 'inactive';
@@ -42,7 +42,7 @@ export type CreateMaterialPayload = {
   grammage?: string;
   tolerance?: string;
   unit: MaterialUnit;
-  price?: number;
+  referencePrice?: number;
   colors?: string[];
   remarks?: string;
 };

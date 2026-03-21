@@ -58,6 +58,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
   const [selectedMaterials, setSelectedMaterials] = useState<MaterialItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -92,6 +93,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   const resetState = () => {
     setSelectedMaterials([]);
     setQuantities({});
+    setUnitPrices({});
     setMaterialDrawerOpen(false);
     setMaterialOptions([]);
     setMaterialOptionsPage(1);
@@ -230,9 +232,18 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     setQuantities((prev) => ({ ...prev, [recordId]: value ?? 0 }));
   }, []);
 
+  const handleUnitPriceChange = useCallback((recordId: string, value: number | null) => {
+    setUnitPrices((prev) => ({ ...prev, [recordId]: value ?? 0 }));
+  }, []);
+
   const handleRemoveMaterial = useCallback((recordId: string) => {
     setSelectedMaterials((prev) => prev.filter((item) => item.id !== recordId));
     setQuantities((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+    setUnitPrices((prev) => {
       const next = { ...prev };
       delete next[recordId];
       return next;
@@ -284,6 +295,27 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         ),
       },
       {
+        title: '采购单价',
+        dataIndex: 'unitPrice',
+        key: 'unitPrice',
+        width: 180,
+        render: (_value, record) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Text type="secondary" style={{ minWidth: 12 }}>
+              ¥
+            </Text>
+            <InputNumber
+              min={0}
+              precision={2}
+              value={unitPrices[record.id] ?? record.referencePrice ?? 0}
+              onChange={(val) => handleUnitPriceChange(record.id, val)}
+              style={{ width: '100%' }}
+              placeholder="请输入采购单价"
+            />
+          </div>
+        ),
+      },
+      {
         title: '操作',
         dataIndex: 'actions',
         key: 'actions',
@@ -295,7 +327,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         ),
       },
     ],
-    [handleQuantityChange, handleRemoveMaterial, quantities],
+    [handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, quantities, unitPrices],
   );
 
   const handleDrawerSearch = (value: string) => {
@@ -324,9 +356,9 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       return;
     }
     let hasNewItems = false;
-    setSelectedMaterials((prev) => {
-      const existingIds = new Set(prev.map((item) => item.id));
-      const itemsToAdd = selectedRecords.filter((item) => !existingIds.has(item.id));
+      setSelectedMaterials((prev) => {
+        const existingIds = new Set(prev.map((item) => item.id));
+        const itemsToAdd = selectedRecords.filter((item) => !existingIds.has(item.id));
       if (!itemsToAdd.length) {
         message.info('所选物料已在列表中');
         return prev;
@@ -340,6 +372,15 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           }
         });
         return nextQuantities;
+      });
+      setUnitPrices((unitPriceState) => {
+        const nextUnitPrices = { ...unitPriceState };
+        itemsToAdd.forEach((item) => {
+          if (nextUnitPrices[item.id] === undefined) {
+            nextUnitPrices[item.id] = item.referencePrice ?? 0;
+          }
+        });
+        return nextUnitPrices;
       });
       return [...prev, ...itemsToAdd];
     });
@@ -361,10 +402,17 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           materialId: item.id,
           quantity: quantities[item.id] ?? 0,
           unit: item.unit,
+          unitPrice: unitPrices[item.id] ?? item.referencePrice ?? 0,
         }))
         .filter((line) => line.quantity > 0);
       if (!selectedLines.length) {
         message.warning('请为勾选的物料填写采购数量');
+        return;
+      }
+      const missingUnitPriceLine = selectedLines.find((line) => line.unitPrice <= 0);
+      if (missingUnitPriceLine) {
+        const material = selectedMaterials.find((item) => item.id === missingUnitPriceLine.materialId);
+        message.warning(`请填写物料「${material?.name ?? missingUnitPriceLine.materialId}」的采购单价`);
         return;
       }
       const payload: StockingPurchaseCreatePayload = {

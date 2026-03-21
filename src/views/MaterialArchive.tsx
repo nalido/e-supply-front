@@ -189,7 +189,7 @@ const MaterialArchive = () => {
         if (!name) {
           return null;
         }
-        const priceValue = Number(getValue(row, '单价'));
+        const priceValue = Number(getValue(row, '参考单价') || getValue(row, '单价'));
         const colorsValue = getValue(row, '颜色');
         const colors = colorsValue
           ? colorsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
@@ -198,7 +198,7 @@ const MaterialArchive = () => {
           name,
           materialType,
           unit: (getValue(row, '用量单位') || defaultUnit) as MaterialUnit,
-          price: Number.isFinite(priceValue) ? priceValue : undefined,
+          referencePrice: Number.isFinite(priceValue) ? priceValue : undefined,
           width: getValue(row, '幅宽') || undefined,
           grammage: getValue(row, '克重') || undefined,
           tolerance: getValue(row, '空差') || undefined,
@@ -284,7 +284,7 @@ const MaterialArchive = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const csvHeader = '名称,用量单位,单价,幅宽,克重,空差,颜色,备注\n';
+    const csvHeader = '名称,用量单位,参考单价,幅宽,克重,空差,颜色,备注\n';
     const blob = new Blob([csvHeader], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -335,8 +335,8 @@ const MaterialArchive = () => {
         dataIndex: 'unit',
       },
       {
-        title: '单价',
-        dataIndex: 'price',
+        title: '参考单价',
+        dataIndex: 'referencePrice',
         align: 'right',
         render: (value) => formatCurrency(value),
       },

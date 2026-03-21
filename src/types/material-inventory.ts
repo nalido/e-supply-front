@@ -12,8 +12,8 @@ export type MaterialInventoryListParams = MaterialInventoryQueryParams & {
 
 export type MaterialInventoryTrendPoint = {
   month: string;
-  inboundQty: number;
-  outboundQty: number;
+  inboundAmount: number;
+  outboundAmount: number;
 };
 
 export type MaterialInboundRatioItem = {
@@ -23,8 +23,8 @@ export type MaterialInboundRatioItem = {
 
 export type MaterialInventoryAggregation = {
   trend: MaterialInventoryTrendPoint[];
-  inboundTotal: number;
-  outboundTotal: number;
+  inboundAmountTotal: number;
+  outboundAmountTotal: number;
   ratio: MaterialInboundRatioItem[];
   ratioTotal: number;
 };

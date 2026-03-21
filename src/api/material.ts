@@ -127,7 +127,7 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
     materialType: adaptMaterialType(item.materialType),
     unit: (toMaterialUnit(item.unit) ?? '米') as MaterialUnit,
     imageUrl: item.imageUrl ?? undefined,
-    price: toNumberValue(attributes.price),
+    referencePrice: toNumberValue(attributes.price),
     width: toStringValue(attributes.width),
     grammage: toStringValue(attributes.grammage ?? attributes.weight),
     tolerance: toStringValue(attributes.tolerance),
@@ -167,8 +167,8 @@ const buildAttributesPayload = (payload: CreateMaterialPayload): Record<string, 
   if (payload.tolerance) {
     attributes.tolerance = payload.tolerance;
   }
-  if (payload.price !== undefined) {
-    attributes.price = payload.price;
+  if (payload.referencePrice !== undefined) {
+    attributes.price = payload.referencePrice;
   }
   if (payload.colors && payload.colors.length > 0) {
     attributes.colors = payload.colors;

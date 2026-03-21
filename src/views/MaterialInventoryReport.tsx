@@ -42,13 +42,13 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const MATERIAL_TYPES = ['面料', '辅料', '包材'];
 
 const TREND_SERIES_COLOR: Record<string, string> = {
-  入库数: '#6366F1',
-  出库数: '#F97316',
+  入库金额: '#6366F1',
+  出库金额: '#F97316',
 };
 
 const TREND_SERIES_GRADIENT: Record<string, string> = {
-  入库数: 'l(90) 0:rgba(99,102,241,0.32) 0.45:rgba(99,102,241,0.18) 1:rgba(99,102,241,0)',
-  出库数: 'l(90) 0:rgba(249,115,22,0.32) 0.45:rgba(249,115,22,0.18) 1:rgba(249,115,22,0)',
+  入库金额: 'l(90) 0:rgba(99,102,241,0.32) 0.45:rgba(99,102,241,0.18) 1:rgba(99,102,241,0)',
+  出库金额: 'l(90) 0:rgba(249,115,22,0.32) 0.45:rgba(249,115,22,0.18) 1:rgba(249,115,22,0)',
 };
 
 const MATERIAL_TYPE_GRADIENTS: Record<string, [string, string]> = {
@@ -74,8 +74,8 @@ const NUMBER_FORMATTER = new Intl.NumberFormat('zh-CN');
 
 const initialAggregation: MaterialInventoryAggregation = {
   trend: [],
-  inboundTotal: 0,
-  outboundTotal: 0,
+  inboundAmountTotal: 0,
+  outboundAmountTotal: 0,
   ratio: [],
   ratioTotal: 0,
 };
@@ -209,8 +209,8 @@ const MaterialInventoryReport = () => {
   const trendDataset = useMemo(() => {
     const dataset = aggregation.trend ?? [];
     return dataset.flatMap((item) => [
-      { month: item.month, count: item.inboundQty, type: '入库数' },
-      { month: item.month, count: item.outboundQty, type: '出库数' },
+      { month: item.month, count: item.inboundAmount, type: '入库金额' },
+      { month: item.month, count: item.outboundAmount, type: '出库金额' },
     ]);
   }, [aggregation.trend]);
 
@@ -385,20 +385,20 @@ const MaterialInventoryReport = () => {
 
       <Row gutter={16}>
         <Col xs={24} xl={16}>
-          <Card title="物料进出趋势（半年）">
+          <Card title="物料进出金额趋势（半年）">
             <Row gutter={16} style={{ marginBottom: 16 }}>
               <Col span={12}>
                 <Statistic
-                  title="入库合计"
-                  value={aggregation.inboundTotal}
-                  formatter={(value) => formatQuantity(Number(value))}
+                  title="入库金额合计"
+                  value={aggregation.inboundAmountTotal}
+                  formatter={(value) => formatCurrency(Number(value))}
                 />
               </Col>
               <Col span={12}>
                 <Statistic
-                  title="出库合计"
-                  value={aggregation.outboundTotal}
-                  formatter={(value) => formatQuantity(Number(value))}
+                  title="出库金额合计"
+                  value={aggregation.outboundAmountTotal}
+                  formatter={(value) => formatCurrency(Number(value))}
                 />
               </Col>
             </Row>
@@ -410,8 +410,8 @@ const MaterialInventoryReport = () => {
                 height={260}
                 getColor={getTrendColor}
                 getGradient={getTrendGradient}
-                valueFormatter={(value) => formatQuantity(value)}
-                tooltipValueFormatter={(value) => `${formatQuantity(value)} 件`}
+                valueFormatter={(value) => formatCurrency(value)}
+                tooltipValueFormatter={(value) => formatCurrency(value)}
                 seriesLabelFormatter={(series) => series}
                 xLabelFormatter={(label) => `${label.slice(5)}月`}
               />
@@ -448,7 +448,7 @@ const MaterialInventoryReport = () => {
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Text strong>报表说明</Text>
           <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            统计区间内，入库数含采购入库及退料补库，出库数含生产领料及其它非生产出库；可结合右上角导出功能进行细项核对。
+            统计区间内，趋势图按金额统计：入库金额含采购入库及退料补库，出库金额含生产领料及其它非生产出库；可结合右上角导出功能进行细项核对。
           </Paragraph>
         </Space>
       </Card>
