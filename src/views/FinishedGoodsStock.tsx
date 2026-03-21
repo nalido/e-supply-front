@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Key } from 'react';
 import {
   Alert,
   Button,
@@ -11,14 +11,18 @@ import {
   InputNumber,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { finishedGoodsDispatchService, finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
+import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
+import ListImage from '../components/common/ListImage';
 import type {
   FinishedGoodsStockMeta,
   FinishedGoodsStockStyleListParams,
@@ -26,9 +30,8 @@ import type {
   FinishedGoodsStockStyleRecord,
 } from '../types/finished-goods-stock';
 import type { FinishedGoodsDispatchCreatePayload, FinishedGoodsOutboundMeta } from '../types/finished-goods-outbound';
-import ListImage from '../components/common/ListImage';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -49,7 +52,6 @@ type PendingStyle = FinishedGoodsStockStyleRecord & {
 };
 
 const quantityFormatter = (value: number): string => value.toLocaleString('zh-CN');
-
 const buildStyleEntryKey = (styleId: string, warehouseId: string) => `${warehouseId}-${styleId}`;
 
 const buildMatrixMeta = (items: FinishedGoodsStockStyleMatrixItem[]) => {
@@ -64,6 +66,8 @@ const buildMatrixMeta = (items: FinishedGoodsStockStyleMatrixItem[]) => {
 
 const sumPendingStyleQty = (style: PendingStyle) =>
   Object.values(style.quantities).reduce<number>((sum, value) => sum + (Number(value) || 0), 0);
+
+const sumPendingTotalQty = (styles: PendingStyle[]) => styles.reduce((sum, style) => sum + sumPendingStyleQty(style), 0);
 
 type MatrixTableProps = {
   items: FinishedGoodsStockStyleMatrixItem[];
@@ -80,11 +84,11 @@ const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: 
   const { colors, sizes, itemMap } = buildMatrixMeta(items);
 
   return (
-    <div className="factory-create-matrix-wrap">
-      <table className="factory-create-matrix-table">
+    <div className="factory-create-matrix-wrap finished-goods-stock-matrix-wrap">
+      <table className="factory-create-matrix-table finished-goods-stock-matrix-table">
         <thead>
           <tr>
-            <th>颜色 \\ 尺码</th>
+            <th>颜色</th>
             {sizes.map((size) => (
               <th key={`head-${size}`}>{size}</th>
             ))}
@@ -93,14 +97,18 @@ const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: 
         <tbody>
           {colors.map((color) => (
             <tr key={`row-${color}`}>
-              <td>{color}</td>
+              <th scope="row">{color}</th>
               {sizes.map((size) => {
                 const item = itemMap[`${color}__${size}`];
                 if (!item) {
-                  return <td key={`${color}-${size}`}>-</td>;
+                  return (
+                    <td key={`${color}-${size}`} className="is-empty">
+                      -
+                    </td>
+                  );
                 }
                 return (
-                  <td key={`${color}-${size}`}>
+                  <td key={`${color}-${size}`} className={editable ? 'is-editable' : 'is-number'}>
                     {editable ? (
                       <InputNumber
                         min={0}
@@ -116,13 +124,12 @@ const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: 
                           );
                         }}
                         style={{ width: '100%' }}
-                        placeholder={`可用 ${quantityFormatter(item.availableQuantity)} ${item.unit}`}
+                        placeholder={`可用 ${quantityFormatter(item.availableQuantity)}`}
                       />
                     ) : (
-                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                        <Text strong>{quantityFormatter(item.quantity)} {item.unit}</Text>
-                        <Text type="secondary">可用 {quantityFormatter(item.availableQuantity)} {item.unit}</Text>
-                      </Space>
+                      <Tooltip title={`可用 ${quantityFormatter(item.availableQuantity)} ${item.unit}`}>
+                        <span className="finished-goods-stock-matrix-value">{quantityFormatter(item.availableQuantity)}</span>
+                      </Tooltip>
                     )}
                   </td>
                 );
@@ -141,6 +148,7 @@ const FinishedGoodsStock = () => {
   const [metaLoading, setMetaLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [onlyInStock, setOnlyInStock] = useState(true);
   const [warehouseId, setWarehouseId] = useState<string>();
   const [keyword, setKeyword] = useState('');
@@ -149,10 +157,10 @@ const FinishedGoodsStock = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+  const [expandAllRows, setExpandAllRows] = useState(false);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([]);
   const [matrixCache, setMatrixCache] = useState<Record<string, FinishedGoodsStockStyleMatrixItem[]>>({});
   const [pendingStyles, setPendingStyles] = useState<PendingStyle[]>([]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [dispatchForm] = Form.useForm<DispatchFormValues>();
 
   useEffect(() => {
@@ -215,9 +223,44 @@ const FinishedGoodsStock = () => {
     [matrixCache],
   );
 
+  useEffect(() => {
+    if (!expandAllRows) {
+      return;
+    }
+    if (!styles.length) {
+      setExpandedRowKeys([]);
+      return;
+    }
+
+    const currentPageKeys = styles.map((style) => buildStyleEntryKey(style.styleId, style.warehouseId));
+    setExpandedRowKeys(currentPageKeys);
+
+    const loadAllMatrices = async () => {
+      try {
+        await Promise.all(styles.map((style) => ensureStyleMatrix(style)));
+      } catch (error) {
+        console.error('failed to load all stock style matrices', error);
+        message.error('加载全部颜色尺码库存矩阵失败');
+      }
+    };
+
+    void loadAllMatrices();
+  }, [ensureStyleMatrix, expandAllRows, styles]);
+
   const handleSearch = () => {
     setAppliedKeyword(keyword.trim() || undefined);
     setPage(1);
+  };
+
+  const handleReset = () => {
+    setKeyword('');
+    setAppliedKeyword(undefined);
+    setOnlyInStock(true);
+    setWarehouseId(undefined);
+    setExpandAllRows(false);
+    setPage(1);
+    setPageSize(DEFAULT_PAGE_SIZE);
+    setExpandedRowKeys([]);
   };
 
   const handleWarehouseChange = (value?: string) => {
@@ -226,6 +269,7 @@ const FinishedGoodsStock = () => {
       message.info('切换仓库后已清空待出货列表');
     }
     setWarehouseId(value);
+    setExpandAllRows(false);
     setPage(1);
     setExpandedRowKeys([]);
   };
@@ -245,29 +289,32 @@ const FinishedGoodsStock = () => {
     setExpandedRowKeys((prev) => prev.filter((key) => key !== entryKey));
   };
 
-  const handleAddPendingStyle = useCallback(async (style: FinishedGoodsStockStyleRecord) => {
-    const entryKey = buildStyleEntryKey(style.styleId, style.warehouseId);
-    if (pendingStyles.some((item) => item.entryKey === entryKey)) {
-      message.info('该款式已在待出货列表中');
-      return;
-    }
-    if (pendingStyles.length > 0 && pendingStyles[0].warehouseId !== style.warehouseId) {
-      message.warning(`一次出货操作仅支持同一仓库，当前待出货列表仓库为「${pendingStyles[0].warehouseName}」`);
-      return;
-    }
-    try {
-      const items = await ensureStyleMatrix(style);
-      const quantities = items.reduce<Record<string, number | undefined>>((acc, item) => {
-        acc[item.styleVariantId] = undefined;
-        return acc;
-      }, {});
-      setPendingStyles((prev) => [...prev, { ...style, entryKey, items, quantities }]);
-      message.success(`已添加 ${style.styleNo}（${style.warehouseName}）到待出货列表`);
-    } catch (error) {
-      console.error('failed to add pending style', error);
-      message.error('添加待出货款式失败');
-    }
-  }, [ensureStyleMatrix, pendingStyles]);
+  const handleAddPendingStyle = useCallback(
+    async (style: FinishedGoodsStockStyleRecord) => {
+      const entryKey = buildStyleEntryKey(style.styleId, style.warehouseId);
+      if (pendingStyles.some((item) => item.entryKey === entryKey)) {
+        message.info('该款式已在待出货列表中');
+        return;
+      }
+      if (pendingStyles.length > 0 && pendingStyles[0].warehouseId !== style.warehouseId) {
+        message.warning(`一次出货操作仅支持同一仓库，当前待出货列表仓库为「${pendingStyles[0].warehouseName}」`);
+        return;
+      }
+      try {
+        const items = await ensureStyleMatrix(style);
+        const quantities = items.reduce<Record<string, number | undefined>>((acc, item) => {
+          acc[item.styleVariantId] = undefined;
+          return acc;
+        }, {});
+        setPendingStyles((prev) => [...prev, { ...style, entryKey, items, quantities }]);
+        message.success(`已添加 ${style.styleNo}（${style.warehouseName}）到待出货列表`);
+      } catch (error) {
+        console.error('failed to add pending style', error);
+        message.error('添加待出货款式失败');
+      }
+    },
+    [ensureStyleMatrix, pendingStyles],
+  );
 
   const handleRemovePendingStyle = useCallback((entryKey: string) => {
     setPendingStyles((prev) => prev.filter((item) => item.entryKey !== entryKey));
@@ -290,6 +337,8 @@ const FinishedGoodsStock = () => {
   }, []);
 
   const selectedStyleCount = pendingStyles.length;
+  const totalPendingQty = useMemo(() => sumPendingTotalQty(pendingStyles), [pendingStyles]);
+  const lockedWarehouseName = pendingStyles[0]?.warehouseName;
 
   const handleSubmitDispatch = async () => {
     const dispatchWarehouseId = pendingStyles[0]?.warehouseId;
@@ -332,9 +381,7 @@ const FinishedGoodsStock = () => {
       )
       .find((entry) => entry.quantity > entry.availableQuantity);
     if (exceeded) {
-      message.error(
-        `${exceeded.styleNo} ${exceeded.color}/${exceeded.size} 的出货数量超过可用库存（${exceeded.unit}）`,
-      );
+      message.error(`${exceeded.styleNo} ${exceeded.color}/${exceeded.size} 的出货数量超过可用库存（${exceeded.unit}）`);
       return;
     }
 
@@ -378,14 +425,15 @@ const FinishedGoodsStock = () => {
       {
         title: '图片',
         dataIndex: 'imageUrl',
-        width: 88,
+        width: 84,
         render: (value: string | undefined, record) => <ListImage src={value} alt={record.styleName} />,
       },
       {
         title: '款式',
         dataIndex: 'styleNo',
+        width: 260,
         render: (_value, record) => (
-          <Space direction="vertical" size={2}>
+          <Space direction="vertical" size={2} className="finished-goods-stock-style-cell">
             <Text strong>{record.styleNo}</Text>
             <Text type="secondary">{record.styleName}</Text>
           </Space>
@@ -394,244 +442,300 @@ const FinishedGoodsStock = () => {
       {
         title: '仓库',
         dataIndex: 'warehouseName',
-        width: 140,
+        width: 132,
+        render: (value: string) => <span className="finished-goods-stock-warehouse-cell">{value}</span>,
       },
       {
-        title: 'SKU数',
+        title: 'SKU',
         dataIndex: 'skuCount',
-        width: 100,
+        width: 92,
         align: 'right',
+        render: (value: number) => <span className="finished-goods-stock-sku-cell">{quantityFormatter(value)}</span>,
       },
       {
-        title: '库存汇总',
-        dataIndex: 'quantity',
-        width: 160,
-        render: (_value, record) => (
-          <Space direction="vertical" size={0}>
-            <Text strong>{quantityFormatter(record.quantity)} {record.unit}</Text>
-            <Text type="secondary">可用 {quantityFormatter(record.availableQuantity)} {record.unit}</Text>
-          </Space>
+        title: '可用库存',
+        dataIndex: 'availableQuantity',
+        width: 168,
+        align: 'right',
+        render: (value: number, record) => (
+          <div className="finished-goods-stock-available-cell">
+            <span className="finished-goods-stock-available-cell__value">{quantityFormatter(value)}</span>
+            <span className="finished-goods-stock-available-cell__unit">{record.unit}</span>
+          </div>
         ),
+      },
+      {
+        title: '总库存',
+        dataIndex: 'quantity',
+        width: 132,
+        align: 'right',
+        render: (value: number, record) => <span className="finished-goods-stock-total-cell">{quantityFormatter(value)} {record.unit}</span>,
+      },
+      {
+        title: '状态',
+        key: 'status',
+        width: 116,
+        render: (_value, record) => {
+          const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
+          if (pendingStyles.some((item) => item.entryKey === entryKey)) {
+            return <Tag color="blue">已加入</Tag>;
+          }
+          if (pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId) {
+            return <Tag>仓库不一致</Tag>;
+          }
+          return <Tag color="green">可加入</Tag>;
+        },
       },
       {
         title: '操作',
         key: 'action',
-        width: 140,
-        render: (_value, record) =>
-          pendingStyles.some((item) => item.entryKey === buildStyleEntryKey(record.styleId, record.warehouseId)) ? (
-            <Button onClick={() => handleRemovePendingStyle(buildStyleEntryKey(record.styleId, record.warehouseId))}>移出待出货</Button>
+        width: 160,
+        fixed: 'right',
+        render: (_value, record) => {
+          const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
+          return pendingStyles.some((item) => item.entryKey === entryKey) ? (
+            <Button onClick={() => handleRemovePendingStyle(entryKey)}>移出</Button>
           ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
             <Button disabled>仓库不一致</Button>
           ) : (
-            <Button type="primary" onClick={() => void handleAddPendingStyle(record)}>
-              添加到待出货
+            <Button type="link" onClick={() => void handleAddPendingStyle(record)}>
+              加入待出货
             </Button>
-          ),
+          );
+        },
       },
     ],
     [handleAddPendingStyle, handleRemovePendingStyle, pendingStyles],
   );
 
+  const summaryItems = useMemo(
+    () => [
+      { label: '匹配款式', value: quantityFormatter(total) },
+      { label: '展开款式', value: quantityFormatter(expandedRowKeys.length) },
+      { label: '当前仓库', value: warehouseId ? (meta?.warehouses.find((item) => item.id === warehouseId)?.name ?? '—') : '全部' },
+    ],
+    [expandedRowKeys.length, meta?.warehouses, total, warehouseId],
+  );
+
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card loading={metaLoading}>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <div>
-            <Title level={4} style={{ margin: 0 }}>
-              成品库存
-            </Title>
-            <Text type="secondary">
-              按款式查看当前仓库库存，并在需要时把款式加入待出货列表进行出货操作。
-            </Text>
+    <div className="oc-page">
+      <PageHeader
+        className="oc-page-header--compact"
+        title="成品库存"
+        subtitle=""
+        stats={
+          <div className="oc-summary-strip">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="oc-summary-chip">
+                <div className="oc-summary-chip__label">{item.label}</div>
+                <div className="oc-summary-chip__value">{item.value}</div>
+              </div>
+            ))}
           </div>
-          <Space size={16} wrap>
-            <div style={{ minWidth: 220 }}>
-              <Text type="secondary">仓库</Text>
-              <Select
-                allowClear
-                style={{ width: '100%', marginTop: 4 }}
-                value={warehouseId ?? ALL_WAREHOUSES}
-                onChange={(value) => handleWarehouseChange(value === ALL_WAREHOUSES ? undefined : value)}
-                options={[
-                  { label: '全部仓库', value: ALL_WAREHOUSES },
-                  ...(meta?.warehouses.map((item) => ({ label: item.name, value: item.id })) ?? []),
-                ]}
-                placeholder="全部仓库"
-              />
-            </div>
-            <div style={{ minWidth: 280 }}>
-              <Text type="secondary">搜索款号/款名</Text>
-              <Input.Search
-                style={{ width: '100%', marginTop: 4 }}
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                onSearch={handleSearch}
-                placeholder="搜索款号或款名"
-              />
-            </div>
-            <div style={{ minWidth: 160 }}>
-              <Text type="secondary">只看有库存</Text>
-              <Select
-                style={{ width: '100%', marginTop: 4 }}
-                value={onlyInStock ? 'yes' : 'no'}
-                onChange={(value) => {
-                  setOnlyInStock(value === 'yes');
-                  setPage(1);
-                }}
-                options={[
-                  { label: '是', value: 'yes' },
-                  { label: '否', value: 'no' },
-                ]}
-              />
-            </div>
-            <Card size="small" style={{ minWidth: 180 }}>
-              <Space direction="vertical" size={0}>
-                <Text type="secondary">匹配款式数</Text>
-                <Title level={4} style={{ margin: 0 }}>
-                  {total}
-                </Title>
-              </Space>
-            </Card>
-          </Space>
-        </Space>
-      </Card>
+        }
+      />
 
-      <Card title="库存列表">
-        <Table<FinishedGoodsStockStyleRecord>
-          rowKey={(record) => buildStyleEntryKey(record.styleId, record.warehouseId)}
-          loading={listLoading}
-          columns={columns}
-          dataSource={styles}
-          expandable={{
-            expandedRowKeys,
-            expandRowByClick: true,
-            onExpand: (expanded, record) => void handleExpand(expanded, record),
-            expandedRowRender: (record) => (
-              <MatrixTable items={matrixCache[buildStyleEntryKey(record.styleId, record.warehouseId)] ?? []} />
-            ),
-          }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
-            onChange: (nextPage, nextPageSize) => {
-              setPage(nextPage);
-              if (nextPageSize !== pageSize) {
-                setPageSize(nextPageSize);
-              }
-            },
-          }}
-        />
-      </Card>
+      <PageSection className="oc-page-section--compact" title="库存列表">
+        <div className="oc-section-stack-tight">
+          <FilterBar
+            left={
+              <>
+                <Select
+                  allowClear
+                  style={{ width: 180 }}
+                  value={warehouseId ?? ALL_WAREHOUSES}
+                  onChange={(value) => handleWarehouseChange(value === ALL_WAREHOUSES ? undefined : value)}
+                  options={[
+                    { label: '全部仓库', value: ALL_WAREHOUSES },
+                    ...(meta?.warehouses.map((item) => ({ label: item.name, value: item.id })) ?? []),
+                  ]}
+                  placeholder="全部仓库"
+                />
+                <SearchField
+                  allowClear
+                  placeholder="搜索款号或款名"
+                  value={keyword}
+                  onChange={setKeyword}
+                  onPressEnter={handleSearch}
+                  style={{ width: 260 }}
+                />
+                <Space size={8} align="center">
+                  <Switch
+                    checked={onlyInStock}
+                    onChange={(checked) => {
+                      setOnlyInStock(checked);
+                      setPage(1);
+                    }}
+                  />
+                  <Text>仅显示有库存</Text>
+                </Space>
+                <Space size={8} align="center">
+                  <Switch
+                    checked={expandAllRows}
+                    onChange={(checked) => {
+                      setExpandAllRows(checked);
+                      if (!checked) {
+                        setExpandedRowKeys([]);
+                      }
+                    }}
+                  />
+                  <Text>全展开</Text>
+                </Space>
+              </>
+            }
+            right={
+              <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
+                <Button type="primary" onClick={handleSearch}>查询</Button>
+                <Button onClick={handleReset}>重置</Button>
+              </div>
+            }
+          />
 
-      <div
-        style={{
-          position: 'fixed',
-          right: 24,
-          bottom: 24,
-          zIndex: 1000,
-        }}
-      >
-        <Button type="primary" size="large" onClick={() => setDrawerOpen(true)}>
-          待出货款式 {selectedStyleCount}
-        </Button>
-      </div>
+          <TableToolbar
+            left={
+              <div className="oc-inline-meta">
+                <div className="oc-inline-meta__item">列表共 <span className="oc-inline-meta__value">{quantityFormatter(total)}</span> 款</div>
+                <div className="oc-inline-meta__item">已展开 <span className="oc-inline-meta__value">{quantityFormatter(expandedRowKeys.length)}</span> 款</div>
+              </div>
+            }
+            right={
+              <div className="finished-goods-stock-toolbar-actions">
+                <Button onClick={() => setDrawerOpen(true)}>待出货{selectedStyleCount > 0 ? ` ${quantityFormatter(selectedStyleCount)} 款` : ''}</Button>
+              </div>
+            }
+          />
+
+          <div className="finished-goods-stock-panel">
+            <Table<FinishedGoodsStockStyleRecord>
+              size="small"
+              rowKey={(record) => buildStyleEntryKey(record.styleId, record.warehouseId)}
+              loading={listLoading || metaLoading}
+              columns={columns}
+              dataSource={styles}
+              expandable={{
+                expandedRowKeys,
+                expandRowByClick: true,
+                onExpand: (expanded, record) => void handleExpand(expanded, record),
+                expandedRowRender: (record) => {
+                  const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
+                  return (
+                    <div className="finished-goods-stock-expanded-block">
+                      <MatrixTable items={matrixCache[entryKey] ?? []} />
+                    </div>
+                  );
+                },
+              }}
+              pagination={{
+                current: page,
+                pageSize,
+                total,
+                showSizeChanger: true,
+                pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+                onChange: (nextPage, nextPageSize) => {
+                  setPage(nextPage);
+                  if (nextPageSize !== pageSize) {
+                    setPageSize(nextPageSize);
+                  }
+                },
+                showTotal: (value) => `共 ${value} 条`,
+              }}
+            />
+          </div>
+        </div>
+      </PageSection>
 
       <Drawer
-        title={`待出货款式列表 (${selectedStyleCount})`}
-        placement="bottom"
-        height="78vh"
+        title={`待出货${selectedStyleCount > 0 ? `（${quantityFormatter(selectedStyleCount)}）` : ''}`}
+        placement="right"
+        width="50vw"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        destroyOnClose={false}
+        className="finished-goods-stock-drawer"
       >
-        {!pendingStyles.length ? (
-          <Empty description="从上面的款式列表中添加待出货款式" />
-        ) : (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Alert
-              type="info"
-              showIcon
-              message={`当前已选 ${pendingStyles.length} 款，展开每个款式后可直接录入颜色尺码出货数量`}
-            />
-            {pendingStyles.map((style) => (
-              <Card
-                key={style.entryKey}
-                size="small"
-                title={
-                  <Space size={12}>
-                    <Text strong>{style.styleNo}</Text>
-                    <Text type="secondary">{style.styleName}</Text>
-                    <Tag>{style.warehouseName}</Tag>
-                    <Tag>{style.skuCount} 个 SKU</Tag>
-                    <Tag color="gold">已填 {quantityFormatter(sumPendingStyleQty(style))} {style.unit}</Tag>
-                  </Space>
-                }
-                extra={<Button onClick={() => handleRemovePendingStyle(style.entryKey)}>移除</Button>}
-              >
-                <MatrixTable
-                  items={style.items}
-                  quantities={style.quantities}
-                  editable
-                  onQuantityChange={(styleVariantId, value) =>
-                    handlePendingQtyChange(style.styleId, styleVariantId, value)
-                  }
-                />
-              </Card>
-            ))}
-
-            <Card size="small" title="出货信息">
-              <Form<DispatchFormValues> form={dispatchForm} layout="vertical">
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: 16,
-                  }}
-                >
-                  <Form.Item label="客户（可选）" name="customerId" style={{ marginBottom: 0 }}>
-                    <Select
-                      allowClear
-                      showSearch
-                      optionFilterProp="label"
-                      placeholder="选择客户"
-                      options={outboundMeta?.customers.map((item) => ({ label: item.name, value: item.id })) ?? []}
-                    />
-                  </Form.Item>
-                  <Form.Item label="物流公司" name="logisticsProviderId" style={{ marginBottom: 0 }}>
-                    <Select
-                      allowClear
-                      placeholder="选择物流公司"
-                      options={outboundMeta?.logistics.map((item) => ({ label: item.name, value: item.id })) ?? []}
-                    />
-                  </Form.Item>
-                  <Form.Item label="出货时间" name="dispatchAt" style={{ marginBottom: 0 }}>
-                    <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm" />
-                  </Form.Item>
-                  <Form.Item label="物流单号" name="trackingNo" style={{ marginBottom: 0 }}>
-                    <Input allowClear placeholder="填写物流单号" />
-                  </Form.Item>
-                  <Form.Item
-                    label="备注"
-                    name="remark"
-                    style={{ marginBottom: 0, gridColumn: '1 / -1' }}
+        <div className="finished-goods-stock-pending-wrap">
+          {!pendingStyles.length ? (
+            <div className="finished-goods-stock-empty-state">
+              <Empty description="暂无待出货款式" />
+            </div>
+          ) : (
+            <>
+              <Alert type="info" showIcon message={`仓库：${lockedWarehouseName || '-'}  ·  已选 ${selectedStyleCount} 款`} />
+              <div className="finished-goods-stock-pending-list">
+                {pendingStyles.map((style) => (
+                  <Card
+                    key={style.entryKey}
+                    size="small"
+                    className="finished-goods-stock-pending-card"
+                    title={
+                      <Space size={12} wrap>
+                        <Text strong>{style.styleNo}</Text>
+                        <Text type="secondary">{style.styleName}</Text>
+                        <Tag>{style.warehouseName}</Tag>
+                        <Tag>{style.skuCount} 个 SKU</Tag>
+                        <Tag color="gold">已填 {quantityFormatter(sumPendingStyleQty(style))} {style.unit}</Tag>
+                      </Space>
+                    }
+                    extra={<Button onClick={() => handleRemovePendingStyle(style.entryKey)}>移除</Button>}
                   >
-                    <Input.TextArea rows={2} placeholder="填写备注" />
-                  </Form.Item>
-                </div>
-              </Form>
-            </Card>
+                    <MatrixTable
+                      items={style.items}
+                      quantities={style.quantities}
+                      editable
+                      onQuantityChange={(styleVariantId, value) => handlePendingQtyChange(style.styleId, styleVariantId, value)}
+                    />
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
 
-            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-              <Button type="primary" loading={submitting} onClick={() => void handleSubmitDispatch()}>
+          <Card size="small" title="出货信息">
+            <Form<DispatchFormValues> form={dispatchForm} layout="vertical">
+              <div className="finished-goods-stock-form-grid">
+                <Form.Item label="客户（可选）" name="customerId" style={{ marginBottom: 0 }}>
+                  <Select
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择客户"
+                    options={outboundMeta?.customers.map((item) => ({ label: item.name, value: item.id })) ?? []}
+                  />
+                </Form.Item>
+                <Form.Item label="物流公司" name="logisticsProviderId" style={{ marginBottom: 0 }}>
+                  <Select
+                    allowClear
+                    placeholder="选择物流公司"
+                    options={outboundMeta?.logistics.map((item) => ({ label: item.name, value: item.id })) ?? []}
+                  />
+                </Form.Item>
+                <Form.Item label="出货时间" name="dispatchAt" style={{ marginBottom: 0 }}>
+                  <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm" />
+                </Form.Item>
+                <Form.Item label="物流单号" name="trackingNo" style={{ marginBottom: 0 }}>
+                  <Input allowClear placeholder="填写物流单号" />
+                </Form.Item>
+                <Form.Item label="备注" name="remark" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
+                  <Input.TextArea rows={2} placeholder="填写备注" />
+                </Form.Item>
+              </div>
+            </Form>
+          </Card>
+
+          <Card size="small" title="提交确认">
+            <div className="finished-goods-stock-submit-bar">
+              <div className="finished-goods-stock-submit-meta">
+                <span>款式 {quantityFormatter(selectedStyleCount)} 款</span>
+                <span>数量 {quantityFormatter(totalPendingQty)}</span>
+              </div>
+              <Button type="primary" loading={submitting} disabled={!pendingStyles.length} onClick={() => void handleSubmitDispatch()}>
                 确定出货
               </Button>
-            </Space>
-          </Space>
-        )}
+            </div>
+          </Card>
+        </div>
       </Drawer>
-    </Space>
+    </div>
   );
 };
 
