@@ -480,6 +480,7 @@ const FinishedGoodsStock = () => {
           const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
           return pendingStyles.some((item) => item.entryKey === entryKey) ? (
             <Button
+              type="link"
               onClick={(event) => {
                 event.stopPropagation();
                 handleRemovePendingStyle(entryKey);
@@ -488,7 +489,7 @@ const FinishedGoodsStock = () => {
               移出
             </Button>
           ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
-            <Button disabled>仓库不一致</Button>
+            <Button type="link" disabled>仓库不一致</Button>
           ) : (
             <Button
               type="link"
