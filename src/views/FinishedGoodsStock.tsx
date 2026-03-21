@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Key } from 'react';
+import { DeleteOutlined } from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -103,6 +104,13 @@ const MatrixTable = ({ items, quantities, errors, editable = false, onQuantityCh
               {sizes.map((size) => {
                 const item = itemMap[`${color}__${size}`];
                 if (!item) {
+                  return (
+                    <td key={`${color}-${size}`} className="is-empty">
+                      -
+                    </td>
+                  );
+                }
+                if (editable && item.availableQuantity <= 0) {
                   return (
                     <td key={`${color}-${size}`} className="is-empty">
                       -
@@ -701,7 +709,17 @@ const FinishedGoodsStock = () => {
                         <Tag color="gold">已填 {quantityFormatter(sumPendingStyleQty(style))} {style.unit}</Tag>
                       </Space>
                     }
-                    extra={<Button onClick={() => handleRemovePendingStyle(style.entryKey)}>移除</Button>}
+                    extra={
+                      <Tooltip title="移除">
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          aria-label={`移除${style.styleNo}`}
+                          onClick={() => handleRemovePendingStyle(style.entryKey)}
+                        />
+                      </Tooltip>
+                    }
                   >
                     <MatrixTable
                       items={style.items}
