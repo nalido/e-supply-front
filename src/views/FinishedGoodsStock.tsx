@@ -479,11 +479,24 @@ const FinishedGoodsStock = () => {
         render: (_value, record) => {
           const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
           return pendingStyles.some((item) => item.entryKey === entryKey) ? (
-            <Button onClick={() => handleRemovePendingStyle(entryKey)}>移出</Button>
+            <Button
+              onClick={(event) => {
+                event.stopPropagation();
+                handleRemovePendingStyle(entryKey);
+              }}
+            >
+              移出
+            </Button>
           ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
             <Button disabled>仓库不一致</Button>
           ) : (
-            <Button type="link" onClick={() => void handleAddPendingStyle(record)}>
+            <Button
+              type="link"
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleAddPendingStyle(record);
+              }}
+            >
               加入待出货
             </Button>
           );
