@@ -566,6 +566,12 @@ a:hover { color: var(--oc-color-primary); }
   font-weight: 400;
 }
 
+.finished-goods-stock-matrix-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .finished-goods-stock-matrix-table td.is-editable .ant-input-number {
   border-radius: 0 !important;
   font-size: 10px;
@@ -574,6 +580,13 @@ a:hover { color: var(--oc-color-primary); }
 .finished-goods-stock-matrix-table td.is-editable .ant-input-number-input {
   font-size: 10px;
   font-weight: 400;
+}
+
+.finished-goods-stock-matrix-error {
+  color: var(--oc-color-danger);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: left;
 }
 
 .finished-goods-stock-matrix-value {

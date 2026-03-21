@@ -49,6 +49,7 @@ type PendingStyle = FinishedGoodsStockStyleRecord & {
   entryKey: string;
   items: FinishedGoodsStockStyleMatrixItem[];
   quantities: Record<string, number | undefined>;
+  errors: Record<string, string | undefined>;
 };
 
 const quantityFormatter = (value: number): string => value.toLocaleString('zh-CN');
@@ -72,11 +73,12 @@ const sumPendingTotalQty = (styles: PendingStyle[]) => styles.reduce((sum, style
 type MatrixTableProps = {
   items: FinishedGoodsStockStyleMatrixItem[];
   quantities?: Record<string, number | undefined>;
+  errors?: Record<string, string | undefined>;
   editable?: boolean;
-  onQuantityChange?: (styleVariantId: string, value: number | undefined) => void;
+  onQuantityChange?: (styleVariantId: string, availableQuantity: number, value: number | undefined) => void;
 };
 
-const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: MatrixTableProps) => {
+const MatrixTable = ({ items, quantities, errors, editable = false, onQuantityChange }: MatrixTableProps) => {
   if (!items.length) {
     return <Text type="secondary">暂无颜色尺码库存数据</Text>;
   }
@@ -107,25 +109,36 @@ const MatrixTable = ({ items, quantities, editable = false, onQuantityChange }: 
                     </td>
                   );
                 }
+                const errorMessage = errors?.[item.styleVariantId];
                 return (
-                  <td key={`${color}-${size}`} className={editable ? 'is-editable' : 'is-number'}>
+                  <td
+                    key={`${color}-${size}`}
+                    className={editable ? `is-editable${errorMessage ? ' has-error' : ''}` : 'is-number'}
+                  >
                     {editable ? (
-                      <InputNumber
-                        min={0}
-                        max={item.availableQuantity}
-                        precision={0}
-                        controls={false}
-                        value={quantities?.[item.styleVariantId]}
-                        onChange={(value) => {
-                          const normalized = Math.max(0, Math.round(Number(value) || 0));
-                          onQuantityChange?.(
-                            item.styleVariantId,
-                            Number.isFinite(Number(value)) ? Math.min(normalized, item.availableQuantity) : undefined,
-                          );
-                        }}
-                        style={{ width: '100%' }}
-                        placeholder={`可用 ${quantityFormatter(item.availableQuantity)}`}
-                      />
+                      <div className="finished-goods-stock-matrix-input-wrap">
+                        <InputNumber
+                          min={0}
+                          precision={0}
+                          controls={false}
+                          status={errorMessage ? 'error' : undefined}
+                          value={quantities?.[item.styleVariantId]}
+                          onChange={(value) => {
+                            const numericValue = Number(value);
+                            const normalized = Math.max(0, Math.round(Number.isFinite(numericValue) ? numericValue : 0));
+                            onQuantityChange?.(
+                              item.styleVariantId,
+                              item.availableQuantity,
+                              Number.isFinite(numericValue) ? normalized : undefined,
+                            );
+                          }}
+                          style={{ width: '100%' }}
+                          placeholder={`可用 ${quantityFormatter(item.availableQuantity)}`}
+                        />
+                        {errorMessage ? (
+                          <div className="finished-goods-stock-matrix-error">{errorMessage}</div>
+                        ) : null}
+                      </div>
                     ) : (
                       <Tooltip title={`可用 ${quantityFormatter(item.availableQuantity)} ${item.unit}`}>
                         <span className="finished-goods-stock-matrix-value">{quantityFormatter(item.availableQuantity)}</span>
@@ -306,7 +319,7 @@ const FinishedGoodsStock = () => {
           acc[item.styleVariantId] = undefined;
           return acc;
         }, {});
-        setPendingStyles((prev) => [...prev, { ...style, entryKey, items, quantities }]);
+        setPendingStyles((prev) => [...prev, { ...style, entryKey, items, quantities, errors: {} }]);
         message.success(`已添加 ${style.styleNo}（${style.warehouseName}）到待出货列表`);
       } catch (error) {
         console.error('failed to add pending style', error);
@@ -320,21 +333,29 @@ const FinishedGoodsStock = () => {
     setPendingStyles((prev) => prev.filter((item) => item.entryKey !== entryKey));
   }, []);
 
-  const handlePendingQtyChange = useCallback((styleId: string, styleVariantId: string, value: number | undefined) => {
-    setPendingStyles((prev) =>
-      prev.map((style) =>
-        style.styleId === styleId
-          ? {
-              ...style,
-              quantities: {
-                ...style.quantities,
-                [styleVariantId]: value,
-              },
-            }
-          : style,
-      ),
-    );
-  }, []);
+  const handlePendingQtyChange = useCallback(
+    (styleId: string, styleVariantId: string, availableQuantity: number, value: number | undefined) => {
+      setPendingStyles((prev) =>
+        prev.map((style) =>
+          style.styleId === styleId
+            ? {
+                ...style,
+                quantities: {
+                  ...style.quantities,
+                  [styleVariantId]: value,
+                },
+                errors: {
+                  ...style.errors,
+                  [styleVariantId]:
+                    value !== undefined && value > availableQuantity ? `最大可用 ${quantityFormatter(availableQuantity)}` : undefined,
+                },
+              }
+            : style,
+        ),
+      );
+    },
+    [],
+  );
 
   const selectedStyleCount = pendingStyles.length;
   const totalPendingQty = useMemo(() => sumPendingTotalQty(pendingStyles), [pendingStyles]);
@@ -345,6 +366,11 @@ const FinishedGoodsStock = () => {
     const dispatchWarehouseName = pendingStyles[0]?.warehouseName;
     if (!dispatchWarehouseId) {
       message.warning('请先添加待出货款式');
+      return;
+    }
+    const hasQuantityErrors = pendingStyles.some((style) => Object.values(style.errors).some(Boolean));
+    if (hasQuantityErrors) {
+      message.warning('请先修正超出最大可用库存的出货数量');
       return;
     }
     if (pendingStyles.some((style) => style.warehouseId !== dispatchWarehouseId)) {
@@ -680,8 +706,11 @@ const FinishedGoodsStock = () => {
                     <MatrixTable
                       items={style.items}
                       quantities={style.quantities}
+                      errors={style.errors}
                       editable
-                      onQuantityChange={(styleVariantId, value) => handlePendingQtyChange(style.styleId, styleVariantId, value)}
+                      onQuantityChange={(styleVariantId, availableQuantity, value) =>
+                        handlePendingQtyChange(style.styleId, styleVariantId, availableQuantity, value)
+                      }
                     />
                   </Card>
                 ))}
