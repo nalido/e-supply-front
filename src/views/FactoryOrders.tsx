@@ -3052,18 +3052,36 @@ const FactoryOrders = () => {
                                     {statsDisplaySizes.map((size) => (
                                       <td key={`stats-${color}-${size}`}>
                                         {(statsDoneMatrix[color]?.[size] ?? 0)}
-                                        {' / '}
-                                        {(statsSecondaryMatrix[color]?.[size] ?? 0)}
-                                        {' / '}
-                                        {(statsCapacityMatrix[color]?.[size] ?? 0)}
+                                        {isCuttingProgressStage ? (
+                                          <>
+                                            {' / '}
+                                            {(statsCapacityMatrix[color]?.[size] ?? 0)}
+                                          </>
+                                        ) : (
+                                          <>
+                                            {' / '}
+                                            {(statsSecondaryMatrix[color]?.[size] ?? 0)}
+                                            {' / '}
+                                            {(statsCapacityMatrix[color]?.[size] ?? 0)}
+                                          </>
+                                        )}
                                       </td>
                                     ))}
                                     <td>
                                       {(statsDoneRowTotals[color] ?? 0)}
-                                      {' / '}
-                                      {(statsSecondaryRowTotals[color] ?? 0)}
-                                      {' / '}
-                                      {(statsCapacityRowTotals[color] ?? 0)}
+                                      {isCuttingProgressStage ? (
+                                        <>
+                                          {' / '}
+                                          {(statsCapacityRowTotals[color] ?? 0)}
+                                        </>
+                                      ) : (
+                                        <>
+                                          {' / '}
+                                          {(statsSecondaryRowTotals[color] ?? 0)}
+                                          {' / '}
+                                          {(statsCapacityRowTotals[color] ?? 0)}
+                                        </>
+                                      )}
                                     </td>
                                   </tr>
                                 ))}
@@ -3074,18 +3092,36 @@ const FactoryOrders = () => {
                                   {statsDisplaySizes.map((size) => (
                                     <td key={`stats-sum-${size}`}>
                                       {(statsDoneColumnTotals[size] ?? 0)}
-                                      {' / '}
-                                      {(statsSecondaryColumnTotals[size] ?? 0)}
-                                      {' / '}
-                                      {(statsCapacityColumnTotals[size] ?? 0)}
+                                      {isCuttingProgressStage ? (
+                                        <>
+                                          {' / '}
+                                          {(statsCapacityColumnTotals[size] ?? 0)}
+                                        </>
+                                      ) : (
+                                        <>
+                                          {' / '}
+                                          {(statsSecondaryColumnTotals[size] ?? 0)}
+                                          {' / '}
+                                          {(statsCapacityColumnTotals[size] ?? 0)}
+                                        </>
+                                      )}
                                     </td>
                                   ))}
                                   <td>
                                     {statsDoneTotal}
-                                    {' / '}
-                                    {statsSecondaryTotal}
-                                    {' / '}
-                                    {allocationCapacityTotal}
+                                    {isCuttingProgressStage ? (
+                                      <>
+                                        {' / '}
+                                        {allocationCapacityTotal}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {' / '}
+                                        {statsSecondaryTotal}
+                                        {' / '}
+                                        {allocationCapacityTotal}
+                                      </>
+                                    )}
                                   </td>
                                 </tr>
                               </tfoot>
