@@ -3,8 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  Descriptions,
-  Dropdown,
   Empty,
   Form,
   Input,
@@ -21,17 +19,14 @@ import {
 } from 'antd';
 import type { MenuProps } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  CalendarOutlined,
-  CheckCircleTwoTone,
-  ExclamationCircleOutlined,
-  MoreOutlined,
-  PictureOutlined,
-  SearchOutlined,
-  ScissorOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
-import type { CuttingSheetDetail, CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
+import { SearchOutlined } from '@ant-design/icons';
+import type {
+  CuttingSheetDetail,
+  CuttingSheetMaterialUsage,
+  CuttingTask,
+  CuttingTaskDataset,
+  CuttingTaskMetric,
+} from '../types';
 import { pieceworkService } from '../api/piecework';
 import { factoryOrdersApi } from '../api/factory-orders';
 import warehouseApi from '../api/warehouse';
@@ -45,6 +40,7 @@ import '../styles/cutting-pending.css';
 import ListImage from '../components/common/ListImage';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 import CuttingBedRecordModal from '../components/CuttingBedRecordModal';
+import CuttingTaskCard from '../components/CuttingTaskCard';
 
 const { Text, Title } = Typography;
 
@@ -56,44 +52,12 @@ const initialDataset: CuttingTaskDataset = {
   pageSize: 4,
 };
 
-const OVER_USAGE_REASON_OPTIONS = [
-  { label: '排料损耗超预估', value: 'LAY_LOSS' },
-  { label: '面料瑕疵 / 换片补裁', value: 'FABRIC_DEFECT' },
-  { label: '工艺调整导致追加用量', value: 'PROCESS_ADJUSTMENT' },
-  { label: '其它', value: 'OTHER' },
-];
-
 const OVER_CUT_REASON_OPTIONS = [
   { label: '补裁返工', value: 'REWORK' },
   { label: '备损预留', value: 'LOSS_RESERVE' },
   { label: '面料瑕疵换片', value: 'DEFECT_REPLACEMENT' },
   { label: '其它', value: 'OTHER' },
 ];
-
-const getCuttingVarianceSummary = (detail?: CuttingSheetDetail | null, actualQty?: number) => {
-  const planQty = Number(detail?.plannedFabricQty ?? 0);
-  const normalizedActualQty = Number(actualQty ?? detail?.completeActualFabricQty ?? detail?.startActualFabricQty ?? 0);
-  const shouldRecalculate = actualQty !== undefined && actualQty !== null;
-  return {
-    planQty,
-    actualQty: normalizedActualQty,
-    overQty: shouldRecalculate
-      ? Math.max(normalizedActualQty - planQty, 0)
-      : Number(detail?.overUsedFabricQty ?? Math.max(normalizedActualQty - planQty, 0)),
-    returnQty: shouldRecalculate
-      ? Math.max(planQty - normalizedActualQty, 0)
-      : Number(detail?.returnedFabricQty ?? Math.max(planQty - normalizedActualQty, 0)),
-  };
-};
-
-const sumBedRecordFabricQty = (detail?: CuttingSheetDetail | null) => {
-  const bedRecords = detail?.bedRecords ?? [];
-  const total = bedRecords.reduce((sum, record) => {
-    const qty = Number(record.actualFabricQty);
-    return Number.isFinite(qty) ? sum + qty : sum;
-  }, 0);
-  return bedRecords.length > 0 ? total : undefined;
-};
 
 const CUTTING_NODE_CODE = 'CUTTING';
 const ORDER_PLACED_NODE_CODE = 'ORDER_PLACED';
@@ -152,14 +116,39 @@ type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 type StartMaterialOption = {
   label: string;
   value: number;
+  materialCode?: string;
+  materialName?: string;
   unit?: string;
   availableQty: number;
+  warehouseId?: number;
+  warehouseName?: string;
   isLinked: boolean;
+};
+
+type MaterialUsageFormValue = {
+  warehouseId?: number;
+  materialId?: number;
+  materialUnit?: string;
+  plannedQty?: number;
+  actualQty?: number;
+};
+
+type WarehouseOption = {
+  label: string;
+  value: number;
 };
 
 const LINKED_FABRIC_TYPE = 'FABRIC';
 const DETAIL_MODAL_Z_INDEX = 1000;
 const BED_RECORD_MODAL_Z_INDEX = 1100;
+const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
+
+const getDetailMaterialUsages = (detail?: CuttingSheetDetail | null): CuttingSheetMaterialUsage[] => {
+  const usages = detail?.materialUsages?.length ? detail.materialUsages : detail?.fabricUsages ?? [];
+  return usages ?? [];
+};
+
+const buildMaterialStockKey = (warehouseId?: number, materialId?: number) => `${Number(warehouseId) || 0}::${Number(materialId) || 0}`;
 
 const buildMaterialOptionsForWarehouse = (
   warehouseId: number,
@@ -184,8 +173,12 @@ const buildMaterialOptionsForWarehouse = (
         acc[key] = {
           label: `${prefix}${item.materialCode} / ${item.materialName}（可用 ${availableQty}${item.unit ?? ''}）`,
           value: Number(item.materialId),
+          materialCode: item.materialCode,
+          materialName: item.materialName,
           unit: item.unit,
           availableQty,
+          warehouseId: Number(item.warehouseId),
+          warehouseName: item.warehouseName,
           isLinked,
         };
         return acc;
@@ -279,34 +272,46 @@ const CuttingPendingPage = () => {
   const [startForm] = Form.useForm();
   const [completeReasonForm] = Form.useForm();
   const [bedRecordForm] = Form.useForm();
-  const [warehouseOptions, setWarehouseOptions] = useState<Array<{ label: string; value: number }>>([]);
   const [materialOptions, setMaterialOptions] = useState<StartMaterialOption[]>([]);
+  const [materialWarehouseOptions, setMaterialWarehouseOptions] = useState<WarehouseOption[]>([]);
   const [cutterOptions, setCutterOptions] = useState<Array<{ label: string; value: number }>>([]);
   const [linkedStyleMaterials, setLinkedStyleMaterials] = useState<StyleMaterialData[]>([]);
   const [fabricInventoryItems, setFabricInventoryItems] = useState<MaterialStockListItem[]>([]);
   const [warehouseLoading, setWarehouseLoading] = useState(false);
   const [materialLoading, setMaterialLoading] = useState(false);
   const [cutterLoading, setCutterLoading] = useState(false);
-  const startWarehouseId = Form.useWatch('warehouseId', startForm);
-  const startMaterialId = Form.useWatch('materialId', startForm);
-  const startPlannedFabricQty = Form.useWatch('plannedFabricQty', startForm);
-  const completeDisplayActualFabricQty =
-    sumBedRecordFabricQty(sheetDetail)
-    ?? sheetDetail?.completeActualFabricQty
-    ?? sheetDetail?.startActualFabricQty;
-  const completeVariance = getCuttingVarianceSummary(
-    sheetDetail,
-    completeDisplayActualFabricQty == null ? undefined : Number(completeDisplayActualFabricQty),
-  );
-  const completeIsOverPlan = completeVariance.overQty > 0;
-  const completeTargetQty = Object.values(completeQtyMap).reduce((sum, qty) => sum + Math.max(0, Math.round(Number(qty) || 0)), 0);
-  const completePlannedQty = Number(sheetDetail?.plannedQty ?? completeState.task?.orderedQuantity ?? 0);
-  const completeOverCutQty = Math.max(completeTargetQty - completePlannedQty, 0);
-  const completeIsOverCut = completeOverCutQty > 0;
-
-  const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
-  const selectedStartMaterial =
-    materialOptions.find((option) => option.value === Number(startMaterialId));
+  const startMaterialUsageValues = Form.useWatch('materialUsages', startForm) as MaterialUsageFormValue[] | undefined;
+  const completeOverCutSpecs = (sheetDetail?.rows ?? []).reduce<Array<{
+    color: string;
+    size: string;
+    orderedQty: number;
+    actualQty: number;
+    overQty: number;
+  }>>((acc, row) => {
+    row.cells.forEach((cell) => {
+      const key = buildSpecKey(row.color, cell.size);
+      const actualQty = Math.max(0, Math.round(Number(completeQtyMap[key] ?? 0)));
+      const orderedQty = Math.max(0, Number(cell.orderedQty ?? 0));
+      const overQty = Math.max(actualQty - orderedQty, 0);
+      if (overQty > 0) {
+        acc.push({
+          color: row.color,
+          size: cell.size,
+          orderedQty,
+          actualQty,
+          overQty,
+        });
+      }
+    });
+    return acc;
+  }, []);
+  const completeOverCutQty = completeOverCutSpecs.reduce((sum, item) => sum + item.overQty, 0);
+  const completeIsOverCut = completeOverCutSpecs.length > 0;
+  const bedMaterialStockAvailabilityMap = fabricInventoryItems.reduce<Record<string, number>>((acc, item) => {
+    const key = buildMaterialStockKey(Number(item.warehouseId), Number(item.materialId));
+    acc[key] = (acc[key] ?? 0) + Number(item.availableQty ?? 0);
+    return acc;
+  }, {});
 
   const navigateToFactoryOrder = (orderCode?: string) => {
     const normalized = orderCode?.trim();
@@ -316,6 +321,23 @@ const CuttingPendingPage = () => {
     navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}`);
   };
 
+  const normalizeMaterialUsagePayload = (values?: MaterialUsageFormValue[]) => (values ?? [])
+    .map((item) => {
+      const option = materialOptions.find((candidate) => candidate.value === Number(item.materialId));
+      const warehouse = materialWarehouseOptions.find((candidate) => candidate.value === Number(item.warehouseId));
+      return {
+        warehouseId: Number.isFinite(Number(item.warehouseId)) ? Number(item.warehouseId) : option?.warehouseId,
+        warehouseName: warehouse?.label ?? option?.warehouseName,
+        materialId: Number.isFinite(Number(item.materialId)) ? Number(item.materialId) : undefined,
+        materialCode: option?.materialCode,
+        materialName: option?.materialName,
+        materialUnit: item.materialUnit ?? option?.unit,
+        plannedQty: item.plannedQty == null ? undefined : Number(item.plannedQty),
+        actualQty: item.actualQty == null ? undefined : Number(item.actualQty),
+      };
+    })
+    .filter((item) => item.materialId || Number(item.plannedQty ?? item.actualQty ?? 0) > 0);
+
   const closeCompleteModal = () => {
     completeReasonForm.resetFields();
     setCompleteQtyMap({});
@@ -324,8 +346,6 @@ const CuttingPendingPage = () => {
   };
 
   const submitCompleteSheet = async (reasonValues?: {
-    usageReasonCode?: string;
-    usageRemark?: string;
     overCutReasonCode?: string;
     overCutRemark?: string;
   }) => {
@@ -336,8 +356,6 @@ const CuttingPendingPage = () => {
     setCompleteState((prev) => ({ ...prev, submitting: true }));
     try {
       await pieceworkService.completeCuttingSheet(completeState.task.workOrderId, {
-        usageReasonCode: completeIsOverPlan ? reasonValues?.usageReasonCode : undefined,
-        usageRemark: completeIsOverPlan ? reasonValues?.usageRemark : undefined,
         overCutReasonCode: completeIsOverCut ? reasonValues?.overCutReasonCode : undefined,
         overCutRemark: completeIsOverCut ? reasonValues?.overCutRemark : undefined,
       });
@@ -384,16 +402,14 @@ const CuttingPendingPage = () => {
     }
     startForm.resetFields();
     setMaterialOptions([]);
+    setMaterialWarehouseOptions([]);
     setLinkedStyleMaterials([]);
     setFabricInventoryItems([]);
     setStartState({ open: true, task, submitting: false });
     startForm.setFieldsValue({
       bedNumber: preset?.bedNumber ?? `BED-${task.orderCode}`,
       cutterId: preset?.cutterId,
-      plannedFabricQty: preset?.plannedFabricQty,
-      warehouseId: undefined,
-      materialId: undefined,
-      materialUnit: undefined,
+      materialUsages: [],
     });
     setWarehouseLoading(true);
     setCutterLoading(true);
@@ -410,7 +426,7 @@ const CuttingPendingPage = () => {
         }),
       ]);
       const warehouses = warehouseRes.list.map((item) => ({ label: item.name, value: Number(item.id) }));
-      setWarehouseOptions(warehouses);
+      setMaterialWarehouseOptions(warehouses);
       setFabricInventoryItems(fabricInventory.list ?? []);
       const members = (membersRes.list ?? [])
         .filter((member) => member.status !== 'inactive')
@@ -425,29 +441,28 @@ const CuttingPendingPage = () => {
       setLinkedStyleMaterials(styleMaterials);
       const recommendedWarehouseId = pickRecommendedWarehouseId(warehouses, fabricInventory.list ?? [], styleMaterials);
       if (Number.isFinite(recommendedWarehouseId) && Number(recommendedWarehouseId) > 0) {
-        startForm.setFieldValue('warehouseId', recommendedWarehouseId);
         const nextOptions = buildMaterialOptionsForWarehouse(
           Number(recommendedWarehouseId),
           fabricInventory.list ?? [],
           styleMaterials,
         );
         setMaterialOptions(nextOptions);
-        const linkedOptions = nextOptions.filter((item) => item.isLinked);
-        const preferredOption =
-          linkedOptions.length === 1 ? linkedOptions[0] : nextOptions.length === 1 ? nextOptions[0] : undefined;
-        if (preferredOption) {
-          startForm.setFieldsValue({
+        const preferredOption = nextOptions.find((item) => item.isLinked) ?? (nextOptions.length === 1 ? nextOptions[0] : undefined);
+        if (preferredOption && preset?.plannedFabricQty) {
+          startForm.setFieldValue('materialUsages', [{
+            warehouseId: preferredOption.warehouseId,
             materialId: preferredOption.value,
             materialUnit: preferredOption.unit,
-          });
+            plannedQty: preset.plannedFabricQty,
+          }]);
         }
       } else {
         message.warning('未找到可用的物料仓库，请先在基础资料维护仓库');
       }
     } catch (error) {
       console.error('failed to load warehouse/material options', error);
-      setWarehouseOptions([]);
       setMaterialOptions([]);
+      setMaterialWarehouseOptions([]);
       setLinkedStyleMaterials([]);
       setFabricInventoryItems([]);
       message.error('加载仓库或面料选项失败');
@@ -563,24 +578,24 @@ const CuttingPendingPage = () => {
     }
     try {
       const values = await startForm.validateFields();
-      const selectedMaterial = materialOptions.find((option) => option.value === values.materialId);
-      if (!selectedMaterial) {
-        message.warning('请选择仓库内可用的面料');
-        return;
-      }
-      if (Number(values.plannedFabricQty) > selectedMaterial.availableQty) {
-        message.warning(`预计用料不能超过当前可用库存（${selectedMaterial.availableQty}）`);
-        return;
+      const materialUsages = normalizeMaterialUsagePayload(values.materialUsages);
+      for (const usage of materialUsages) {
+        const selectedMaterial = materialOptions.find((option) => option.value === usage.materialId);
+        if (selectedMaterial && Number(usage.plannedQty ?? 0) > selectedMaterial.availableQty) {
+          message.warning(`物料 ${selectedMaterial.materialCode ?? selectedMaterial.label} 的预计用量不能超过可用库存（${selectedMaterial.availableQty}）`);
+          return;
+        }
       }
       setStartState((prev) => ({ ...prev, submitting: true }));
       await pieceworkService.startCuttingSheet(startState.task.workOrderId, {
         bedNumber: values.bedNumber,
         cutterId: values.cutterId,
-        plannedFabricQty: values.plannedFabricQty,
-        warehouseId: values.warehouseId,
-        materialId: values.materialId,
-        materialUnit: values.materialUnit
-          ?? selectedMaterial.unit,
+        plannedFabricQty: materialUsages.length === 1 ? materialUsages[0].plannedQty : undefined,
+        warehouseId: materialUsages.length === 1 ? materialUsages[0].warehouseId : undefined,
+        materialId: materialUsages.length === 1 ? materialUsages[0].materialId : undefined,
+        materialUnit: materialUsages.length === 1 ? materialUsages[0].materialUnit : undefined,
+        materialUsages: materialUsages.map((item) => ({ ...item, plannedQty: item.plannedQty })),
+        fabricUsages: materialUsages.map((item) => ({ ...item, plannedQty: item.plannedQty })),
       });
       message.success('已开裁，状态更新为裁剪中');
       setStartState({ open: false, submitting: false });
@@ -605,7 +620,7 @@ const CuttingPendingPage = () => {
       return;
     }
     try {
-      if (completeIsOverPlan || completeIsOverCut) {
+      if (completeIsOverCut) {
         setCompleteReasonState({ open: true });
         return;
       }
@@ -639,14 +654,65 @@ const CuttingPendingPage = () => {
     setBedRecordState({ open: true, task, submitting: false });
     bedRecordForm.setFieldsValue({
       bedNumber: undefined,
-      actualFabricQty: undefined,
+      batchWarehouseId: undefined,
+      materialUsages: [],
     });
     try {
-      const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
-      setSheetDetail(detail);
+      const [detail, warehouseRes, fabricInventory] = await Promise.all([
+        pieceworkService.getCuttingSheetDetail(task.workOrderId),
+        warehouseApi.list({ page: 1, pageSize: 200, type: 'material', status: 'active' }),
+        materialStockService.getList({
+          page: 0,
+          pageSize: 500,
+          materialType: 'fabric',
+          onlyInStock: true,
+        }),
+      ]);
+      const warehouses = warehouseRes.list.map((item) => ({ label: item.name, value: Number(item.id) }));
+      setMaterialWarehouseOptions(warehouses);
+      setFabricInventoryItems(fabricInventory.list ?? []);
+      let nextDetail = detail;
+      let nextMaterialUsages = getDetailMaterialUsages(detail);
+      if (nextMaterialUsages.length === 0 && detail.styleId != null) {
+        try {
+          const styleMaterials = await styleDetailApi.fetchMaterials(String(detail.styleId));
+          nextMaterialUsages = styleMaterials
+            .filter((item) => item.materialType === LINKED_FABRIC_TYPE)
+            .map((item) => {
+              const matchedStock = (fabricInventory.list ?? [])
+                .filter((stock) => Number(stock.materialId) === item.materialId && Number(stock.availableQty ?? 0) > 0)
+                .sort((a, b) => Number(b.availableQty ?? 0) - Number(a.availableQty ?? 0))[0];
+              return {
+                imageUrl: item.imageUrl,
+                warehouseId: matchedStock ? Number(matchedStock.warehouseId) : undefined,
+                warehouseName: matchedStock?.warehouseName,
+                materialId: item.materialId,
+                materialCode: item.materialSku,
+                materialName: item.materialName,
+                materialUnit: item.unit,
+              };
+            });
+          if (nextMaterialUsages.length > 0) {
+            nextDetail = {
+              ...detail,
+              materialUsages: nextMaterialUsages,
+              fabricUsages: nextMaterialUsages,
+            };
+          }
+        } catch (styleError) {
+          console.error('failed to load style materials for bed record', styleError);
+        }
+      }
+      setSheetDetail(nextDetail);
       bedRecordForm.setFieldsValue({
         bedNumber: `BED-${task.orderCode}-${(detail.bedRecords?.length ?? 0) + 1}`,
-        actualFabricQty: undefined,
+        batchWarehouseId: undefined,
+        materialUsages: nextMaterialUsages.map((item) => ({
+          warehouseId: item.warehouseId,
+          materialId: item.materialId,
+          materialUnit: item.materialUnit,
+          actualQty: undefined,
+        })),
       });
       const initialQtyMap: Record<string, number> = {};
       detail.rows.forEach((row) => {
@@ -677,10 +743,26 @@ const CuttingPendingPage = () => {
         message.warning('请至少填写一个颜色尺码的裁剪数量');
         return;
       }
+      const materialUsages = normalizeMaterialUsagePayload(values.materialUsages).map((item) => ({
+        ...item,
+        actualQty: item.actualQty,
+      }));
+      const positiveMaterialUsages = materialUsages.filter((item) => Number(item.actualQty ?? 0) > 0);
+      if (positiveMaterialUsages.length === 0) {
+        message.warning('请填写床次面料用量');
+        return;
+      }
+      const invalidUsage = positiveMaterialUsages.find((item) => !item.materialId || !item.warehouseId);
+      if (invalidUsage) {
+        message.warning('请为已填写用量的面料补全库存仓位');
+        return;
+      }
       setBedRecordState((prev) => ({ ...prev, submitting: true }));
       await pieceworkService.recordCuttingSheetBed(bedRecordState.task.workOrderId, {
         bedNumber: values.bedNumber,
-        actualFabricQty: Number(values.actualFabricQty),
+        actualFabricQty: positiveMaterialUsages.length === 1 ? positiveMaterialUsages[0].actualQty : undefined,
+        materialUsages: positiveMaterialUsages,
+        fabricUsages: positiveMaterialUsages,
         items,
       });
       message.success('床次裁剪数据已录入');
@@ -732,8 +814,6 @@ const CuttingPendingPage = () => {
       });
       setCompleteQtyMap(defaultQtyMap);
       completeReasonForm.setFieldsValue({
-        usageReasonCode: detail.usageReasonCode ?? undefined,
-        usageRemark: detail.usageRemark ?? undefined,
         overCutReasonCode: detail.overCutReasonCode ?? undefined,
         overCutRemark: detail.overCutRemark ?? undefined,
       });
@@ -800,159 +880,25 @@ const CuttingPendingPage = () => {
       ) : dataset.list.length === 0 ? (
         <Empty description={appliedKeyword ? '未找到匹配的待裁任务' : '暂无待裁任务'} />
       ) : (
-        <div className="cutting-task-list">
+        <div className="cutting-task-list" data-testid="cutting-pending-task-list">
           {dataset.list.map((task) => {
             const menuItems: MenuProps['items'] = [
               { key: 'edit', label: '编辑' },
             ];
-            const pendingTone = task.pendingQuantity > 0 ? 'cutting-qty-highlight' : '';
-            const workOrderStatus = (task.workOrderStatus ?? 'NOT_STARTED').toUpperCase();
             return (
-              <article className="cutting-task-card" key={task.workOrderId ?? task.id}>
-                <div className="cutting-task-header">
-                  <div className="cutting-task-main">
-                    <ListImage
-                      src={task.thumbnail}
-                      alt={task.styleName}
-                      wrapperClassName="cutting-task-thumbnail"
-                      width={null}
-                      height={null}
-                      background="#fff"
-                    />
-                    <div className="cutting-task-info">
-                      <div className="cutting-task-title">
-                        <Text strong>{task.styleName}</Text>
-                        <Tag bordered={false} color="geekblue">{task.styleCode}</Tag>
-                      </div>
-                      <div className="cutting-task-meta">
-                        <Space size={12} wrap>
-                          <span>
-                            订单号：
-                            <Button
-                              type="link"
-                              size="small"
-                              style={{ paddingInline: 4 }}
-                              onClick={() => navigateToFactoryOrder(task.orderCode)}
-                            >
-                              {task.orderCode}
-                            </Button>
-                          </span>
-                          <span>床次：{task.bedNumber || '-'}</span>
-                          <span>
-                            <CalendarOutlined style={{ marginRight: 4 }} />
-                            下单：{task.orderDate}
-                          </span>
-                          {task.scheduleDate ? (
-                            <span>
-                              <CheckCircleTwoTone twoToneColor="#52c41a" />
-                              <Text type="secondary" style={{ marginLeft: 4 }}>
-                                计划排床：{task.scheduleDate}
-                              </Text>
-                            </span>
-                          ) : null}
-                          {task.customer ? (
-                            <span>
-                              <UserOutlined style={{ marginRight: 4 }} />
-                              客户：{task.customer}
-                            </span>
-                          ) : null}
-                        </Space>
-                      </div>
-                      {task.fabricSummary ? (
-                        <div className="cutting-task-fabric">{task.fabricSummary}</div>
-                      ) : null}
-                      <div className="cutting-task-tags">
-                        {workOrderStatus === 'IN_PROGRESS' ? (
-                          <Tag color="processing" bordered={false}>裁剪中</Tag>
-                        ) : null}
-                        {workOrderStatus === 'NOT_STARTED' ? (
-                          <Tag bordered={false}>未开裁</Tag>
-                        ) : null}
-                        {task.priorityTag ? (
-                          <Tag color="volcano" bordered={false}>
-                            <ExclamationCircleOutlined style={{ marginRight: 4 }} />
-                            {task.priorityTag}
-                          </Tag>
-                        ) : null}
-                        {task.pendingQuantity <= 0 ? (
-                          <Tag color="success" bordered={false}>
-                            已裁满
-                          </Tag>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="cutting-task-actions">
-                    <Button
-                      size="small"
-                      onClick={() => handleViewDetail(task)}
-                    >
-                      查看详情
-                    </Button>
-                    {workOrderStatus === 'IN_PROGRESS' ? (
-                      <>
-                        <Button
-                          size="small"
-                          type="primary"
-                          onClick={() => void openBedRecordModal(task)}
-                          disabled={!task.workOrderId}
-                          icon={<ScissorOutlined />}
-                        >
-                          录入床次
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={() => handleViewDetail(task)}
-                          disabled={!task.workOrderId}
-                          icon={<CheckCircleTwoTone twoToneColor="#52c41a" />}
-                        >
-                          完成
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="small"
-                        type="primary"
-                        onClick={() => void openStartModal(task)}
-                        disabled={!task.workOrderId}
-                        icon={<ScissorOutlined />}
-                      >
-                        开裁
-                      </Button>
-                    )}
-                    <Button
-                      size="small"
-                      icon={<PictureOutlined />}
-                      onClick={() => handleOpenPreview(task)}
-                    >
-                      颜色图
-                    </Button>
-                    <Dropdown
-                      trigger={['click']}
-                      menu={{
-                        items: menuItems,
-                        onClick: handleMenuClick(task),
-                      }}
-                    >
-                      <Button size="small" icon={<MoreOutlined />}>更多</Button>
-                    </Dropdown>
-                  </div>
-                </div>
-                <div className="cutting-task-quantities">
-                  <div>
-                    <div className="label">下单数量</div>
-                    <div className="value">{task.orderedQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                  <div>
-                    <div className="label">已裁数量</div>
-                    <div className="value">{task.cutQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                  <div className={pendingTone}>
-                    <div className="label">待裁数量</div>
-                    <div className="value">{task.pendingQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                </div>
-              </article>
+              <CuttingTaskCard
+                key={task.workOrderId ?? task.id}
+                task={task}
+                onViewDetail={handleViewDetail}
+                onPreview={handleOpenPreview}
+                onNavigateToFactoryOrder={navigateToFactoryOrder}
+                onRecordBed={(nextTask) => void openBedRecordModal(nextTask)}
+                onComplete={(nextTask) => void openCompleteModal(nextTask)}
+                menuItems={menuItems}
+                onMenuClick={handleMenuClick(task)}
+                showMoreButton
+                testIdPrefix="cutting-task"
+              />
             );
           })}
         </div>
@@ -1023,18 +969,9 @@ const CuttingPendingPage = () => {
               void openCompleteModal(detailState.task!);
             }
           : undefined}
-        onRecordBed={sheetDetail?.status === 'IN_PROGRESS' && detailState.task
+        onRecordBed={((sheetDetail?.status === 'IN_PROGRESS' || sheetDetail?.status === 'NOT_STARTED') && detailState.task)
           ? () => {
               void openBedRecordModal(detailState.task!);
-            }
-          : undefined}
-        onStart={sheetDetail?.status === 'NOT_STARTED' && detailState.task
-          ? () => {
-              void openStartModal(detailState.task!, {
-                bedNumber: sheetDetail?.bedNumber ?? `BED-${detailState.task?.orderCode ?? ''}`,
-                cutterId: sheetDetail?.cutterId,
-                plannedFabricQty: sheetDetail?.plannedFabricQty,
-              });
             }
           : undefined}
       />
@@ -1042,6 +979,7 @@ const CuttingPendingPage = () => {
       <Modal
         open={startState.open}
         title={startState.task ? `配布开裁 - ${startState.task.orderCode}` : '配布开裁'}
+        data-testid="cutting-start-modal"
         onCancel={() => {
           startForm.resetFields();
           setMaterialOptions([]);
@@ -1110,7 +1048,7 @@ const CuttingPendingPage = () => {
             )}
           </Form.Item>
           <Form.Item label="床次" name="bedNumber" rules={[{ required: true, message: '请输入床次' }]}>
-            <Input maxLength={32} />
+            <Input maxLength={32} data-testid="cutting-start-bed-number" />
           </Form.Item>
           <Form.Item label="裁剪人（可选）" name="cutterId">
             <Select
@@ -1122,98 +1060,67 @@ const CuttingPendingPage = () => {
               placeholder="请选择裁剪人"
             />
           </Form.Item>
-          <Form.Item label="仓库" name="warehouseId" rules={[{ required: true, message: '请选择仓库' }]}>
-            <Select
-              loading={warehouseLoading}
-              showSearch
-              optionFilterProp="label"
-              options={warehouseOptions}
-              placeholder="请选择仓库"
-              onChange={(warehouseId: number) => {
-                startForm.setFieldValue('materialId', undefined);
-                startForm.setFieldValue('materialUnit', undefined);
-                if (Number.isFinite(warehouseId)) {
-                  const nextOptions = buildMaterialOptionsForWarehouse(warehouseId, fabricInventoryItems, linkedStyleMaterials);
-                  setMaterialOptions(nextOptions);
-                  const linkedOptions = nextOptions.filter((item) => item.isLinked);
-                  if (linkedOptions.length === 1) {
-                    startForm.setFieldsValue({
-                      materialId: linkedOptions[0].value,
-                      materialUnit: linkedOptions[0].unit,
-                    });
-                  }
-                }
-              }}
-            />
-          </Form.Item>
-          <Form.Item label="面料" name="materialId" rules={[{ required: true, message: '请选择面料物料' }]}>
-            <Select
-              loading={materialLoading}
-              showSearch
-              optionFilterProp="label"
-              options={materialOptions}
-              disabled={!startWarehouseId}
-              placeholder={startWarehouseId ? '请选择面料' : '请先选择仓库'}
-              notFoundContent={startWarehouseId ? '该仓暂无可用面料' : '请先选择仓库'}
-              onChange={(materialId: number) => {
-                const target = materialOptions.find((item) => item.value === materialId);
-                if (target?.unit) {
-                  startForm.setFieldValue('materialUnit', target.unit);
-                }
-              }}
-            />
-          </Form.Item>
-          {startWarehouseId ? (
-            <Text type="secondary" className="cutting-start-helper">
-              {materialOptions.some((item) => item.isLinked)
-                ? '已优先展示当前款式 BOM 关联的面料；如需替换，也可选择同仓其他可用面料。'
-                : '当前仓未匹配到 BOM 关联面料，下面显示的是该仓全部可用面料。'}
-            </Text>
-          ) : null}
-          <Form.Item label="物料单位（可选）" name="materialUnit">
-            <Input maxLength={16} />
-          </Form.Item>
-          <Form.Item
-            label="面料预计数量"
-            name="plannedFabricQty"
-            rules={[
-              { required: true, message: '请输入预计数量' },
-              {
-                validator: (_rule, value: number | undefined) => {
-                  if (value === undefined || value === null) {
-                    return Promise.resolve();
-                  }
-                  if (value <= 0) {
-                    return Promise.reject(new Error('预计数量必须大于 0'));
-                  }
-                  if (selectedStartMaterial && value > selectedStartMaterial.availableQty) {
-                    return Promise.reject(new Error('预计数量不能超过当前可用库存'));
-                  }
-                  return Promise.resolve();
-                },
-              },
-            ]}
-          >
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} />
-          </Form.Item>
-          {startWarehouseId && startMaterialId ? (
-            <Alert
-              type={
-                typeof startPlannedFabricQty === 'number'
-                && selectedStartMaterial
-                && startPlannedFabricQty > selectedStartMaterial.availableQty
-                  ? 'warning'
-                  : 'info'
-              }
-              showIcon
-              message={`当前可用库存：${selectedStartMaterial?.availableQty ?? 0}${selectedStartMaterial?.unit ?? ''}`}
-              description={
-                typeof startPlannedFabricQty === 'number'
-                  ? `预计用料：${startPlannedFabricQty}${selectedStartMaterial?.unit ?? ''}`
-                  : '请输入预计用料，且不能超过当前可用库存'
-              }
-            />
-          ) : null}
+          <Form.List name="materialUsages">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text strong>面料预计用量（可选，支持多个面料）</Text>
+                  <Button onClick={() => add({})} loading={materialLoading || warehouseLoading} data-testid="cutting-start-add-material-usage">新增面料</Button>
+                </div>
+                {fields.length === 0 ? (
+                  <Alert type="info" showIcon message="当前开裁改为纯开始，面料用量可稍后补录；如已知计划用量，可在此先录多个面料。" />
+                ) : null}
+                {fields.map((field, index) => {
+                  const row = startMaterialUsageValues?.[index];
+                  const selectedMaterial = materialOptions.find((option) => option.value === Number(row?.materialId));
+                  return (
+                    <Card
+                      key={field.key}
+                      size="small"
+                      title={`面料 ${index + 1}`}
+                      extra={<Button type="link" danger onClick={() => remove(field.name)}>删除</Button>}
+                    >
+                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        <Form.Item name={[field.name, 'materialId']} label="面料">
+                          <Select
+                            loading={materialLoading}
+                            showSearch
+                            optionFilterProp="label"
+                            options={materialOptions}
+                            placeholder="请选择面料"
+                            notFoundContent="暂无可用面料"
+                            onChange={(materialId: number) => {
+                              const target = materialOptions.find((item) => item.value === materialId);
+                              startForm.setFieldValue(['materialUsages', field.name, 'warehouseId'], target?.warehouseId);
+                              startForm.setFieldValue(['materialUsages', field.name, 'materialUnit'], target?.unit);
+                            }}
+                          />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'materialUnit']} label="单位">
+                          <Input maxLength={16} />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'plannedQty']} label="预计用量">
+                          <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="可选" />
+                        </Form.Item>
+                        {selectedMaterial ? (
+                          <Text type="secondary">
+                            当前可用库存：{selectedMaterial.availableQty}{selectedMaterial.unit ?? ''}
+                          </Text>
+                        ) : null}
+                      </Space>
+                    </Card>
+                  );
+                })}
+                {fields.length > 0 ? (
+                  <Text type="secondary" className="cutting-start-helper">
+                    {materialOptions.some((item) => item.isLinked)
+                      ? '已优先展示当前款式 BOM 关联面料；可录入多个面料预计用量，也兼容旧单面料接口。'
+                      : '当前未匹配到 BOM 关联面料，显示全部可用面料；不填写也可直接开裁。'}
+                  </Text>
+                ) : null}
+              </Space>
+            )}
+          </Form.List>
         </Form>
       </Modal>
 
@@ -1224,6 +1131,8 @@ const CuttingPendingPage = () => {
         qtyMap={bedRecordQtyMap}
         form={bedRecordForm}
         submitting={bedRecordState.submitting}
+        stockAvailabilityMap={bedMaterialStockAvailabilityMap}
+        warehouseOptions={materialWarehouseOptions}
         zIndex={BED_RECORD_MODAL_Z_INDEX}
         onQtyChange={(key, value) => {
           setBedRecordQtyMap((prev) => ({
@@ -1234,6 +1143,7 @@ const CuttingPendingPage = () => {
         onCancel={() => {
           bedRecordForm.resetFields();
           setBedRecordQtyMap({});
+          setMaterialWarehouseOptions([]);
           setBedRecordState({ open: false, submitting: false });
         }}
         onSubmit={handleSubmitBedRecord}
@@ -1248,84 +1158,15 @@ const CuttingPendingPage = () => {
         confirmLoading={completeState.submitting}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          {sheetDetail ? (
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 12 }}>
-              <Descriptions.Item label="使用面料">
-                {sheetDetail.materialCode || sheetDetail.materialName
-                  ? `${sheetDetail.materialCode ?? '-'} / ${sheetDetail.materialName ?? '-'}`
-                  : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="仓库">{sheetDetail.warehouseName ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="预计用量">
-                {sheetDetail.plannedFabricQty ?? '-'}{sheetDetail.materialUnit ?? ''}
-              </Descriptions.Item>
-            </Descriptions>
-          ) : null}
-          {typeof sheetDetail?.plannedFabricQty === 'number' ? (
+          {completeIsOverCut ? (
             <Alert
-              type={completeIsOverPlan || completeIsOverCut ? 'warning' : 'info'}
+              type="warning"
               showIcon
               style={{ marginBottom: 12 }}
-              message={`计划用量：${completeVariance.planQty}${sheetDetail.materialUnit ?? ''} ｜ 实际用量：${completeVariance.actualQty}${sheetDetail.materialUnit ?? ''} ｜ 计划件数：${completePlannedQty} ｜ 本次实裁件数：${completeTargetQty}`}
-              description={`${completeIsOverPlan ? `当前完工用量高于计划 ${completeVariance.overQty}${sheetDetail.materialUnit ?? ''}。` : `当前用量差异：+${completeVariance.overQty}${sheetDetail.materialUnit ?? ''} / 回退 ${completeVariance.returnQty}${sheetDetail.materialUnit ?? ''}。`} ${completeIsOverCut ? `当前累计实裁超出计划 ${completeOverCutQty}${completeState.task?.unit ?? '件'}。` : '当前累计实裁未超计划。'}`}
+              message={`存在颜色尺码超裁，共超出 ${completeOverCutQty}${completeState.task?.unit ?? '件'}`}
+              description={`超裁明细：${completeOverCutSpecs.map((item) => `${item.color}/${item.size} 超出 ${item.overQty}${completeState.task?.unit ?? '件'}`).join('；')}。提交完成前需要补录超裁原因。`}
             />
           ) : null}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: 12,
-            }}
-          >
-            {[
-              {
-                label: '实际用量',
-                value: completeDisplayActualFabricQty == null ? '-' : `${completeDisplayActualFabricQty}${sheetDetail?.materialUnit ?? ''}`,
-                hint: '按已录床次汇总',
-              },
-              {
-                label: '计划用量',
-                value: `${completeVariance.planQty}${sheetDetail?.materialUnit ?? ''}`,
-                hint: '开裁时配置',
-              },
-              {
-                label: '实裁件数',
-                value: `${completeTargetQty}${completeState.task?.unit ?? '件'}`,
-                hint: '来自床次记录',
-              },
-              {
-                label: '差异结果',
-                value: completeIsOverPlan
-                  ? `超用 ${completeVariance.overQty}${sheetDetail?.materialUnit ?? ''}`
-                  : completeVariance.returnQty > 0
-                    ? `回退 ${completeVariance.returnQty}${sheetDetail?.materialUnit ?? ''}`
-                    : '刚好一致',
-                hint: completeIsOverCut
-                  ? `超裁 ${completeOverCutQty}${completeState.task?.unit ?? '件'}`
-                  : '未超裁',
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  border: '1px solid #f0f0f0',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  background: '#fafafa',
-                }}
-              >
-                <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
-                  {item.label}
-                </Text>
-                <Text strong style={{ display: 'block', fontSize: 18, lineHeight: 1.4 }}>
-                  {item.value}
-                </Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {item.hint}
-                </Text>
-              </div>
-            ))}
-          </div>
           {sheetDetail ? (
             <Table
               rowKey={(row) => row.color}
@@ -1380,31 +1221,10 @@ const CuttingPendingPage = () => {
           <Alert
             type="warning"
             showIcon
-            message="当前完工需要补录原因"
-            description={`${completeIsOverPlan ? `实际用量超计划 ${completeVariance.overQty}${sheetDetail?.materialUnit ?? ''}` : ''}${completeIsOverPlan && completeIsOverCut ? '，' : ''}${completeIsOverCut ? `实裁件数超计划 ${completeOverCutQty}${completeState.task?.unit ?? '件'}` : ''}。请填写原因后再提交。`}
+            message="当前完工需要补录超裁原因"
+            description={`超裁明细：${completeOverCutSpecs.map((item) => `${item.color}/${item.size} 超出 ${item.overQty}${completeState.task?.unit ?? '件'}`).join('；')}。请填写原因后再提交。`}
           />
           <Form form={completeReasonForm} layout="vertical">
-            {completeIsOverPlan ? (
-              <>
-                <Form.Item
-                  label="超用原因"
-                  name="usageReasonCode"
-                  rules={[{ required: true, message: '请选择超用原因' }]}
-                >
-                  <Select
-                    allowClear
-                    options={OVER_USAGE_REASON_OPTIONS}
-                    placeholder="请选择超用原因"
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="超用备注"
-                  name="usageRemark"
-                >
-                  <Input.TextArea rows={2} placeholder="可选，补充备注" />
-                </Form.Item>
-              </>
-            ) : null}
             {completeIsOverCut ? (
               <>
                 <Form.Item

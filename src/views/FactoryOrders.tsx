@@ -54,6 +54,7 @@ import type {
 } from '../types';
 import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
 import { finishedGoodsReceivedService } from '../api/finished-goods';
+import { outsourcingManagementApi } from '../api/outsourcing-management';
 import { pieceworkService } from '../api/piecework';
 import { stylesApi } from '../api/styles';
 import { styleDetailApi } from '../api/style-detail';
@@ -134,10 +135,12 @@ type ProgressStatRow = {
   orderedQty: number;
   cuttingQty: number;
   sewingQty: number;
+  sewingCompletedQty: number;
 };
 type ProgressNodeQuantitySnapshot = {
   cuttingCompletedQty?: number;
   sewingAllocatedQty?: number;
+  sewingCompletedQty?: number;
 };
 type AllocationQuantityMatrix = Record<string, Record<string, number>>;
 type AllocationHistoryRow = {
@@ -146,6 +149,7 @@ type AllocationHistoryRow = {
   bedNumber?: string;
   source?: string;
   workOrderId?: number;
+  outsourcingOrderId?: number;
   factoryId?: number;
   unitPrice?: number;
   totalQty: number;
@@ -245,23 +249,33 @@ const normalizeProgressLabel = (stage: FactoryOrderProgress): string => {
   return stage.label;
 };
 
-const parseAllocationCompletionValue = (value?: string) => {
+const parseAllocationCompletionValue = (value?: string, fallbackPercent?: number) => {
   if (!value) {
-    return null;
+    return typeof fallbackPercent === 'number' ? {
+      allocatedPercent: 0,
+      completedPercent: fallbackPercent,
+    } : null;
   }
   const matched = value.match(/分配\s*(\d+)%\s*\/\s*完成\s*(\d+)%/);
   if (!matched) {
-    return null;
+    return typeof fallbackPercent === 'number' ? {
+      allocatedPercent: 0,
+      completedPercent: fallbackPercent,
+    } : null;
   }
   return {
     allocatedPercent: Number(matched[1] ?? 0),
-    completedPercent: Number(matched[2] ?? 0),
+    completedPercent: typeof fallbackPercent === 'number' ? fallbackPercent : Number(matched[2] ?? 0),
   };
 };
 
 const resolveProgressStageState = (stage: FactoryOrderProgress) => {
   const status = String(stage.status ?? 'default').toLowerCase();
-  const breakdown = parseAllocationCompletionValue(stage.value);
+  const isPercentStage = stage.key === 'cutting' || stage.key === 'sewing';
+  const fallbackPercent = isPercentStage && typeof stage.percent === 'number'
+    ? Math.max(0, Math.round(stage.percent))
+    : undefined;
+  const breakdown = parseAllocationCompletionValue(stage.value, fallbackPercent);
   const isOrderPlaced = stage.key === 'order_placed';
   const isOvercut = status === 'danger';
   const isPartial =
@@ -335,9 +349,7 @@ const formatProgressPercent = (current: number, total: number) => {
   if (!(total > 0) || !(current >= 0)) {
     return '0%';
   }
-  const percent = (current / total) * 100;
-  const rounded = Math.round(percent * 10) / 10;
-  return Number.isInteger(rounded) ? `${rounded.toFixed(0)}%` : `${rounded.toFixed(1)}%`;
+  return `${Math.round((current * 100) / total)}%`;
 };
 
 const buildCreateMatrix = (
@@ -428,6 +440,7 @@ const FactoryOrders = () => {
   const [allocationSizes, setAllocationSizes] = useState<string[]>([]);
   const [allocationMatrix, setAllocationMatrix] = useState<AllocationQuantityMatrix>({});
   const [allocationHistoryRows, setAllocationHistoryRows] = useState<AllocationHistoryRow[]>([]);
+  const [outsourceStatusByOrderId, setOutsourceStatusByOrderId] = useState<Record<string, string>>({});
   const [allocationCreateModalOpen, setAllocationCreateModalOpen] = useState(false);
   const [allocationCreateSubmitting, setAllocationCreateSubmitting] = useState(false);
   const [allocationCreateForm] = Form.useForm();
@@ -878,49 +891,132 @@ const FactoryOrders = () => {
   const loadProgressStats = useCallback(async (orderId: string, stageKey: 'cutting' | 'sewing') => {
     setProgressStats({ loading: true, rows: [] });
     setProgressNodeQuantities({});
+    setOutsourceStatusByOrderId({});
     try {
+      type AllocationItem = { color: string; size: string; quantity: number };
+      type AllocationEntry = {
+        completedAt?: string;
+        bedNumber?: string;
+        source?: string;
+        workOrderId?: number;
+        outsourcingOrderId?: number;
+        subcontractorId?: number;
+        unitPrice?: number;
+        items: AllocationItem[];
+      };
+
       const shouldIncludeAllocation = (
         source: unknown,
         currentStageKey: 'cutting' | 'sewing',
       ) => !(currentStageKey === 'cutting' && source === CUTTING_SHEET_START_SOURCE);
 
-      const parseAllocationNodeItems = (node?: FactoryOrderProgressNode): Array<{ color: string; size: string; quantity: number }> => {
+      const normalizeAllocationItems = (
+        items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>,
+      ): AllocationItem[] => {
+        const mergedMap = new Map<string, AllocationItem>();
+        (items ?? []).forEach((item) => {
+          const color = normalizeSpecLabel(typeof item.color === 'string' ? item.color : undefined);
+          const size = normalizeSpecLabel(typeof item.size === 'string' ? item.size : undefined);
+          const quantity = Number(item.quantity ?? 0);
+          if (!Number.isFinite(quantity) || quantity <= 0) {
+            return;
+          }
+          const key = buildSpecKey(color, size);
+          const prev = mergedMap.get(key);
+          if (prev) {
+            prev.quantity += quantity;
+          } else {
+            mergedMap.set(key, { color, size, quantity });
+          }
+        });
+        return Array.from(mergedMap.values());
+      };
+
+      const parseNodeAllocations = (node?: FactoryOrderProgressNode, currentStageKey?: 'cutting' | 'sewing'): AllocationEntry[] => {
         if (!node?.payloadJson) {
           return [];
         }
         try {
           const payload = JSON.parse(node.payloadJson) as {
             allocations?: Array<{
+              completedAt?: unknown;
+              bedNumber?: unknown;
               source?: unknown;
+              workOrderId?: unknown;
+              outsourcingOrderId?: unknown;
+              subcontractorId?: unknown;
+              unitPrice?: unknown;
               items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
             }>;
             items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
           };
           const sourceAllocations = Array.isArray(payload.allocations)
-            ? payload.allocations.filter((allocation) => shouldIncludeAllocation(allocation.source, stageKey))
+            ? payload.allocations.filter((allocation) => !currentStageKey || shouldIncludeAllocation(allocation.source, currentStageKey))
             : [];
-          const normalizedItems = sourceAllocations.flatMap((allocation) => allocation.items ?? []);
-          const fallbackItems = normalizedItems.length > 0 ? normalizedItems : (payload.items ?? []);
-          const mergedMap = new Map<string, { color: string; size: string; quantity: number }>();
-          fallbackItems.forEach((item) => {
-            const color = normalizeSpecLabel(typeof item.color === 'string' ? item.color : undefined);
-            const size = normalizeSpecLabel(typeof item.size === 'string' ? item.size : undefined);
-            const quantity = Number(item.quantity ?? 0);
-            if (!Number.isFinite(quantity) || quantity <= 0) {
-              return;
-            }
-            const key = buildSpecKey(color, size);
-            const prev = mergedMap.get(key);
-            if (prev) {
-              prev.quantity += quantity;
-            } else {
-              mergedMap.set(key, { color, size, quantity });
-            }
-          });
-          return Array.from(mergedMap.values());
+          if (sourceAllocations.length > 0) {
+            return sourceAllocations.map((allocation) => ({
+              completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
+              bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
+              source: typeof allocation.source === 'string' ? allocation.source : undefined,
+              workOrderId: Number.isFinite(Number(allocation.workOrderId)) ? Number(allocation.workOrderId) : undefined,
+              outsourcingOrderId: Number.isFinite(Number(allocation.outsourcingOrderId)) ? Number(allocation.outsourcingOrderId) : undefined,
+              subcontractorId: Number.isFinite(Number(allocation.subcontractorId)) ? Number(allocation.subcontractorId) : undefined,
+              unitPrice: Number.isFinite(Number(allocation.unitPrice)) ? Number(allocation.unitPrice) : undefined,
+              items: normalizeAllocationItems(allocation.items),
+            }));
+          }
+          const fallbackItems = normalizeAllocationItems(payload.items);
+          return fallbackItems.length > 0 ? [{ items: fallbackItems }] : [];
         } catch {
           return [];
         }
+      };
+
+      const normalizeSewingAllocationsForDisplay = (
+        allocations: AllocationEntry[],
+        cuttingItems: AllocationItem[],
+      ): AllocationEntry[] => {
+        if (!allocations.length || !cuttingItems.length) {
+          return allocations;
+        }
+        const remainingBySpec = new Map<string, number>();
+        cuttingItems.forEach((item) => {
+          const key = buildSpecKey(item.color, item.size);
+          remainingBySpec.set(key, (remainingBySpec.get(key) ?? 0) + item.quantity);
+        });
+        const allocateFromRemaining = (requiredQty: number): AllocationItem[] => {
+          const rebuilt: AllocationItem[] = [];
+          let remaining = requiredQty;
+          for (const [key, available] of remainingBySpec.entries()) {
+            if (remaining <= 0) {
+              break;
+            }
+            if (available <= 0) {
+              continue;
+            }
+            const quantity = Math.min(available, remaining);
+            const [color, size] = key.split('::');
+            rebuilt.push({ color, size, quantity });
+            remainingBySpec.set(key, available - quantity);
+            remaining -= quantity;
+          }
+          if (remaining > 0) {
+            rebuilt.push({ color: '-', size: '-', quantity: remaining });
+          }
+          return rebuilt;
+        };
+        return allocations.map((allocation) => {
+          const isValid = allocation.items.every((item) => item.quantity <= (remainingBySpec.get(buildSpecKey(item.color, item.size)) ?? 0));
+          if (isValid) {
+            allocation.items.forEach((item) => {
+              const key = buildSpecKey(item.color, item.size);
+              remainingBySpec.set(key, Math.max((remainingBySpec.get(key) ?? 0) - item.quantity, 0));
+            });
+            return allocation;
+          }
+          const totalQty = allocation.items.reduce((sum, item) => sum + item.quantity, 0);
+          return { ...allocation, items: allocateFromRemaining(totalQty) };
+        });
       };
 
       const [nodes, detail] = await Promise.all([
@@ -929,97 +1025,88 @@ const FactoryOrders = () => {
       ]);
       const cuttingNode = nodes.find((item) => item.nodeCode === 'CUTTING');
       const sewingNode = nodes.find((item) => item.nodeCode === 'SEWING');
+      const cuttingAllocations = parseNodeAllocations(cuttingNode, 'cutting');
+      const cuttingItems = cuttingAllocations.flatMap((allocation) => allocation.items);
+      const sewingAllocations = normalizeSewingAllocationsForDisplay(
+        parseNodeAllocations(sewingNode, 'sewing'),
+        cuttingItems,
+      );
       const cuttingNodePayload = parseProgressNodePayload(cuttingNode);
       const sewingNodePayload = parseProgressNodePayload(sewingNode);
       const stageNodeCode = stageKey === 'cutting' ? 'CUTTING' : 'SEWING';
-      const stageNode = nodes.find((item) => item.nodeCode === stageNodeCode);
       const historyRows: AllocationHistoryRow[] = [];
-      if (stageNode?.payloadJson) {
-        try {
-          const payload = JSON.parse(stageNode.payloadJson) as {
-            allocations?: Array<{
-              completedAt?: unknown;
-              bedNumber?: unknown;
-              source?: unknown;
-              workOrderId?: unknown;
-              subcontractorId?: unknown;
-              unitPrice?: unknown;
-              items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
-            }>;
-            completedAt?: unknown;
-            bedNumber?: unknown;
-            source?: unknown;
-            workOrderId?: unknown;
-            subcontractorId?: unknown;
-            unitPrice?: unknown;
-            items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
-          };
-          const allocations = Array.isArray(payload.allocations) && payload.allocations.length
-            ? payload.allocations
-            : [payload];
-          allocations.forEach((allocation, index) => {
-            if (!shouldIncludeAllocation(allocation.source, stageKey)) {
-              return;
-            }
-            const items = (allocation.items ?? [])
-              .map((item) => ({
-                color: typeof item.color === 'string' ? item.color : '-',
-                size: typeof item.size === 'string' ? item.size : '-',
-                quantity: Number(item.quantity ?? 0),
-              }))
-              .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0);
-            const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-            if (totalQty <= 0) {
-              return;
-            }
-            historyRows.push({
-              key: `${stageNodeCode}-${index}`,
-              completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
-              bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
-              source: typeof allocation.source === 'string' ? allocation.source : undefined,
-              workOrderId: Number.isFinite(Number(allocation.workOrderId))
-                ? Number(allocation.workOrderId)
-                : undefined,
-              factoryId: Number.isFinite(Number(allocation.subcontractorId))
-                ? Number(allocation.subcontractorId)
-                : undefined,
-              unitPrice: Number.isFinite(Number(allocation.unitPrice))
-                ? Number(allocation.unitPrice)
-                : undefined,
-              totalQty,
-              itemSummary: items.map((item) => `${item.color}/${item.size}:${item.quantity}`).join('；'),
-              items,
-            });
-          });
-        } catch {
-          // ignore invalid payload history
+      const stageAllocations = stageKey === 'cutting' ? cuttingAllocations : sewingAllocations;
+      stageAllocations.forEach((allocation, index) => {
+        const totalQty = allocation.items.reduce((sum, item) => sum + item.quantity, 0);
+        if (totalQty <= 0) {
+          return;
+        }
+        historyRows.push({
+          key: `${stageNodeCode}-${index}`,
+          completedAt: allocation.completedAt,
+          bedNumber: allocation.bedNumber,
+          source: allocation.source,
+          workOrderId: allocation.workOrderId,
+          outsourcingOrderId: allocation.outsourcingOrderId,
+          factoryId: allocation.subcontractorId,
+          unitPrice: allocation.unitPrice,
+          totalQty,
+          itemSummary: allocation.items.map((item) => `${item.color}/${item.size}:${item.quantity}`).join('；'),
+          items: allocation.items,
+        });
+      });
+      setAllocationHistoryRows(historyRows.reverse());
+      if (stageKey === 'sewing') {
+        const outsourceOrderIds = Array.from(
+          new Set(
+            historyRows
+              .map((record) => record.outsourcingOrderId)
+              .filter((value): value is number => typeof value === 'number' && value > 0),
+          ),
+        );
+        if (outsourceOrderIds.length > 0) {
+          const detailResults = await Promise.allSettled(
+            outsourceOrderIds.map(async (currentOrderId) => {
+              const detail = await outsourcingManagementApi.getDetail(String(currentOrderId));
+              return [String(currentOrderId), detail.status] as const;
+            }),
+          );
+          setOutsourceStatusByOrderId(
+            detailResults.reduce<Record<string, string>>((acc, result) => {
+              if (result.status === 'fulfilled') {
+                const [currentOrderId, status] = result.value;
+                acc[currentOrderId] = status;
+              }
+              return acc;
+            }, {}),
+          );
         }
       }
-      setAllocationHistoryRows(historyRows.reverse());
-      const specMap = new Map<string, { key: string; color: string; size: string; orderedQty: number; cuttingQty: number; sewingQty: number }>();
+      const specMap = new Map<string, { key: string; color: string; size: string; orderedQty: number; cuttingQty: number; sewingQty: number; sewingCompletedQty: number }>();
       (detail.lines ?? []).forEach((line) => {
         const color = normalizeSpecLabel(line.color);
         const size = normalizeSpecLabel(line.size);
         const key = buildSpecKey(color, size);
         if (!specMap.has(key)) {
-          specMap.set(key, { key, color, size, orderedQty: 0, cuttingQty: 0, sewingQty: 0 });
+          specMap.set(key, { key, color, size, orderedQty: 0, cuttingQty: 0, sewingQty: 0, sewingCompletedQty: 0 });
         }
         const row = specMap.get(key)!;
         row.orderedQty += Number(line.orderedQty ?? 0);
+        row.sewingCompletedQty += Number(line.completedQuantity ?? 0);
       });
 
-      parseAllocationNodeItems(cuttingNode).forEach((item) => {
+      cuttingItems.forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
         if (!specMap.has(key)) {
-          specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0 });
+          specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0, sewingCompletedQty: 0 });
         }
         specMap.get(key)!.cuttingQty += item.quantity;
       });
 
-      parseAllocationNodeItems(sewingNode).forEach((item) => {
+      sewingAllocations.flatMap((allocation) => allocation.items).forEach((item) => {
         const key = buildSpecKey(item.color, item.size);
         if (!specMap.has(key)) {
-          specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0 });
+          specMap.set(key, { key, color: item.color, size: item.size, orderedQty: 0, cuttingQty: 0, sewingQty: 0, sewingCompletedQty: 0 });
         }
         specMap.get(key)!.sewingQty += item.quantity;
       });
@@ -1034,6 +1121,7 @@ const FactoryOrders = () => {
       setProgressNodeQuantities({
         cuttingCompletedQty: cuttingNodePayload.completedQuantity,
         sewingAllocatedQty: sewingNodePayload.allocatedQuantity,
+        sewingCompletedQty: sewingNodePayload.completedQuantity,
       });
       const colors = Array.from(new Set(rows.map((row) => row.color)));
       const sizes = Array.from(new Set(rows.map((row) => row.size)));
@@ -1497,6 +1585,13 @@ const FactoryOrders = () => {
       console.error('failed to resolve cutting sheet route', error);
       message.error('跳转裁床单失败，请稍后重试');
     }
+  }, [navigate]);
+
+  const handleNavigateToOutsourceOrder = useCallback((record: AllocationHistoryRow) => {
+    if (!record.outsourcingOrderId) {
+      return;
+    }
+    navigate(`/piecework/outsource?orderId=${record.outsourcingOrderId}&openDetail=1`);
   }, [navigate]);
 
   const handleOpenAllocationCreate = useCallback(() => {
@@ -2012,6 +2107,10 @@ const FactoryOrders = () => {
     () => progressStats.rows.reduce((sum, row) => sum + row.sewingQty, 0),
     [progressStats.rows],
   );
+  const sewingCompletedTotalFromRows = useMemo(
+    () => progressStats.rows.reduce((sum, row) => sum + row.sewingCompletedQty, 0),
+    [progressStats.rows],
+  );
   const allocationDisplayColors = useMemo(() => {
     if (allocationColors.length > 0) {
       return allocationColors;
@@ -2040,11 +2139,22 @@ const FactoryOrders = () => {
         if (!matrix[row.color]) {
           matrix[row.color] = {};
         }
-        const doneQty = progressActionModal.stage?.key === 'sewing' ? row.sewingQty : row.cuttingQty;
+        const doneQty = progressActionModal.stage?.key === 'sewing' ? row.sewingCompletedQty : row.cuttingQty;
         matrix[row.color][row.size] = doneQty;
         return matrix;
       }, {}),
     [progressActionModal.stage?.key, progressStats.rows],
+  );
+  const statsSecondaryMatrix = useMemo(
+    () =>
+      progressStats.rows.reduce<Record<string, Record<string, number>>>((matrix, row) => {
+        if (!matrix[row.color]) {
+          matrix[row.color] = {};
+        }
+        matrix[row.color][row.size] = isCuttingProgressStage ? row.orderedQty : row.sewingQty;
+        return matrix;
+      }, {}),
+    [isCuttingProgressStage, progressStats.rows],
   );
   const statsCapacityMatrix = useMemo(
     () =>
@@ -2093,6 +2203,26 @@ const FactoryOrders = () => {
     () => Object.values(statsDoneColumnTotals).reduce((sum, value) => sum + value, 0),
     [statsDoneColumnTotals],
   );
+  const statsSecondaryRowTotals = useMemo(
+    () =>
+      statsDisplayColors.reduce<Record<string, number>>((acc, color) => {
+        acc[color] = statsDisplaySizes.reduce((sum, size) => sum + (statsSecondaryMatrix[color]?.[size] ?? 0), 0);
+        return acc;
+      }, {}),
+    [statsDisplayColors, statsDisplaySizes, statsSecondaryMatrix],
+  );
+  const statsSecondaryColumnTotals = useMemo(
+    () =>
+      statsDisplaySizes.reduce<Record<string, number>>((acc, size) => {
+        acc[size] = statsDisplayColors.reduce((sum, color) => sum + (statsSecondaryMatrix[color]?.[size] ?? 0), 0);
+        return acc;
+      }, {}),
+    [statsDisplayColors, statsDisplaySizes, statsSecondaryMatrix],
+  );
+  const statsSecondaryTotal = useMemo(
+    () => Object.values(statsSecondaryColumnTotals).reduce((sum, value) => sum + value, 0),
+    [statsSecondaryColumnTotals],
+  );
   const allocationCapacityRowTotals = useMemo(
     () =>
       allocationDisplayColors.reduce<Record<string, number>>((acc, color) => {
@@ -2128,14 +2258,16 @@ const FactoryOrders = () => {
   );
   const cuttingCompletedTotal = progressNodeQuantities.cuttingCompletedQty ?? cuttingCompletedTotalFromRows;
   const sewingAllocatedTotal = progressNodeQuantities.sewingAllocatedQty ?? sewingAllocatedTotalFromRows;
+  const sewingCompletedTotal = sewingCompletedTotalFromRows;
   const allocationCapacityTotal = isCuttingProgressStage ? orderedTotal : cuttingCompletedTotal;
   const allocationRemainingTotal = Math.max(allocationCapacityTotal - allocationHistoryTotal, 0);
   const progressPercentLabel = isCuttingProgressStage ? '裁床进度' : '车缝进度';
   const progressPercentValue = formatProgressPercent(
-    isCuttingProgressStage ? cuttingCompletedTotal : sewingAllocatedTotal,
+    isCuttingProgressStage ? cuttingCompletedTotal : sewingCompletedTotal,
     orderedTotal,
   );
-  const statsPrimaryLabel = isCuttingProgressStage ? '已裁' : '已领取';
+  const statsPrimaryLabel = isCuttingProgressStage ? '已裁' : '已完成';
+  const statsSecondaryLabel = isCuttingProgressStage ? undefined : '已领取';
   const statsCapacityLabel = isCuttingProgressStage ? '下单量' : '裁床已完成';
   const renderCardView = () => {
     if (loadingCards && cardOrders.length === 0) {
@@ -2287,7 +2419,7 @@ const FactoryOrders = () => {
                             return !prevState.isCompleted;
                           });
                         const predecessorCuttingBreakdown = predecessorBlockedStage
-                          ? parseAllocationCompletionValue(predecessorBlockedStage.value)
+                          ? resolveProgressStageState(predecessorBlockedStage).breakdown
                           : null;
                         const allowSewingWithPartialCutting = stage.key === 'sewing'
                           && predecessorBlockedStage?.key === 'cutting'
@@ -2473,6 +2605,7 @@ const FactoryOrders = () => {
               onSearch={handleSearch}
               onChange={handleSearchChange}
               style={{ width: 360 }}
+              testId="factory-orders-search-input"
             />
             <Select
               style={{ width: 180 }}
@@ -2536,6 +2669,7 @@ const FactoryOrders = () => {
       <Modal
         open={createModalOpen}
         title="新建工厂订单"
+        data-testid="factory-order-create-modal"
         onCancel={handleCloseCreate}
         onOk={handleSubmitCreate}
         confirmLoading={createSubmitting}
@@ -2546,7 +2680,7 @@ const FactoryOrders = () => {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item label="订单号" name="orderNo">
-                <Input placeholder="留空自动生成（可手动覆盖）" />
+                <Input placeholder="留空自动生成（可手动覆盖）" data-testid="factory-order-create-order-no" />
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -2558,6 +2692,7 @@ const FactoryOrders = () => {
                   options={styleOptions}
                   placeholder="请选择款式"
                   notFoundContent={createOptionsLoading ? '加载中...' : '暂无款式数据'}
+                  data-testid="factory-order-create-style-select"
                 />
               </Form.Item>
             </Col>
@@ -2568,7 +2703,9 @@ const FactoryOrders = () => {
             </Col>
             <Col span={6}>
               <Form.Item label="预计交货日期" name="expectedDelivery">
-                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="请选择预计交货日期" />
+                <div data-testid="factory-order-create-delivery-date-wrapper">
+                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="请选择预计交货日期" inputReadOnly={false} data-testid="factory-order-create-delivery-date" />
+                </div>
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -2695,7 +2832,7 @@ const FactoryOrders = () => {
                           <th>小计</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody data-testid="factory-order-create-quantity-matrix">
                         {createColors.map((color) => (
                           <tr key={`row-${color}`}>
                             <td>{color}</td>
@@ -2889,13 +3026,13 @@ const FactoryOrders = () => {
                             message={
                               isCuttingProgressStage
                                 ? `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
-                                : `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，车缝累计已领取：${sewingAllocatedTotal}，当前剩余可领：${allocationRemainingTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
+                                : `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，车缝累计已完成：${sewingCompletedTotal}，车缝累计已领取：${sewingAllocatedTotal}，当前剩余可领：${allocationRemainingTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
                             }
                           />
                           <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                             {isCuttingProgressStage
                               ? '矩阵口径：已裁 / 下单量'
-                              : '矩阵口径：已领取 / 裁床已完成；进度百分比仍按下单总量计算'}
+                              : '矩阵口径：已完成 / 已领取 / 裁床已完成；进度百分比仍按下单总量计算'}
                           </Text>
                           <div className="factory-create-matrix-wrap">
                             <table className="factory-create-matrix-table">
@@ -2916,11 +3053,15 @@ const FactoryOrders = () => {
                                       <td key={`stats-${color}-${size}`}>
                                         {(statsDoneMatrix[color]?.[size] ?? 0)}
                                         {' / '}
+                                        {(statsSecondaryMatrix[color]?.[size] ?? 0)}
+                                        {' / '}
                                         {(statsCapacityMatrix[color]?.[size] ?? 0)}
                                       </td>
                                     ))}
                                     <td>
                                       {(statsDoneRowTotals[color] ?? 0)}
+                                      {' / '}
+                                      {(statsSecondaryRowTotals[color] ?? 0)}
                                       {' / '}
                                       {(statsCapacityRowTotals[color] ?? 0)}
                                     </td>
@@ -2934,11 +3075,15 @@ const FactoryOrders = () => {
                                     <td key={`stats-sum-${size}`}>
                                       {(statsDoneColumnTotals[size] ?? 0)}
                                       {' / '}
+                                      {(statsSecondaryColumnTotals[size] ?? 0)}
+                                      {' / '}
                                       {(statsCapacityColumnTotals[size] ?? 0)}
                                     </td>
                                   ))}
                                   <td>
                                     {statsDoneTotal}
+                                    {' / '}
+                                    {statsSecondaryTotal}
                                     {' / '}
                                     {allocationCapacityTotal}
                                   </td>
@@ -2947,7 +3092,9 @@ const FactoryOrders = () => {
                             </table>
                           </div>
                           <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                            {`${statsPrimaryLabel} / ${statsCapacityLabel}`}
+                            {isCuttingProgressStage
+                              ? `${statsPrimaryLabel} / ${statsCapacityLabel}`
+                              : `${statsPrimaryLabel} / ${statsSecondaryLabel} / ${statsCapacityLabel}`}
                           </Text>
                         </>
                       )}
@@ -2990,7 +3137,32 @@ const FactoryOrders = () => {
                                   <Text strong>{`床次：${record.bedNumber ?? '-'}`}</Text>
                                 )
                               ) : (
-                                <Text strong>{`工厂：${factoryLabel}`}</Text>
+                                <>
+                                  <Text strong>{`工厂：${factoryLabel}`}</Text>
+                                  {record.outsourcingOrderId ? (
+                                    <Tag
+                                      color={
+                                        outsourceStatusByOrderId[String(record.outsourcingOrderId)] === '已完成'
+                                        || outsourceStatusByOrderId[String(record.outsourcingOrderId)] === '已结算'
+                                          ? 'success'
+                                          : 'processing'
+                                      }
+                                      style={{ marginLeft: 12 }}
+                                    >
+                                      {outsourceStatusByOrderId[String(record.outsourcingOrderId)] ?? '加载中'}
+                                    </Tag>
+                                  ) : null}
+                                  {record.outsourcingOrderId ? (
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      style={{ padding: 0, height: 'auto', marginLeft: 12 }}
+                                      onClick={() => handleNavigateToOutsourceOrder(record)}
+                                    >
+                                      查看外发单
+                                    </Button>
+                                  ) : null}
+                                </>
                               )}
                               {isCuttingProgressStage ? (
                                 <Text type="secondary" style={{ marginLeft: 12 }}>

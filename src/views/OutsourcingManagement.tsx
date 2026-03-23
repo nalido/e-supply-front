@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Key } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
@@ -8,6 +9,7 @@ import {
   Card,
   Descriptions,
   Drawer,
+  Dropdown,
   Empty,
   DatePicker,
   Form,
@@ -23,7 +25,7 @@ import {
   Spin,
   message,
 } from 'antd';
-import { DownloadOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, MoreOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
 import OutsourcingReceiptItemsMatrix from '../components/OutsourcingReceiptItemsMatrix';
@@ -126,6 +128,8 @@ type OutsourcingMaterialForm = {
 };
 
 const OutsourcingManagement = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [meta, setMeta] = useState<OutsourcingManagementMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [records, setRecords] = useState<OutsourcingManagementListItem[]>([]);
@@ -414,7 +418,34 @@ const OutsourcingManagement = () => {
   const handleDetailClose = () => {
     setDetailDrawerOpen(false);
     setOrderDetail(null);
+    if (searchParams.get('openDetail') === '1') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('openDetail');
+      next.delete('orderId');
+      setSearchParams(next, { replace: true });
+    }
   };
+
+  const handleNavigateToFactoryOrder = useCallback((orderNo?: string) => {
+    const keyword = String(orderNo ?? '').trim();
+    if (!keyword) {
+      return;
+    }
+    navigate(`/orders/factory?keyword=${encodeURIComponent(keyword)}`);
+  }, [navigate]);
+
+  useEffect(() => {
+    const targetOrderId = searchParams.get('orderId');
+    const openDetail = searchParams.get('openDetail') === '1';
+    if (!openDetail || !targetOrderId || tableLoading) {
+      return;
+    }
+    const target = records.find((item) => String(item.id) === targetOrderId);
+    if (!target) {
+      return;
+    }
+    void handleViewDetail(target);
+  }, [handleViewDetail, records, searchParams, tableLoading]);
 
   const handleOpenCreateModal = () => {
     setCreateModalOpen(true);
@@ -629,24 +660,35 @@ const OutsourcingManagement = () => {
       },
       {
         title: '操作',
-        width: 250,
+        width: 220,
         fixed: 'right',
-        render: (_: unknown, record) => (
+        render: (_: unknown, record) => {
+          const moreItems = [
+            {
+              key: 'status',
+              label: '更新状态',
+              onClick: () => handleOpenStatusModal(record),
+            },
+            {
+              key: 'material',
+              label: '补料申请',
+              onClick: () => handleOpenMaterialModal(record),
+            },
+          ];
+          return (
           <Space>
             <Button type="link" onClick={() => handleConfirmReceive(record)}>
               确认接收
             </Button>
-            <Button type="link" onClick={() => handleOpenStatusModal(record)}>
-              更新状态
-            </Button>
-            <Button type="link" onClick={() => handleOpenMaterialModal(record)}>
-              补料申请
-            </Button>
             <Button type="link" onClick={() => handleViewDetail(record)}>
-              查看
+              详情
             </Button>
+            <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+              <Button type="text" icon={<MoreOutlined />} aria-label="更多操作" />
+            </Dropdown>
           </Space>
-        ),
+          );
+        },
       },
     ],
     [handleConfirmReceive, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
@@ -853,7 +895,15 @@ const OutsourcingManagement = () => {
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Card variant="borderless">
                 <Descriptions column={2} size="small" bordered>
-                  <Descriptions.Item label="工厂订单">{orderDetail.orderNo}</Descriptions.Item>
+                  <Descriptions.Item label="工厂订单">
+                    <Button
+                      type="link"
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => handleNavigateToFactoryOrder(orderDetail.orderNo)}
+                    >
+                      {orderDetail.orderNo}
+                    </Button>
+                  </Descriptions.Item>
                   <Descriptions.Item label="外发单号">{orderDetail.outgoingNo}</Descriptions.Item>
                   <Descriptions.Item label="加工厂">{orderDetail.processorName}</Descriptions.Item>
                   <Descriptions.Item label="工序">{orderDetail.processStep}</Descriptions.Item>

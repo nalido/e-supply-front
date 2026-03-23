@@ -51,6 +51,20 @@ export type CuttingSheetColorRow = {
   pendingSubtotal: number;
 };
 
+export type CuttingSheetMaterialUsage = {
+  imageUrl?: string;
+  warehouseId?: number;
+  warehouseName?: string;
+  materialId?: number;
+  materialCode?: string;
+  materialName?: string;
+  materialUnit?: string;
+  plannedQty?: number;
+  startActualQty?: number;
+  completeActualQty?: number;
+  actualQty?: number;
+};
+
 export type CuttingSheetDetail = {
   workOrderId: number;
   productionOrderId: number;
@@ -80,6 +94,8 @@ export type CuttingSheetDetail = {
   materialUnit?: string;
   startActualFabricQty?: number;
   completeActualFabricQty?: number;
+  materialUsages?: CuttingSheetMaterialUsage[];
+  fabricUsages?: CuttingSheetMaterialUsage[];
   startedAt?: string;
   completedAt?: string;
   plannedQty: number;
@@ -90,6 +106,8 @@ export type CuttingSheetDetail = {
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;
+    materialUsages?: CuttingSheetMaterialUsage[];
+    fabricUsages?: CuttingSheetMaterialUsage[];
     totalQty: number;
     items: Array<{
       color: string;

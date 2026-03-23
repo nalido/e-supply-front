@@ -111,7 +111,6 @@ export const menuTree: MenuNode[] = [
     icon: <DeploymentUnitOutlined />,
     label: <Link to="/piecework">车间计件</Link>,
     children: [
-      { key: '/piecework/orders', label: <Link to="/piecework/orders">工厂订单</Link> },
       {
         key: '/piecework/cutting',
         label: '裁床单',

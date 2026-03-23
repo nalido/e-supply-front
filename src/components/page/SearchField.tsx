@@ -16,6 +16,7 @@ type SearchFieldProps = {
   enterButton?: ReactNode | boolean
   buttonProps?: ButtonProps
   onPressEnter?: () => void
+  testId?: string
 }
 
 const SearchField = ({
@@ -28,6 +29,7 @@ const SearchField = ({
   style,
   className,
   onPressEnter,
+  testId,
 }: SearchFieldProps) => {
   const [innerValue, setInnerValue] = useState(value ?? defaultValue ?? '')
 
@@ -50,6 +52,7 @@ const SearchField = ({
       placeholder={placeholder}
       style={style}
       className={className}
+      data-testid={testId}
       onChange={(event) => {
         const nextValue = event.target.value
         setInnerValue(nextValue)

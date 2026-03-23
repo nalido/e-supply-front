@@ -308,6 +308,23 @@ type CuttingTaskCreateItem = {
   remark?: string;
 };
 
+type CuttingSheetMaterialUsagePayload = Partial<{
+  warehouseId: number;
+  warehouseName: string;
+  materialId: number;
+  materialCode: string;
+  materialName: string;
+  materialUnit: string;
+  plannedQty: number;
+  plannedFabricQty: number;
+  startActualQty: number;
+  startActualFabricQty: number;
+  completeActualQty: number;
+  completeActualFabricQty: number;
+  actualQty: number;
+  actualFabricQty: number;
+}>;
+
 type CuttingSheetDetailPayload = Partial<{
   workOrderId: number;
   productionOrderId: number;
@@ -337,6 +354,8 @@ type CuttingSheetDetailPayload = Partial<{
   materialUnit: string;
   startActualFabricQty: number;
   completeActualFabricQty: number;
+  materialUsages: CuttingSheetMaterialUsagePayload[];
+  fabricUsages: CuttingSheetMaterialUsagePayload[];
   startedAt: string;
   completedAt: string;
   plannedQty: number;
@@ -358,6 +377,8 @@ type CuttingSheetDetailPayload = Partial<{
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;
+    materialUsages?: CuttingSheetMaterialUsagePayload[];
+    fabricUsages?: CuttingSheetMaterialUsagePayload[];
     totalQty?: number;
     items?: Array<{
       color?: string;
@@ -417,75 +438,142 @@ const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset
   pageSize: payload.pageSize ?? (payload.list?.length ?? 0),
 });
 
-const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingSheetDetail => ({
-  workOrderId: Number(payload.workOrderId ?? 0),
-  productionOrderId: Number(payload.productionOrderId ?? 0),
-  styleId: Number.isFinite(Number(payload.styleId)) ? Number(payload.styleId) : undefined,
-  orderCode: payload.orderCode ?? '',
-  styleCode: payload.styleCode,
-  styleName: payload.styleName,
-  customer: payload.customer,
-  status: payload.status ?? 'NOT_STARTED',
-  bedNumber: payload.bedNumber,
-  cutterId: payload.cutterId,
-  plannedFabricQty: payload.plannedFabricQty,
-  overUsedFabricQty: Number.isFinite(Number(payload.overUsedFabricQty)) ? Number(payload.overUsedFabricQty) : undefined,
-  returnedFabricQty: Number.isFinite(Number(payload.returnedFabricQty)) ? Number(payload.returnedFabricQty) : undefined,
-  fabricUsageVarianceType: payload.fabricUsageVarianceType,
-  usageReasonCode: payload.usageReasonCode,
-  usageReasonText: payload.usageReasonText,
-  usageRemark: payload.usageRemark,
-  overCutReasonCode: payload.overCutReasonCode,
-  overCutReasonText: payload.overCutReasonText,
-  overCutRemark: payload.overCutRemark,
-  warehouseId: payload.warehouseId,
+const adaptCuttingSheetMaterialUsage = (payload: CuttingSheetMaterialUsagePayload) => ({
+  warehouseId: Number.isFinite(Number(payload.warehouseId)) ? Number(payload.warehouseId) : undefined,
   warehouseName: payload.warehouseName,
-  materialId: payload.materialId,
+  materialId: Number.isFinite(Number(payload.materialId)) ? Number(payload.materialId) : undefined,
   materialCode: payload.materialCode,
   materialName: payload.materialName,
   materialUnit: payload.materialUnit,
-  startActualFabricQty: payload.startActualFabricQty,
-  completeActualFabricQty: payload.completeActualFabricQty,
-  startedAt: payload.startedAt,
-  completedAt: payload.completedAt,
-  plannedQty: Number(payload.plannedQty ?? 0),
-  completedQty: Number(payload.completedQty ?? 0),
-  sizes: payload.sizes ?? [],
-  rows: (payload.rows ?? []).map((row) => ({
-    color: row.color,
-    cells: (row.cells ?? []).map((cell) => ({
-      size: cell.size,
-      orderedQty: Number(cell.orderedQty ?? 0),
-      completedQty: Number(cell.completedQty ?? 0),
-      pendingQty: Number(cell.pendingQty ?? 0),
-    })),
-    orderedSubtotal: Number(row.orderedSubtotal ?? 0),
-    completedSubtotal: Number(row.completedSubtotal ?? 0),
-    pendingSubtotal: Number(row.pendingSubtotal ?? 0),
-  })),
-  bedRecords: (payload.bedRecords ?? []).map((record) => ({
-    bedNumber: record.bedNumber ?? '-',
-    recordedAt: record.recordedAt,
-    actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
-      ? Number(record.actualFabricQty)
-      : undefined,
-    totalQty: Number(record.totalQty ?? 0),
-    items: (record.items ?? []).map((item) => ({
-      color: item.color ?? '-',
-      size: item.size ?? '-',
-      quantity: Number(item.quantity ?? 0),
-    })),
-  })),
-  materialDocuments: (payload.materialDocuments ?? []).map((doc) => ({
-    documentCategory: doc.documentCategory ?? 'ISSUE',
-    documentId: Number(doc.documentId ?? 0),
-    documentNo: doc.documentNo ?? '',
-    documentTypeLabel: doc.documentTypeLabel ?? '',
-    quantity: Number(doc.quantity ?? 0),
-    issuedAt: doc.issuedAt,
-    jumpPath: doc.jumpPath,
-  })),
+  plannedQty: Number.isFinite(Number(payload.plannedQty ?? payload.plannedFabricQty))
+    ? Number(payload.plannedQty ?? payload.plannedFabricQty)
+    : undefined,
+  startActualQty: Number.isFinite(Number(payload.startActualQty ?? payload.startActualFabricQty))
+    ? Number(payload.startActualQty ?? payload.startActualFabricQty)
+    : undefined,
+  completeActualQty: Number.isFinite(Number(payload.completeActualQty ?? payload.completeActualFabricQty))
+    ? Number(payload.completeActualQty ?? payload.completeActualFabricQty)
+    : undefined,
+  actualQty: Number.isFinite(Number(payload.actualQty ?? payload.actualFabricQty))
+    ? Number(payload.actualQty ?? payload.actualFabricQty)
+    : undefined,
 });
+
+const normalizeCuttingSheetMaterialUsages = (payload: CuttingSheetDetailPayload) => {
+  const nextMaterialUsages = (payload.materialUsages ?? []).map(adaptCuttingSheetMaterialUsage);
+  const nextFabricUsages = (payload.fabricUsages ?? []).map(adaptCuttingSheetMaterialUsage);
+  if (nextMaterialUsages.length > 0 || nextFabricUsages.length > 0) {
+    return {
+      materialUsages: nextMaterialUsages,
+      fabricUsages: nextFabricUsages.length > 0 ? nextFabricUsages : nextMaterialUsages,
+    };
+  }
+  if (
+    payload.materialId != null
+    || payload.materialCode
+    || payload.materialName
+    || payload.plannedFabricQty != null
+    || payload.startActualFabricQty != null
+    || payload.completeActualFabricQty != null
+  ) {
+    const legacyUsage = adaptCuttingSheetMaterialUsage({
+      warehouseId: payload.warehouseId,
+      warehouseName: payload.warehouseName,
+      materialId: payload.materialId,
+      materialCode: payload.materialCode,
+      materialName: payload.materialName,
+      materialUnit: payload.materialUnit,
+      plannedFabricQty: payload.plannedFabricQty,
+      startActualFabricQty: payload.startActualFabricQty,
+      completeActualFabricQty: payload.completeActualFabricQty,
+    });
+    return {
+      materialUsages: [legacyUsage],
+      fabricUsages: [legacyUsage],
+    };
+  }
+  return {
+    materialUsages: [],
+    fabricUsages: [],
+  };
+};
+
+const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingSheetDetail => {
+  const normalizedUsages = normalizeCuttingSheetMaterialUsages(payload);
+  return {
+    workOrderId: Number(payload.workOrderId ?? 0),
+    productionOrderId: Number(payload.productionOrderId ?? 0),
+    styleId: Number.isFinite(Number(payload.styleId)) ? Number(payload.styleId) : undefined,
+    orderCode: payload.orderCode ?? '',
+    styleCode: payload.styleCode,
+    styleName: payload.styleName,
+    customer: payload.customer,
+    status: payload.status ?? 'NOT_STARTED',
+    bedNumber: payload.bedNumber,
+    cutterId: payload.cutterId,
+    plannedFabricQty: payload.plannedFabricQty,
+    overUsedFabricQty: Number.isFinite(Number(payload.overUsedFabricQty)) ? Number(payload.overUsedFabricQty) : undefined,
+    returnedFabricQty: Number.isFinite(Number(payload.returnedFabricQty)) ? Number(payload.returnedFabricQty) : undefined,
+    fabricUsageVarianceType: payload.fabricUsageVarianceType,
+    usageReasonCode: payload.usageReasonCode,
+    usageReasonText: payload.usageReasonText,
+    usageRemark: payload.usageRemark,
+    overCutReasonCode: payload.overCutReasonCode,
+    overCutReasonText: payload.overCutReasonText,
+    overCutRemark: payload.overCutRemark,
+    warehouseId: payload.warehouseId,
+    warehouseName: payload.warehouseName,
+    materialId: payload.materialId,
+    materialCode: payload.materialCode,
+    materialName: payload.materialName,
+    materialUnit: payload.materialUnit,
+    startActualFabricQty: payload.startActualFabricQty,
+    completeActualFabricQty: payload.completeActualFabricQty,
+    materialUsages: normalizedUsages.materialUsages,
+    fabricUsages: normalizedUsages.fabricUsages,
+    startedAt: payload.startedAt,
+    completedAt: payload.completedAt,
+    plannedQty: Number(payload.plannedQty ?? 0),
+    completedQty: Number(payload.completedQty ?? 0),
+    sizes: payload.sizes ?? [],
+    rows: (payload.rows ?? []).map((row) => ({
+      color: row.color,
+      cells: (row.cells ?? []).map((cell) => ({
+        size: cell.size,
+        orderedQty: Number(cell.orderedQty ?? 0),
+        completedQty: Number(cell.completedQty ?? 0),
+        pendingQty: Number(cell.pendingQty ?? 0),
+      })),
+      orderedSubtotal: Number(row.orderedSubtotal ?? 0),
+      completedSubtotal: Number(row.completedSubtotal ?? 0),
+      pendingSubtotal: Number(row.pendingSubtotal ?? 0),
+    })),
+    bedRecords: (payload.bedRecords ?? []).map((record) => ({
+      bedNumber: record.bedNumber ?? '-',
+      recordedAt: record.recordedAt,
+      actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
+        ? Number(record.actualFabricQty)
+        : undefined,
+      materialUsages: (record.materialUsages ?? []).map(adaptCuttingSheetMaterialUsage),
+      fabricUsages: (record.fabricUsages ?? []).map(adaptCuttingSheetMaterialUsage),
+      totalQty: Number(record.totalQty ?? 0),
+      items: (record.items ?? []).map((item) => ({
+        color: item.color ?? '-',
+        size: item.size ?? '-',
+        quantity: Number(item.quantity ?? 0),
+      })),
+    })),
+    materialDocuments: (payload.materialDocuments ?? []).map((doc) => ({
+      documentCategory: doc.documentCategory ?? 'ISSUE',
+      documentId: Number(doc.documentId ?? 0),
+      documentNo: doc.documentNo ?? '',
+      documentTypeLabel: doc.documentTypeLabel ?? '',
+      quantity: Number(doc.quantity ?? 0),
+      issuedAt: doc.issuedAt,
+      jumpPath: doc.jumpPath,
+    })),
+  };
+};
 
 const adaptDashboard = (payload: PieceworkDashboardPayload): PieceworkDashboardDataset => ({
   metrics: payload.metrics ?? [],
@@ -684,11 +772,29 @@ export const pieceworkService = {
     payload: {
       bedNumber: string;
       cutterId?: number;
-      plannedFabricQty: number;
+      plannedFabricQty?: number;
       actualFabricQty?: number;
       warehouseId?: number;
       materialId?: number;
       materialUnit?: string;
+      materialUsages?: Array<{
+        warehouseId?: number;
+        warehouseName?: string;
+        materialId?: number;
+        materialCode?: string;
+        materialName?: string;
+        materialUnit?: string;
+        plannedQty?: number;
+      }>;
+      fabricUsages?: Array<{
+        warehouseId?: number;
+        warehouseName?: string;
+        materialId?: number;
+        materialCode?: string;
+        materialName?: string;
+        materialUnit?: string;
+        plannedQty?: number;
+      }>;
     },
   ): Promise<void> {
     const tenantId = ensureTenantId();
@@ -716,7 +822,25 @@ export const pieceworkService = {
     workOrderId: number,
     payload: {
       bedNumber: string;
-      actualFabricQty: number;
+      actualFabricQty?: number;
+      materialUsages?: Array<{
+        warehouseId?: number;
+        warehouseName?: string;
+        materialId?: number;
+        materialCode?: string;
+        materialName?: string;
+        materialUnit?: string;
+        actualQty?: number;
+      }>;
+      fabricUsages?: Array<{
+        warehouseId?: number;
+        warehouseName?: string;
+        materialId?: number;
+        materialCode?: string;
+        materialName?: string;
+        materialUnit?: string;
+        actualQty?: number;
+      }>;
       items: Array<{ color: string; size: string; quantity: number }>;
     },
   ): Promise<void> {

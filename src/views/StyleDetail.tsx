@@ -483,7 +483,7 @@ const StyleDetail = () => {
           }
         />
 
-        <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange}>
+        <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange} data-testid="style-detail-form">
           <PageSection className="oc-page-section--compact style-detail-card style-detail-overview-card">
             <div className="style-detail-overview">
               <div className="style-detail-gallery">
@@ -587,7 +587,7 @@ const StyleDetail = () => {
                   <Text type="secondary">与样板单共用同一份款式物料数据，便于下大货与款式资料保持一致。</Text>
                 </div>
                 <Space>
-                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => openMaterialPicker('fabric')}>
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => openMaterialPicker('fabric')} data-testid="style-detail-add-fabric-button">
                     选择面料
                   </Button>
                   <Button type="dashed" icon={<PlusOutlined />} onClick={() => openMaterialPicker('accessory')}>
@@ -597,7 +597,7 @@ const StyleDetail = () => {
               </div>
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={12}>
-                  <Card size="small" title="面料">
+                  <Card size="small" title="面料" data-testid="style-detail-fabric-bom-card">
                     {renderBomList(fabricMaterials, '当前款式还没有面料 BOM')}
                   </Card>
                 </Col>
@@ -611,10 +611,10 @@ const StyleDetail = () => {
           )}
         </Form>
 
-        <div className="style-detail-footer">
+        <div className="style-detail-footer" data-testid="style-detail-footer">
           <Space>
             <Button onClick={handleBackClick}>返回列表</Button>
-            <Button type="primary" loading={saving} onClick={handleSave} disabled={loading}>
+            <Button type="primary" loading={saving} onClick={handleSave} disabled={loading} data-testid="style-detail-save-button">
               保存
             </Button>
           </Space>

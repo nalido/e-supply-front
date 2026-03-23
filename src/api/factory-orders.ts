@@ -120,10 +120,24 @@ export type FactoryOrderDetailLine = {
   color?: string;
   size?: string;
   orderedQty?: number;
+  completedQuantity?: number;
 };
 
 export type FactoryOrderDetail = {
   lines: FactoryOrderDetailLine[];
+};
+
+type BackendFactoryOrderDetailLine = {
+  id?: number;
+  color?: string;
+  size?: string;
+  orderedQty?: number;
+  completedQty?: number;
+  completedQuantity?: number;
+};
+
+type BackendFactoryOrderDetail = {
+  lines?: BackendFactoryOrderDetailLine[];
 };
 
 export type FactoryOrderCreatePayload = {
@@ -400,6 +414,18 @@ const adaptTablePage = (payload: BackendFactoryOrderTablePage): FactoryOrderTabl
   pageSize: payload.size ?? (payload.list?.length ?? 0),
 });
 
+const adaptDetailLine = (line: BackendFactoryOrderDetailLine): FactoryOrderDetailLine => ({
+  id: line.id ?? 0,
+  color: line.color,
+  size: line.size,
+  orderedQty: line.orderedQty ?? 0,
+  completedQuantity: line.completedQuantity ?? line.completedQty ?? 0,
+});
+
+const adaptDetail = (payload: BackendFactoryOrderDetail): FactoryOrderDetail => ({
+  lines: (payload.lines ?? []).map(adaptDetailLine),
+});
+
 const buildQueryParams = (params?: FactoryOrdersQuery) => {
   if (!params) {
     return {};
@@ -469,11 +495,11 @@ export const factoryOrdersApi = {
 
   async getDetail(orderId: string | number): Promise<FactoryOrderDetail> {
     const tenantId = ensureTenantId();
-    const { data } = await http.get<{ lines?: FactoryOrderDetailLine[] }>(
+    const { data } = await http.get<BackendFactoryOrderDetail>(
       `/api/v1/production-orders/${orderId}`,
       { params: { tenantId } },
     );
-    return { lines: data?.lines ?? [] };
+    return adaptDetail(data ?? {});
   },
 
   async completeProgress(

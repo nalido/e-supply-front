@@ -1,30 +1,23 @@
 import { useEffect, useState } from 'react';
 import {
-  Button,
   Card,
   Empty,
   Modal,
   Pagination,
   Skeleton,
   Space,
-  Tag,
   Typography,
   message,
 } from 'antd';
-import {
-  CalendarOutlined,
-  CheckCircleTwoTone,
-  PictureOutlined,
-  SearchOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
+import { SearchOutlined } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
 import { pieceworkService } from '../api/piecework';
 import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
-import ListImage from '../components/common/ListImage';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
+import CuttingTaskCard from '../components/CuttingTaskCard';
+import ListImage from '../components/common/ListImage';
 
 const { Text } = Typography;
 
@@ -200,94 +193,18 @@ const CuttingCompletedPage = () => {
         <Empty description={appliedKeyword ? '未找到匹配的已裁任务' : '暂无已裁任务'} />
       ) : (
         <div className="cutting-task-list">
-          {dataset.list.map((task) => {
-            return (
-              <article className="cutting-task-card" key={task.workOrderId ?? task.id}>
-                <div className="cutting-task-header">
-                  <div className="cutting-task-main">
-                    <ListImage
-                      src={task.thumbnail}
-                      alt={task.styleName}
-                      wrapperClassName="cutting-task-thumbnail"
-                      width={null}
-                      height={null}
-                      background="#fff"
-                    />
-                    <div className="cutting-task-info">
-                      <div className="cutting-task-title">
-                        <Text strong>{task.styleName}</Text>
-                        <Tag bordered={false} color="geekblue">{task.styleCode}</Tag>
-                        <Tag color="success" bordered={false}>已裁</Tag>
-                      </div>
-                      <div className="cutting-task-meta">
-                        <Space size={12} wrap>
-                          <span>
-                            订单号：
-                            <Button
-                              type="link"
-                              size="small"
-                              style={{ paddingInline: 4 }}
-                              onClick={() => navigateToFactoryOrder(task.orderCode)}
-                            >
-                              {task.orderCode}
-                            </Button>
-                          </span>
-                          <span>床次：{task.bedNumber || '-'}</span>
-                          <span>
-                            <CalendarOutlined style={{ marginRight: 4 }} />
-                            下单：{task.orderDate}
-                          </span>
-                          {task.scheduleDate ? (
-                            <span>
-                              <CheckCircleTwoTone twoToneColor="#52c41a" />
-                              <Text type="secondary" style={{ marginLeft: 4 }}>
-                                计划排床：{task.scheduleDate}
-                              </Text>
-                            </span>
-                          ) : null}
-                          {task.customer ? (
-                            <span>
-                              <UserOutlined style={{ marginRight: 4 }} />
-                              客户：{task.customer}
-                            </span>
-                          ) : null}
-                        </Space>
-                      </div>
-                      {task.fabricSummary ? (
-                        <div className="cutting-task-fabric">{task.fabricSummary}</div>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="cutting-task-actions">
-                    <Button type="link" onClick={() => handleViewDetail(task)}>
-                      查看详情
-                    </Button>
-                    <Button
-                      icon={<PictureOutlined />}
-                      type="link"
-                      onClick={() => handleOpenPreview(task)}
-                    >
-                      颜色图
-                    </Button>
-                  </div>
-                </div>
-                <div className="cutting-task-quantities">
-                  <div>
-                    <div className="label">下单数量</div>
-                    <div className="value">{task.orderedQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                  <div>
-                    <div className="label">已裁数量</div>
-                    <div className="value">{task.cutQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                  <div>
-                    <div className="label">剩余数量</div>
-                    <div className="value">{task.pendingQuantity.toLocaleString()} {task.unit}</div>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+          {dataset.list.map((task) => (
+            <CuttingTaskCard
+              key={task.workOrderId ?? task.id}
+              task={task}
+              onViewDetail={handleViewDetail}
+              onPreview={handleOpenPreview}
+              onNavigateToFactoryOrder={navigateToFactoryOrder}
+              detailButtonType="link"
+              colorButtonType="link"
+              pendingLabel="剩余数量"
+            />
+          ))}
         </div>
       )}
 
