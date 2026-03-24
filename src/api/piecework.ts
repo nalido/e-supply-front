@@ -1,5 +1,6 @@
 import http from './http';
 import { tenantStore } from '../stores/tenant';
+import { normalizeExportDownloadUrl } from '../utils/export-download';
 import type {
   PieceworkDashboardDataset,
   CuttingTaskDataset,
@@ -1321,7 +1322,8 @@ export const pieceworkService = {
       id: item.id != null ? String(item.id) : '',
       reportType: (item.reportType ?? 'ORDER_PROGRESS') as ReportDownloadRecord['reportType'],
       status: (item.status ?? 'COMPLETED') as ReportDownloadRecord['status'],
-      fileUrl: typeof item.fileUrl === 'string' ? item.fileUrl : undefined,
+      fileUrl:
+        typeof item.fileUrl === 'string' ? normalizeExportDownloadUrl(item.fileUrl) : undefined,
       filters: typeof item.filters === 'string' ? item.filters : undefined,
       message: typeof item.message === 'string' ? item.message : undefined,
       requestedBy: item.requestedBy != null ? String(item.requestedBy) : undefined,

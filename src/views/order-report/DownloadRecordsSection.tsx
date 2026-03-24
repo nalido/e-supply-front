@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import http from '../../api/http';
 import {
   Button,
   Card,
@@ -17,6 +18,11 @@ import {
 } from 'antd';
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { pieceworkService } from '../../api/piecework';
+import {
+  REPORT_DOWNLOAD_LABELS,
+  REPORT_DOWNLOAD_OPTIONS,
+} from '../../constants/report-downloads';
+import { resolveExportFileName } from '../../utils/export-download';
 import type {
   ReportDownloadListParams,
   ReportDownloadRecord,
@@ -26,17 +32,6 @@ const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
 type RangeValue = [Dayjs | null, Dayjs | null] | null;
-
-const REPORT_TYPE_OPTIONS: Array<{ label: string; value: ReportDownloadListParams['reportType'] }> = [
-  { label: '全部报表', value: 'ALL' },
-  { label: '工厂订单', value: 'FACTORY_ORDERS' },
-  { label: '裁床报表', value: 'CUTTING_REPORT' },
-  { label: '订单进度明细', value: 'ORDER_PROGRESS' },
-  { label: '订单计菲明细', value: 'TICKET_RECORDS' },
-  { label: '按序工序表', value: 'SEQUENTIAL_PROCESSES' },
-  { label: '外发任务', value: 'OUTSOURCING_ORDERS' },
-  { label: '质检记录', value: 'QUALITY_INSPECTIONS' },
-];
 
 const STATUS_OPTIONS: Array<{ label: string; value: ReportDownloadListParams['status'] }> = [
   { label: '全部状态', value: 'all' },
@@ -142,6 +137,28 @@ const DownloadRecordsSection = () => {
     setPage(nextPage ?? 1);
   };
 
+  const handleDownload = useCallback(async (fileUrl: string) => {
+    try {
+      const response = await http.get(fileUrl, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = resolveExportFileName(
+        fileUrl,
+        typeof response.headers['content-disposition'] === 'string'
+          ? response.headers['content-disposition']
+          : undefined,
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('failed to download export file', error);
+      message.error('下载失败，请稍后重试');
+    }
+  }, []);
+
   const columns = useMemo<ColumnsType<ReportDownloadRecord>>(
     () => [
       {
@@ -157,8 +174,7 @@ const DownloadRecordsSection = () => {
         key: 'reportType',
         width: 180,
         render: (value: ReportDownloadRecord['reportType']) => {
-          const option = REPORT_TYPE_OPTIONS.find((item) => item.value === value);
-          return option?.label ?? value;
+          return REPORT_DOWNLOAD_LABELS[value] ?? value;
         },
       },
       {
@@ -177,9 +193,15 @@ const DownloadRecordsSection = () => {
         key: 'fileUrl',
         render: (value?: string) =>
           value ? (
-            <a href={value} target="_blank" rel="noreferrer">
-              {value}
-            </a>
+            <button
+              type="button"
+              className="oc-download-link"
+              onClick={() => {
+                void handleDownload(value);
+              }}
+            >
+              下载
+            </button>
           ) : (
             <Text type="secondary">未生成</Text>
           ),
@@ -205,7 +227,7 @@ const DownloadRecordsSection = () => {
         render: (value?: string) => value || '-',
       },
     ],
-    [],
+    [handleDownload],
   );
 
   return (
@@ -214,7 +236,7 @@ const DownloadRecordsSection = () => {
         <Space size={12} wrap>
           <Select
             value={reportType}
-            options={REPORT_TYPE_OPTIONS}
+            options={REPORT_DOWNLOAD_OPTIONS}
             style={{ width: 200 }}
             onChange={(value) => {
               setReportType(value);

@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Layout, Menu, Breadcrumb, Space, Button } from 'antd'
+import { Layout, Menu, Breadcrumb, Space, Button, Badge, Tooltip, message, notification } from 'antd'
+import type { ArgsProps } from 'antd/es/message'
 import type { MenuProps } from 'antd'
-import { Outlet, useLocation, Link } from 'react-router-dom'
+import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { FolderOpenFilled, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { pieceworkService } from '../api/piecework'
+import { REPORT_DOWNLOAD_LABELS } from '../constants/report-downloads'
 import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
+import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils/download-center-hint'
 
 const { Header, Sider, Content } = Layout
+const DOWNLOAD_CENTER_PATH = '/downloads'
+const DOWNLOAD_POLL_INTERVAL_MS = 45000
+const DOWNLOAD_CENTER_HINT_DURATION_MS = 1400
 
 const deriveOpenKeys = (pathname: string): string[] => {
   const segments = pathname.split('/').filter(Boolean)
@@ -33,13 +40,51 @@ const buildLabelMap = (nodes: MenuNode[], map = new Map<string, string>()) => {
 }
 
 const LABEL_MAP = buildLabelMap(menuTree)
+LABEL_MAP.set(DOWNLOAD_CENTER_PATH, '下载中心')
+const DOWNLOAD_CENTER_HINT_KEYWORDS = ['下载中心', '已生成导出文件', '导出任务已生成', '已生成导出任务', '导出任务已创建']
+
+const resolveMessageContentText = (content: unknown): string => {
+  if (typeof content === 'string') return content
+  if (content && typeof content === 'object' && 'props' in content) {
+    const maybeChildren = (content as { props?: { children?: ReactNode } }).props?.children
+    if (typeof maybeChildren === 'string') return maybeChildren
+  }
+  return ''
+}
+
+const shouldHintDownloadCenter = (args: unknown[]): boolean => {
+  const [firstArg] = args
+  if (typeof firstArg === 'string') {
+    return DOWNLOAD_CENTER_HINT_KEYWORDS.some((keyword) => firstArg.includes(keyword))
+  }
+  if (firstArg && typeof firstArg === 'object' && 'content' in firstArg) {
+    const config = firstArg as ArgsProps
+    const content = resolveMessageContentText(config.content)
+    return DOWNLOAD_CENTER_HINT_KEYWORDS.some((keyword) => content.includes(keyword))
+  }
+  return false
+}
 
 const MainLayout = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname))
   const [collapsed, setCollapsed] = useState(false)
+  const [downloadNoticeCount, setDownloadNoticeCount] = useState(0)
+  const [isDownloadCenterAnimating, setIsDownloadCenterAnimating] = useState(false)
+  const [notificationApi, notificationContextHolder] = notification.useNotification()
+  const hasInitializedDownloadPoll = useRef(false)
+  const knownDownloadIdsRef = useRef<Set<string>>(new Set())
+  const downloadHintTimerRef = useRef<number | null>(null)
 
   const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), [])
+  const isDownloadCenterOpen = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return (
+      location.pathname === DOWNLOAD_CENTER_PATH ||
+      (location.pathname === '/piecework/report' && searchParams.get('view') === 'download-records')
+    )
+  }, [location.pathname, location.search])
 
   const selectedKey = useMemo(() => {
     if (location.pathname === '/sample') return '/sample/list'
@@ -49,6 +94,130 @@ const MainLayout = () => {
   useEffect(() => {
     setOpenKeys(deriveOpenKeys(location.pathname))
   }, [location.pathname])
+
+  useEffect(() => {
+    if (isDownloadCenterOpen) {
+      setDownloadNoticeCount(0)
+    }
+  }, [isDownloadCenterOpen])
+
+  useEffect(() => {
+    const stopSubscribe = subscribeDownloadCenterHint(() => {
+      if (downloadHintTimerRef.current) {
+        window.clearTimeout(downloadHintTimerRef.current)
+      }
+      setIsDownloadCenterAnimating(false)
+      window.requestAnimationFrame(() => {
+        setIsDownloadCenterAnimating(true)
+      })
+      downloadHintTimerRef.current = window.setTimeout(() => {
+        setIsDownloadCenterAnimating(false)
+        downloadHintTimerRef.current = null
+      }, DOWNLOAD_CENTER_HINT_DURATION_MS)
+    })
+
+    return () => {
+      stopSubscribe()
+      if (downloadHintTimerRef.current) {
+        window.clearTimeout(downloadHintTimerRef.current)
+        downloadHintTimerRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const originalSuccess = message.success
+    const patchedSuccess = ((...args: unknown[]) => {
+      if (shouldHintDownloadCenter(args)) {
+        triggerDownloadCenterHint()
+      }
+      return originalSuccess(...(args as Parameters<typeof message.success>))
+    }) as typeof message.success
+
+    message.success = patchedSuccess
+
+    return () => {
+      message.success = originalSuccess
+    }
+  }, [])
+
+  const openDownloadCenter = useCallback(() => {
+    setDownloadNoticeCount(0)
+    navigate(DOWNLOAD_CENTER_PATH)
+  }, [navigate])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const pollDownloadUpdates = async () => {
+      try {
+        const response = await pieceworkService.getReportDownloads({
+          reportType: 'ALL',
+          status: 'COMPLETED',
+          page: 1,
+          pageSize: 20,
+        })
+        if (cancelled) {
+          return
+        }
+
+        const latestIds = response.list.map((item) => item.id).filter(Boolean)
+        const knownIds = knownDownloadIdsRef.current
+        const newRecords = response.list.filter((item) => item.id && !knownIds.has(item.id))
+        latestIds.forEach((id) => knownIds.add(id))
+
+        if (!hasInitializedDownloadPoll.current) {
+          hasInitializedDownloadPoll.current = true
+          return
+        }
+
+        if (!newRecords.length || isDownloadCenterOpen) {
+          return
+        }
+
+        const latestRecord = newRecords[0]
+        const reportLabel =
+          latestRecord.reportType ? REPORT_DOWNLOAD_LABELS[latestRecord.reportType] ?? latestRecord.reportType : '导出文件'
+        setDownloadNoticeCount((count) => count + newRecords.length)
+        notificationApi.success({
+          message: `有 ${newRecords.length} 个文件可下载`,
+          description: (
+            <span>
+              {reportLabel} 已生成，可前往
+              {' '}
+              <Button
+                type="link"
+                size="small"
+                className="oc-download-notice__link"
+                onClick={() => {
+                  notificationApi.destroy()
+                  openDownloadCenter()
+                }}
+              >
+                下载中心
+              </Button>
+              查看并下载。
+            </span>
+          ),
+          placement: 'topRight',
+        })
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('failed to poll download center updates', error)
+        }
+      }
+    }
+
+    void pollDownloadUpdates()
+    const timerId = window.setInterval(() => {
+      void pollDownloadUpdates()
+    }, DOWNLOAD_POLL_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timerId)
+    }
+  }, [isDownloadCenterOpen, notificationApi, openDownloadCenter])
 
   const breadcrumbItems = useMemo(() => {
     const pathSnippets = location.pathname.split('/').filter(Boolean)
@@ -75,6 +244,7 @@ const MainLayout = () => {
 
   return (
     <Layout className="oc-app-shell">
+      {notificationContextHolder}
       <Sider
         width={244}
         breakpoint="lg"
@@ -111,16 +281,31 @@ const MainLayout = () => {
             />
             <Breadcrumb items={breadcrumbItems} />
           </Space>
-          <Space size={12}>
+          <div className="oc-topbar__actions">
             <SignedOut>
               <SignInButton mode="modal">
                 <Button type="primary">登录账号</Button>
               </SignInButton>
             </SignedOut>
             <SignedIn>
-              <UserButton afterSignOutUrl="/" />
+              <div className="oc-topbar__action-item">
+                <Tooltip title="下载中心" placement="bottom">
+                  <Badge count={downloadNoticeCount} size="small" offset={[-2, 2]}>
+                    <Button
+                      type="text"
+                      icon={<FolderOpenFilled />}
+                      className={`oc-topbar__download${isDownloadCenterAnimating ? ' is-attention' : ''}`}
+                      onClick={openDownloadCenter}
+                      aria-label="下载中心"
+                    />
+                  </Badge>
+                </Tooltip>
+              </div>
+              <div className="oc-topbar__action-item oc-topbar__avatar">
+                <UserButton afterSignOutUrl="/" />
+              </div>
             </SignedIn>
-          </Space>
+          </div>
         </Header>
         <Content className="oc-content">
           <div className="oc-content__inner">

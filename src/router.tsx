@@ -55,6 +55,7 @@ import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetai
 import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
 import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
 import QualityControlManagement from './views/QualityControlManagement';
+import GlobalDownloadCenter from './views/GlobalDownloadCenter';
 import RegisterEnterprise from './views/auth/RegisterEnterprise';
 import Welcome from './views/auth/Welcome';
 import SignInPage from './views/auth/SignInPage';
@@ -222,6 +223,7 @@ const router = createBrowserRouter([
       { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
       { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },
       { path: 'piecework/report', element: React.createElement(OrderReportAggregation) },
+      { path: 'downloads', element: React.createElement(GlobalDownloadCenter) },
       { path: 'piecework/quality', element: React.createElement(QualityControlManagement) },
       { path: 'piecework/outsource', element: React.createElement(OutsourcingManagement) },
       { path: 'piecework', element: React.createElement(PieceworkDashboard) },
