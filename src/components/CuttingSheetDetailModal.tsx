@@ -10,6 +10,7 @@ import {
 } from 'antd';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
 import ListImage from './common/ListImage';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 const { Text } = Typography;
 
@@ -135,14 +136,14 @@ export default function CuttingSheetDetailModal({
     });
     return acc;
   }, {});
-  const detailMatrixColors = Array.from(new Set([
+  const detailMatrixColors = sortColorValues([
     ...(detail?.rows ?? []).map((row) => row.color),
     ...((detail?.bedRecords ?? []).flatMap((record) => record.items.map((item) => item.color))),
-  ]));
-  const detailMatrixSizes = Array.from(new Set([
+  ]);
+  const detailMatrixSizes = sortSizeValues([
     ...(detail?.sizes ?? []),
     ...((detail?.bedRecords ?? []).flatMap((record) => record.items.map((item) => item.size))),
-  ]));
+  ]);
   const detailSummaryRows = detailMatrixColors.map((color) => {
     const cells = detailMatrixSizes.map((size) => {
       const key = buildSpecKey(color, size);
@@ -277,14 +278,14 @@ export default function CuttingSheetDetailModal({
                         matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
                         return matrix;
                       }, {});
-                      const matrixColors = Array.from(new Set([
+                      const matrixColors = sortColorValues([
                         ...detail.rows.map((row) => row.color),
                         ...record.items.map((item) => item.color),
-                      ]));
-                      const matrixSizes = Array.from(new Set([
+                      ]);
+                      const matrixSizes = sortSizeValues([
                         ...detail.sizes,
                         ...record.items.map((item) => item.size),
-                      ]));
+                      ]);
                       return (
                         <Card
                           key={`${record.bedNumber}-${record.recordedAt ?? index}`}

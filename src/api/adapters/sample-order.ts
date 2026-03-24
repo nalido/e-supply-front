@@ -11,6 +11,7 @@ import type {
   SampleMaterialItem,
   SampleOrderDetail,
 } from '../../types/sample-detail';
+import { sortColorValues, sortSizeValues } from '../../utils/spec';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
 export type SamplePriorityResponse = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -234,13 +235,9 @@ const buildQuantityMatrix = (
   return matrix;
 };
 
-const collectUniqueValues = (values: Array<string | undefined>): string[] => {
-  return Array.from(new Set(values.filter((item): item is string => Boolean(item))));
-};
-
 export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): SampleOrderDetail => {
-  const colors = collectUniqueValues(payload.skus?.map((sku) => sku.color) ?? []);
-  const sizes = collectUniqueValues(payload.skus?.map((sku) => sku.size) ?? []);
+  const colors = sortColorValues(payload.skus?.map((sku) => sku.color) ?? []);
+  const sizes = sortSizeValues(payload.skus?.map((sku) => sku.size) ?? []);
   const quantityMatrix = buildQuantityMatrix(payload.skus ?? []);
   const attachments = (payload.attachments ?? []).map((asset) => ({
     id: String(asset.id ?? asset.url),

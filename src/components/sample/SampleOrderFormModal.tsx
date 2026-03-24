@@ -63,6 +63,7 @@ import type { MaterialItem, MaterialBasicType } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
 import SearchField from '../page/SearchField';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
+import { sortColorValues, sortSizeValues } from '../../utils/spec';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -181,8 +182,8 @@ const deriveSkuStateFromDetail = (
     }
     seed[color][size] = (seed[color][size] ?? 0) + Number(sku.quantity ?? 0);
   });
-  const colors = Array.from(colorSet);
-  const sizes = Array.from(sizeSet);
+  const colors = sortColorValues(Array.from(colorSet));
+  const sizes = sortSizeValues(Array.from(sizeSet));
   return {
     colors,
     sizes,
@@ -1086,7 +1087,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   }, []);
 
   const handleColorsUpdate = useCallback((nextColors: string[]) => {
-    const normalized = Array.from(new Set(nextColors.map((item) => item.trim()).filter(Boolean)));
+    const normalized = sortColorValues(nextColors);
     setColors(normalized);
     setMatrix((prev) => buildQuantityMatrix(normalized, sizes, prev));
     setColorImageMap((prev) => {
@@ -1099,7 +1100,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   }, [sizes]);
 
   const handleSizesUpdate = useCallback((nextSizes: string[]) => {
-    const normalized = Array.from(new Set(nextSizes.map((item) => item.trim()).filter(Boolean)));
+    const normalized = sortSizeValues(nextSizes);
     setSizes(normalized);
     setMatrix((prev) => buildQuantityMatrix(colors, normalized, prev));
   }, [colors]);

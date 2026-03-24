@@ -1,6 +1,7 @@
 import type { PaginatedStyleData, StyleData, StyleListParams, StyleStatus } from '../types/style';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
 
@@ -33,8 +34,8 @@ const adaptStyle = (payload: BackendStyleSummary): StyleData => ({
   styleNo: payload.styleNo,
   styleName: payload.styleName,
   image: payload.coverImageUrl ?? undefined,
-  colors: Array.isArray(payload.colors) ? payload.colors : [],
-  sizes: Array.isArray(payload.sizes) ? payload.sizes : [],
+  colors: sortColorValues(Array.isArray(payload.colors) ? payload.colors : []),
+  sizes: sortSizeValues(Array.isArray(payload.sizes) ? payload.sizes : []),
   status: adaptStatus(payload.status),
   defaultUnit: payload.defaultUnit ?? undefined,
   createTime: payload.createdAt ?? undefined,

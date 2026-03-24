@@ -66,6 +66,7 @@ import dayjs from 'dayjs';
 import { SearchField } from '../components/page';
 import '../styles/factory-orders.css';
 import ListImage from '../components/common/ListImage';
+import { sortColorValues, sortSizeValues, sortSpecRows } from '../utils/spec';
 
 type ViewMode = 'card' | 'table';
 type OverallStatus = 'all' | 'unfinished' | 'completed';
@@ -1111,20 +1112,15 @@ const FactoryOrders = () => {
         specMap.get(key)!.sewingQty += item.quantity;
       });
 
-      const rows = Array.from(specMap.values()).sort((a, b) => {
-        if (a.color !== b.color) {
-          return a.color.localeCompare(b.color, 'zh-CN');
-        }
-        return a.size.localeCompare(b.size, 'zh-CN');
-      });
+      const rows = sortSpecRows(Array.from(specMap.values()));
       setProgressStats({ loading: false, rows });
       setProgressNodeQuantities({
         cuttingCompletedQty: cuttingNodePayload.completedQuantity,
         sewingAllocatedQty: sewingNodePayload.allocatedQuantity,
         sewingCompletedQty: sewingNodePayload.completedQuantity,
       });
-      const colors = Array.from(new Set(rows.map((row) => row.color)));
-      const sizes = Array.from(new Set(rows.map((row) => row.size)));
+      const colors = sortColorValues(rows.map((row) => row.color));
+      const sizes = sortSizeValues(rows.map((row) => row.size));
       setAllocationColors(colors);
       setAllocationSizes(sizes);
       setAllocationMatrix(
@@ -2116,21 +2112,21 @@ const FactoryOrders = () => {
       return allocationColors;
     }
     const historyColors = allocationHistoryRows.flatMap((row) => row.items.map((item) => item.color));
-    return Array.from(new Set(historyColors));
+    return sortColorValues(historyColors);
   }, [allocationColors, allocationHistoryRows]);
   const allocationDisplaySizes = useMemo(() => {
     if (allocationSizes.length > 0) {
       return allocationSizes;
     }
     const historySizes = allocationHistoryRows.flatMap((row) => row.items.map((item) => item.size));
-    return Array.from(new Set(historySizes));
+    return sortSizeValues(historySizes);
   }, [allocationHistoryRows, allocationSizes]);
   const statsDisplayColors = useMemo(
-    () => Array.from(new Set(progressStats.rows.map((row) => row.color))),
+    () => sortColorValues(progressStats.rows.map((row) => row.color)),
     [progressStats.rows],
   );
   const statsDisplaySizes = useMemo(
-    () => Array.from(new Set(progressStats.rows.map((row) => row.size))),
+    () => sortSizeValues(progressStats.rows.map((row) => row.size)),
     [progressStats.rows],
   );
   const statsDoneMatrix = useMemo(

@@ -7,6 +7,7 @@ import type {
 } from '../types/style';
 import http from './http';
 import { tenantStore } from '../stores/tenant';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
 type BackendStyleVariant = {
@@ -121,15 +122,17 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     designerId: payload.designerId ? String(payload.designerId) : undefined,
     remarks: payload.remarks ?? undefined,
     coverImageUrl: payload.coverImageUrl ?? undefined,
-    colors: Array.from(colorsSet),
-    sizes: Array.from(sizesSet),
+    colors: sortColorValues(Array.from(colorsSet)),
+    sizes: sortSizeValues(Array.from(sizesSet)),
     colorImages,
     sizeChartImageUrl,
   };
 };
 
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
-  const { colors, sizes, colorImages, sizeChartImageUrl } = payload;
+  const colors = sortColorValues(payload.colors);
+  const sizes = sortSizeValues(payload.sizes);
+  const { colorImages, sizeChartImageUrl } = payload;
   if (!colors.length || !sizes.length) {
     return [];
   }

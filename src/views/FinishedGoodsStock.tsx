@@ -31,6 +31,7 @@ import type {
   FinishedGoodsStockStyleRecord,
 } from '../types/finished-goods-stock';
 import type { FinishedGoodsDispatchCreatePayload, FinishedGoodsOutboundMeta } from '../types/finished-goods-outbound';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 const { Text } = Typography;
 
@@ -57,8 +58,8 @@ const quantityFormatter = (value: number): string => value.toLocaleString('zh-CN
 const buildStyleEntryKey = (styleId: string, warehouseId: string) => `${warehouseId}-${styleId}`;
 
 const buildMatrixMeta = (items: FinishedGoodsStockStyleMatrixItem[]) => {
-  const colors = Array.from(new Set(items.map((item) => item.color || 'N/A')));
-  const sizes = Array.from(new Set(items.map((item) => item.size || 'STD')));
+  const colors = sortColorValues(items.map((item) => item.color || 'N/A'));
+  const sizes = sortSizeValues(items.map((item) => item.size || 'STD'));
   const itemMap = items.reduce<Record<string, FinishedGoodsStockStyleMatrixItem>>((acc, item) => {
     acc[`${item.color}__${item.size}`] = item;
     return acc;
