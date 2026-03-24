@@ -845,7 +845,25 @@ export const pieceworkService = {
     },
   ): Promise<void> {
     const tenantId = ensureTenantId();
-    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds`, payload, {
+    const normalizeUsage = (
+      usage: {
+        warehouseId?: number;
+        warehouseName?: string;
+        materialId?: number;
+        materialCode?: string;
+        materialName?: string;
+        materialUnit?: string;
+        actualQty?: number;
+      },
+    ) => ({
+      ...usage,
+      actualFabricQty: usage.actualQty,
+    });
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds`, {
+      ...payload,
+      materialUsages: payload.materialUsages?.map(normalizeUsage),
+      fabricUsages: payload.fabricUsages?.map(normalizeUsage),
+    }, {
       params: { tenantId },
     });
   },
