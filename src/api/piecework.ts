@@ -1,6 +1,7 @@
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 import { normalizeExportDownloadUrl } from '../utils/export-download';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 import type {
   PieceworkDashboardDataset,
   CuttingTaskDataset,
@@ -501,6 +502,25 @@ const normalizeCuttingSheetMaterialUsages = (payload: CuttingSheetDetailPayload)
 
 const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingSheetDetail => {
   const normalizedUsages = normalizeCuttingSheetMaterialUsages(payload);
+  const sortedSizes = sortSizeValues(payload.sizes ?? []);
+  const sortedRows = (payload.rows ?? [])
+    .map((row) => ({
+      ...row,
+      cells: [...(row.cells ?? [])].sort((left, right) => {
+        const [sortedLeft, sortedRight] = sortSizeValues([left.size, right.size]);
+        if (!sortedLeft || !sortedRight || sortedLeft === sortedRight) {
+          return 0;
+        }
+        return sortedLeft === left.size ? -1 : 1;
+      }),
+    }))
+    .sort((left, right) => {
+      const [sortedLeft, sortedRight] = sortColorValues([left.color, right.color]);
+      if (!sortedLeft || !sortedRight || sortedLeft === sortedRight) {
+        return 0;
+      }
+      return sortedLeft === left.color ? -1 : 1;
+    });
   return {
     workOrderId: Number(payload.workOrderId ?? 0),
     productionOrderId: Number(payload.productionOrderId ?? 0),
@@ -536,8 +556,8 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
     completedAt: payload.completedAt,
     plannedQty: Number(payload.plannedQty ?? 0),
     completedQty: Number(payload.completedQty ?? 0),
-    sizes: payload.sizes ?? [],
-    rows: (payload.rows ?? []).map((row) => ({
+    sizes: sortedSizes,
+    rows: sortedRows.map((row) => ({
       color: row.color,
       cells: (row.cells ?? []).map((cell) => ({
         size: cell.size,

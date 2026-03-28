@@ -2,6 +2,7 @@ import { Button, Card, Form, Input, InputNumber, Modal, Select, Table, Typograph
 import type { FormInstance } from 'antd/es/form';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
 import ListImage from './common/ListImage';
+import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 const { Text } = Typography;
 
@@ -37,6 +38,15 @@ export default function CuttingBedRecordModal({
   onCancel,
   onSubmit,
 }: Props) {
+  const matrixSizes = sortSizeValues(detail?.sizes ?? []);
+  const sortedRows = [...(detail?.rows ?? [])].sort((left, right) => {
+    const [sortedLeft, sortedRight] = sortColorValues([left.color, right.color]);
+    if (!sortedLeft || !sortedRight || sortedLeft === sortedRight) {
+      return 0;
+    }
+    return sortedLeft === left.color ? -1 : 1;
+  });
+
   const applyBatchWarehouse = () => {
     const targetWarehouseId = Number(form.getFieldValue('batchWarehouseId'));
     if (!Number.isFinite(targetWarehouseId) || targetWarehouseId <= 0) {
@@ -179,23 +189,23 @@ export default function CuttingBedRecordModal({
           </Form.List>
         </Card>
         <Card title="颜色尺码" size="small">
-          {detail?.rows?.length ? (
+          {sortedRows.length ? (
             <div className="factory-create-matrix-wrap">
               <table className="factory-create-matrix-table">
                 <thead>
                   <tr>
                     <th>颜色 \\ 尺码</th>
-                    {detail.sizes.map((size) => (
+                    {matrixSizes.map((size) => (
                       <th key={`bed-record-head-${size}`}>{size}</th>
                     ))}
                     <th>小计</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.rows.map((row) => (
+                  {sortedRows.map((row) => (
                     <tr key={`bed-record-row-${row.color}`}>
                       <td>{row.color}</td>
-                      {detail.sizes.map((size) => {
+                      {matrixSizes.map((size) => {
                         const key = buildSpecKey(row.color, size);
                         const value = qtyMap[key] ?? 0;
                         return (
@@ -216,7 +226,7 @@ export default function CuttingBedRecordModal({
                         );
                       })}
                       <td>
-                        {detail.sizes.reduce((sum, size) => sum + (qtyMap[buildSpecKey(row.color, size)] ?? 0), 0)}
+                        {matrixSizes.reduce((sum, size) => sum + (qtyMap[buildSpecKey(row.color, size)] ?? 0), 0)}
                       </td>
                     </tr>
                   ))}
