@@ -40,6 +40,7 @@ type BackendOutsourcingListItem = {
   orderNo: string;
   styleNo: string;
   styleName: string;
+  styleImage?: string;
   processorId: number;
   processorName: string;
   processStep: string;
@@ -127,6 +128,7 @@ const adaptRecord = (item: BackendOutsourcingListItem): OutsourcingManagementLis
   orderNo: item.orderNo,
   styleNo: item.styleNo,
   styleName: item.styleName,
+  styleImage: item.styleImage,
   processorId: String(item.processorId),
   processorName: item.processorName,
   processStep: item.processStep,

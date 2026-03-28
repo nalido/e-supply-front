@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
+import ListImage from '../components/common/ListImage';
 import {
   Button,
   Card,
@@ -590,6 +591,14 @@ const OutsourcingManagement = () => {
         title: '工厂订单号',
         dataIndex: 'orderNo',
         width: 160,
+      },
+      {
+        title: '款式图片',
+        dataIndex: 'styleImage',
+        width: 108,
+        render: (_: unknown, record) => (
+          <ListImage src={record.styleImage} alt={record.styleName} width={56} height={56} />
+        ),
       },
       {
         title: '款号/款名',

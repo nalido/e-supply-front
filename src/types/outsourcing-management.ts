@@ -7,6 +7,7 @@ export interface OutsourcingManagementListItem {
   orderNo: string;
   styleNo: string;
   styleName: string;
+  styleImage?: string;
   processorId: string;
   processorName: string;
   processStep: string;
