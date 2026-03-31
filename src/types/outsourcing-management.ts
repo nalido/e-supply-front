@@ -109,6 +109,7 @@ export interface OutsourcingOrderDetail {
   updatedAt?: string;
   workOrder?: OutsourcingWorkOrderSummary;
   productionOrder?: OutsourcingProductionOrderSummary;
+  productionOrderItems: OutsourcingOrderSpecItem[];
   receipts: OutsourcingOrderReceipt[];
   materialRequests: OutsourcingMaterialRequestRecord[];
 }
@@ -129,6 +130,16 @@ export interface OutsourcingProductionOrderSummary {
   expectedDelivery?: string;
 }
 
+export interface OutsourcingOrderSpecItem {
+  productionOrderLineId?: string;
+  color: string;
+  size: string;
+  plannedQty: number;
+  receivedQty: number;
+  pendingQty?: number;
+  quantity?: number;
+}
+
 export interface OutsourcingOrderReceipt {
   id: string;
   receivedQty: number;
@@ -137,6 +148,7 @@ export interface OutsourcingOrderReceipt {
   goodQty: number;
   receivedAt?: string;
   remark?: string;
+  items: OutsourcingOrderSpecItem[];
 }
 
 export interface OutsourcingMaterialRequestRecord {

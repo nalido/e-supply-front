@@ -85,6 +85,12 @@ type BackendOutsourcingReceipt = {
   goodQty?: number;
   receivedAt?: string;
   remark?: string;
+  items?: Array<{
+    productionOrderLineId?: number | string;
+    color?: string;
+    size?: string;
+    quantity?: number;
+  }>;
 };
 
 type BackendOutsourcingMaterialRequest = {
@@ -117,6 +123,15 @@ type BackendOutsourcingDetail = {
   updatedAt?: string;
   workOrder?: BackendOutsourcingWorkOrder;
   productionOrder?: BackendOutsourcingProductionOrder;
+  productionOrderItems?: Array<{
+    productionOrderLineId?: number | string;
+    styleVariantId?: number | string;
+    color?: string;
+    size?: string;
+    plannedQty?: number;
+    receivedQty?: number;
+    pendingQty?: number;
+  }>;
   receipts?: BackendOutsourcingReceipt[];
   materialRequests?: BackendOutsourcingMaterialRequest[];
 };
@@ -182,6 +197,16 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
         expectedDelivery: payload.productionOrder.expectedDelivery ?? undefined,
       }
     : undefined,
+  productionOrderItems: Array.isArray(payload.productionOrderItems)
+    ? payload.productionOrderItems.map((item) => ({
+        productionOrderLineId: item.productionOrderLineId != null ? String(item.productionOrderLineId) : undefined,
+        color: item.color ?? '-',
+        size: item.size ?? '-',
+        plannedQty: Number(item.plannedQty ?? 0),
+        receivedQty: Number(item.receivedQty ?? 0),
+        pendingQty: Number(item.pendingQty ?? 0),
+      }))
+    : [],
   receipts: Array.isArray(payload.receipts)
     ? payload.receipts.map((item) => ({
         id: String(item.id ?? ''),
@@ -191,6 +216,16 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
         goodQty: Number(item.goodQty ?? 0),
         receivedAt: item.receivedAt ?? undefined,
         remark: item.remark ?? undefined,
+        items: Array.isArray(item.items)
+          ? item.items.map((line) => ({
+              productionOrderLineId: line.productionOrderLineId != null ? String(line.productionOrderLineId) : undefined,
+              color: line.color ?? '-',
+              size: line.size ?? '-',
+              plannedQty: 0,
+              receivedQty: 0,
+              quantity: Number(line.quantity ?? 0),
+            }))
+          : [],
       }))
     : [],
   materialRequests: Array.isArray(payload.materialRequests)
@@ -300,6 +335,15 @@ export const outsourcingManagementApi = {
       params: { tenantId },
     });
     return adaptDetail(data);
+  },
+
+  async deleteReceipt(orderId: string, receiptId: string): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      `/api/v1/outsourcing-orders/${Number(orderId)}/receipts/${Number(receiptId)}/delete`,
+      {},
+      { params: { tenantId } },
+    );
   },
 
   async listProductionOrderOptions(keyword?: string): Promise<Array<{ id: string; label: string }>> {

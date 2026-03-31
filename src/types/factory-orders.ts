@@ -19,18 +19,27 @@ export type FactoryOrderProgress = {
 export type FactoryOrderItem = {
   id: string;
   code: string;
+  styleCode?: string;
   name: string;
   thumbnail: string;
   materialStatus?: string;
   expectedDelivery?: string;
+  cuttingDate?: string;
+  firstDeliveryDate?: string;
   orderDate?: string;
   quantityLabel: string;
   quantityValue: string;
+  orderedQuantity?: number;
+  cuttingCompletedQuantity?: number;
+  sewingCompletedQuantity?: number;
+  deliveredQuantity?: number;
   tags?: string[];
   actions?: Array<{ key: string; label: string }>;
   progress: FactoryOrderProgress[];
   statusKey: string;
   isCompleted?: boolean;
+  deletable?: boolean;
+  deleteBlockedReason?: string;
 };
 
 export type FactoryOrderDataset = {
@@ -38,6 +47,19 @@ export type FactoryOrderDataset = {
   orders: FactoryOrderItem[];
   table: FactoryOrderTableRow[];
   statusTabs: FactoryOrderStatusSummary[];
+};
+
+export type FactoryOrderDetailSummary = {
+  id: string;
+  orderNo: string;
+  styleId?: number;
+  totalQuantity?: number;
+  expectedDelivery?: string;
+  status?: string;
+  materialStatus?: string;
+  merchandiserId?: number;
+  factoryId?: number;
+  remarks?: string;
 };
 
 export type FactoryOrderStatusSummary = {
@@ -62,4 +84,6 @@ export type FactoryOrderTableRow = {
   statusKey: string;
   isCompleted?: boolean;
   orderDate?: string;
+  deletable?: boolean;
+  deleteBlockedReason?: string;
 };

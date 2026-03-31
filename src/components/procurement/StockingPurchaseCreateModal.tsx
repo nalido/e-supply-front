@@ -24,7 +24,7 @@ import type {
   ProcurementOrderSummary,
   StockingPurchaseCreatePayload,
 } from '../../types/stocking-purchase-inbound';
-import type { Partner } from '../../types/partners';
+import type { Partner, SavePartnerPayload } from '../../types/partners';
 import type { Warehouse } from '../../types/warehouse';
 import type { MaterialItem } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
@@ -54,15 +54,29 @@ export type StockingPurchaseCreateModalProps = {
 };
 
 const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_SUPPLIER_FORM_VALUES: SavePartnerPayload = {
+  name: '',
+  type: 'supplier',
+  contact: undefined,
+  phone: undefined,
+  address: undefined,
+  remarks: undefined,
+};
+
 const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
+  const [supplierForm] = Form.useForm<SavePartnerPayload>();
   const [selectedMaterials, setSelectedMaterials] = useState<MaterialItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
+  const [selectedColors, setSelectedColors] = useState<Record<string, string | undefined>>({});
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [metaLoading, setMetaLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [supplierSubmitting, setSupplierSubmitting] = useState(false);
+  const [supplierSearchText, setSupplierSearchText] = useState('');
   const [materialDrawerOpen, setMaterialDrawerOpen] = useState(false);
   const [materialOptions, setMaterialOptions] = useState<MaterialItem[]>([]);
   const [materialOptionsPage, setMaterialOptionsPage] = useState(1);
@@ -71,12 +85,11 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   const [materialDrawerInput, setMaterialDrawerInput] = useState('');
   const [materialDrawerLoading, setMaterialDrawerLoading] = useState(false);
   const [drawerSelectedRowKeys, setDrawerSelectedRowKeys] = useState<React.Key[]>([]);
-  const supplierSetup: SelectSetupConfig = {
-    entityLabel: '供应商',
-    pageLabel: '往来单位',
-    buttonText: '去新建供应商',
-    path: '/basic/partners?type=supplier',
-  };
+  const loadSuppliers = useCallback(async () => {
+    const supplierResult = await partnersApi.list({ page: 1, pageSize: 50, type: 'supplier' });
+    setSuppliers(supplierResult.list);
+    return supplierResult.list;
+  }, []);
   const warehouseSetup: SelectSetupConfig = {
     entityLabel: '仓库',
     pageLabel: '仓库',
@@ -90,10 +103,11 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     path: '/basic/material',
   };
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setSelectedMaterials([]);
     setQuantities({});
     setUnitPrices({});
+    setSelectedColors({});
     setMaterialDrawerOpen(false);
     setMaterialOptions([]);
     setMaterialOptionsPage(1);
@@ -102,7 +116,11 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     setMaterialDrawerInput('');
     setMaterialDrawerLoading(false);
     setDrawerSelectedRowKeys([]);
-  };
+    setSupplierModalOpen(false);
+    setSupplierSubmitting(false);
+    setSupplierSearchText('');
+    supplierForm.resetFields();
+  }, [supplierForm]);
 
   const loadMaterialOptions = useCallback(async () => {
     if (!materialDrawerOpen) {
@@ -136,19 +154,15 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       setMetaLoading(true);
       try {
         const [supplierResult, warehouseResult] = await Promise.all([
-          partnersApi.list({ page: 1, pageSize: 50, type: 'supplier' }),
+          loadSuppliers(),
           warehouseApi.list({ page: 1, pageSize: 50, type: 'material', status: 'active' }),
         ]);
-        setSuppliers(supplierResult.list);
         setWarehouses(warehouseResult.list);
-        if (supplierResult.list.length) {
-          form.setFieldValue('supplierId', supplierResult.list[0].id);
-        }
         if (warehouseResult.list.length) {
           form.setFieldValue('warehouseId', warehouseResult.list[0].id);
         }
         if (initialDraft?.supplierName) {
-          const matchedSupplier = supplierResult.list.find((item) => item.name === initialDraft.supplierName);
+          const matchedSupplier = supplierResult.find((item) => item.name === initialDraft.supplierName);
           if (matchedSupplier) {
             form.setFieldValue('supplierId', matchedSupplier.id);
           }
@@ -164,7 +178,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       }
     };
     void loadMeta();
-  }, [form, initialDraft?.remark, initialDraft?.supplierName, materialType, open]);
+  }, [form, initialDraft?.remark, initialDraft?.supplierName, loadSuppliers, open, resetState]);
 
   useEffect(() => {
     const draft = initialDraft;
@@ -183,6 +197,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       try {
         const matchedMaterials: MaterialItem[] = [];
         const nextQuantities: Record<string, number> = {};
+        const nextColors: Record<string, string | undefined> = {};
         for (const draftItem of draftItems) {
           const materialKeyword =
             draftItem.materialCode && draftItem.materialCode !== '--'
@@ -208,12 +223,14 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
             matchedMaterials.push(matchedMaterial);
           }
           nextQuantities[matchedMaterial.id] = Math.max(0, Number(draftItem.quantity ?? 0));
+          nextColors[matchedMaterial.id] = matchedMaterial.colors?.length === 1 ? matchedMaterial.colors[0] : undefined;
         }
         if (!matchedMaterials.length) {
           return;
         }
         setSelectedMaterials(matchedMaterials);
         setQuantities(nextQuantities);
+        setSelectedColors(nextColors);
       } catch (error) {
         console.error('failed to load initial material draft', error);
         message.warning('已打开采购创建弹窗，但未能自动匹配物料，请手动选择');
@@ -236,6 +253,10 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     setUnitPrices((prev) => ({ ...prev, [recordId]: value ?? 0 }));
   }, []);
 
+  const handleColorChange = useCallback((recordId: string, value?: string) => {
+    setSelectedColors((prev) => ({ ...prev, [recordId]: value }));
+  }, []);
+
   const handleRemoveMaterial = useCallback((recordId: string) => {
     setSelectedMaterials((prev) => prev.filter((item) => item.id !== recordId));
     setQuantities((prev) => {
@@ -244,6 +265,11 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       return next;
     });
     setUnitPrices((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+    setSelectedColors((prev) => {
       const next = { ...prev };
       delete next[recordId];
       return next;
@@ -267,12 +293,23 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         title: '颜色/备注',
         dataIndex: 'colors',
         key: 'colors',
-        width: 220,
+        width: 240,
         render: (_value: string[], record) => {
-          const colorText = record.colors?.length ? record.colors.join(' / ') : undefined;
+          const colorOptions = (record.colors ?? []).map((color) => ({ label: color, value: color }));
           return (
-            <Space direction="vertical" size={2}>
-              <Text>{colorText || '-'}</Text>
+            <Space direction="vertical" size={6} style={{ width: '100%' }}>
+              {colorOptions.length ? (
+                <Select
+                  allowClear
+                  placeholder="请选择颜色"
+                  value={selectedColors[record.id]}
+                  onChange={(value) => handleColorChange(record.id, value)}
+                  options={colorOptions}
+                  style={{ width: '100%' }}
+                />
+              ) : (
+                <Text type="secondary">未维护颜色</Text>
+              )}
               <Text type="secondary">{record.remarks || '-'}</Text>
             </Space>
           );
@@ -327,7 +364,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         ),
       },
     ],
-    [handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, quantities, unitPrices],
+    [handleColorChange, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, quantities, selectedColors, unitPrices],
   );
 
   const handleDrawerSearch = (value: string) => {
@@ -382,6 +419,15 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         });
         return nextUnitPrices;
       });
+      setSelectedColors((colorState) => {
+        const nextColors = { ...colorState };
+        itemsToAdd.forEach((item) => {
+          if (nextColors[item.id] === undefined) {
+            nextColors[item.id] = item.colors?.length === 1 ? item.colors[0] : undefined;
+          }
+        });
+        return nextColors;
+      });
       return [...prev, ...itemsToAdd];
     });
     setDrawerSelectedRowKeys([]);
@@ -389,6 +435,43 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       setMaterialDrawerOpen(false);
     }
   };
+
+  const handleCreateSupplier = async () => {
+    try {
+      const values = await supplierForm.validateFields();
+      setSupplierSubmitting(true);
+      const createdSupplier = await partnersApi.create({
+        ...values,
+        type: 'supplier',
+      });
+      const latestSuppliers = await loadSuppliers();
+      const currentExists = latestSuppliers.some((item) => item.id === createdSupplier.id);
+      if (!currentExists) {
+        setSuppliers((prev) => [createdSupplier, ...prev]);
+      }
+      form.setFieldValue('supplierId', createdSupplier.id);
+      setSupplierModalOpen(false);
+      supplierForm.resetFields();
+      message.success('供应商已添加');
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error !== null && 'errorFields' in error) {
+        return;
+      }
+      console.error('failed to create supplier', error);
+      message.error('新增供应商失败，请稍后重试');
+    } finally {
+      setSupplierSubmitting(false);
+    }
+  };
+
+  const openSupplierQuickCreate = useCallback(() => {
+    supplierForm.setFieldsValue({
+      ...DEFAULT_SUPPLIER_FORM_VALUES,
+      name: supplierSearchText.trim() || '',
+      type: 'supplier',
+    });
+    setSupplierModalOpen(true);
+  }, [supplierForm, supplierSearchText]);
 
   const handleSubmit = async () => {
     try {
@@ -403,6 +486,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           quantity: quantities[item.id] ?? 0,
           unit: item.unit,
           unitPrice: unitPrices[item.id] ?? item.referencePrice ?? 0,
+          color: selectedColors[item.id],
         }))
         .filter((line) => line.quantity > 0);
       if (!selectedLines.length) {
@@ -468,16 +552,37 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
                 name="supplierId"
                 rules={[{ required: true, message: '请选择供应商' }]}
               >
-              <Select
-                loading={metaLoading}
-                placeholder="请选择供应商"
-                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, supplierSetup)}
-                options={suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id }))}
-                showSearch
-                optionFilterProp="label"
-              />
+                <Select
+                  loading={metaLoading}
+                  placeholder="请选择供应商"
+                  searchValue={supplierSearchText}
+                  onSearch={setSupplierSearchText}
+                  onClear={() => setSupplierSearchText('')}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <div style={{ padding: '8px 12px', borderTop: '1px solid #f0f0f0' }}>
+                        <Space direction="vertical" size={4}>
+                          <Button
+                            type="link"
+                            style={{ padding: 0, height: 'auto' }}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={openSupplierQuickCreate}
+                          >
+                            {supplierSearchText.trim() ? `直接新增“${supplierSearchText.trim()}”` : '快速新增供应商'}
+                          </Button>
+                          <Text type="secondary">
+                            {supplierSearchText.trim() ? '会把当前输入直接带入新增表单。' : '找不到时可直接新增并回填当前采购单。'}
+                          </Text>
+                        </Space>
+                      </div>
+                    </>
+                  )}
+                  options={suppliers.map((supplier) => ({ label: supplier.name, value: supplier.id }))}
+                  showSearch
+                  optionFilterProp="label"
+                />
               </Form.Item>
-              <SelectSetupHint config={supplierSetup} marginTop={-18} marginBottom={8} />
             </Space>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
               <Form.Item
@@ -537,6 +642,53 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           scroll={{ y: 360 }}
         />
       </Space>
+      <Modal
+        title="快速新增供应商"
+        open={supplierModalOpen}
+        onCancel={() => {
+          setSupplierModalOpen(false);
+          supplierForm.resetFields();
+          setSupplierSearchText('');
+        }}
+        onOk={handleCreateSupplier}
+        okText="保存并使用"
+        confirmLoading={supplierSubmitting}
+        destroyOnHidden
+      >
+        <Form
+          form={supplierForm}
+          layout="vertical"
+          initialValues={DEFAULT_SUPPLIER_FORM_VALUES}
+        >
+          <Form.Item
+            label="供应商名称"
+            name="name"
+            rules={[{ required: true, message: '请输入供应商名称' }]}
+          >
+            <Input maxLength={128} placeholder="请输入供应商名称" />
+          </Form.Item>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 16,
+            }}
+          >
+            <Form.Item label="联系人" name="contact">
+              <Input maxLength={128} placeholder="请输入联系人" />
+            </Form.Item>
+            <Form.Item label="联系电话" name="phone">
+              <Input maxLength={32} placeholder="请输入联系电话" />
+            </Form.Item>
+          </div>
+          <Form.Item label="联系地址" name="address">
+            <Input maxLength={255} placeholder="请输入联系地址" />
+          </Form.Item>
+          <Form.Item label="备注" name="remarks">
+            <Input.TextArea rows={3} maxLength={512} placeholder="请输入备注" />
+          </Form.Item>
+        </Form>
+      </Modal>
       <Drawer
         title="选择物料档案"
         placement="right"

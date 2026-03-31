@@ -117,6 +117,7 @@ export const stockingPurchaseInboundService = {
         lines: payload.lines.map((line) => ({
           materialId: Number(line.materialId),
           orderQty: line.quantity,
+          color: line.color,
           unit: line.unit,
           unitPrice: line.unitPrice,
         })),

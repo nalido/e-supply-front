@@ -17,6 +17,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -74,6 +75,24 @@ const formatQuantity = (value: number): string => QUANTITY_FORMATTER.format(valu
 const formatPercent = (value: number): string => PERCENT_FORMATTER.format(value ?? 0);
 const formatDateTime = (value?: string): string =>
   value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-';
+
+const renderSpecSummary = (
+  items: Array<{ color?: string; size?: string; plannedQty?: number; receivedQty?: number; pendingQty?: number; quantity?: number }>,
+  quantityKey: 'plannedQty' | 'quantity' = 'plannedQty',
+) => {
+  if (!items.length) {
+    return <Text type="secondary">-</Text>;
+  }
+  return (
+    <Space direction="vertical" size={4}>
+      {items.map((item, index) => (
+        <Text key={`${item.color ?? '-'}-${item.size ?? '-'}-${index}`}>
+          {`${item.color ?? '-'} / ${item.size ?? '-'}：${formatQuantity(Number(item[quantityKey] ?? 0))}`}
+        </Text>
+      ))}
+    </Space>
+  );
+};
 
 const buildDateParams = (
   range: RangeValue<Dayjs>,
@@ -432,8 +451,24 @@ const OutsourcingManagement = () => {
     if (!keyword) {
       return;
     }
-    navigate(`/orders/factory?keyword=${encodeURIComponent(keyword)}`);
+    navigate(`/orders/factory?keyword=${encodeURIComponent(keyword)}&status=all`);
   }, [navigate]);
+
+  const handleDeleteReceipt = useCallback(async (receiptId: string) => {
+    if (!orderDetail) {
+      return;
+    }
+    try {
+      await outsourcingManagementApi.deleteReceipt(orderDetail.id, receiptId);
+      message.success('接收记录已删除');
+      const detailData = await outsourcingManagementApi.getDetail(orderDetail.id);
+      setOrderDetail(detailData);
+      void loadList();
+    } catch (error) {
+      console.error('failed to delete outsourcing receipt', error);
+      message.error(error instanceof Error ? error.message : '删除接收记录失败');
+    }
+  }, [loadList, orderDetail]);
 
   useEffect(() => {
     const targetOrderId = searchParams.get('orderId');
@@ -591,6 +626,16 @@ const OutsourcingManagement = () => {
         title: '工厂订单号',
         dataIndex: 'orderNo',
         width: 160,
+        render: (value: string) => (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, height: 'auto' }}
+            onClick={() => handleNavigateToFactoryOrder(value)}
+          >
+            {value || '-'}
+          </Button>
+        ),
       },
       {
         title: '款式图片',
@@ -700,7 +745,7 @@ const OutsourcingManagement = () => {
         },
       },
     ],
-    [handleConfirmReceive, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
+    [handleConfirmReceive, handleNavigateToFactoryOrder, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
   );
 
   const receiptColumns = useMemo<ColumnsType<OutsourcingOrderReceipt>>(
@@ -710,6 +755,13 @@ const OutsourcingManagement = () => {
         dataIndex: 'receivedAt',
         key: 'receivedAt',
         render: (value?: string) => formatDateTime(value),
+      },
+      {
+        title: '颜色尺码',
+        dataIndex: 'items',
+        key: 'items',
+        width: 240,
+        render: (_value: unknown, record) => renderSpecSummary(record.items, 'quantity'),
       },
       {
         title: '接收数量',
@@ -740,8 +792,26 @@ const OutsourcingManagement = () => {
         render: (value: number) => formatQuantity(value),
       },
       { title: '备注', dataIndex: 'remark', key: 'remark', render: (value?: string) => value || '-' },
+      {
+        title: '操作',
+        key: 'actions',
+        width: 96,
+        render: (_value: unknown, record) => (
+          <Popconfirm
+            title="删除接收记录"
+            description="将同时回滚自动生成的成品入库和外发进度，确认继续？"
+            okText="删除"
+            cancelText="取消"
+            onConfirm={() => void handleDeleteReceipt(record.id)}
+          >
+            <Button type="link" danger size="small">
+              删除
+            </Button>
+          </Popconfirm>
+        ),
+      },
     ],
-    [],
+    [handleDeleteReceipt],
   );
 
   const materialRequestColumns = useMemo<ColumnsType<OutsourcingMaterialRequestRecord>>(
@@ -963,6 +1033,40 @@ const OutsourcingManagement = () => {
                   <Descriptions.Item label="完成数量">{formatQuantity(orderDetail.productionOrder.completedQuantity)} 件</Descriptions.Item>
                 </Descriptions>
               ) : null}
+
+              <Card title="生产订单颜色尺码" variant="borderless">
+                <Table
+                  rowKey={(record) => `${record.productionOrderLineId ?? 'line'}-${record.color}-${record.size}`}
+                  dataSource={orderDetail.productionOrderItems}
+                  pagination={false}
+                  size="small"
+                  columns={[
+                    { title: '颜色', dataIndex: 'color', width: 120 },
+                    { title: '尺码', dataIndex: 'size', width: 120 },
+                    {
+                      title: '派工数量',
+                      dataIndex: 'plannedQty',
+                      width: 120,
+                      align: 'right',
+                      render: (value: number) => formatQuantity(value),
+                    },
+                    {
+                      title: '已接收',
+                      dataIndex: 'receivedQty',
+                      width: 120,
+                      align: 'right',
+                      render: (value: number) => formatQuantity(value),
+                    },
+                    {
+                      title: '待接收',
+                      dataIndex: 'pendingQty',
+                      width: 120,
+                      align: 'right',
+                      render: (value: number) => formatQuantity(value),
+                    },
+                  ]}
+                />
+              </Card>
 
               <Card title="接收记录" variant="borderless">
                 <Table<OutsourcingOrderReceipt>

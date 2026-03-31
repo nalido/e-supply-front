@@ -79,6 +79,7 @@ export type StockingPurchaseCreateLine = {
   quantity: number;
   unit: string;
   unitPrice: number;
+  color?: string;
 };
 
 export type StockingPurchaseCreatePayload = {

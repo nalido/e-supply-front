@@ -1,6 +1,7 @@
 import http from './http';
 import { tenantStore } from '../stores/tenant';
 import type {
+  FactoryOrderDetailSummary,
   FactoryOrderItem,
   FactoryOrderMetric,
   FactoryOrderProgress,
@@ -124,7 +125,21 @@ export type FactoryOrderDetailLine = {
 };
 
 export type FactoryOrderDetail = {
+  order?: FactoryOrderDetailSummary;
   lines: FactoryOrderDetailLine[];
+};
+
+type BackendFactoryOrderDetailSummary = {
+  id?: number;
+  orderNo?: string;
+  styleId?: number;
+  totalQuantity?: number;
+  expectedDelivery?: string;
+  status?: string;
+  materialStatus?: string;
+  merchandiserId?: number;
+  factoryId?: number;
+  remarks?: string;
 };
 
 type BackendFactoryOrderDetailLine = {
@@ -137,6 +152,7 @@ type BackendFactoryOrderDetailLine = {
 };
 
 type BackendFactoryOrderDetail = {
+  order?: BackendFactoryOrderDetailSummary;
   lines?: BackendFactoryOrderDetailLine[];
 };
 
@@ -204,17 +220,26 @@ type CompletionFlag = {
 type BackendFactoryOrderCard = CompletionFlag & {
   id: number;
   code: string;
+  styleCode?: string;
   name: string;
   thumbnail: string;
   materialStatus?: string;
   expectedDelivery?: string;
+  cuttingDate?: string;
+  firstDeliveryDate?: string;
   orderDate?: string;
   quantityLabel: string;
   quantityValue: string;
+  orderedQuantity?: number;
+  cuttingCompletedQuantity?: number;
+  sewingCompletedQuantity?: number;
+  deliveredQuantity?: number;
   tags?: string[];
   actions?: BackendFactoryOrderAction[];
   progress: BackendFactoryOrderProgress[];
   statusKey: string;
+  deletable?: boolean;
+  deleteBlockedReason?: string;
 };
 
 type BackendFactoryOrderTableRow = CompletionFlag & {
@@ -230,6 +255,8 @@ type BackendFactoryOrderTableRow = CompletionFlag & {
   merchandiser: string;
   statusKey: string;
   orderDate?: string;
+  deletable?: boolean;
+  deleteBlockedReason?: string;
 };
 
 type BackendFactoryOrderStatusTab = FactoryOrderStatusSummary;
@@ -329,18 +356,27 @@ const adaptProgress = (progress: BackendFactoryOrderProgress): FactoryOrderProgr
 const adaptCard = (card: BackendFactoryOrderCard): FactoryOrderItem => ({
   id: String(card.id),
   code: card.code,
+  styleCode: card.styleCode,
   name: card.name,
   thumbnail: card.thumbnail,
   materialStatus: card.materialStatus,
   expectedDelivery: card.expectedDelivery,
+  cuttingDate: card.cuttingDate,
+  firstDeliveryDate: card.firstDeliveryDate,
   orderDate: card.orderDate,
   quantityLabel: card.quantityLabel,
   quantityValue: card.quantityValue,
+  orderedQuantity: card.orderedQuantity,
+  cuttingCompletedQuantity: card.cuttingCompletedQuantity,
+  sewingCompletedQuantity: card.sewingCompletedQuantity,
+  deliveredQuantity: card.deliveredQuantity,
   tags: card.tags ?? [],
   actions: card.actions ?? [],
   progress: (card.progress ?? []).map(adaptProgress),
   statusKey: card.statusKey,
   isCompleted: resolveCompletionFlag(card),
+  deletable: card.deletable,
+  deleteBlockedReason: card.deleteBlockedReason,
 });
 
 const adaptTableRow = (row: BackendFactoryOrderTableRow): FactoryOrderTableRow => ({
@@ -357,6 +393,8 @@ const adaptTableRow = (row: BackendFactoryOrderTableRow): FactoryOrderTableRow =
   statusKey: row.statusKey,
   isCompleted: resolveCompletionFlag(row),
   orderDate: row.orderDate,
+  deletable: row.deletable,
+  deleteBlockedReason: row.deleteBlockedReason,
 });
 
 const adaptSummary = (payload: BackendFactoryOrderSummary): FactoryOrderSummary => ({
@@ -423,6 +461,20 @@ const adaptDetailLine = (line: BackendFactoryOrderDetailLine): FactoryOrderDetai
 });
 
 const adaptDetail = (payload: BackendFactoryOrderDetail): FactoryOrderDetail => ({
+  order: payload.order
+    ? {
+        id: String(payload.order.id ?? ''),
+        orderNo: payload.order.orderNo ?? '',
+        styleId: payload.order.styleId,
+        totalQuantity: payload.order.totalQuantity,
+        expectedDelivery: payload.order.expectedDelivery,
+        status: payload.order.status,
+        materialStatus: payload.order.materialStatus,
+        merchandiserId: payload.order.merchandiserId,
+        factoryId: payload.order.factoryId,
+        remarks: payload.order.remarks,
+      }
+    : undefined,
   lines: (payload.lines ?? []).map(adaptDetailLine),
 });
 
@@ -622,7 +674,60 @@ export const factoryOrdersApi = {
               quantity: fallbackQuantity,
               unitPrice: fallbackUnitPrice,
             },
+      ],
+    });
+  },
+
+  async updateOrder(orderId: string | number, payload: FactoryOrderCreatePayload): Promise<void> {
+    const tenantId = ensureTenantId();
+    const normalizedLines = (payload.lines ?? [])
+      .map((line) => ({
+        color: line.color?.trim() || undefined,
+        size: line.size?.trim() || undefined,
+        quantity: Number(line.quantity),
+        unitPrice:
+          typeof line.unitPrice === 'number' && Number.isFinite(line.unitPrice)
+            ? Number(line.unitPrice)
+            : typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
+              ? Number(payload.unitPrice)
+              : undefined,
+      }))
+      .filter((line) => Number.isFinite(line.quantity) && line.quantity > 0);
+
+    const fallbackQuantity = Number(payload.totalQuantity ?? 0);
+    const fallbackUnitPrice =
+      typeof payload.unitPrice === 'number' && Number.isFinite(payload.unitPrice)
+        ? Number(payload.unitPrice)
+        : undefined;
+
+    await http.post(`/api/v1/production-orders/${orderId}/update`, {
+      tenantId,
+      orderNo: payload.orderNo?.trim() || undefined,
+      sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
+      styleId: Number(payload.styleId),
+      expectedDelivery: payload.expectedDelivery,
+      status: payload.status,
+      materialStatus: normalizeMaterialStatus(payload.materialStatus),
+      totalAmount: 0,
+      completedQuantity: 0,
+      merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
+      factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,
+      remarks: payload.remarks,
+      lines: normalizedLines.length
+        ? normalizedLines
+        : [
+            {
+              quantity: Number.isFinite(fallbackQuantity) && fallbackQuantity > 0 ? fallbackQuantity : 0,
+              unitPrice: fallbackUnitPrice,
+            },
           ],
+    });
+  },
+
+  async deleteOrder(orderId: string | number): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/production-orders/${orderId}/delete`, null, {
+      params: { tenantId },
     });
   },
 };

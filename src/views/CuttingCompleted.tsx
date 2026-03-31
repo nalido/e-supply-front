@@ -42,11 +42,12 @@ type DetailModalState = {
 const CuttingCompletedPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialSearchKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [dataset, setDataset] = useState<CuttingTaskDataset>(initialDataset);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialSearchKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState(initialSearchKeyword);
   const [page, setPage] = useState(initialDataset.page);
   const [pageSize, setPageSize] = useState(initialDataset.pageSize);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
@@ -58,7 +59,7 @@ const CuttingCompletedPage = () => {
     if (!normalized) {
       return;
     }
-    navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}`);
+    navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}&status=all`);
   };
 
   useEffect(() => {
@@ -125,6 +126,13 @@ const CuttingCompletedPage = () => {
       })
       .finally(() => setDetailLoading(false));
   };
+
+  useEffect(() => {
+    const nextKeyword = searchParams.get('keyword')?.trim() ?? '';
+    setKeyword((current) => (current === nextKeyword ? current : nextKeyword));
+    setAppliedKeyword((current) => (current === nextKeyword ? current : nextKeyword));
+    setPage((current) => (current === 1 ? current : 1));
+  }, [searchParams]);
 
   useEffect(() => {
     const rawWorkOrderId = Number(searchParams.get('workOrderId') ?? 0);

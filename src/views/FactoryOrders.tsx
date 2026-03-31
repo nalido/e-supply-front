@@ -1,43 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
-import type { UploadFile } from 'antd/es/upload/interface';
 import type { RcFile } from 'antd/es/upload';
 import {
-  Alert,
   Button,
   Card,
   Checkbox,
-  DatePicker,
-  Descriptions,
   Empty,
   Form,
   Input,
   InputNumber,
-  List,
   Modal,
-  Pagination,
   Progress,
   Row,
   Col,
   Segmented,
   Select,
-  Skeleton,
   Space,
   Table,
-  Tabs,
   Tag,
   Typography,
-  Upload,
   message,
 } from 'antd';
 import {
   AppstoreOutlined,
-  CheckOutlined,
-  ClockCircleOutlined,
-  ExclamationCircleOutlined,
+  DeleteOutlined,
   ExportOutlined,
   DownloadOutlined,
+  EditOutlined,
   ImportOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -65,311 +55,63 @@ import type { FinishedGoodsReceivedRecord } from '../types/finished-goods-receiv
 import dayjs from 'dayjs';
 import { SearchField } from '../components/page';
 import '../styles/factory-orders.css';
-import ListImage from '../components/common/ListImage';
 import { sortColorValues, sortSizeValues, sortSpecRows } from '../utils/spec';
-
-type ViewMode = 'card' | 'table';
-type OverallStatus = 'all' | 'unfinished' | 'completed';
-const VIEW_MODE_STORAGE_KEY = 'factory-orders-view-mode';
-
-const sortOptions = [
-  { label: '更新时间（新 → 旧）', value: 'order-desc' },
-  { label: '更新时间（旧 → 新）', value: 'order-asc' },
-  { label: '预计交货（近 → 远）', value: 'delivery-asc' },
-  { label: '预计交货（远 → 近）', value: 'delivery-desc' },
-];
-
-const getMaterialTagColor = (status: string) => {
-  if (status.includes('未采购')) return 'volcano';
-  if (status.includes('采购中')) return 'orange';
-  if (status.includes('已入仓') || status.includes('齐备')) return 'green';
-  return 'default';
-};
+import CreateOrderModal from './factory-orders/CreateOrderModal';
+import ImportOrdersModal from './factory-orders/ImportOrdersModal';
+import CostDetailModal from './factory-orders/CostDetailModal';
+import PrintPreviewModal from './factory-orders/PrintPreviewModal';
+import FactoryOrderCardList from './factory-orders/CardList';
+import AllocationCreateModal from './factory-orders/AllocationCreateModal';
+import ProgressActionModal from './factory-orders/ProgressActionModal';
+import type {
+  AllocationHistoryRow,
+  AllocationQuantityMatrix,
+  CreateQuantityMatrix,
+  CreateStyleMaterial,
+  CuttingSheetTarget,
+  ImportModalState,
+  ImportRecord,
+  InOutDataState,
+  InOutSummaryRow,
+  OrderActionSnapshot,
+  OverallStatus,
+  PendingSampleProduceContext,
+  ProgressActionModalState,
+  ProgressNodeQuantitySnapshot,
+  ProgressStatsState,
+  SelectOption,
+  ViewMode,
+} from './factory-orders/types';
+import {
+  CUTTING_SHEET_START_SOURCE,
+  VIEW_MODE_STORAGE_KEY,
+  buildCreateMatrix,
+  formatProgressPercent,
+  getMaterialStatusLabel,
+  getMaterialTagColor,
+  getOverallStatusMeta,
+  materialStatusOptions,
+  normalizeProgressLabel,
+  normalizeQtyValue,
+  normalizeTagValues,
+  overallStatusOptions,
+  parseProgressNodePayload,
+  progressNodeCodeMap,
+  resolveOverallStatusParam,
+  sortOptions,
+  statusQueryMap,
+  statusTabDefaults,
+} from './factory-orders/utils';
 
 const { Text } = Typography;
-
-type SelectOption = {
-  label: string;
-  value: number;
-  image?: string;
-  colors?: string[];
-  sizes?: string[];
-};
-
-type ImportRecord = {
-  orderNo: string;
-  styleId: number;
-  merchandiserId?: number;
-  factoryId?: number;
-  totalQuantity: number;
-  expectedDelivery?: string;
-  status?: string;
-  materialStatus?: string;
-  remarks?: string;
-};
-
-type OrderActionSnapshot = {
-  orderId: string;
-  orderCode: string;
-  styleCode?: string;
-  styleName?: string;
-  expectedDelivery?: string;
-  materialStatus?: string;
-  orderQuantity?: number;
-  productionStage?: string;
-};
-
-type CreateQuantityMatrix = Record<string, Record<string, number>>;
-type CreateStyleMaterial = {
-  materialId: number;
-  materialName: string;
-  materialSku: string;
-  materialType: 'FABRIC' | 'ACCESSORY' | 'PACKAGING';
-  unit: string;
-  consumption: number;
-  lossRate: number;
-};
-type ProgressStatRow = {
-  key: string;
-  color: string;
-  size: string;
-  orderedQty: number;
-  cuttingQty: number;
-  sewingQty: number;
-  sewingCompletedQty: number;
-};
-type ProgressNodeQuantitySnapshot = {
-  cuttingCompletedQty?: number;
-  sewingAllocatedQty?: number;
-  sewingCompletedQty?: number;
-};
-type AllocationQuantityMatrix = Record<string, Record<string, number>>;
-type AllocationHistoryRow = {
-  key: string;
-  completedAt?: string;
-  bedNumber?: string;
-  source?: string;
-  workOrderId?: number;
-  outsourcingOrderId?: number;
-  factoryId?: number;
-  unitPrice?: number;
-  totalQty: number;
-  itemSummary: string;
-  items: Array<{ color: string; size: string; quantity: number }>;
-};
-type InOutSummaryRow = {
-  key: string;
-  color: string;
-  size: string;
-  totalQty: number;
-  pendingQty: number;
-  doneQty: number;
-};
-type InOutDetailRow = {
-  key: string;
-  receiptNo: string;
-  receiptDate: string;
-  warehouseName: string;
-  processorName?: string;
-  color: string;
-  size: string;
-  quantity: number;
-};
-
-type PendingSampleProduceContext = {
-  sampleOrderId: string;
-  sampleOrderNo?: string;
-};
-
-const overallStatusOptions = [
-  { label: '全部', value: 'all' },
-  { label: '未完成', value: 'unfinished' },
-  { label: '已完成', value: 'completed' },
-];
-
-const statusQueryMap: Record<OverallStatus, string[]> = {
-  all: ['DRAFT', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
-  unfinished: ['DRAFT', 'RELEASED', 'IN_PROGRESS'],
-  completed: ['COMPLETED', 'CANCELLED'],
-};
-
-const statusTabDefaults: Array<{ key: string; label: string }> = [
-  { key: 'DRAFT', label: '草稿' },
-  { key: 'RELEASED', label: '已下发' },
-  { key: 'IN_PROGRESS', label: '生产中' },
-  { key: 'COMPLETED', label: '已完工' },
-  { key: 'CANCELLED', label: '已取消' },
-];
-
-const materialStatusOptions = [
-  { label: '待齐备', value: 'PENDING' },
-  { label: '齐备中', value: 'ALLOCATING' },
-  { label: '已齐备（已发料）', value: 'ALLOCATED' },
-];
-
-const materialStatusLabelMap = new Map(
-  materialStatusOptions.map((option) => [option.value, option.label]),
-);
-
-const hiddenOrderStatusTags = new Set(['DRAFT', 'RELEASED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
-
-const progressNodeCodeMap: Record<string, string> = {
-  order_placed: 'ORDER_PLACED',
-  fabric_arrived: 'FABRIC_ARRIVED',
-  accessory_arrived: 'ACCESSORY_ARRIVED',
-  cutting: 'CUTTING',
-  sewing: 'SEWING',
-  inbound: 'INBOUND',
-  completed: 'COMPLETED',
-};
-
-const CUTTING_SHEET_START_SOURCE = 'CUTTING_SHEET_START';
-
-const resolveOverallCompleted = (isCompleted?: boolean, statusKey?: string) =>
-  Boolean(isCompleted || statusKey === 'COMPLETED' || statusKey === 'CANCELLED');
-
-const getOverallStatusMeta = (isCompleted?: boolean, statusKey?: string) =>
-  resolveOverallCompleted(isCompleted, statusKey)
-    ? { label: '已完成', color: '#52c41a' }
-    : { label: '未完成', color: '#1890ff' };
-
-const getMaterialStatusLabel = (value?: string) => {
-  if (!value) {
-    return '-';
-  }
-  return materialStatusLabelMap.get(value) ?? value;
-};
-
-const normalizeProgressLabel = (stage: FactoryOrderProgress): string => {
-  if (stage.key === 'accessory_arrived') {
-    return '辅料是否到货';
-  }
-  if (stage.key === 'fabric_arrived') {
-    return '面料是否到货';
-  }
-  return stage.label;
-};
-
-const parseAllocationCompletionValue = (value?: string, fallbackPercent?: number) => {
-  if (!value) {
-    return typeof fallbackPercent === 'number' ? {
-      allocatedPercent: 0,
-      completedPercent: fallbackPercent,
-    } : null;
-  }
-  const matched = value.match(/分配\s*(\d+)%\s*\/\s*完成\s*(\d+)%/);
-  if (!matched) {
-    return typeof fallbackPercent === 'number' ? {
-      allocatedPercent: 0,
-      completedPercent: fallbackPercent,
-    } : null;
-  }
-  return {
-    allocatedPercent: Number(matched[1] ?? 0),
-    completedPercent: typeof fallbackPercent === 'number' ? fallbackPercent : Number(matched[2] ?? 0),
-  };
-};
-
-const resolveProgressStageState = (stage: FactoryOrderProgress) => {
-  const status = String(stage.status ?? 'default').toLowerCase();
-  const isPercentStage = stage.key === 'cutting' || stage.key === 'sewing';
-  const fallbackPercent = isPercentStage && typeof stage.percent === 'number'
-    ? Math.max(0, Math.round(stage.percent))
-    : undefined;
-  const breakdown = parseAllocationCompletionValue(stage.value, fallbackPercent);
-  const isOrderPlaced = stage.key === 'order_placed';
-  const isOvercut = status === 'danger';
-  const isPartial =
-    !isOvercut
-    && (status === 'warning' || (typeof stage.value === 'string' && stage.value.includes('部分完成')));
-  const isCompleted =
-    isOrderPlaced
-    || (isOvercut && (breakdown?.completedPercent ?? 0) >= 100)
-    || status === 'success'
-    || status === 'completed'
-    || (typeof stage.value === 'string' && stage.value.includes('已完成'));
-  const isInProgress = !isCompleted && (isPartial || isOvercut);
-  const progressStateClass = isOvercut ? 'overcut' : isCompleted ? 'completed' : isPartial ? 'partial' : 'pending';
-  return {
-    breakdown,
-    isCompleted,
-    isInProgress,
-    isOrderPlaced,
-    isOvercut,
-    isPartial,
-    progressStateClass,
-  };
-};
-
-const normalizeTagValues = (values?: string[]) =>
-  Array.from(
-    new Set(
-      (values ?? [])
-        .map((value) => String(value ?? '').trim())
-        .filter(Boolean),
-    ),
-  );
-
-const normalizeQtyValue = (value?: number | null) => {
-  const parsed = Number(value ?? 0);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 0;
-  }
-  return Math.floor(parsed);
-};
-
-const normalizeNonNegativeNumber = (value: unknown): number | undefined => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return undefined;
-  }
-  return parsed;
-};
-
-const parseProgressNodePayload = (node?: FactoryOrderProgressNode) => {
-  if (!node?.payloadJson) {
-    return {};
-  }
-  try {
-    const payload = JSON.parse(node.payloadJson) as {
-      orderedQuantity?: unknown;
-      allocatedQuantity?: unknown;
-      completedQuantity?: unknown;
-    };
-    return {
-      orderedQuantity: normalizeNonNegativeNumber(payload.orderedQuantity),
-      allocatedQuantity: normalizeNonNegativeNumber(payload.allocatedQuantity),
-      completedQuantity: normalizeNonNegativeNumber(payload.completedQuantity),
-    };
-  } catch {
-    return {};
-  }
-};
-
-const formatProgressPercent = (current: number, total: number) => {
-  if (!(total > 0) || !(current >= 0)) {
-    return '0%';
-  }
-  return `${Math.round((current * 100) / total)}%`;
-};
-
-const buildCreateMatrix = (
-  colors: string[],
-  sizes: string[],
-  prev?: CreateQuantityMatrix,
-): CreateQuantityMatrix =>
-  colors.reduce<CreateQuantityMatrix>((matrix, color) => {
-    matrix[color] = sizes.reduce<Record<string, number>>((row, size) => {
-      row[size] = normalizeQtyValue(prev?.[color]?.[size]);
-      return row;
-    }, {});
-    return matrix;
-  }, {});
 
 const FactoryOrders = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
+  const keywordParam = searchParams.get('keyword')?.trim() ?? '';
+  const statusParam = searchParams.get('status');
+  const initialKeyword = keywordParam;
+  const initialStatus = resolveOverallStatusParam(statusParam, keywordParam);
   const [metrics, setMetrics] = useState<FactoryOrderMetric[]>([]);
   const [statusTabs, setStatusTabs] = useState<FactoryOrderStatusSummary[]>([]);
   const [cardOrders, setCardOrders] = useState<FactoryOrderItem[]>([]);
@@ -386,7 +128,7 @@ const FactoryOrders = () => {
   const [searchValue, setSearchValue] = useState(initialKeyword);
   const [appliedKeyword, setAppliedKeyword] = useState(initialKeyword);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
-  const [activeStatus, setActiveStatus] = useState<OverallStatus>('unfinished');
+  const [activeStatus, setActiveStatus] = useState<OverallStatus>(initialStatus);
   const [sortKey, setSortKey] = useState('order-desc');
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window !== 'undefined') {
@@ -399,19 +141,15 @@ const FactoryOrders = () => {
   });
   const [reloadFlag, setReloadFlag] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const [importModal, setImportModal] = useState<{
-    open: boolean;
-    records: ImportRecord[];
-    fileList: UploadFile[];
-    uploading: boolean;
-    error?: string;
-  }>({ open: false, records: [], fileList: [], uploading: false });
+  const [importModal, setImportModal] = useState<ImportModalState>({ open: false, records: [], fileList: [], uploading: false });
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [statusForm] = Form.useForm();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createForm] = Form.useForm();
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null);
   const [createOptionsLoading, setCreateOptionsLoading] = useState(false);
   const [styleOptions, setStyleOptions] = useState<SelectOption[]>([]);
   const [factoryOptions, setFactoryOptions] = useState<SelectOption[]>([]);
@@ -426,17 +164,13 @@ const FactoryOrders = () => {
   const [costDetailLoading, setCostDetailLoading] = useState(false);
   const [costDetailData, setCostDetailData] = useState<FactoryOrderCostDetail | null>(null);
   const [printPreviewRecord, setPrintPreviewRecord] = useState<OrderActionSnapshot | null>(null);
-  const [progressActionModal, setProgressActionModal] = useState<{
-    open: boolean;
-    submitting: boolean;
-    order?: OrderActionSnapshot;
-    stage?: FactoryOrderProgress;
-  }>({ open: false, submitting: false });
-  const [progressStats, setProgressStats] = useState<{ loading: boolean; rows: ProgressStatRow[] }>({
+  const [progressActionModal, setProgressActionModal] = useState<ProgressActionModalState>({ open: false, submitting: false });
+  const [progressStats, setProgressStats] = useState<ProgressStatsState>({
     loading: false,
     rows: [],
   });
   const [progressNodeQuantities, setProgressNodeQuantities] = useState<ProgressNodeQuantitySnapshot>({});
+  const [cuttingSheetTarget, setCuttingSheetTarget] = useState<CuttingSheetTarget | null>(null);
   const [allocationColors, setAllocationColors] = useState<string[]>([]);
   const [allocationSizes, setAllocationSizes] = useState<string[]>([]);
   const [allocationMatrix, setAllocationMatrix] = useState<AllocationQuantityMatrix>({});
@@ -447,11 +181,7 @@ const FactoryOrders = () => {
   const [allocationCreateForm] = Form.useForm();
   const [progressTabKey, setProgressTabKey] = useState<'stats' | 'allocation'>('stats');
   const [inOutTabKey, setInOutTabKey] = useState<'pending' | 'detail'>('pending');
-  const [inOutData, setInOutData] = useState<{
-    loading: boolean;
-    summaryRows: InOutSummaryRow[];
-    detailRows: InOutDetailRow[];
-  }>({ loading: false, summaryRows: [], detailRows: [] });
+  const [inOutData, setInOutData] = useState<InOutDataState>({ loading: false, summaryRows: [], detailRows: [] });
   const [progressActionForm] = Form.useForm();
   const selectedCreateStyleId = Form.useWatch('styleId', createForm);
 
@@ -596,6 +326,15 @@ const FactoryOrders = () => {
   }, []);
 
   useEffect(() => {
+    const nextKeyword = keywordParam;
+    const nextStatus = resolveOverallStatusParam(statusParam, keywordParam);
+    setSearchValue(nextKeyword);
+    setAppliedKeyword(nextKeyword);
+    setActiveStatus(nextStatus);
+    resetPagination();
+  }, [keywordParam, resetPagination, statusParam]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
     }
@@ -705,6 +444,8 @@ const FactoryOrders = () => {
 
   const handleOpenCreate = useCallback((presetStyleId?: number) => {
     setCreateModalOpen(true);
+    setEditingOrderId(null);
+    setEditingOrderCode(null);
     setCreateColors([]);
     setCreateSizes([]);
     setCreateMatrix({});
@@ -717,15 +458,17 @@ const FactoryOrders = () => {
     void loadCreateOptions();
   }, [createForm, loadCreateOptions]);
 
-  const handleCloseCreate = () => {
+  const handleCloseCreate = useCallback(() => {
     setCreateModalOpen(false);
+    setEditingOrderId(null);
+    setEditingOrderCode(null);
     setCreateColors([]);
     setCreateSizes([]);
     setCreateMatrix({});
     setCreateMatrixSeedStyleId(null);
     setPendingSampleProduceContext(null);
     createForm.resetFields();
-  };
+  }, [createForm]);
 
   const handleOpenCostDetail = useCallback(async (record: OrderActionSnapshot) => {
     setCostDetailRecord(record);
@@ -867,6 +610,8 @@ const FactoryOrders = () => {
 
   const handleCopyOrder = useCallback(async (record: OrderActionSnapshot) => {
     setCreateModalOpen(true);
+    setEditingOrderId(null);
+    setEditingOrderCode(null);
     setCreateColors([]);
     setCreateSizes([]);
     setCreateMatrix({});
@@ -881,6 +626,77 @@ const FactoryOrders = () => {
     });
     message.success(`已打开复制创建弹窗：${record.orderCode}`);
   }, [createForm, loadCreateOptions]);
+
+  const handleEditOrder = useCallback(async (record: OrderActionSnapshot) => {
+    setCreateModalOpen(true);
+    setCreateSubmitting(true);
+    setEditingOrderId(record.orderId);
+    setEditingOrderCode(record.orderCode);
+    setCreateColors([]);
+    setCreateSizes([]);
+    setCreateMatrix({});
+    setCreateMatrixSeedStyleId(null);
+    try {
+      await loadCreateOptions();
+      const detail = await factoryOrdersApi.getDetail(record.orderId);
+      const order = detail.order;
+      if (!order?.styleId) {
+        throw new Error('当前订单缺少款式信息，无法编辑');
+      }
+      const lineGroups = (detail.lines ?? []).filter((line) => Number(line.orderedQty ?? 0) > 0);
+      const colors = sortColorValues(lineGroups.map((line) => normalizeSpecLabel(line.color)));
+      const sizes = sortSizeValues(lineGroups.map((line) => normalizeSpecLabel(line.size)));
+      const nextMatrix = buildCreateMatrix(colors, sizes);
+      lineGroups.forEach((line) => {
+        const color = normalizeSpecLabel(line.color);
+        const size = normalizeSpecLabel(line.size);
+        nextMatrix[color][size] = normalizeQtyValue(line.orderedQty);
+      });
+      setCreateColors(colors);
+      setCreateSizes(sizes);
+      setCreateMatrix(nextMatrix);
+      setCreateMatrixSeedStyleId(order.styleId ?? null);
+      createForm.setFieldsValue({
+        orderNo: order.orderNo,
+        styleId: order.styleId,
+        expectedDelivery: order.expectedDelivery ? dayjs(order.expectedDelivery) : undefined,
+        factoryId: order.factoryId,
+        merchandiserId: order.merchandiserId,
+        overallStatus: order.status === 'COMPLETED' ? 'completed' : 'unfinished',
+        materialStatus: order.materialStatus ?? 'PENDING',
+        remarks: order.remarks,
+      });
+    } catch (error) {
+      console.error('failed to open edit factory order modal', error);
+      message.error(error instanceof Error ? error.message : '加载订单详情失败');
+      handleCloseCreate();
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }, [createForm, handleCloseCreate, loadCreateOptions]);
+
+  const handleDeleteOrder = useCallback((record: OrderActionSnapshot) => {
+    if (record.deletable === false) {
+      Modal.warning({
+        title: `工厂订单不可删除：${record.orderCode}`,
+        content: record.deleteBlockedReason || '当前工厂订单不允许删除。',
+        okText: '知道了',
+      });
+      return;
+    }
+    Modal.confirm({
+      title: `删除工厂订单：${record.orderCode}`,
+      content: '仅未进入执行流程、且没有节点执行记录的订单允许删除。删除后不可恢复。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        await factoryOrdersApi.deleteOrder(record.orderId);
+        message.success(`已删除工厂订单：${record.orderCode}`);
+        triggerReload();
+      },
+    });
+  }, []);
 
   const buildSpecKey = (color?: string, size?: string) => `${(color ?? '').trim()}::${(size ?? '').trim()}`;
 
@@ -1026,6 +842,23 @@ const FactoryOrders = () => {
       ]);
       const cuttingNode = nodes.find((item) => item.nodeCode === 'CUTTING');
       const sewingNode = nodes.find((item) => item.nodeCode === 'SEWING');
+      const cuttingSheetAllocations = parseNodeAllocations(cuttingNode).filter(
+        (allocation) =>
+          typeof allocation.workOrderId === 'number'
+          && allocation.workOrderId > 0
+          && allocation.source?.startsWith('CUTTING_SHEET'),
+      );
+      const currentCuttingSheetTarget = cuttingSheetAllocations.find(
+        (allocation) => allocation.source === CUTTING_SHEET_START_SOURCE,
+      ) ?? cuttingSheetAllocations[0];
+      setCuttingSheetTarget(
+        currentCuttingSheetTarget?.workOrderId
+          ? {
+              workOrderId: currentCuttingSheetTarget.workOrderId,
+              bedNumber: currentCuttingSheetTarget.bedNumber,
+            }
+          : null,
+      );
       const cuttingAllocations = parseNodeAllocations(cuttingNode, 'cutting');
       const cuttingItems = cuttingAllocations.flatMap((allocation) => allocation.items);
       const sewingAllocations = normalizeSewingAllocationsForDisplay(
@@ -1140,6 +973,7 @@ const FactoryOrders = () => {
       setAllocationSizes([]);
       setAllocationMatrix({});
       setAllocationHistoryRows([]);
+      setCuttingSheetTarget(null);
     }
   }, []);
 
@@ -1258,6 +1092,7 @@ const FactoryOrders = () => {
       setAllocationSizes([]);
       setAllocationMatrix({});
       setAllocationHistoryRows([]);
+      setCuttingSheetTarget(null);
       setInOutData({ loading: false, summaryRows: [], detailRows: [] });
     }
     if (stage.key === 'fabric_arrived' || stage.key === 'accessory_arrived') {
@@ -1566,22 +1401,44 @@ const FactoryOrders = () => {
     navigate('/basic/partners?type=factory');
   }, [navigate]);
 
-  const handleNavigateToCuttingSheet = useCallback(async (record: AllocationHistoryRow) => {
-    if (!record.workOrderId || !record.source?.startsWith('CUTTING_SHEET')) {
+  const handleNavigateToCuttingSheetByWorkOrder = useCallback(async (workOrderId?: number) => {
+    if (!workOrderId) {
       return;
     }
     try {
-      const detail = await pieceworkService.getCuttingSheetDetail(record.workOrderId);
+      const detail = await pieceworkService.getCuttingSheetDetail(workOrderId);
       const targetPath =
         detail.status === 'COMPLETED'
           ? '/piecework/cutting/done'
           : '/piecework/cutting/pending';
-      navigate(`${targetPath}?workOrderId=${record.workOrderId}&openDetail=1`);
+      const nextSearchParams = new URLSearchParams({
+        workOrderId: String(workOrderId),
+        openDetail: '1',
+      });
+      if (detail.orderCode?.trim()) {
+        nextSearchParams.set('keyword', detail.orderCode.trim());
+      }
+      navigate(`${targetPath}?${nextSearchParams.toString()}`);
     } catch (error) {
       console.error('failed to resolve cutting sheet route', error);
       message.error('跳转裁床单失败，请稍后重试');
     }
   }, [navigate]);
+
+  const handleNavigateToCuttingSheet = useCallback(async (record: AllocationHistoryRow) => {
+    if (!record.workOrderId || !record.source?.startsWith('CUTTING_SHEET')) {
+      return;
+    }
+    await handleNavigateToCuttingSheetByWorkOrder(record.workOrderId);
+  }, [handleNavigateToCuttingSheetByWorkOrder]);
+
+  const handleNavigateToCurrentCuttingSheet = useCallback(() => {
+    if (!cuttingSheetTarget?.workOrderId) {
+      message.warning('当前节点还没有可跳转的裁床单');
+      return;
+    }
+    void handleNavigateToCuttingSheetByWorkOrder(cuttingSheetTarget.workOrderId);
+  }, [cuttingSheetTarget?.workOrderId, handleNavigateToCuttingSheetByWorkOrder]);
 
   const handleNavigateToOutsourceOrder = useCallback((record: AllocationHistoryRow) => {
     if (!record.outsourcingOrderId) {
@@ -1704,6 +1561,22 @@ const FactoryOrders = () => {
     progressActionModal.stage,
   ]);
 
+  const handleCloseProgressActionModal = useCallback(() => {
+    setProgressActionModal({ open: false, submitting: false });
+    setAllocationCreateModalOpen(false);
+    setAllocationCreateSubmitting(false);
+    setProgressTabKey('stats');
+    setProgressStats({ loading: false, rows: [] });
+    setProgressNodeQuantities({});
+    setAllocationColors([]);
+    setAllocationSizes([]);
+    setAllocationMatrix({});
+    setAllocationHistoryRows([]);
+    setCuttingSheetTarget(null);
+    allocationCreateForm.resetFields();
+    progressActionForm.resetFields();
+  }, [allocationCreateForm, progressActionForm]);
+
   const handleSubmitCreate = async () => {
     try {
       const values = await createForm.validateFields();
@@ -1728,7 +1601,7 @@ const FactoryOrders = () => {
         return;
       }
       setCreateSubmitting(true);
-      await factoryOrdersApi.createOrder({
+      const payload = {
         orderNo: values.orderNo,
         sourceSampleOrderId: pendingSampleProduceContext?.sampleOrderId,
         styleId: values.styleId,
@@ -1741,15 +1614,20 @@ const FactoryOrders = () => {
         factoryId: values.factoryId,
         remarks: values.remarks,
         lines: lineItems,
-      });
-      if (pendingSampleProduceContext?.sampleOrderId) {
+      };
+      if (editingOrderId) {
+        await factoryOrdersApi.updateOrder(editingOrderId, payload);
+      } else {
+        await factoryOrdersApi.createOrder(payload);
+      }
+      if (!editingOrderId && pendingSampleProduceContext?.sampleOrderId) {
         await sampleOrderApi.updateStatus(
           pendingSampleProduceContext.sampleOrderId,
           SampleStatusEnum.PRODUCING,
           '转大货生产',
         );
       }
-      message.success('工厂订单创建成功');
+      message.success(editingOrderId ? '工厂订单更新成功' : '工厂订单创建成功');
       setPendingSampleProduceContext(null);
       handleCloseCreate();
       triggerReload();
@@ -2023,10 +1901,47 @@ const FactoryOrders = () => {
           >
             打印
           </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => void handleEditOrder({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+            })}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteOrder({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+              deletable: record.deletable,
+              deleteBlockedReason: record.deleteBlockedReason,
+            })}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
-  ], [handleCopyOrder, handleOpenCostDetail, handleOpenPrintPreview]);
+  ], [handleCopyOrder, handleDeleteOrder, handleEditOrder, handleOpenCostDetail, handleOpenPrintPreview]);
 
   const rowSelection = useMemo(() => ({
     selectedRowKeys: selectedOrderIds,
@@ -2265,260 +2180,30 @@ const FactoryOrders = () => {
   const statsPrimaryLabel = isCuttingProgressStage ? '已裁' : '已完成';
   const statsSecondaryLabel = isCuttingProgressStage ? undefined : '已领取';
   const statsCapacityLabel = isCuttingProgressStage ? '下单量' : '裁床已完成';
-  const renderCardView = () => {
-    if (loadingCards && cardOrders.length === 0) {
-      return (
-        <List
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}
-          dataSource={Array.from({ length: cardPageSize }, (_v, index) => ({ id: `factory-skeleton-${index}` }))}
-          rowKey="id"
-          renderItem={(item) => (
-            <List.Item key={item.id}>
-              <Card>
-                <Skeleton active paragraph={{ rows: 6 }} />
-              </Card>
-            </List.Item>
-          )}
-        />
-      );
-    }
-
-    if (!loadingCards && cardOrders.length === 0) {
-      return <Empty description={appliedKeyword ? '未找到匹配的工厂订单' : '暂无工厂订单'} />;
-    }
-
-    return (
-      <>
-        <List
-          className="factory-orders-card-list"
-          rowKey="id"
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}
-          dataSource={cardOrders}
-          renderItem={(order) => {
-            const isChecked = selectedOrderIds.includes(order.id);
-            const meta = getOverallStatusMeta(order.isCompleted, order.statusKey);
-            const visibleTags = (order.tags ?? []).filter((tag) => !hiddenOrderStatusTags.has(tag));
-            const overallCompleted = resolveOverallCompleted(order.isCompleted, order.statusKey);
-            return (
-              <List.Item key={order.id}>
-                <Card className="factory-order-card-shell" styles={{ body: { display: 'flex', flexDirection: 'column', gap: 16, padding: 20 } }}>
-                  <div className="factory-order-card-header">
-                    <div className="factory-order-card-main">
-                      <div className="factory-order-checkbox">
-                        <Checkbox
-                          checked={isChecked}
-                          onChange={(event) => handleToggleOrder(order.id, event.target.checked)}
-                        />
-                      </div>
-                      <div className="factory-order-card-info">
-                        <ListImage
-                          src={order.thumbnail}
-                          alt={order.name}
-                          wrapperClassName="factory-order-thumbnail"
-                          width={null}
-                          height={null}
-                        />
-                        <div className="factory-order-content">
-                          <div className="factory-order-topline">
-                            <div className="factory-order-title">{order.name}</div>
-                          </div>
-                          <Space className="factory-order-meta-row" size={8} wrap>
-                            <span className="factory-order-subtitle">订单号：{order.code}</span>
-                            {order.expectedDelivery ? <span className="factory-order-subtitle">预计交货：{order.expectedDelivery}</span> : null}
-                            <span className={`factory-order-status-badge${overallCompleted ? ' completed' : ' ongoing'}`}>
-                              {meta.label}
-                            </span>
-                          </Space>
-                          {order.materialStatus && order.materialStatus !== 'PENDING' ? (
-                            <div className="factory-order-material-tag">
-                              <Tag color={getMaterialTagColor(order.materialStatus)}>{getMaterialStatusLabel(order.materialStatus)}</Tag>
-                            </div>
-                          ) : null}
-                          <div className="factory-order-tags">
-                            <Tag color="blue" bordered={false}>
-                              {order.quantityLabel}：{order.quantityValue}
-                            </Tag>
-                            {visibleTags.map((tag) => (
-                              <Tag key={`${order.id}-${tag}`} bordered={false}>
-                                {tag}
-                              </Tag>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="factory-order-actions">
-                      <Space size={8} wrap>
-                        <Button
-                          size="small"
-                          type="text"
-                          onClick={() => void handleOpenCostDetail({
-                            orderId: order.id,
-                            orderCode: order.code,
-                            styleName: order.name,
-                            expectedDelivery: order.expectedDelivery,
-                            materialStatus: order.materialStatus,
-                          })}
-                        >
-                          大货成本
-                        </Button>
-                        <Button
-                          size="small"
-                          type="text"
-                          onClick={() => void handleCopyOrder({
-                            orderId: order.id,
-                            orderCode: order.code,
-                            styleName: order.name,
-                            expectedDelivery: order.expectedDelivery,
-                            materialStatus: order.materialStatus,
-                          })}
-                        >
-                          复制
-                        </Button>
-                        <Button
-                          size="small"
-                          type="text"
-                          onClick={() => handleOpenPrintPreview({
-                            orderId: order.id,
-                            orderCode: order.code,
-                            styleName: order.name,
-                            expectedDelivery: order.expectedDelivery,
-                            materialStatus: order.materialStatus,
-                          })}
-                        >
-                          打印
-                        </Button>
-                      </Space>
-                    </div>
-                  </div>
-
-                  <div className="factory-order-progress-panel">
-                    <div className="factory-order-progress-panel-header">
-                      <div className="factory-order-progress-panel-title">生产推进</div>
-                      <div className="factory-order-progress-panel-meta">点击节点可继续推进状态</div>
-                    </div>
-                    <div className="factory-order-progress">
-                    <div className="factory-order-progress-track">
-                      {order.progress.map((stage, index) => {
-                        const {
-                          breakdown: stageBreakdown,
-                          isCompleted,
-                          isInProgress,
-                          isOrderPlaced,
-                          isOvercut,
-                          progressStateClass,
-                        } = resolveProgressStageState(stage);
-                        const predecessorBlockedStage = order.progress
-                          .slice(0, index)
-                          .find((prev) => {
-                            const prevState = resolveProgressStageState(prev);
-                            return !prevState.isCompleted;
-                          });
-                        const predecessorCuttingBreakdown = predecessorBlockedStage
-                          ? resolveProgressStageState(predecessorBlockedStage).breakdown
-                          : null;
-                        const allowSewingWithPartialCutting = stage.key === 'sewing'
-                          && predecessorBlockedStage?.key === 'cutting'
-                          && (predecessorCuttingBreakdown?.completedPercent ?? 0) > 0;
-                        const effectiveBlockedStage = allowSewingWithPartialCutting ? undefined : predecessorBlockedStage;
-                        const predecessorBlockedName = effectiveBlockedStage
-                          ? normalizeProgressLabel(effectiveBlockedStage)
-                          : '';
-                        const alwaysViewable = stage.key === 'inbound';
-                        const repeatOpen = stage.key === 'cutting'
-                          || stage.key === 'sewing'
-                          || stage.key === 'fabric_arrived'
-                          || stage.key === 'accessory_arrived'
-                          || alwaysViewable;
-                        const clickable = Boolean(
-                          progressNodeCodeMap[stage.key]
-                          && (!isCompleted || repeatOpen)
-                          && (!effectiveBlockedStage || alwaysViewable),
-                        );
-                        const nodeStatusContent = isOrderPlaced ? (
-                          <span>{`下单数量：${order.quantityValue}`}</span>
-                        ) : isCompleted ? (
-                          <span>{stage.date ?? '已完成'}</span>
-                        ) : isInProgress ? (
-                          <span>进行中</span>
-                        ) : (
-                          <span>待完成</span>
-                        );
-                        const iconContent = stageBreakdown ? (
-                          <span className="factory-order-progress-icon-percent">{`${stageBreakdown.completedPercent}%`}</span>
-                        ) : (
-                          isOvercut ? <ExclamationCircleOutlined /> : isCompleted ? <CheckOutlined /> : <ClockCircleOutlined />
-                        );
-                        return (
-                          <div className="factory-order-progress-step" key={`${order.id}-${stage.key}`}>
-                            <div
-                              className={`factory-order-progress-node ${progressStateClass}${clickable ? ' clickable' : ''}`}
-                              onClick={() => {
-                                if (effectiveBlockedStage && !alwaysViewable) {
-                                  message.warning(`请先完成前置节点：${predecessorBlockedName}`);
-                                  return;
-                                }
-                                if (!clickable) {
-                                  return;
-                                }
-                                handleOpenProgressAction({
-                                  orderId: order.id,
-                                  orderCode: order.code,
-                                  styleName: order.name,
-                                  expectedDelivery: order.expectedDelivery,
-                                  materialStatus: order.materialStatus,
-                                  orderQuantity: Number(order.quantityValue),
-                                }, stage);
-                              }}
-                            >
-                              <div className={`factory-order-progress-icon ${progressStateClass}${stageBreakdown ? ' has-percent' : ''}`}>
-                                {iconContent}
-                              </div>
-                              <div className="factory-order-progress-content">
-                                <div className="factory-order-progress-name">{normalizeProgressLabel(stage)}</div>
-                                <div className={`factory-order-progress-status ${progressStateClass}`}>
-                                  {nodeStatusContent}
-                                </div>
-                              </div>
-                            </div>
-                            {index < order.progress.length - 1 ? (
-                              <div
-                                className={`factory-order-progress-arrow ${progressStateClass}`}
-                              />
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  </div>
-                </Card>
-              </List.Item>
-            );
-          }}
-        />
-        {cardTotal > cardPageSize ? (
-          <div className="factory-orders-pagination">
-            <Pagination
-              current={cardPage}
-              pageSize={cardPageSize}
-              total={cardTotal}
-              showQuickJumper
-              showSizeChanger
-              pageSizeOptions={['6', '9', '12']}
-              showTotal={(total, range) => `${range[0]}-${range[1]} / 共 ${total} 单`}
-              onChange={(page, size) => {
-                setCardPage(page);
-                if (size) {
-                  setCardPageSize(size);
-                }
-              }}
-            />
-          </div>
-        ) : null}
-      </>
-    );
-  };
+  const renderCardView = () => (
+    <FactoryOrderCardList
+      loading={loadingCards}
+      orders={cardOrders}
+      total={cardTotal}
+      page={cardPage}
+      pageSize={cardPageSize}
+      appliedKeyword={appliedKeyword}
+      selectedOrderIds={selectedOrderIds}
+      onToggleOrder={handleToggleOrder}
+      onPageChange={(page, size) => {
+        setCardPage(page);
+        if (size) {
+          setCardPageSize(size);
+        }
+      }}
+      onOpenCostDetail={(record) => void handleOpenCostDetail(record)}
+      onCopyOrder={(record) => void handleCopyOrder(record)}
+      onEditOrder={(record) => void handleEditOrder(record)}
+      onDeleteOrder={handleDeleteOrder}
+      onOpenPrintPreview={handleOpenPrintPreview}
+      onOpenProgressAction={handleOpenProgressAction}
+    />
+  );
 
   const renderTableView = () => {
     if (!loadingTable && tableOrders.length === 0) {
@@ -2662,827 +2347,129 @@ const FactoryOrders = () => {
         </div>
       </Card>
 
-      <Modal
+      <CreateOrderModal
         open={createModalOpen}
-        title="新建工厂订单"
-        data-testid="factory-order-create-modal"
+        title={editingOrderId ? `编辑工厂订单${editingOrderCode ? ` - ${editingOrderCode}` : ''}` : '新建工厂订单'}
+        okText={editingOrderId ? '保存' : '创建'}
+        isEditing={Boolean(editingOrderId)}
+        confirmLoading={createSubmitting}
         onCancel={handleCloseCreate}
         onOk={handleSubmitCreate}
-        confirmLoading={createSubmitting}
-        width={1120}
-        destroyOnHidden
-      >
-        <Form form={createForm} layout="vertical">
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="订单号" name="orderNo">
-                <Input placeholder="留空自动生成（可手动覆盖）" data-testid="factory-order-create-order-no" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="款式" name="styleId" rules={[{ required: true, message: '请选择款式' }]}>
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  loading={createOptionsLoading}
-                  options={styleOptions}
-                  placeholder="请选择款式"
-                  notFoundContent={createOptionsLoading ? '加载中...' : '暂无款式数据'}
-                  data-testid="factory-order-create-style-select"
-                />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="单价（元/件）" name="unitPrice">
-                <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="可选，不填按 0 处理" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="预计交货日期" name="expectedDelivery">
-                <div data-testid="factory-order-create-delivery-date-wrapper">
-                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="请选择预计交货日期" inputReadOnly={false} data-testid="factory-order-create-delivery-date" />
-                </div>
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="工厂" name="factoryId">
-                <Select
-                  showSearch
-                  allowClear
-                  optionFilterProp="label"
-                  loading={createOptionsLoading}
-                  options={factoryOptions}
-                  placeholder="可选"
-                  notFoundContent={createOptionsLoading ? '加载中...' : '暂无工厂数据'}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="跟单员" name="merchandiserId">
-                <Select
-                  showSearch
-                  allowClear
-                  optionFilterProp="label"
-                  loading={createOptionsLoading}
-                  options={merchandiserOptions}
-                  placeholder="可选"
-                  notFoundContent={createOptionsLoading ? '加载中...' : '暂无跟单员数据'}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="整体状态" name="overallStatus">
-                <Select options={overallStatusOptions} placeholder="请选择整体状态" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="物料状态" name="materialStatus">
-                <Select allowClear options={materialStatusOptions} placeholder="可选" />
-              </Form.Item>
-            </Col>
-            {selectedStyleOption ? (
-              <Col span={24}>
-                <div className="factory-create-style-preview">
-                  <ListImage
-                    src={selectedStyleOption.image}
-                    alt={selectedStyleOption.label}
-                    width={88}
-                    height={88}
-                    borderRadius={6}
-                  />
-                  <Space direction="vertical" size={2}>
-                    <Text type="secondary">款式图片</Text>
-                    <Text>{selectedStyleOption.label}</Text>
-                  </Space>
-                </div>
-              </Col>
-            ) : null}
-            {selectedStyleOption ? (
-              <Col span={24}>
-                <Form.Item label="关联面辅料">
-                  {createStyleMaterials.length === 0 ? (
-                    <Text type="secondary">当前款式未配置 BOM，暂无可同步的面辅料。</Text>
-                  ) : (
-                    <div className="factory-create-material-preview">
-                      {createStyleMaterials.map((item) => (
-                        <div key={`${item.materialId}-${item.materialType}`} className="factory-create-material-card">
-                          <div className="factory-create-material-top">
-                            <span className={`factory-create-material-type ${item.materialType.toLowerCase()}`}>
-                              {item.materialType === 'FABRIC' ? '面料' : item.materialType === 'ACCESSORY' ? '辅料' : '包装'}
-                            </span>
-                            <span className="factory-create-material-sku">{item.materialSku || '未配置编码'}</span>
-                          </div>
-                          <div className="factory-create-material-name">{item.materialName}</div>
-                          <div className="factory-create-material-meta">
-                            单耗 {item.consumption || 0}{item.unit || '件'}
-                            {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Form.Item>
-              </Col>
-            ) : null}
-            <Col span={12}>
-              <Form.Item label="颜色" required>
-                <Select
-                  mode="tags"
-                  value={createColors}
-                  onChange={handleCreateColorsChange}
-                  options={createColorOptions}
-                  tokenSeparators={[',', '，', '、', ' ']}
-                  placeholder={selectedStyleOption ? '回车添加或选择颜色' : '请先选择款式'}
-                  disabled={!selectedStyleOption}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="尺码" required>
-                <Select
-                  mode="tags"
-                  value={createSizes}
-                  onChange={handleCreateSizesChange}
-                  options={createSizeOptions}
-                  tokenSeparators={[',', '，', '、', ' ']}
-                  placeholder={selectedStyleOption ? '回车添加或选择尺码' : '请先选择款式'}
-                  disabled={!selectedStyleOption}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item label="下单数量（颜色 × 尺码）" required>
-                {!selectedStyleOption ? (
-                  <Text type="secondary">请先选择款式，系统将自动带出该款颜色和尺码。</Text>
-                ) : createColors.length === 0 || createSizes.length === 0 ? (
-                  <Text type="secondary">请先补全颜色和尺码，再录入数量。</Text>
-                ) : (
-                  <div className="factory-create-matrix-wrap">
-                    <table className="factory-create-matrix-table">
-                      <thead>
-                        <tr>
-                          <th>颜色 \\ 尺码</th>
-                          {createSizes.map((size) => (
-                            <th key={`head-${size}`}>{size}</th>
-                          ))}
-                          <th>小计</th>
-                        </tr>
-                      </thead>
-                      <tbody data-testid="factory-order-create-quantity-matrix">
-                        {createColors.map((color) => (
-                          <tr key={`row-${color}`}>
-                            <td>{color}</td>
-                            {createSizes.map((size) => (
-                              <td key={`${color}-${size}`}>
-                                <InputNumber
-                                  min={0}
-                                  precision={0}
-                                  value={normalizeQtyValue(createMatrix[color]?.[size])}
-                                  onChange={(value) => handleCreateMatrixQtyChange(color, size, value)}
-                                  controls={false}
-                                  style={{ width: '100%' }}
-                                  placeholder="0"
-                                />
-                              </td>
-                            ))}
-                            <td>{createRowTotals[color] ?? 0}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td>合计</td>
-                          {createSizes.map((size) => (
-                            <td key={`sum-${size}`}>{createColumnTotals[size] ?? 0}</td>
-                          ))}
-                          <td>{createGrandTotal}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )}
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item label="备注" name="remarks">
-                <Input.TextArea rows={2} placeholder="可选" />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
+        form={createForm}
+        createOptionsLoading={createOptionsLoading}
+        styleOptions={styleOptions}
+        factoryOptions={factoryOptions}
+        merchandiserOptions={merchandiserOptions}
+        selectedStyleOption={selectedStyleOption}
+        createStyleMaterials={createStyleMaterials}
+        createColors={createColors}
+        createSizes={createSizes}
+        createColorOptions={createColorOptions}
+        createSizeOptions={createSizeOptions}
+        createMatrix={createMatrix}
+        createRowTotals={createRowTotals}
+        createColumnTotals={createColumnTotals}
+        createGrandTotal={createGrandTotal}
+        onCreateColorsChange={handleCreateColorsChange}
+        onCreateSizesChange={handleCreateSizesChange}
+        onCreateMatrixQtyChange={handleCreateMatrixQtyChange}
+      />
 
-      <Modal
-        open={importModal.open}
-        title="导入工厂订单"
+      <ImportOrdersModal
+        state={importModal}
         onCancel={handleCloseImport}
         onOk={handleConfirmImport}
-        confirmLoading={importModal.uploading}
-        destroyOnHidden
-        width={720}
-      >
-        <Upload.Dragger
-          accept=".json,application/json"
-          multiple={false}
-          beforeUpload={handleImportBeforeUpload}
-          fileList={importModal.fileList}
-          onRemove={() => {
-            setImportModal((prev) => ({ ...prev, fileList: [], records: [] }));
-            return true;
-          }}
-        >
-          <p className="ant-upload-drag-icon">
-            <ImportOutlined />
-          </p>
-          <p className="ant-upload-text">点击或拖拽 JSON 文件到此处完成导入</p>
-          <p className="ant-upload-hint">支持字段：orderNo、styleId、merchandiserId、factoryId、totalQuantity、expectedDelivery、status、materialStatus、remarks</p>
-        </Upload.Dragger>
-        {importModal.error ? (
-          <Alert type="error" showIcon style={{ marginTop: 16 }} message={importModal.error} />
-        ) : null}
-        {importModal.records.length ? (
-          <Table<ImportRecord>
-            style={{ marginTop: 16 }}
-            size="small"
-            bordered
-            rowKey={(record) => record.orderNo}
-            dataSource={importModal.records}
-            pagination={false}
-            columns={[
-              { title: '订单号', dataIndex: 'orderNo' },
-              { title: '款式 ID', dataIndex: 'styleId' },
-              { title: '数量', dataIndex: 'totalQuantity' },
-              { title: '预计交期', dataIndex: 'expectedDelivery' },
-              { title: '状态', dataIndex: 'status' },
-              { title: '物料状态', dataIndex: 'materialStatus' },
-            ]}
-          />
-        ) : null}
-      </Modal>
+        onBeforeUpload={handleImportBeforeUpload}
+        onRemove={() => setImportModal((prev) => ({ ...prev, fileList: [], records: [] }))}
+      />
 
-      <Modal
-        open={progressActionModal.open}
-        title={progressActionModal.stage ? `执行节点：${normalizeProgressLabel(progressActionModal.stage)}` : '执行节点'}
-        onCancel={() => {
-          setProgressActionModal({ open: false, submitting: false });
-          setAllocationCreateModalOpen(false);
-          setAllocationCreateSubmitting(false);
-          setProgressTabKey('stats');
-          setProgressStats({ loading: false, rows: [] });
-          setProgressNodeQuantities({});
-          setAllocationColors([]);
-          setAllocationSizes([]);
-          setAllocationMatrix({});
-          setAllocationHistoryRows([]);
-          allocationCreateForm.resetFields();
-          progressActionForm.resetFields();
-        }}
-        onOk={isInOutProgressStage || inOutStageCompleted ? undefined : handleSubmitProgressAction}
-        confirmLoading={progressActionModal.submitting}
-        footer={
-          progressActionModal.stage?.key === 'cutting' || progressActionModal.stage?.key === 'sewing'
-            ? null
-            : isInOutProgressStage
-              ? [
-                <Button
-                  key="close"
-                  onClick={() => {
-                    setProgressActionModal({ open: false, submitting: false });
-                    setAllocationCreateModalOpen(false);
-                    setAllocationCreateSubmitting(false);
-                    setProgressTabKey('stats');
-                    setProgressStats({ loading: false, rows: [] });
-                    setProgressNodeQuantities({});
-                    setAllocationColors([]);
-                    setAllocationSizes([]);
-                    setAllocationMatrix({});
-                    setAllocationHistoryRows([]);
-                    allocationCreateForm.resetFields();
-                    progressActionForm.resetFields();
-                  }}
-                >
-                  关闭
-                </Button>,
-              ]
-            : inOutStageCompleted
-              ? [
-                <Button
-                  key="close"
-                  onClick={() => {
-                    setProgressActionModal({ open: false, submitting: false });
-                    setAllocationCreateModalOpen(false);
-                    setAllocationCreateSubmitting(false);
-                    setProgressTabKey('stats');
-                    setProgressStats({ loading: false, rows: [] });
-                    setProgressNodeQuantities({});
-                    setAllocationColors([]);
-                    setAllocationSizes([]);
-                    setAllocationMatrix({});
-                    setAllocationHistoryRows([]);
-                    allocationCreateForm.resetFields();
-                    progressActionForm.resetFields();
-                  }}
-                >
-                  关闭
-                </Button>,
-              ]
-              : undefined
-        }
+      <ProgressActionModal
+        state={progressActionModal}
+        form={progressActionForm}
+        tabKey={progressTabKey}
+        inOutTabKey={inOutTabKey}
+        inOutData={inOutData}
+        stats={progressStats}
         width={progressModalWidth}
-        styles={isWideProgressStage || isInOutProgressStage ? { body: { maxHeight: '72vh', overflow: 'auto' } } : undefined}
-        destroyOnHidden
-      >
-        <Form form={progressActionForm} layout="vertical">
-          {progressActionModal.stage?.key === 'fabric_arrived' || progressActionModal.stage?.key === 'accessory_arrived' ? (
-            <Form.Item label="到货时间" name="arrivedAt" rules={[{ required: true, message: '请选择到货时间' }]}>
-              <DatePicker showTime style={{ width: '100%' }} />
-            </Form.Item>
-          ) : null}
-          {progressActionModal.stage?.key === 'cutting' || progressActionModal.stage?.key === 'sewing' ? (
-            <Tabs
-              activeKey={progressTabKey}
-              onChange={(key: string) => setProgressTabKey(key as 'stats' | 'allocation')}
-              items={[
-                {
-                  key: 'stats',
-                  label: '统计信息',
-                  children: (
-                    <>
-                      <div className="factory-allocation-summary-title">汇总信息</div>
-                      {progressStats.loading ? (
-                        <Skeleton active paragraph={{ rows: 4 }} />
-                      ) : statsDisplayColors.length === 0 || statsDisplaySizes.length === 0 ? (
-                        <Text type="secondary">暂无统计数据</Text>
-                      ) : (
-                        <>
-                          <Alert
-                            type={isSewingProgressStage && sewingAllocatedTotal > orderedTotal ? 'warning' : 'info'}
-                            showIcon
-                            style={{ marginBottom: 8 }}
-                            message={
-                              isCuttingProgressStage
-                                ? `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
-                                : `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，车缝累计已完成：${sewingCompletedTotal}，车缝累计已领取：${sewingAllocatedTotal}，当前剩余可领：${allocationRemainingTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
-                            }
-                          />
-                          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                            {isCuttingProgressStage
-                              ? '矩阵口径：已裁 / 下单量'
-                              : '矩阵口径：已完成 / 已领取 / 裁床已完成；进度百分比仍按下单总量计算'}
-                          </Text>
-                          <div className="factory-create-matrix-wrap">
-                            <table className="factory-create-matrix-table">
-                              <thead>
-                                <tr>
-                                  <th>颜色</th>
-                                  {statsDisplaySizes.map((size) => (
-                                    <th key={`stats-head-${size}`}>{size}</th>
-                                  ))}
-                                  <th>小计</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {statsDisplayColors.map((color) => (
-                                  <tr key={`stats-row-${color}`}>
-                                    <td>{color}</td>
-                                    {statsDisplaySizes.map((size) => (
-                                      <td key={`stats-${color}-${size}`}>
-                                        {(statsDoneMatrix[color]?.[size] ?? 0)}
-                                        {isCuttingProgressStage ? (
-                                          <>
-                                            {' / '}
-                                            {(statsCapacityMatrix[color]?.[size] ?? 0)}
-                                          </>
-                                        ) : (
-                                          <>
-                                            {' / '}
-                                            {(statsSecondaryMatrix[color]?.[size] ?? 0)}
-                                            {' / '}
-                                            {(statsCapacityMatrix[color]?.[size] ?? 0)}
-                                          </>
-                                        )}
-                                      </td>
-                                    ))}
-                                    <td>
-                                      {(statsDoneRowTotals[color] ?? 0)}
-                                      {isCuttingProgressStage ? (
-                                        <>
-                                          {' / '}
-                                          {(statsCapacityRowTotals[color] ?? 0)}
-                                        </>
-                                      ) : (
-                                        <>
-                                          {' / '}
-                                          {(statsSecondaryRowTotals[color] ?? 0)}
-                                          {' / '}
-                                          {(statsCapacityRowTotals[color] ?? 0)}
-                                        </>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot>
-                                <tr>
-                                  <td>合计</td>
-                                  {statsDisplaySizes.map((size) => (
-                                    <td key={`stats-sum-${size}`}>
-                                      {(statsDoneColumnTotals[size] ?? 0)}
-                                      {isCuttingProgressStage ? (
-                                        <>
-                                          {' / '}
-                                          {(statsCapacityColumnTotals[size] ?? 0)}
-                                        </>
-                                      ) : (
-                                        <>
-                                          {' / '}
-                                          {(statsSecondaryColumnTotals[size] ?? 0)}
-                                          {' / '}
-                                          {(statsCapacityColumnTotals[size] ?? 0)}
-                                        </>
-                                      )}
-                                    </td>
-                                  ))}
-                                  <td>
-                                    {statsDoneTotal}
-                                    {isCuttingProgressStage ? (
-                                      <>
-                                        {' / '}
-                                        {allocationCapacityTotal}
-                                      </>
-                                    ) : (
-                                      <>
-                                        {' / '}
-                                        {statsSecondaryTotal}
-                                        {' / '}
-                                        {allocationCapacityTotal}
-                                      </>
-                                    )}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                            {isCuttingProgressStage
-                              ? `${statsPrimaryLabel} / ${statsCapacityLabel}`
-                              : `${statsPrimaryLabel} / ${statsSecondaryLabel} / ${statsCapacityLabel}`}
-                          </Text>
-                        </>
-                      )}
-                    </>
-                  ),
-                },
-                {
-                  key: 'allocation',
-                  label: isCuttingProgressStage ? '裁剪数据' : '领取记录',
-                  children: (
-                    <>
-                      {allocationHistoryRows.length === 0 ? (
-                        <Text type="secondary">{isCuttingProgressStage ? '暂无裁剪记录' : '暂无领取记录'}</Text>
-                      ) : allocationHistoryRows.map((record) => {
-                        const recordMatrix = record.items.reduce<Record<string, Record<string, number>>>((matrix, item) => {
-                          if (!matrix[item.color]) {
-                            matrix[item.color] = {};
-                          }
-                          matrix[item.color][item.size] = (matrix[item.color][item.size] ?? 0) + item.quantity;
-                          return matrix;
-                        }, {});
-                        const recordTotal = record.items.reduce((sum, item) => sum + item.quantity, 0);
-                        const factoryLabel = record.factoryId
-                          ? (factoryOptions.find((item) => item.value === record.factoryId)?.label ?? `工厂ID:${record.factoryId}`)
-                          : '-';
-                        return (
-                          <div key={record.key} style={{ marginBottom: 16 }}>
-                            <div style={{ marginBottom: 6 }}>
-                              {isCuttingProgressStage ? (
-                                record.workOrderId && record.source?.startsWith('CUTTING_SHEET') ? (
-                                  <Button
-                                    type="link"
-                                    size="small"
-                                    style={{ padding: 0, height: 'auto' }}
-                                    onClick={() => void handleNavigateToCuttingSheet(record)}
-                                  >
-                                    {`床次：${record.bedNumber ?? '-'}`}
-                                  </Button>
-                                ) : (
-                                  <Text strong>{`床次：${record.bedNumber ?? '-'}`}</Text>
-                                )
-                              ) : (
-                                <>
-                                  <Text strong>{`工厂：${factoryLabel}`}</Text>
-                                  {record.outsourcingOrderId ? (
-                                    <Tag
-                                      color={
-                                        outsourceStatusByOrderId[String(record.outsourcingOrderId)] === '已完成'
-                                        || outsourceStatusByOrderId[String(record.outsourcingOrderId)] === '已结算'
-                                          ? 'success'
-                                          : 'processing'
-                                      }
-                                      style={{ marginLeft: 12 }}
-                                    >
-                                      {outsourceStatusByOrderId[String(record.outsourcingOrderId)] ?? '加载中'}
-                                    </Tag>
-                                  ) : null}
-                                  {record.outsourcingOrderId ? (
-                                    <Button
-                                      type="link"
-                                      size="small"
-                                      style={{ padding: 0, height: 'auto', marginLeft: 12 }}
-                                      onClick={() => handleNavigateToOutsourceOrder(record)}
-                                    >
-                                      查看外发单
-                                    </Button>
-                                  ) : null}
-                                </>
-                              )}
-                              {isCuttingProgressStage ? (
-                                <Text type="secondary" style={{ marginLeft: 12 }}>
-                                  工厂：{factoryLabel}
-                                </Text>
-                              ) : null}
-                              <Text type="secondary" style={{ marginLeft: 12 }}>
-                                {isCuttingProgressStage ? '录入时间' : '领取时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
-                              </Text>
-                              <Text type="secondary" style={{ marginLeft: 12 }}>
-                                工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
-                              </Text>
-                            </div>
-                            <div className="factory-create-matrix-wrap">
-                              <table className="factory-create-matrix-table">
-                                <thead>
-                                  <tr>
-                                    <th>颜色</th>
-                                    {allocationDisplaySizes.map((size) => (
-                                      <th key={`${record.key}-head-${size}`}>{size}</th>
-                                    ))}
-                                    <th>小计</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {allocationDisplayColors.map((color) => {
-                                    const rowAssigned = allocationDisplaySizes.reduce((sum, size) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
-                                    const rowCapacity = allocationCapacityRowTotals[color] ?? 0;
-                                    return (
-                                      <tr key={`${record.key}-row-${color}`}>
-                                        <td>{color}</td>
-                                        {allocationDisplaySizes.map((size) => (
-                                          <td key={`${record.key}-${color}-${size}`}>
-                                            {(recordMatrix[color]?.[size] ?? 0)}
-                                            {' / '}
-                                            {(allocationCapacityMatrix[color]?.[size] ?? 0)}
-                                          </td>
-                                        ))}
-                                        <td>
-                                          {rowAssigned}
-                                          {' / '}
-                                          {rowCapacity}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                                <tfoot>
-                                  <tr>
-                                    <td>合计</td>
-                                    {allocationDisplaySizes.map((size) => {
-                                      const assigned = allocationDisplayColors.reduce((sum, color) => sum + (recordMatrix[color]?.[size] ?? 0), 0);
-                                      return (
-                                        <td key={`${record.key}-sum-${size}`}>
-                                          {assigned}
-                                          {' / '}
-                                          {(allocationCapacityColumnTotals[size] ?? 0)}
-                                        </td>
-                                      );
-                                    })}
-                                    <td>
-                                      {recordTotal}
-                                      {' / '}
-                                      {allocationCapacityTotal}
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button type="primary" onClick={handleOpenAllocationCreate}>
-                          {isCuttingProgressStage ? '手动录入' : '新建领取'}
-                        </Button>
-                      </div>
-                    </>
-                  ),
-                },
-              ]}
-            />
-          ) : null}
-          {progressActionModal.stage?.key === 'inbound' ? (
-            <>
-              <Tabs
-                activeKey={inOutTabKey}
-                onChange={(key: string) => setInOutTabKey(key as 'pending' | 'detail')}
-                items={[
-                  {
-                    key: 'pending',
-                    label: inOutPendingLabel,
-                    children: (
-                      inOutData.loading ? (
-                        <Skeleton active paragraph={{ rows: 6 }} />
-                      ) : (
-                        <Table<InOutSummaryRow>
-                          rowKey="key"
-                          size="middle"
-                          bordered
-                          pagination={false}
-                          dataSource={inOutData.summaryRows}
-                          locale={{ emptyText: `暂无${inOutPendingLabel}数据` }}
-                          columns={[
-                            { title: '颜色', dataIndex: 'color', width: 140 },
-                            { title: '尺码', dataIndex: 'size', width: 140 },
-                            { title: '下货数量', dataIndex: 'totalQty', width: 140 },
-                            { title: inOutPendingLabel, dataIndex: 'pendingQty', width: 140 },
-                            { title: inOutDoneLabel, dataIndex: 'doneQty', width: 140 },
-                          ]}
-                        />
-                      )
-                    ),
-                  },
-                  {
-                    key: 'detail',
-                    label: inOutDetailLabel,
-                    children: (
-                      inOutData.loading ? (
-                        <Skeleton active paragraph={{ rows: 6 }} />
-                      ) : (
-                        <Table<InOutDetailRow>
-                          rowKey="key"
-                          size="middle"
-                          bordered
-                          pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['20', '50', '100'] }}
-                          dataSource={inOutData.detailRows}
-                          locale={{ emptyText: `暂无${inOutDetailLabel}数据` }}
-                          columns={[
-                            { title: '入库单号', dataIndex: 'receiptNo', width: 180 },
-                            { title: '入库时间', dataIndex: 'receiptDate', width: 180 },
-                            { title: '仓库', dataIndex: 'warehouseName', width: 180 },
-                            { title: '加工方', dataIndex: 'processorName', width: 180, render: (value?: string) => value || '-' },
-                            { title: '颜色', dataIndex: 'color', width: 140 },
-                            { title: '尺码', dataIndex: 'size', width: 140 },
-                            { title: inOutDoneLabel, dataIndex: 'quantity', width: 140 },
-                          ]}
-                        />
-                      )
-                    ),
-                  },
-                ]}
-              />
-            </>
-          ) : null}
-        </Form>
-      </Modal>
+        isWideProgressStage={isWideProgressStage}
+        isInOutProgressStage={isInOutProgressStage}
+        isInOutStageCompleted={inOutStageCompleted}
+        isCuttingProgressStage={isCuttingProgressStage}
+        isSewingProgressStage={isSewingProgressStage}
+        orderedTotal={orderedTotal}
+        cuttingCompletedTotal={cuttingCompletedTotal}
+        sewingAllocatedTotal={sewingAllocatedTotal}
+        sewingCompletedTotal={sewingCompletedTotal}
+        allocationRemainingTotal={allocationRemainingTotal}
+        allocationCapacityTotal={allocationCapacityTotal}
+        progressPercentLabel={progressPercentLabel}
+        progressPercentValue={progressPercentValue}
+        statsPrimaryLabel={statsPrimaryLabel}
+        statsSecondaryLabel={statsSecondaryLabel}
+        statsCapacityLabel={statsCapacityLabel}
+        statsDisplayColors={statsDisplayColors}
+        statsDisplaySizes={statsDisplaySizes}
+        statsDoneMatrix={statsDoneMatrix}
+        statsSecondaryMatrix={statsSecondaryMatrix}
+        statsCapacityMatrix={statsCapacityMatrix}
+        statsDoneRowTotals={statsDoneRowTotals}
+        statsSecondaryRowTotals={statsSecondaryRowTotals}
+        statsCapacityRowTotals={statsCapacityRowTotals}
+        statsDoneColumnTotals={statsDoneColumnTotals}
+        statsSecondaryColumnTotals={statsSecondaryColumnTotals}
+        statsCapacityColumnTotals={statsCapacityColumnTotals}
+        statsDoneTotal={statsDoneTotal}
+        statsSecondaryTotal={statsSecondaryTotal}
+        allocationHistoryRows={allocationHistoryRows}
+        allocationDisplayColors={allocationDisplayColors}
+        allocationDisplaySizes={allocationDisplaySizes}
+        allocationCapacityMatrix={allocationCapacityMatrix}
+        allocationCapacityRowTotals={allocationCapacityRowTotals}
+        allocationCapacityColumnTotals={allocationCapacityColumnTotals}
+        factoryOptions={factoryOptions}
+        outsourceStatusByOrderId={outsourceStatusByOrderId}
+        cuttingSheetTarget={cuttingSheetTarget}
+        inOutPendingLabel={inOutPendingLabel}
+        inOutDoneLabel={inOutDoneLabel}
+        inOutDetailLabel={inOutDetailLabel}
+        onCancel={handleCloseProgressActionModal}
+        onSubmit={handleSubmitProgressAction}
+        onTabChange={setProgressTabKey}
+        onInOutTabChange={setInOutTabKey}
+        onOpenAllocationCreate={handleOpenAllocationCreate}
+        onNavigateToCurrentCuttingSheet={handleNavigateToCurrentCuttingSheet}
+        onNavigateToCuttingSheet={handleNavigateToCuttingSheet}
+        onNavigateToOutsourceOrder={handleNavigateToOutsourceOrder}
+      />
 
-      <Modal
+      <AllocationCreateModal
         open={allocationCreateModalOpen}
-        title={isCuttingProgressStage ? '手动录入裁剪数据' : '新建车缝领取'}
+        isCuttingProgressStage={isCuttingProgressStage}
+        submitting={allocationCreateSubmitting}
+        form={allocationCreateForm}
+        factoryOptions={factoryOptions}
+        allocationHistoryTotal={allocationHistoryTotal}
+        allocationCapacityTotal={allocationCapacityTotal}
+        orderedTotal={orderedTotal}
+        cuttingCompletedTotal={cuttingCompletedTotal}
+        allocationGrandTotal={allocationGrandTotal}
+        allocationColors={allocationColors}
+        allocationSizes={allocationSizes}
+        allocationCapacityMatrix={allocationCapacityMatrix}
+        allocationHistoryMatrix={allocationHistoryMatrix}
+        allocationMatrix={allocationMatrix}
+        allocationRowTotals={allocationRowTotals}
+        allocationColumnTotals={allocationColumnTotals}
         onCancel={() => {
           setAllocationCreateModalOpen(false);
           setAllocationCreateSubmitting(false);
           allocationCreateForm.resetFields();
         }}
         onOk={handleSubmitAllocationCreate}
-        confirmLoading={allocationCreateSubmitting}
-        width={1360}
-        styles={{ body: { maxHeight: '72vh', overflow: 'auto' } }}
-        destroyOnHidden
-      >
-        <Form form={allocationCreateForm} layout="vertical">
-          {isCuttingProgressStage ? (
-            <Form.Item
-              label="床次编号"
-              name="bedNumber"
-              rules={[{ required: true, message: '请输入床次编号' }]}
-            >
-              <Input maxLength={32} placeholder="请输入床次编号" />
-            </Form.Item>
-          ) : null}
-          <Form.Item
-            label="工厂"
-            name="factoryId"
-            rules={isCuttingProgressStage ? [] : [{ required: true, message: '请选择工厂' }]}
-          >
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={factoryOptions}
-              placeholder="请选择工厂"
-              notFoundContent="暂无工厂，请先新增合作方工厂"
-            />
-          </Form.Item>
-          {!isCuttingProgressStage ? (
-            <div style={{ marginTop: -8, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text type="secondary">没有可选工厂？请先到合作方页面新增工厂。</Text>
-              <Button type="link" size="small" onClick={handleOpenFactoryGuide}>
-                去新建工厂
-              </Button>
-            </div>
-          ) : null}
-          <Form.Item
-            label="工价（元/件）"
-            name="unitPrice"
-            rules={[{ required: true, message: '请输入工价' }]}
-          >
-            <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="请输入工价" />
-          </Form.Item>
-          <div className="factory-allocation-toolbar">
-            <Text strong>{isCuttingProgressStage ? '颜色/尺码裁剪矩阵' : '颜色/尺码领取矩阵'}</Text>
-            <Button type="link" size="small" onClick={handleLoadRemainingAllocation}>
-              {isCuttingProgressStage ? '加载剩余待裁' : '加载当前可领'}
-            </Button>
-          </div>
-          {allocationColors.length === 0 || allocationSizes.length === 0 ? (
-            <Text type="secondary">{isCuttingProgressStage ? '暂无可录入的颜色/尺码裁剪数据' : '暂无可领取的颜色/尺码数据'}</Text>
-          ) : (
-            <>
-              <Alert
-                type={allocationHistoryTotal + allocationGrandTotal > allocationCapacityTotal ? 'warning' : 'info'}
-                showIcon
-                style={{ marginBottom: 8 }}
-                message={
-                  isCuttingProgressStage
-                    ? `下单总量：${orderedTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`
-                    : `裁床累计已完成：${cuttingCompletedTotal}，车缝累计已领取：${allocationHistoryTotal}，本次领取：${allocationGrandTotal}，领取后累计已领：${allocationHistoryTotal + allocationGrandTotal}，剩余可领：${Math.max(allocationCapacityTotal - allocationHistoryTotal - allocationGrandTotal, 0)}`
-                }
-              />
-              {!isCuttingProgressStage ? (
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                  领取口径按“裁床累计已完成 - 车缝累计已领取”控制；进度百分比仍按下单总量计算。
-                </Text>
-              ) : null}
-              <div className="factory-create-matrix-wrap">
-                <table className="factory-create-matrix-table">
-                  <thead>
-                    <tr>
-                      <th>颜色 \\ 尺码</th>
-                      {allocationSizes.map((size) => (
-                        <th key={`alloc-create-head-${size}`}>{size}</th>
-                      ))}
-                      <th>小计</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allocationColors.map((color) => (
-                      <tr key={`alloc-create-row-${color}`}>
-                        <td>{color}</td>
-                        {allocationSizes.map((size) => {
-                          const capacityQty = allocationCapacityMatrix[color]?.[size] ?? 0;
-                          const historyAllocatedQty = allocationHistoryMatrix[color]?.[size] ?? 0;
-                          const allocatedQty = normalizeQtyValue(allocationMatrix[color]?.[size]);
-                          const remainingQty = Math.max(capacityQty - historyAllocatedQty - allocatedQty, 0);
-                          const availableQty = Math.max(capacityQty - historyAllocatedQty, 0);
-                          const exceededQty = Math.max(historyAllocatedQty + allocatedQty - capacityQty, 0);
-                          return (
-                            <td key={`alloc-create-${color}-${size}`}>
-                              <div style={{ display: 'grid', gap: 4 }}>
-                                <InputNumber
-                                  min={0}
-                                  precision={0}
-                                  max={isCuttingProgressStage ? undefined : availableQty}
-                                  value={allocatedQty}
-                                  onChange={(value) => handleAllocationMatrixQtyChange(color, size, value)}
-                                  controls={false}
-                                  style={{ width: '100%' }}
-                                  placeholder={!isCuttingProgressStage ? `最多可领 ${availableQty}` : '填写裁剪数量'}
-                                />
-                                <Text type="secondary" style={{ fontSize: 11 }}>
-                                  {isCuttingProgressStage
-                                    ? `${historyAllocatedQty + allocatedQty}/${capacityQty}${exceededQty > 0 ? `（超裁 ${exceededQty}）` : ''}`
-                                    : `已领后 ${historyAllocatedQty + allocatedQty}/${capacityQty}，剩余可领 ${remainingQty}`}
-                                </Text>
-                              </div>
-                            </td>
-                          );
-                        })}
-                        <td>{allocationRowTotals[color] ?? 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>合计</td>
-                      {allocationSizes.map((size) => (
-                        <td key={`alloc-create-sum-${size}`}>{allocationColumnTotals[size] ?? 0}</td>
-                      ))}
-                      <td>{allocationGrandTotal}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </>
-          )}
-        </Form>
-      </Modal>
+        onOpenFactoryGuide={handleOpenFactoryGuide}
+        onLoadRemainingAllocation={handleLoadRemainingAllocation}
+        onAllocationMatrixQtyChange={handleAllocationMatrixQtyChange}
+      />
 
       <Modal
         open={statusModalOpen}
@@ -3508,153 +2495,22 @@ const FactoryOrders = () => {
         </Form>
       </Modal>
 
-      <Modal
-        open={Boolean(costDetailRecord)}
-        title={costDetailRecord ? `大货成本明细 - ${costDetailRecord.orderCode}` : '大货成本明细'}
-        footer={null}
+      <CostDetailModal
+        record={costDetailRecord}
+        data={costDetailData}
+        loading={costDetailLoading}
         onCancel={() => {
           setCostDetailRecord(null);
           setCostDetailData(null);
           setCostDetailLoading(false);
         }}
-        destroyOnHidden
-        width={900}
-      >
-        {costDetailRecord ? (
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="订单号">{costDetailRecord.orderCode}</Descriptions.Item>
-              <Descriptions.Item label="款号">{costDetailRecord.styleCode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="款名">{costDetailRecord.styleName ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="下单数量">
-                {typeof costDetailRecord.orderQuantity === 'number' ? `${costDetailRecord.orderQuantity.toLocaleString()} 件` : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="预计交货">{costDetailRecord.expectedDelivery ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="物料状态">{getMaterialStatusLabel(costDetailRecord.materialStatus)}</Descriptions.Item>
-              <Descriptions.Item label="生产阶段">{costDetailRecord.productionStage ?? '-'}</Descriptions.Item>
-            </Descriptions>
-            <Table
-              size="small"
-              bordered
-              loading={costDetailLoading}
-              pagination={false}
-              rowKey="key"
-              dataSource={costDetailData ? [
-                {
-                  key: 'estimated',
-                  label: '预计总成本',
-                  material: costDetailData.estimatedCost.material,
-                  processing: costDetailData.estimatedCost.processing,
-                  outsourcing: costDetailData.estimatedCost.outsourcing,
-                  fee: costDetailData.estimatedCost.fee,
-                  total: costDetailData.estimatedCost.total,
-                },
-                {
-                  key: 'actual',
-                  label: '实际总成本',
-                  material: costDetailData.actualCost.material,
-                  processing: costDetailData.actualCost.processing,
-                  outsourcing: costDetailData.actualCost.outsourcing,
-                  fee: costDetailData.actualCost.fee,
-                  total: costDetailData.actualCost.total,
-                },
-                {
-                  key: 'estimated-unit',
-                  label: '预计单件成本',
-                  material: costDetailData.estimatedUnitCost.material,
-                  processing: costDetailData.estimatedUnitCost.processing,
-                  outsourcing: costDetailData.estimatedUnitCost.outsourcing,
-                  fee: costDetailData.estimatedUnitCost.fee,
-                  total: costDetailData.estimatedUnitCost.total,
-                },
-                {
-                  key: 'actual-unit',
-                  label: '实际单件成本',
-                  material: costDetailData.actualUnitCost.material,
-                  processing: costDetailData.actualUnitCost.processing,
-                  outsourcing: costDetailData.actualUnitCost.outsourcing,
-                  fee: costDetailData.actualUnitCost.fee,
-                  total: costDetailData.actualUnitCost.total,
-                },
-              ] : []}
-              columns={[
-                { title: '成本类型', dataIndex: 'label', width: 140 },
-                { title: '物料', dataIndex: 'material', align: 'right', render: (value: number) => value.toFixed(2) },
-                { title: '加工', dataIndex: 'processing', align: 'right', render: (value: number) => value.toFixed(2) },
-                { title: '外协', dataIndex: 'outsourcing', align: 'right', render: (value: number) => value.toFixed(2) },
-                { title: '费用', dataIndex: 'fee', align: 'right', render: (value: number) => value.toFixed(2) },
-                { title: '合计', dataIndex: 'total', align: 'right', render: (value: number) => value.toFixed(2) },
-              ]}
-            />
-            <Table
-              size="small"
-              bordered
-              pagination={{ pageSize: 5, showSizeChanger: false }}
-              rowKey={(_record, index) => `entry-${index}`}
-              dataSource={costDetailData?.entries ?? []}
-              columns={[
-                {
-                  title: '类型',
-                  dataIndex: 'entryType',
-                  width: 100,
-                  render: (value: string) => (value === 'ESTIMATED' ? '预计' : value === 'ACTUAL' ? '实际' : value || '-'),
-                },
-                {
-                  title: '类别',
-                  dataIndex: 'costCategory',
-                  width: 120,
-                  render: (value: string) => ({
-                    MATERIAL: '物料',
-                    PROCESSING: '加工',
-                    OUTSOURCING: '外协',
-                    FEE: '费用',
-                  }[value] ?? value ?? '-'),
-                },
-                {
-                  title: '金额',
-                  dataIndex: 'amount',
-                  width: 120,
-                  align: 'right',
-                  render: (value: number) => value.toFixed(2),
-                },
-                {
-                  title: '引用单号',
-                  dataIndex: 'referenceNo',
-                  render: (value: string | undefined) => value || '-',
-                },
-                {
-                  title: '记录时间',
-                  dataIndex: 'recordedAt',
-                  width: 190,
-                  render: (value: string | undefined) => value || '-',
-                },
-              ]}
-            />
-          </Space>
-        ) : null}
-      </Modal>
+      />
 
-      <Modal
-        open={Boolean(printPreviewRecord)}
-        title={printPreviewRecord ? `打印预览 - ${printPreviewRecord.orderCode}` : '打印预览'}
+      <PrintPreviewModal
+        record={printPreviewRecord}
         onCancel={() => setPrintPreviewRecord(null)}
-        onOk={handlePrintInBrowser}
-        okText="打印"
-        cancelText="关闭"
-        destroyOnHidden
-      >
-        {printPreviewRecord ? (
-          <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="订单号">{printPreviewRecord.orderCode}</Descriptions.Item>
-            <Descriptions.Item label="款号">{printPreviewRecord.styleCode ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="款名">{printPreviewRecord.styleName ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="下单数量">
-              {typeof printPreviewRecord.orderQuantity === 'number' ? `${printPreviewRecord.orderQuantity.toLocaleString()} 件` : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="预计交货">{printPreviewRecord.expectedDelivery ?? '-'}</Descriptions.Item>
-          </Descriptions>
-        ) : null}
-      </Modal>
+        onPrint={handlePrintInBrowser}
+      />
     </div>
   );
 };

@@ -2,7 +2,6 @@ import {
   AppstoreOutlined,
   DashboardOutlined,
   SettingOutlined,
-  TeamOutlined,
   ShoppingCartOutlined,
   DeploymentUnitOutlined,
   DatabaseOutlined,
@@ -125,15 +124,6 @@ export const menuTree: MenuNode[] = [
       { key: '/piecework/outsource', label: <Link to="/piecework/outsource">外发管理</Link> },
       { key: '/piecework/quality', label: <Link to="/piecework/quality">质检管理</Link> },
       { key: '/piecework/report', label: <Link to="/piecework/report">报表中心</Link> },
-    ],
-  },
-  {
-    key: '/collab',
-    icon: <TeamOutlined />,
-    label: '协同中心',
-    children: [
-      { key: '/collab/send-out', label: <Link to="/collab/send-out">外发订单</Link> },
-      { key: '/collab/receive-in', label: <Link to="/collab/receive-in">外接订单</Link> },
     ],
   },
   {
