@@ -1,75 +1,84 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { Spin } from 'antd';
 import ProtectedLayout from './layouts/ProtectedLayout';
-import Workplace from './views/Workplace';
-import SampleDashboard from './views/SampleDashboard';
-import SampleList from './views/SampleList';
-import SampleDetail from './views/SampleDetail';
-import FollowTemplate from './views/FollowTemplate';
-import SampleType from './views/SampleType';
-import SampleCostingReport from './views/SampleCostingReport';
-import SampleOrderComparisonReport from './views/SampleOrderComparisonReport';
-import FactoryOrders from './views/FactoryOrders';
-import CuttingReportPage from './views/CuttingReport';
-import CuttingPendingPage from './views/CuttingPending';
-import CuttingCompletedPage from './views/CuttingCompleted';
-import ProcessTypePage from './views/ProcessType';
-import StyleMaterials from './views/StyleMaterials';
-import StyleDetail from './views/StyleDetail';
-import MaterialArchive from './views/MaterialArchive';
-import PartnersPage from './views/Partners';
-import OperationTemplatePage from './views/OperationTemplate';
-import WarehousePage from './views/Warehouse';
-import WorkshopProgress from './views/WorkshopProgress';
-import PieceworkDashboard from './views/PieceworkDashboard';
-import OperationalEfficiency from './views/OperationalEfficiency';
-import IncomingOrders from './views/IncomingOrders';
-import OutsourceOrders from './views/OutsourceOrders';
-import OutsourcingManagement from './views/OutsourcingManagement';
-import OutsourcingProductionReport from './views/OutsourcingProductionReport';
-import BulkCostReport from './views/BulkCostReport';
-import OrderMaterialRequirementReport from './views/OrderMaterialRequirementReport';
-import SalaryManagement from './views/SalaryManagement';
-import FinishedGoodsInventoryReport from './views/FinishedGoodsInventoryReport';
-import FinishedGoodsOtherInbound from './views/FinishedGoodsOtherInbound';
-import FinishedGoodsOutbound from './views/FinishedGoodsOutbound';
-import FinishedGoodsPendingReceipt from './views/FinishedGoodsPendingReceipt';
-import FinishedGoodsReceived from './views/FinishedGoodsReceived';
-import FinishedGoodsStock from './views/FinishedGoodsStock';
-import StockingPurchaseInbound from './views/StockingPurchaseInbound';
-import OrderProductionComparison from './views/OrderProductionComparison';
-import OrderReportAggregation from './views/OrderReportAggregation';
-import OrderShipmentProfitReport from './views/OrderShipmentProfitReport';
-import MaterialInventoryReport from './views/MaterialInventoryReport';
-import MaterialPurchaseReport from './views/MaterialPurchaseReport';
-import MaterialIssueDetails from './views/MaterialIssueDetails';
-import MaterialStock from './views/MaterialStock';
-import SalesStockingSuggestion from './views/SalesStockingSuggestion';
-import OrderOutsourcingCuttingDetailReport from './views/OrderOutsourcingCuttingDetailReport';
-import SettlementCustomerReceipts from './views/SettlementCustomerReceipts';
-import SettlementFactoryPayments from './views/SettlementFactoryPayments';
-import SettlementSupplierPayments from './views/SettlementSupplierPayments';
-import SettlementCashierAccounts from './views/SettlementCashierAccounts';
-import SettlementReportCustomerDetails from './views/SettlementReportCustomerDetails';
-import SettlementReportFactoryDetails from './views/SettlementReportFactoryDetails';
-import SettlementReportSupplierDetails from './views/SettlementReportSupplierDetails';
-import SettlementReportReconciliationDetails from './views/SettlementReportReconciliationDetails';
-import QualityControlManagement from './views/QualityControlManagement';
-import GlobalDownloadCenter from './views/GlobalDownloadCenter';
-import RegisterEnterprise from './views/auth/RegisterEnterprise';
-import Welcome from './views/auth/Welcome';
-import SignInPage from './views/auth/SignInPage';
-import {
-  ActionLogPage,
-  CompanySettings,
-  OrganizationSettings,
-  PreferencesPage,
-  ProfileSettings,
-  RolesSettings,
-} from './views/settings';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
+
+const Workplace = lazy(() => import('./views/Workplace'));
+const SampleDashboard = lazy(() => import('./views/SampleDashboard'));
+const SampleList = lazy(() => import('./views/SampleList'));
+const SampleDetail = lazy(() => import('./views/SampleDetail'));
+const FollowTemplate = lazy(() => import('./views/FollowTemplate'));
+const SampleType = lazy(() => import('./views/SampleType'));
+const SampleCostingReport = lazy(() => import('./views/SampleCostingReport'));
+const SampleOrderComparisonReport = lazy(() => import('./views/SampleOrderComparisonReport'));
+const FactoryOrders = lazy(() => import('./views/FactoryOrders'));
+const CuttingReportPage = lazy(() => import('./views/CuttingReport'));
+const CuttingPendingPage = lazy(() => import('./views/CuttingPending'));
+const CuttingCompletedPage = lazy(() => import('./views/CuttingCompleted'));
+const ProcessTypePage = lazy(() => import('./views/ProcessType'));
+const StyleMaterials = lazy(() => import('./views/StyleMaterials'));
+const StyleDetail = lazy(() => import('./views/StyleDetail'));
+const MaterialArchive = lazy(() => import('./views/MaterialArchive'));
+const PartnersPage = lazy(() => import('./views/Partners'));
+const OperationTemplatePage = lazy(() => import('./views/OperationTemplate'));
+const WarehousePage = lazy(() => import('./views/Warehouse'));
+const WorkshopProgress = lazy(() => import('./views/WorkshopProgress'));
+const PieceworkDashboard = lazy(() => import('./views/PieceworkDashboard'));
+const OperationalEfficiency = lazy(() => import('./views/OperationalEfficiency'));
+const IncomingOrders = lazy(() => import('./views/IncomingOrders'));
+const OutsourceOrders = lazy(() => import('./views/OutsourceOrders'));
+const OutsourcingManagement = lazy(() => import('./views/OutsourcingManagement'));
+const OutsourcingProductionReport = lazy(() => import('./views/OutsourcingProductionReport'));
+const BulkCostReport = lazy(() => import('./views/BulkCostReport'));
+const OrderMaterialRequirementReport = lazy(() => import('./views/OrderMaterialRequirementReport'));
+const SalaryManagement = lazy(() => import('./views/SalaryManagement'));
+const FinishedGoodsInventoryReport = lazy(() => import('./views/FinishedGoodsInventoryReport'));
+const FinishedGoodsOtherInbound = lazy(() => import('./views/FinishedGoodsOtherInbound'));
+const FinishedGoodsOutbound = lazy(() => import('./views/FinishedGoodsOutbound'));
+const FinishedGoodsPendingReceipt = lazy(() => import('./views/FinishedGoodsPendingReceipt'));
+const FinishedGoodsReceived = lazy(() => import('./views/FinishedGoodsReceived'));
+const FinishedGoodsStock = lazy(() => import('./views/FinishedGoodsStock'));
+const StockingPurchaseInbound = lazy(() => import('./views/StockingPurchaseInbound'));
+const OrderProductionComparison = lazy(() => import('./views/OrderProductionComparison'));
+const OrderReportAggregation = lazy(() => import('./views/OrderReportAggregation'));
+const OrderShipmentProfitReport = lazy(() => import('./views/OrderShipmentProfitReport'));
+const MaterialInventoryReport = lazy(() => import('./views/MaterialInventoryReport'));
+const MaterialPurchaseReport = lazy(() => import('./views/MaterialPurchaseReport'));
+const MaterialIssueDetails = lazy(() => import('./views/MaterialIssueDetails'));
+const MaterialStock = lazy(() => import('./views/MaterialStock'));
+const SalesStockingSuggestion = lazy(() => import('./views/SalesStockingSuggestion'));
+const OrderOutsourcingCuttingDetailReport = lazy(() => import('./views/OrderOutsourcingCuttingDetailReport'));
+const SettlementCustomerReceipts = lazy(() => import('./views/SettlementCustomerReceipts'));
+const SettlementFactoryPayments = lazy(() => import('./views/SettlementFactoryPayments'));
+const SettlementSupplierPayments = lazy(() => import('./views/SettlementSupplierPayments'));
+const SettlementCashierAccounts = lazy(() => import('./views/SettlementCashierAccounts'));
+const SettlementReportCustomerDetails = lazy(() => import('./views/SettlementReportCustomerDetails'));
+const SettlementReportFactoryDetails = lazy(() => import('./views/SettlementReportFactoryDetails'));
+const SettlementReportSupplierDetails = lazy(() => import('./views/SettlementReportSupplierDetails'));
+const SettlementReportReconciliationDetails = lazy(() => import('./views/SettlementReportReconciliationDetails'));
+const QualityControlManagement = lazy(() => import('./views/QualityControlManagement'));
+const GlobalDownloadCenter = lazy(() => import('./views/GlobalDownloadCenter'));
+const RegisterEnterprise = lazy(() => import('./views/auth/RegisterEnterprise'));
+const Welcome = lazy(() => import('./views/auth/Welcome'));
+const SignInPage = lazy(() => import('./views/auth/SignInPage'));
+const ProfileSettings = lazy(() => import('./views/settings').then((module) => ({ default: module.ProfileSettings })));
+const CompanySettings = lazy(() => import('./views/settings').then((module) => ({ default: module.CompanySettings })));
+const OrganizationSettings = lazy(() => import('./views/settings').then((module) => ({ default: module.OrganizationSettings })));
+const RolesSettings = lazy(() => import('./views/settings').then((module) => ({ default: module.RolesSettings })));
+const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ default: module.ActionLogPage })));
+const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
+
+const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
+
+const createLazyPageElement = (Component: React.ComponentType) =>
+  React.createElement(
+    Suspense,
+    { fallback: pageFallback },
+    React.createElement(Component),
+  );
 
 const createPlaceholderElement = (name: string): ReactElement =>
   React.createElement('div', { style: { padding: 24 } }, `即将实现：${name}`);
@@ -157,15 +166,15 @@ const autoChildren = flattenMenu(menuTree)
 const router = createBrowserRouter([
   {
     path: '/welcome',
-    element: React.createElement(Welcome),
+    element: createLazyPageElement(Welcome),
   },
   {
     path: '/onboarding/register-enterprise',
-    element: React.createElement(RegisterEnterprise),
+    element: createLazyPageElement(RegisterEnterprise),
   },
   {
     path: '/sign-in/*',
-    element: React.createElement(SignInPage),
+    element: createLazyPageElement(SignInPage),
   },
   {
     path: '/',
@@ -173,70 +182,70 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
       { path: 'dashboard', element: React.createElement(Navigate, { to: '/dashboard/workplace', replace: true }) },
-      { path: 'dashboard/workplace', element: React.createElement(Workplace) },
-      { path: 'sample', element: React.createElement(SampleDashboard) },
-      { path: 'sample/list', element: React.createElement(SampleList) },
-      { path: 'sample/detail', element: React.createElement(SampleDetail) },
-      { path: 'sample/follow-template', element: React.createElement(FollowTemplate) },
-      { path: 'sample/type', element: React.createElement(SampleType) },
-      { path: 'sample/report/costing', element: React.createElement(SampleCostingReport) },
-      { path: 'sample/report/order-compare', element: React.createElement(SampleOrderComparisonReport) },
-      { path: 'orders/factory', element: React.createElement(FactoryOrders) },
-      { path: 'piecework/orders', element: React.createElement(FactoryOrders) },
-      { path: 'orders/efficiency', element: React.createElement(OperationalEfficiency) },
-      { path: 'orders/report/profit', element: React.createElement(OrderShipmentProfitReport) },
-      { path: 'orders/report/cost', element: React.createElement(BulkCostReport) },
-      { path: 'orders/report/material-need', element: React.createElement(OrderMaterialRequirementReport) },
-      { path: 'orders/report/cut-outsource', element: React.createElement(OrderOutsourcingCuttingDetailReport) },
-      { path: 'orders/outsource', element: React.createElement(OutsourcingProductionReport) },
-      { path: 'orders/compare', element: React.createElement(OrderProductionComparison) },
-      { path: 'product/inbound-other', element: React.createElement(FinishedGoodsOtherInbound) },
-      { path: 'product/stock', element: React.createElement(FinishedGoodsStock) },
-      { path: 'product/outbound', element: React.createElement(FinishedGoodsOutbound) },
-      { path: 'product/report/overview', element: React.createElement(FinishedGoodsInventoryReport) },
-      { path: 'product/inbound/pending', element: React.createElement(FinishedGoodsPendingReceipt) },
-      { path: 'product/inbound/received', element: React.createElement(FinishedGoodsReceived) },
-      { path: 'material/stock', element: React.createElement(MaterialStock) },
-      { path: 'material/sales-stocking-suggestion', element: React.createElement(SalesStockingSuggestion) },
-      { path: 'material/purchase-prep', element: React.createElement(StockingPurchaseInbound) },
-      { path: 'material/report/overview', element: React.createElement(MaterialInventoryReport) },
-      { path: 'material/report/purchase-inbound-detail', element: React.createElement(MaterialPurchaseReport) },
-      { path: 'material/issue', element: React.createElement(MaterialIssueDetails) },
-      { path: 'basic/process-type', element: React.createElement(ProcessTypePage) },
-      { path: 'basic/styles', element: React.createElement(StyleMaterials) },
-      { path: 'basic/material', element: React.createElement(MaterialArchive) },
-      { path: 'basic/partners', element: React.createElement(PartnersPage) },
-      { path: 'basic/operation-template', element: React.createElement(OperationTemplatePage) },
-      { path: 'basic/warehouse', element: React.createElement(WarehousePage) },
-      { path: 'foundation/product/detail', element: React.createElement(StyleDetail) },
-      { path: 'settings/profile', element: React.createElement(ProfileSettings) },
-      { path: 'settings/company', element: React.createElement(CompanySettings) },
-      { path: 'settings/org', element: React.createElement(OrganizationSettings) },
-      { path: 'settings/roles', element: React.createElement(RolesSettings) },
-      { path: 'settings/preferences', element: React.createElement(PreferencesPage) },
-      { path: 'settings/audit', element: React.createElement(ActionLogPage) },
-      { path: 'piecework/cutting/pending', element: React.createElement(CuttingPendingPage) },
-      { path: 'piecework/cutting/done', element: React.createElement(CuttingCompletedPage) },
+      { path: 'dashboard/workplace', element: createLazyPageElement(Workplace) },
+      { path: 'sample', element: createLazyPageElement(SampleDashboard) },
+      { path: 'sample/list', element: createLazyPageElement(SampleList) },
+      { path: 'sample/detail', element: createLazyPageElement(SampleDetail) },
+      { path: 'sample/follow-template', element: createLazyPageElement(FollowTemplate) },
+      { path: 'sample/type', element: createLazyPageElement(SampleType) },
+      { path: 'sample/report/costing', element: createLazyPageElement(SampleCostingReport) },
+      { path: 'sample/report/order-compare', element: createLazyPageElement(SampleOrderComparisonReport) },
+      { path: 'orders/factory', element: createLazyPageElement(FactoryOrders) },
+      { path: 'piecework/orders', element: createLazyPageElement(FactoryOrders) },
+      { path: 'orders/efficiency', element: createLazyPageElement(OperationalEfficiency) },
+      { path: 'orders/report/profit', element: createLazyPageElement(OrderShipmentProfitReport) },
+      { path: 'orders/report/cost', element: createLazyPageElement(BulkCostReport) },
+      { path: 'orders/report/material-need', element: createLazyPageElement(OrderMaterialRequirementReport) },
+      { path: 'orders/report/cut-outsource', element: createLazyPageElement(OrderOutsourcingCuttingDetailReport) },
+      { path: 'orders/outsource', element: createLazyPageElement(OutsourcingProductionReport) },
+      { path: 'orders/compare', element: createLazyPageElement(OrderProductionComparison) },
+      { path: 'product/inbound-other', element: createLazyPageElement(FinishedGoodsOtherInbound) },
+      { path: 'product/stock', element: createLazyPageElement(FinishedGoodsStock) },
+      { path: 'product/outbound', element: createLazyPageElement(FinishedGoodsOutbound) },
+      { path: 'product/report/overview', element: createLazyPageElement(FinishedGoodsInventoryReport) },
+      { path: 'product/inbound/pending', element: createLazyPageElement(FinishedGoodsPendingReceipt) },
+      { path: 'product/inbound/received', element: createLazyPageElement(FinishedGoodsReceived) },
+      { path: 'material/stock', element: createLazyPageElement(MaterialStock) },
+      { path: 'material/sales-stocking-suggestion', element: createLazyPageElement(SalesStockingSuggestion) },
+      { path: 'material/purchase-prep', element: createLazyPageElement(StockingPurchaseInbound) },
+      { path: 'material/report/overview', element: createLazyPageElement(MaterialInventoryReport) },
+      { path: 'material/report/purchase-inbound-detail', element: createLazyPageElement(MaterialPurchaseReport) },
+      { path: 'material/issue', element: createLazyPageElement(MaterialIssueDetails) },
+      { path: 'basic/process-type', element: createLazyPageElement(ProcessTypePage) },
+      { path: 'basic/styles', element: createLazyPageElement(StyleMaterials) },
+      { path: 'basic/material', element: createLazyPageElement(MaterialArchive) },
+      { path: 'basic/partners', element: createLazyPageElement(PartnersPage) },
+      { path: 'basic/operation-template', element: createLazyPageElement(OperationTemplatePage) },
+      { path: 'basic/warehouse', element: createLazyPageElement(WarehousePage) },
+      { path: 'foundation/product/detail', element: createLazyPageElement(StyleDetail) },
+      { path: 'settings/profile', element: createLazyPageElement(ProfileSettings) },
+      { path: 'settings/company', element: createLazyPageElement(CompanySettings) },
+      { path: 'settings/org', element: createLazyPageElement(OrganizationSettings) },
+      { path: 'settings/roles', element: createLazyPageElement(RolesSettings) },
+      { path: 'settings/preferences', element: createLazyPageElement(PreferencesPage) },
+      { path: 'settings/audit', element: createLazyPageElement(ActionLogPage) },
+      { path: 'piecework/cutting/pending', element: createLazyPageElement(CuttingPendingPage) },
+      { path: 'piecework/cutting/done', element: createLazyPageElement(CuttingCompletedPage) },
       { path: 'piecework/cutting/list', element: React.createElement(Navigate, { to: '/piecework/cutting/pending', replace: true }) },
       { path: 'piecework/cutting/create', element: React.createElement(Navigate, { to: '/piecework/cutting/pending', replace: true }) },
-      { path: 'piecework/cutting/report', element: React.createElement(CuttingReportPage) },
-      { path: 'piecework/progress', element: React.createElement(WorkshopProgress) },
-      { path: 'piecework/payroll', element: React.createElement(SalaryManagement) },
-      { path: 'piecework/report', element: React.createElement(OrderReportAggregation) },
-      { path: 'downloads', element: React.createElement(GlobalDownloadCenter) },
-      { path: 'piecework/quality', element: React.createElement(QualityControlManagement) },
-      { path: 'piecework/outsource', element: React.createElement(OutsourcingManagement) },
-      { path: 'piecework', element: React.createElement(PieceworkDashboard) },
-      { path: 'collab/send-out', element: React.createElement(OutsourceOrders) },
-      { path: 'collab/receive-in', element: React.createElement(IncomingOrders) },
-      { path: 'settlement/receivable', element: React.createElement(SettlementCustomerReceipts) },
-      { path: 'settlement/payable-factory', element: React.createElement(SettlementFactoryPayments) },
-      { path: 'settlement/payable-supplier', element: React.createElement(SettlementSupplierPayments) },
-      { path: 'settlement/cashier', element: React.createElement(SettlementCashierAccounts) },
-      { path: 'settlement/report/customer-detail', element: React.createElement(SettlementReportCustomerDetails) },
-      { path: 'settlement/report/factory-detail', element: React.createElement(SettlementReportFactoryDetails) },
-      { path: 'settlement/report/supplier-detail', element: React.createElement(SettlementReportSupplierDetails) },
-      { path: 'settlement/report/statement-detail', element: React.createElement(SettlementReportReconciliationDetails) },
+      { path: 'piecework/cutting/report', element: createLazyPageElement(CuttingReportPage) },
+      { path: 'piecework/progress', element: createLazyPageElement(WorkshopProgress) },
+      { path: 'piecework/payroll', element: createLazyPageElement(SalaryManagement) },
+      { path: 'piecework/report', element: createLazyPageElement(OrderReportAggregation) },
+      { path: 'downloads', element: createLazyPageElement(GlobalDownloadCenter) },
+      { path: 'piecework/quality', element: createLazyPageElement(QualityControlManagement) },
+      { path: 'piecework/outsource', element: createLazyPageElement(OutsourcingManagement) },
+      { path: 'piecework', element: createLazyPageElement(PieceworkDashboard) },
+      { path: 'collab/send-out', element: createLazyPageElement(OutsourceOrders) },
+      { path: 'collab/receive-in', element: createLazyPageElement(IncomingOrders) },
+      { path: 'settlement/receivable', element: createLazyPageElement(SettlementCustomerReceipts) },
+      { path: 'settlement/payable-factory', element: createLazyPageElement(SettlementFactoryPayments) },
+      { path: 'settlement/payable-supplier', element: createLazyPageElement(SettlementSupplierPayments) },
+      { path: 'settlement/cashier', element: createLazyPageElement(SettlementCashierAccounts) },
+      { path: 'settlement/report/customer-detail', element: createLazyPageElement(SettlementReportCustomerDetails) },
+      { path: 'settlement/report/factory-detail', element: createLazyPageElement(SettlementReportFactoryDetails) },
+      { path: 'settlement/report/supplier-detail', element: createLazyPageElement(SettlementReportSupplierDetails) },
+      { path: 'settlement/report/statement-detail', element: createLazyPageElement(SettlementReportReconciliationDetails) },
       ...autoChildren,
       { path: 'pattern', element: createPlaceholderElement('打板') },
       { path: 'orders', element: createPlaceholderElement('订单生产') },
