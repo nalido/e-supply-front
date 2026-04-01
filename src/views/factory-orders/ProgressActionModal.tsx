@@ -1,4 +1,4 @@
-import { Alert, Button, DatePicker, Form, Modal, Skeleton, Table, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, DatePicker, Form, Modal, Skeleton, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import dayjs from 'dayjs';
 import type { AllocationHistoryRow, CuttingSheetTarget, InOutDataState, InOutDetailRow, InOutSummaryRow, ProgressActionModalState, ProgressStatsState, SelectOption } from './types';
@@ -63,6 +63,7 @@ type Props = {
   onNavigateToCurrentCuttingSheet: () => void;
   onNavigateToCuttingSheet: (record: AllocationHistoryRow) => void | Promise<void>;
   onNavigateToOutsourceOrder: (record: AllocationHistoryRow) => void;
+  onDeleteCuttingRecord: (record: AllocationHistoryRow) => void;
 };
 
 export default function ProgressActionModal({
@@ -122,6 +123,7 @@ export default function ProgressActionModal({
   onNavigateToCurrentCuttingSheet,
   onNavigateToCuttingSheet,
   onNavigateToOutsourceOrder,
+  onDeleteCuttingRecord,
 }: Props) {
   const footer =
     state.stage?.key === 'cutting' || state.stage?.key === 'sewing'
@@ -357,6 +359,31 @@ export default function ProgressActionModal({
                             <Text type="secondary" style={{ marginLeft: 12 }}>
                               工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
                             </Text>
+                            {isCuttingProgressStage ? (
+                              record.deletable ? (
+                                <Button
+                                  danger
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0, height: 'auto', marginLeft: 12 }}
+                                  onClick={() => onDeleteCuttingRecord(record)}
+                                >
+                                  删除
+                                </Button>
+                              ) : record.deleteBlockedReason ? (
+                                <Tooltip title={record.deleteBlockedReason} placement="topRight">
+                                  <Button
+                                    danger
+                                    type="link"
+                                    size="small"
+                                    disabled
+                                    style={{ padding: 0, height: 'auto', marginLeft: 12 }}
+                                  >
+                                    删除
+                                  </Button>
+                                </Tooltip>
+                              ) : null
+                            ) : null}
                           </div>
                           <div className="factory-create-matrix-wrap">
                             <table className="factory-create-matrix-table">
