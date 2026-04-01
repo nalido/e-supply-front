@@ -579,6 +579,24 @@ export const factoryOrdersApi = {
     return data ?? [];
   },
 
+  async deleteCuttingRecord(
+    orderId: string | number,
+    payload: {
+      bedNumber?: string;
+      source?: string;
+      workOrderId?: number;
+      completedAt: string;
+      items: Array<{ color?: string; size?: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(
+      `/api/v1/production-orders/${orderId}/progress/cutting-records/delete`,
+      payload,
+      { params: { tenantId } },
+    );
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
     const tenantId = ensureTenantId();
     const requestBody = {

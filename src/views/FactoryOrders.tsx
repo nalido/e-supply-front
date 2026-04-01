@@ -719,6 +719,8 @@ const FactoryOrders = () => {
         outsourcingOrderId?: number;
         subcontractorId?: number;
         unitPrice?: number;
+        deletable?: boolean;
+        deleteBlockedReason?: string;
         items: AllocationItem[];
       };
 
@@ -763,6 +765,8 @@ const FactoryOrders = () => {
               outsourcingOrderId?: unknown;
               subcontractorId?: unknown;
               unitPrice?: unknown;
+              deletable?: unknown;
+              deleteBlockedReason?: unknown;
               items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
             }>;
             items?: Array<{ color?: unknown; size?: unknown; quantity?: unknown }>;
@@ -779,6 +783,8 @@ const FactoryOrders = () => {
               outsourcingOrderId: Number.isFinite(Number(allocation.outsourcingOrderId)) ? Number(allocation.outsourcingOrderId) : undefined,
               subcontractorId: Number.isFinite(Number(allocation.subcontractorId)) ? Number(allocation.subcontractorId) : undefined,
               unitPrice: Number.isFinite(Number(allocation.unitPrice)) ? Number(allocation.unitPrice) : undefined,
+              deletable: typeof allocation.deletable === 'boolean' ? allocation.deletable : undefined,
+              deleteBlockedReason: typeof allocation.deleteBlockedReason === 'string' ? allocation.deleteBlockedReason : undefined,
               items: normalizeAllocationItems(allocation.items),
             }));
           }
@@ -884,6 +890,8 @@ const FactoryOrders = () => {
           outsourcingOrderId: allocation.outsourcingOrderId,
           factoryId: allocation.subcontractorId,
           unitPrice: allocation.unitPrice,
+          deletable: allocation.deletable ?? (stageKey === 'cutting' && allocation.source !== CUTTING_SHEET_START_SOURCE),
+          deleteBlockedReason: allocation.deleteBlockedReason,
           totalQty,
           itemSummary: allocation.items.map((item) => `${item.color}/${item.size}:${item.quantity}`).join('；'),
           items: allocation.items,
@@ -1560,6 +1568,39 @@ const FactoryOrders = () => {
     progressActionModal.order,
     progressActionModal.stage,
   ]);
+
+  const handleDeleteCuttingRecord = useCallback((record: AllocationHistoryRow) => {
+    if (!progressActionModal.order || !progressActionModal.stage || progressActionModal.stage.key !== 'cutting') {
+      return;
+    }
+    if (!record.completedAt) {
+      message.warning('该条裁剪记录缺少录入时间，暂时无法删除');
+      return;
+    }
+    if (record.deletable === false) {
+      message.warning(record.deleteBlockedReason || '该条裁剪记录不允许删除');
+      return;
+    }
+    Modal.confirm({
+      title: '确认删除该条裁剪数据？',
+      content: `床次：${record.bedNumber ?? '-'}；录入时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        await factoryOrdersApi.deleteCuttingRecord(progressActionModal.order!.orderId, {
+          bedNumber: record.bedNumber,
+          source: record.source,
+          workOrderId: record.workOrderId,
+          completedAt: record.completedAt!,
+          items: record.items,
+        });
+        message.success('裁剪数据已删除');
+        await loadProgressStats(progressActionModal.order!.orderId, 'cutting');
+        triggerReload();
+      },
+    });
+  }, [loadProgressStats, progressActionModal.order, progressActionModal.stage, triggerReload]);
 
   const handleCloseProgressActionModal = useCallback(() => {
     setProgressActionModal({ open: false, submitting: false });
@@ -2440,6 +2481,7 @@ const FactoryOrders = () => {
         onNavigateToCurrentCuttingSheet={handleNavigateToCurrentCuttingSheet}
         onNavigateToCuttingSheet={handleNavigateToCuttingSheet}
         onNavigateToOutsourceOrder={handleNavigateToOutsourceOrder}
+        onDeleteCuttingRecord={handleDeleteCuttingRecord}
       />
 
       <AllocationCreateModal

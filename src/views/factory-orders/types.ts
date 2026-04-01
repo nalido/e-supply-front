@@ -82,6 +82,8 @@ export type AllocationHistoryRow = {
   unitPrice?: number;
   totalQty: number;
   itemSummary: string;
+  deletable?: boolean;
+  deleteBlockedReason?: string;
   items: Array<{ color: string; size: string; quantity: number }>;
 };
 
