@@ -149,6 +149,17 @@ const getDetailMaterialUsages = (detail?: CuttingSheetDetail | null): CuttingShe
 };
 
 const buildMaterialStockKey = (warehouseId?: number, materialId?: number) => `${Number(warehouseId) || 0}::${Number(materialId) || 0}`;
+const buildPendingQtyMapFromDetail = (detail?: CuttingSheetDetail | null): Record<string, number> => {
+  if (!detail) {
+    return {};
+  }
+  return detail.rows.reduce<Record<string, number>>((acc, row) => {
+    row.cells.forEach((cell) => {
+      acc[buildSpecKey(row.color, cell.size)] = Math.max(0, Math.round(Number(cell.pendingQty) || 0));
+    });
+    return acc;
+  }, {});
+};
 
 const buildMaterialOptionsForWarehouse = (
   warehouseId: number,
@@ -1147,6 +1158,9 @@ const CuttingPendingPage = () => {
             ...prev,
             [key]: value,
           }));
+        }}
+        onFillPendingQty={() => {
+          setBedRecordQtyMap(buildPendingQtyMapFromDetail(sheetDetail));
         }}
         onCancel={() => {
           bedRecordForm.resetFields();

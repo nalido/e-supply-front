@@ -17,6 +17,7 @@ type Props = {
   warehouseOptions: Array<{ label: string; value: number }>;
   zIndex?: number;
   onQtyChange: (key: string, value: number) => void;
+  onFillPendingQty: () => void;
   onCancel: () => void;
   onSubmit: () => void;
 };
@@ -35,6 +36,7 @@ export default function CuttingBedRecordModal({
   warehouseOptions,
   zIndex,
   onQtyChange,
+  onFillPendingQty,
   onCancel,
   onSubmit,
 }: Props) {
@@ -188,7 +190,15 @@ export default function CuttingBedRecordModal({
             )}
           </Form.List>
         </Card>
-        <Card title="颜色尺码" size="small">
+        <Card
+          title="颜色尺码"
+          size="small"
+          extra={sortedRows.length ? (
+            <Button type="link" onClick={onFillPendingQty} style={{ paddingInline: 0 }}>
+              填入剩余数量
+            </Button>
+          ) : null}
+        >
           {sortedRows.length ? (
             <div className="factory-create-matrix-wrap">
               <table className="factory-create-matrix-table">
