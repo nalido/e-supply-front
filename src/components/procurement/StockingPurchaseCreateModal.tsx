@@ -33,6 +33,11 @@ import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../uti
 
 const { Text } = Typography;
 
+type SelectedMaterialRow = {
+  rowId: string;
+  material: MaterialItem;
+};
+
 export type StockingPurchaseCreateModalProps = {
   open: boolean;
   materialType: MaterialStockType;
@@ -63,10 +68,15 @@ const DEFAULT_SUPPLIER_FORM_VALUES: SavePartnerPayload = {
   remarks: undefined,
 };
 
+const buildSelectedMaterialRow = (material: MaterialItem): SelectedMaterialRow => ({
+  rowId: `${material.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  material,
+});
+
 const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
   const [supplierForm] = Form.useForm<SavePartnerPayload>();
-  const [selectedMaterials, setSelectedMaterials] = useState<MaterialItem[]>([]);
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterialRow[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
   const [selectedColors, setSelectedColors] = useState<Record<string, string | undefined>>({});
@@ -195,7 +205,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     }
     const loadInitialMaterial = async () => {
       try {
-        const matchedMaterials: MaterialItem[] = [];
+        const matchedMaterials: SelectedMaterialRow[] = [];
         const nextQuantities: Record<string, number> = {};
         const nextColors: Record<string, string | undefined> = {};
         for (const draftItem of draftItems) {
@@ -219,11 +229,10 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           if (!matchedMaterial) {
             continue;
           }
-          if (!matchedMaterials.find((item) => item.id === matchedMaterial.id)) {
-            matchedMaterials.push(matchedMaterial);
-          }
-          nextQuantities[matchedMaterial.id] = Math.max(0, Number(draftItem.quantity ?? 0));
-          nextColors[matchedMaterial.id] = matchedMaterial.colors?.length === 1 ? matchedMaterial.colors[0] : undefined;
+          const row = buildSelectedMaterialRow(matchedMaterial);
+          matchedMaterials.push(row);
+          nextQuantities[row.rowId] = Math.max(0, Number(draftItem.quantity ?? 0));
+          nextColors[row.rowId] = matchedMaterial.colors?.length === 1 ? matchedMaterial.colors[0] : undefined;
         }
         if (!matchedMaterials.length) {
           return;
@@ -258,7 +267,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   }, []);
 
   const handleRemoveMaterial = useCallback((recordId: string) => {
-    setSelectedMaterials((prev) => prev.filter((item) => item.id !== recordId));
+    setSelectedMaterials((prev) => prev.filter((item) => item.rowId !== recordId));
     setQuantities((prev) => {
       const next = { ...prev };
       delete next[recordId];
@@ -276,41 +285,41 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
     });
   }, []);
 
-  const columns: ColumnsType<MaterialItem> = useMemo(
+  const columns: ColumnsType<SelectedMaterialRow> = useMemo(
     () => [
       {
         title: '物料',
-        dataIndex: 'name',
+        dataIndex: ['material', 'name'],
         key: 'name',
-        render: (value: string, record) => (
+        render: (_value: string, record) => (
           <Space direction="vertical" size={2}>
-            <Text strong>{value}</Text>
-            <Text type="secondary">{record.sku}</Text>
+            <Text strong>{record.material.name}</Text>
+            <Text type="secondary">{record.material.sku}</Text>
           </Space>
         ),
       },
       {
         title: '颜色/备注',
-        dataIndex: 'colors',
+        dataIndex: ['material', 'colors'],
         key: 'colors',
         width: 240,
         render: (_value: string[], record) => {
-          const colorOptions = (record.colors ?? []).map((color) => ({ label: color, value: color }));
+          const colorOptions = (record.material.colors ?? []).map((color) => ({ label: color, value: color }));
           return (
             <Space direction="vertical" size={6} style={{ width: '100%' }}>
               {colorOptions.length ? (
                 <Select
                   allowClear
                   placeholder="请选择颜色"
-                  value={selectedColors[record.id]}
-                  onChange={(value) => handleColorChange(record.id, value)}
+                  value={selectedColors[record.rowId]}
+                  onChange={(value) => handleColorChange(record.rowId, value)}
                   options={colorOptions}
                   style={{ width: '100%' }}
                 />
               ) : (
                 <Text type="secondary">未维护颜色</Text>
               )}
-              <Text type="secondary">{record.remarks || '-'}</Text>
+              <Text type="secondary">{record.material.remarks || '-'}</Text>
             </Space>
           );
         },
@@ -324,9 +333,9 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           <InputNumber
             min={0}
             precision={2}
-            value={quantities[record.id] ?? 0}
-            onChange={(val) => handleQuantityChange(record.id, val)}
-            addonAfter={record.unit}
+            value={quantities[record.rowId] ?? 0}
+            onChange={(val) => handleQuantityChange(record.rowId, val)}
+            addonAfter={record.material.unit}
             style={{ width: '100%' }}
           />
         ),
@@ -344,8 +353,8 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
             <InputNumber
               min={0}
               precision={2}
-              value={unitPrices[record.id] ?? record.referencePrice ?? 0}
-              onChange={(val) => handleUnitPriceChange(record.id, val)}
+              value={unitPrices[record.rowId] ?? record.material.referencePrice ?? 0}
+              onChange={(val) => handleUnitPriceChange(record.rowId, val)}
               style={{ width: '100%' }}
               placeholder="请输入采购单价"
             />
@@ -358,7 +367,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         key: 'actions',
         width: 80,
         render: (_value, record) => (
-          <Button type="link" danger onClick={() => handleRemoveMaterial(record.id)}>
+          <Button type="link" danger onClick={() => handleRemoveMaterial(record.rowId)}>
             移除
           </Button>
         ),
@@ -392,48 +401,31 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       message.warning('未找到勾选的物料，请刷新后重试');
       return;
     }
-    let hasNewItems = false;
-      setSelectedMaterials((prev) => {
-        const existingIds = new Set(prev.map((item) => item.id));
-        const itemsToAdd = selectedRecords.filter((item) => !existingIds.has(item.id));
-      if (!itemsToAdd.length) {
-        message.info('所选物料已在列表中');
-        return prev;
-      }
-      hasNewItems = true;
-      setQuantities((quantitiesState) => {
-        const nextQuantities = { ...quantitiesState };
-        itemsToAdd.forEach((item) => {
-          if (nextQuantities[item.id] === undefined) {
-            nextQuantities[item.id] = 0;
-          }
-        });
-        return nextQuantities;
+    const rowsToAdd = selectedRecords.map(buildSelectedMaterialRow);
+    setSelectedMaterials((prev) => [...prev, ...rowsToAdd]);
+    setQuantities((quantitiesState) => {
+      const nextQuantities = { ...quantitiesState };
+      rowsToAdd.forEach((row) => {
+        nextQuantities[row.rowId] = 0;
       });
-      setUnitPrices((unitPriceState) => {
-        const nextUnitPrices = { ...unitPriceState };
-        itemsToAdd.forEach((item) => {
-          if (nextUnitPrices[item.id] === undefined) {
-            nextUnitPrices[item.id] = item.referencePrice ?? 0;
-          }
-        });
-        return nextUnitPrices;
+      return nextQuantities;
+    });
+    setUnitPrices((unitPriceState) => {
+      const nextUnitPrices = { ...unitPriceState };
+      rowsToAdd.forEach((row) => {
+        nextUnitPrices[row.rowId] = row.material.referencePrice ?? 0;
       });
-      setSelectedColors((colorState) => {
-        const nextColors = { ...colorState };
-        itemsToAdd.forEach((item) => {
-          if (nextColors[item.id] === undefined) {
-            nextColors[item.id] = item.colors?.length === 1 ? item.colors[0] : undefined;
-          }
-        });
-        return nextColors;
+      return nextUnitPrices;
+    });
+    setSelectedColors((colorState) => {
+      const nextColors = { ...colorState };
+      rowsToAdd.forEach((row) => {
+        nextColors[row.rowId] = row.material.colors?.length === 1 ? row.material.colors[0] : undefined;
       });
-      return [...prev, ...itemsToAdd];
+      return nextColors;
     });
     setDrawerSelectedRowKeys([]);
-    if (hasNewItems) {
-      setMaterialDrawerOpen(false);
-    }
+    setMaterialDrawerOpen(false);
   };
 
   const handleCreateSupplier = async () => {
@@ -482,11 +474,12 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       }
       const selectedLines = selectedMaterials
         .map((item) => ({
-          materialId: item.id,
-          quantity: quantities[item.id] ?? 0,
-          unit: item.unit,
-          unitPrice: unitPrices[item.id] ?? item.referencePrice ?? 0,
-          color: selectedColors[item.id],
+          materialId: item.material.id,
+          quantity: quantities[item.rowId] ?? 0,
+          unit: item.material.unit,
+          unitPrice: unitPrices[item.rowId] ?? item.material.referencePrice ?? 0,
+          color: selectedColors[item.rowId],
+          materialName: item.material.name,
         }))
         .filter((line) => line.quantity > 0);
       if (!selectedLines.length) {
@@ -495,8 +488,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       }
       const missingUnitPriceLine = selectedLines.find((line) => line.unitPrice <= 0);
       if (missingUnitPriceLine) {
-        const material = selectedMaterials.find((item) => item.id === missingUnitPriceLine.materialId);
-        message.warning(`请填写物料「${material?.name ?? missingUnitPriceLine.materialId}」的采购单价`);
+        message.warning(`请填写物料「${missingUnitPriceLine.materialName ?? missingUnitPriceLine.materialId}」的采购单价`);
         return;
       }
       const payload: StockingPurchaseCreatePayload = {
@@ -505,7 +497,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         orderDate: values.orderDate ? values.orderDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
         expectedArrival: values.expectedArrival?.format('YYYY-MM-DD'),
         remark: values.remark,
-        lines: selectedLines,
+          lines: selectedLines.map(({ materialName, ...line }) => line),
       };
       setSubmitting(true);
       const summary = await stockingPurchaseInboundService.createOrder(payload);
@@ -631,8 +623,8 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
             已添加的物料：<Text strong>{selectedMaterials.length}</Text> 项
           </Text>
         </Space>
-        <Table<MaterialItem>
-          rowKey="id"
+        <Table<SelectedMaterialRow>
+          rowKey="rowId"
           dataSource={selectedMaterials}
           columns={columns}
           pagination={false}

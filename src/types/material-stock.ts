@@ -17,6 +17,10 @@ export type MaterialStockListItem = {
   materialCode: string;
   materialName: string;
   color?: string;
+  colorStocks: Array<{
+    color: string;
+    quantity: number;
+  }>;
   specification?: string;
   unit: string;
   warehouseId: string;
