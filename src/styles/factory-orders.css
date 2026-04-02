@@ -358,6 +358,11 @@
   text-align: left;
 }
 
+.factory-inout-delivery-matrix-table td:first-child,
+.factory-inout-delivery-matrix-table th:first-child {
+  text-align: center;
+}
+
 .factory-create-matrix-table tfoot td {
   background-color: #fafafa;
   font-weight: 600;

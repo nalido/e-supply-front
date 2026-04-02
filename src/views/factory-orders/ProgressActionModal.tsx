@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import { Alert, Button, DatePicker, Form, Modal, Skeleton, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import dayjs from 'dayjs';
-import type { AllocationHistoryRow, CuttingSheetTarget, InOutDataState, InOutDetailRow, InOutSummaryRow, ProgressActionModalState, ProgressStatsState, SelectOption } from './types';
+import type { AllocationHistoryRow, CuttingSheetTarget, InOutDataState, InOutDetailRow, ProgressActionModalState, ProgressStatsState, SelectOption } from './types';
 import { normalizeProgressLabel } from './utils';
 import { getCuttingDeleteBlockedTooltip } from '../../utils/cutting-delete-guard';
+import { sortColorValues, sortSizeValues } from '../../utils/spec';
 
 const { Text } = Typography;
 
@@ -132,6 +134,74 @@ export default function ProgressActionModal({
       : isInOutProgressStage || isInOutStageCompleted
         ? [<Button key="close" onClick={onCancel}>关闭</Button>]
         : undefined;
+  const inOutDeliveryMatrix = useMemo(() => {
+    const summaryMap = new Map(inOutData.summaryRows.map((row) => [row.key, row]));
+    const dateSortMap = inOutData.detailRows.reduce<Record<string, number>>((acc, row) => {
+      const parsedDate = dayjs(row.receiptDate);
+      const dateKey = parsedDate.isValid() ? parsedDate.format('M.D') : '';
+      if (!dateKey) {
+        return acc;
+      }
+      acc[dateKey] = Math.max(acc[dateKey] ?? 0, parsedDate.valueOf());
+      return acc;
+    }, {});
+    const dateKeys = Object.keys(dateSortMap).sort((left, right) => dateSortMap[left] - dateSortMap[right]);
+    const dateMatrix = inOutData.detailRows.reduce<Record<string, Record<string, number>>>((acc, row) => {
+      const summaryKey = `${row.color}::${row.size}`;
+      const dateKey = dayjs(row.receiptDate).isValid() ? dayjs(row.receiptDate).format('M.D') : '';
+      if (!dateKey) {
+        return acc;
+      }
+      if (!acc[summaryKey]) {
+        acc[summaryKey] = {};
+      }
+      acc[summaryKey][dateKey] = (acc[summaryKey][dateKey] ?? 0) + row.quantity;
+      return acc;
+    }, {});
+    const colors = sortColorValues(inOutData.summaryRows.map((row) => row.color));
+    const sizes = sortSizeValues(inOutData.summaryRows.map((row) => row.size));
+    const rowGroups = colors.map((color) => {
+      const specs = sizes
+        .map((size) => {
+          const key = `${color}::${size}`;
+          const summary = summaryMap.get(key);
+          if (!summary) {
+            return null;
+          }
+          return {
+            key,
+            color,
+            size,
+            totalQty: summary.totalQty,
+            pendingQty: summary.pendingQty,
+            doneQty: summary.doneQty,
+            byDate: dateMatrix[key] ?? {},
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      return {
+        color,
+        specs,
+        totalQty: specs.reduce((sum, item) => sum + item.totalQty, 0),
+        pendingQty: specs.reduce((sum, item) => sum + item.pendingQty, 0),
+        doneQty: specs.reduce((sum, item) => sum + item.doneQty, 0),
+        byDate: dateKeys.reduce<Record<string, number>>((acc, dateKey) => {
+          acc[dateKey] = specs.reduce((sum, item) => sum + (item.byDate[dateKey] ?? 0), 0);
+          return acc;
+        }, {}),
+      };
+    }).filter((row) => row.specs.length > 0);
+    const totals = {
+      totalQty: rowGroups.reduce((sum, row) => sum + row.totalQty, 0),
+      pendingQty: rowGroups.reduce((sum, row) => sum + row.pendingQty, 0),
+      doneQty: rowGroups.reduce((sum, row) => sum + row.doneQty, 0),
+      byDate: dateKeys.reduce<Record<string, number>>((acc, dateKey) => {
+        acc[dateKey] = rowGroups.reduce((sum, row) => sum + (row.byDate[dateKey] ?? 0), 0);
+        return acc;
+      }, {}),
+    };
+    return { dateKeys, rowGroups, totals };
+  }, [inOutData.detailRows, inOutData.summaryRows]);
 
   return (
     <Modal
@@ -387,7 +457,7 @@ export default function ProgressActionModal({
                             ) : null}
                           </div>
                           <div className="factory-create-matrix-wrap">
-                            <table className="factory-create-matrix-table">
+                            <table className="factory-create-matrix-table factory-inout-delivery-matrix-table">
                               <thead>
                                 <tr>
                                   <th>颜色</th>
@@ -478,21 +548,66 @@ export default function ProgressActionModal({
                   inOutData.loading ? (
                     <Skeleton active paragraph={{ rows: 6 }} />
                   ) : (
-                    <Table<InOutSummaryRow>
-                      rowKey="key"
-                      size="middle"
-                      bordered
-                      pagination={false}
-                      dataSource={inOutData.summaryRows}
-                      locale={{ emptyText: `暂无${inOutPendingLabel}数据` }}
-                      columns={[
-                        { title: '颜色', dataIndex: 'color', width: 140 },
-                        { title: '尺码', dataIndex: 'size', width: 140 },
-                        { title: '下货数量', dataIndex: 'totalQty', width: 140 },
-                        { title: inOutPendingLabel, dataIndex: 'pendingQty', width: 140 },
-                        { title: inOutDoneLabel, dataIndex: 'doneQty', width: 140 },
-                      ]}
-                    />
+                    <>
+                      {inOutDeliveryMatrix.rowGroups.length ? (
+                        <>
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 12 }}
+                            message={`按颜色尺码展示下货数量、每日${inOutDoneLabel}与${inOutPendingLabel}，日期列按入库时间汇总。`}
+                          />
+                          <div className="factory-create-matrix-wrap" style={{ marginBottom: 16 }}>
+                            <table className="factory-create-matrix-table factory-inout-delivery-matrix-table">
+                              <thead>
+                                <tr>
+                                  <th>颜色</th>
+                                  <th>尺码</th>
+                                  <th>下货数量</th>
+                                  {inOutDeliveryMatrix.dateKeys.map((dateKey) => (
+                                    <th key={`inout-matrix-head-${dateKey}`}>{dateKey}</th>
+                                  ))}
+                                  <th>{inOutPendingLabel}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {inOutDeliveryMatrix.rowGroups.flatMap((group) => [
+                                  ...group.specs.map((spec, index) => (
+                                    <tr key={`inout-matrix-row-${spec.key}`}>
+                                      {index === 0 ? <td rowSpan={group.specs.length + 1}>{group.color}</td> : null}
+                                      <td>{spec.size}</td>
+                                      <td>{spec.totalQty}</td>
+                                      {inOutDeliveryMatrix.dateKeys.map((dateKey) => (
+                                        <td key={`inout-matrix-cell-${spec.key}-${dateKey}`}>{spec.byDate[dateKey] ?? 0}</td>
+                                      ))}
+                                      <td>{spec.pendingQty}</td>
+                                    </tr>
+                                  )),
+                                  <tr key={`inout-matrix-subtotal-${group.color}`}>
+                                    <td>小计</td>
+                                    <td>{group.totalQty}</td>
+                                    {inOutDeliveryMatrix.dateKeys.map((dateKey) => (
+                                      <td key={`inout-matrix-subtotal-${group.color}-${dateKey}`}>{group.byDate[dateKey] ?? 0}</td>
+                                    ))}
+                                    <td>{group.pendingQty}</td>
+                                  </tr>,
+                                ])}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={2}>合计</td>
+                                  <td>{inOutDeliveryMatrix.totals.totalQty}</td>
+                                  {inOutDeliveryMatrix.dateKeys.map((dateKey) => (
+                                    <td key={`inout-matrix-total-${dateKey}`}>{inOutDeliveryMatrix.totals.byDate[dateKey] ?? 0}</td>
+                                  ))}
+                                  <td>{inOutDeliveryMatrix.totals.pendingQty}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </>
+                      ) : null}
+                    </>
                   )
                 ),
               },
