@@ -498,9 +498,9 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         expectedArrival: values.expectedArrival?.format('YYYY-MM-DD'),
         remark: values.remark,
         lines: selectedLines.map((line) => ({
-          rowId: line.rowId,
           materialId: line.materialId,
           quantity: line.quantity,
+          unit: line.unit,
           unitPrice: line.unitPrice,
           color: line.color,
         })),
