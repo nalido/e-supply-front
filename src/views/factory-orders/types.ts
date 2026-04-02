@@ -108,7 +108,8 @@ export type InOutDetailRow = {
 };
 
 export type CuttingSheetTarget = {
-  workOrderId: number;
+  workOrderId?: number;
+  orderCode?: string;
   bedNumber?: string;
 };
 

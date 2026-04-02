@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -279,6 +279,7 @@ const CuttingPendingPage = () => {
   const [bedRecordState, setBedRecordState] = useState<BedRecordModalState>({ open: false, submitting: false });
   const [detailLoading, setDetailLoading] = useState(false);
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
+  const [deletingBedKey, setDeletingBedKey] = useState<string | null>(null);
   const [completeQtyMap, setCompleteQtyMap] = useState<Record<string, number>>({});
   const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number>>({});
   const [startForm] = Form.useForm();
@@ -533,21 +534,58 @@ const CuttingPendingPage = () => {
     setPreviewState({ open: true, task });
   };
 
-  const handleViewDetail = (task: CuttingTask) => {
-    setDetailState({ open: true, task });
+  const loadSheetDetail = useCallback(async (task: CuttingTask, options?: { silent?: boolean }) => {
     if (!task.workOrderId) {
       setSheetDetail(null);
-      return;
+      return null;
     }
     setDetailLoading(true);
-    void pieceworkService.getCuttingSheetDetail(task.workOrderId)
-      .then((detail) => setSheetDetail(detail))
-      .catch((error) => {
-        console.error('failed to load cutting sheet detail', error);
-        setSheetDetail(null);
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
+      setSheetDetail(detail);
+      return detail;
+    } catch (error) {
+      console.error('failed to load cutting sheet detail', error);
+      setSheetDetail(null);
+      if (!options?.silent) {
         message.error('获取裁床单详情失败');
-      })
-      .finally(() => setDetailLoading(false));
+      }
+      return null;
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const handleViewDetail = useCallback((task: CuttingTask) => {
+    setDetailState({ open: true, task });
+    void loadSheetDetail(task);
+  }, [loadSheetDetail]);
+
+  const handleDeleteBed = async (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => {
+    if (!detailState.task?.workOrderId) {
+      message.warning('当前裁床单缺少工单信息，无法删除床次');
+      return;
+    }
+    if (!record.recordedAt) {
+      message.warning('该床次缺少录入时间，暂时无法删除');
+      return;
+    }
+    const deleteKey = `${record.bedNumber}::${record.recordedAt}`;
+    setDeletingBedKey(deleteKey);
+    try {
+      await pieceworkService.deleteCuttingSheetBed(detailState.task.workOrderId, {
+        bedNumber: record.bedNumber,
+        recordedAt: record.recordedAt,
+      });
+      message.success('床次已删除');
+      setReloadToken((prev) => prev + 1);
+      await loadSheetDetail(detailState.task, { silent: true });
+    } catch (error) {
+      console.error('failed to delete cutting bed', error);
+      message.error(error instanceof Error ? error.message : '删除床次失败');
+    } finally {
+      setDeletingBedKey(null);
+    }
   };
 
   useEffect(() => {
@@ -579,7 +617,7 @@ const CuttingPendingPage = () => {
     next.delete('workOrderId');
     next.delete('openDetail');
     setSearchParams(next, { replace: true });
-  }, [dataset.list, detailState.open, detailState.task?.workOrderId, loading, searchParams, setSearchParams]);
+  }, [dataset.list, detailState.open, detailState.task?.workOrderId, handleViewDetail, loading, searchParams, setSearchParams]);
 
   const handleMenuClick = (task: CuttingTask) => (event: MenuClickEvent) => {
     if (event.key === 'start') {
@@ -980,9 +1018,12 @@ const CuttingPendingPage = () => {
         onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
+          setDeletingBedKey(null);
         }}
         onNavigateToFactoryOrder={navigateToFactoryOrder}
         onNavigate={navigate}
+        onDeleteBed={handleDeleteBed}
+        deletingBedKey={deletingBedKey}
         onComplete={sheetDetail?.status === 'IN_PROGRESS' && detailState.task
           ? () => {
               void openCompleteModal(detailState.task!);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Card,
   Empty,
@@ -53,6 +53,7 @@ const CuttingCompletedPage = () => {
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
+  const [deletingBedKey, setDeletingBedKey] = useState<string | null>(null);
 
   const navigateToFactoryOrder = (orderCode?: string) => {
     const normalized = orderCode?.trim();
@@ -62,42 +63,68 @@ const CuttingCompletedPage = () => {
     navigate(`/orders/factory?keyword=${encodeURIComponent(normalized)}&status=all`);
   };
 
+  const loadCompletedTasks = useCallback(async (options?: { targetPage?: number }) => {
+    const targetPage = options?.targetPage ?? page;
+    setLoading(true);
+    try {
+      const response = await pieceworkService.getCuttingCompleted({
+        page: targetPage,
+        pageSize,
+        keyword: appliedKeyword,
+        includeSummary: targetPage === 1,
+      });
+      setDataset(response);
+      if (response.page !== page) {
+        setPage(response.page);
+      }
+      if (response.pageSize !== pageSize) {
+        setPageSize(response.pageSize);
+      }
+      return response;
+    } catch (error) {
+      console.error('failed to load completed cutting tasks', error);
+      message.error('获取已裁数据失败，请稍后重试');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedKeyword, page, pageSize]);
+
+  const loadSheetDetail = useCallback(async (task: CuttingTask, options?: { silent?: boolean }) => {
+    if (!task.workOrderId) {
+      setSheetDetail(null);
+      return null;
+    }
+    setDetailLoading(true);
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(task.workOrderId);
+      setSheetDetail(detail);
+      return detail;
+    } catch (error) {
+      console.error('failed to load cutting sheet detail', error);
+      setSheetDetail(null);
+      if (!options?.silent) {
+        message.error('获取裁床单详情失败');
+      }
+      return null;
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
-      setLoading(true);
-      try {
-        const response = await pieceworkService.getCuttingCompleted({
-          page,
-          pageSize,
-          keyword: appliedKeyword,
-          includeSummary: page === 1,
-        });
-        if (!cancelled) {
-          setDataset(response);
-          if (response.page !== page) {
-            setPage(response.page);
-          }
-          if (response.pageSize !== pageSize) {
-            setPageSize(response.pageSize);
-          }
-        }
-      } catch (error) {
-        console.error('failed to load completed cutting tasks', error);
-        if (!cancelled) {
-          message.error('获取已裁数据失败，请稍后重试');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      const response = await loadCompletedTasks();
+      if (cancelled || response == null) {
+        return;
       }
     };
     void fetchData();
     return () => {
       cancelled = true;
     };
-  }, [page, pageSize, appliedKeyword]);
+  }, [appliedKeyword, loadCompletedTasks, page, pageSize]);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
@@ -110,21 +137,41 @@ const CuttingCompletedPage = () => {
     setPreviewState({ open: true, task });
   };
 
-  const handleViewDetail = (task: CuttingTask) => {
+  const handleViewDetail = useCallback((task: CuttingTask) => {
     setDetailState({ open: true, task });
-    if (!task.workOrderId) {
-      setSheetDetail(null);
+    void loadSheetDetail(task);
+  }, [loadSheetDetail]);
+
+  const handleDeleteBed = async (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => {
+    if (!detailState.task?.workOrderId) {
+      message.warning('当前裁床单缺少工单信息，无法删除床次');
       return;
     }
-    setDetailLoading(true);
-    void pieceworkService.getCuttingSheetDetail(task.workOrderId)
-      .then((detail) => setSheetDetail(detail))
-      .catch((error) => {
-        console.error('failed to load cutting sheet detail', error);
+    if (!record.recordedAt) {
+      message.warning('该床次缺少录入时间，暂时无法删除');
+      return;
+    }
+    const deleteKey = `${record.bedNumber}::${record.recordedAt}`;
+    setDeletingBedKey(deleteKey);
+    try {
+      await pieceworkService.deleteCuttingSheetBed(detailState.task.workOrderId, {
+        bedNumber: record.bedNumber,
+        recordedAt: record.recordedAt,
+      });
+      message.success('床次已删除');
+      const nextDetail = await loadSheetDetail(detailState.task, { silent: true });
+      await loadCompletedTasks();
+      if (nextDetail && nextDetail.status !== 'COMPLETED') {
+        setDetailState({ open: false });
         setSheetDetail(null);
-        message.error('获取裁床单详情失败');
-      })
-      .finally(() => setDetailLoading(false));
+        message.info('裁床单已回退到待裁列表');
+      }
+    } catch (error) {
+      console.error('failed to delete cutting bed', error);
+      message.error(error instanceof Error ? error.message : '删除床次失败');
+    } finally {
+      setDeletingBedKey(null);
+    }
   };
 
   useEffect(() => {
@@ -156,7 +203,7 @@ const CuttingCompletedPage = () => {
     next.delete('workOrderId');
     next.delete('openDetail');
     setSearchParams(next, { replace: true });
-  }, [dataset.list, detailState.open, detailState.task?.workOrderId, loading, searchParams, setSearchParams]);
+  }, [dataset.list, detailState.open, detailState.task?.workOrderId, handleViewDetail, loading, searchParams, setSearchParams]);
 
   const renderMetric = (metric: CuttingTaskMetric) => (
     <Card
@@ -272,9 +319,12 @@ const CuttingCompletedPage = () => {
         onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
+          setDeletingBedKey(null);
         }}
         onNavigateToFactoryOrder={navigateToFactoryOrder}
         onNavigate={navigate}
+        onDeleteBed={handleDeleteBed}
+        deletingBedKey={deletingBedKey}
       />
     </div>
   );

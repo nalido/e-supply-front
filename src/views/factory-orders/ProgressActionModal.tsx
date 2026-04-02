@@ -3,6 +3,7 @@ import type { FormInstance } from 'antd/es/form';
 import dayjs from 'dayjs';
 import type { AllocationHistoryRow, CuttingSheetTarget, InOutDataState, InOutDetailRow, InOutSummaryRow, ProgressActionModalState, ProgressStatsState, SelectOption } from './types';
 import { normalizeProgressLabel } from './utils';
+import { getCuttingDeleteBlockedTooltip } from '../../utils/cutting-delete-guard';
 
 const { Text } = Typography;
 
@@ -371,7 +372,7 @@ export default function ProgressActionModal({
                                   删除
                                 </Button>
                               ) : record.deleteBlockedReason ? (
-                                <Tooltip title={record.deleteBlockedReason} placement="topRight">
+                                <Tooltip title={getCuttingDeleteBlockedTooltip(record.deleteBlockedReason)} placement="topRight">
                                   <Button
                                     danger
                                     type="link"
@@ -446,7 +447,11 @@ export default function ProgressActionModal({
                     })}
                     <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                       {isCuttingProgressStage ? (
-                        <Button type="primary" onClick={onNavigateToCurrentCuttingSheet} disabled={!cuttingSheetTarget?.workOrderId}>
+                        <Button
+                          type="primary"
+                          onClick={onNavigateToCurrentCuttingSheet}
+                          disabled={!cuttingSheetTarget?.workOrderId && !cuttingSheetTarget?.orderCode}
+                        >
                           前往裁床单
                         </Button>
                       ) : (

@@ -497,7 +497,13 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         orderDate: values.orderDate ? values.orderDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
         expectedArrival: values.expectedArrival?.format('YYYY-MM-DD'),
         remark: values.remark,
-          lines: selectedLines.map(({ materialName, ...line }) => line),
+        lines: selectedLines.map((line) => ({
+          rowId: line.rowId,
+          materialId: line.materialId,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          color: line.color,
+        })),
       };
       setSubmitting(true);
       const summary = await stockingPurchaseInboundService.createOrder(payload);

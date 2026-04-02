@@ -3,14 +3,18 @@ import {
   Card,
   Descriptions,
   Modal,
+  Popconfirm,
   Skeleton,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
 import ListImage from './common/ListImage';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
+import { getCuttingDeleteBlockedTooltip } from '../utils/cutting-delete-guard';
 
 const { Text } = Typography;
 
@@ -108,6 +112,8 @@ type Props = {
   onNavigate: (path: string) => void;
   onRecordBed?: () => void;
   onComplete?: () => void;
+  onDeleteBed?: (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => Promise<void> | void;
+  deletingBedKey?: string | null;
 };
 
 export default function CuttingSheetDetailModal({
@@ -121,6 +127,8 @@ export default function CuttingSheetDetailModal({
   onNavigate,
   onRecordBed,
   onComplete,
+  onDeleteBed,
+  deletingBedKey,
 }: Props) {
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
   const detailActualQtyMap = (detail?.bedRecords ?? []).reduce<Record<string, number>>((acc, record) => {
@@ -291,7 +299,47 @@ export default function CuttingSheetDetailModal({
                           key={`${record.bedNumber}-${record.recordedAt ?? index}`}
                           size="small"
                           title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
-                          extra={<Text type="secondary">{record.recordedAt ?? '-'}</Text>}
+                          extra={(
+                            <Space size={12}>
+                              <Text type="secondary">{record.recordedAt ?? '-'}</Text>
+                              {onDeleteBed ? (
+                                record.deletable === false ? (
+                                  <Tooltip title={getCuttingDeleteBlockedTooltip(record.deleteBlockedReason)} placement="topRight">
+                                    <Button
+                                      type="link"
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      disabled
+                                    >
+                                      删除床次
+                                    </Button>
+                                  </Tooltip>
+                                ) : (
+                                  <Popconfirm
+                                    title="确认删除该床次吗？"
+                                    description={`床次 ${record.bedNumber} 删除后会回退对应裁剪数量与用料。`}
+                                    okText="删除"
+                                    cancelText="取消"
+                                    okButtonProps={{ danger: true, loading: deletingBedKey === `${record.bedNumber}::${record.recordedAt ?? index}` }}
+                                    onConfirm={() => onDeleteBed(record)}
+                                    disabled={!record.recordedAt}
+                                  >
+                                    <Button
+                                      type="link"
+                                      danger
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      disabled={!record.recordedAt}
+                                      loading={deletingBedKey === `${record.bedNumber}::${record.recordedAt ?? index}`}
+                                    >
+                                      删除床次
+                                    </Button>
+                                  </Popconfirm>
+                                )
+                              ) : null}
+                            </Space>
+                          )}
                         >
                           <div style={{ display: 'grid', gap: 16 }}>
                             <div>

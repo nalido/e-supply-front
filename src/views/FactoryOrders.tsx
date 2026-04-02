@@ -378,9 +378,9 @@ const FactoryOrders = () => {
     setSelectedOrderIds((prev) => prev.filter((id) => !visibleSet.has(id)));
   };
 
-  const triggerReload = () => {
+  const triggerReload = useCallback(() => {
     setReloadFlag((flag) => flag + 1);
-  };
+  }, []);
 
   const handleExport = async (selectedOnly: boolean) => {
     if (selectedOnly && selectedOrderIds.length === 0) {
@@ -696,7 +696,7 @@ const FactoryOrders = () => {
         triggerReload();
       },
     });
-  }, []);
+  }, [triggerReload]);
 
   const buildSpecKey = (color?: string, size?: string) => `${(color ?? '').trim()}::${(size ?? '').trim()}`;
 
@@ -858,10 +858,11 @@ const FactoryOrders = () => {
         (allocation) => allocation.source === CUTTING_SHEET_START_SOURCE,
       ) ?? cuttingSheetAllocations[0];
       setCuttingSheetTarget(
-        currentCuttingSheetTarget?.workOrderId
+        currentCuttingSheetTarget?.workOrderId || detail.order?.orderNo
           ? {
-              workOrderId: currentCuttingSheetTarget.workOrderId,
-              bedNumber: currentCuttingSheetTarget.bedNumber,
+              workOrderId: currentCuttingSheetTarget?.workOrderId,
+              orderCode: detail.order?.orderNo,
+              bedNumber: currentCuttingSheetTarget?.bedNumber,
             }
           : null,
       );
@@ -1177,7 +1178,7 @@ const FactoryOrders = () => {
     } finally {
       setProgressActionModal((prev) => ({ ...prev, submitting: false }));
     }
-  }, [allocationColors, allocationMatrix, allocationSizes, progressActionForm, progressActionModal, progressStats.rows]);
+  }, [allocationColors, allocationMatrix, allocationSizes, progressActionForm, progressActionModal, progressStats.rows, triggerReload]);
 
   useEffect(() => {
     if (searchParams.get('quickCreate') !== '1') {
@@ -1441,12 +1442,19 @@ const FactoryOrders = () => {
   }, [handleNavigateToCuttingSheetByWorkOrder]);
 
   const handleNavigateToCurrentCuttingSheet = useCallback(() => {
+    if (cuttingSheetTarget?.workOrderId) {
+      void handleNavigateToCuttingSheetByWorkOrder(cuttingSheetTarget.workOrderId);
+      return;
+    }
+    if (cuttingSheetTarget?.orderCode?.trim()) {
+      navigate(`/piecework/cutting/pending?keyword=${encodeURIComponent(cuttingSheetTarget.orderCode.trim())}`);
+      return;
+    }
     if (!cuttingSheetTarget?.workOrderId) {
       message.warning('当前节点还没有可跳转的裁床单');
       return;
     }
-    void handleNavigateToCuttingSheetByWorkOrder(cuttingSheetTarget.workOrderId);
-  }, [cuttingSheetTarget?.workOrderId, handleNavigateToCuttingSheetByWorkOrder]);
+  }, [cuttingSheetTarget?.orderCode, cuttingSheetTarget?.workOrderId, handleNavigateToCuttingSheetByWorkOrder, navigate]);
 
   const handleNavigateToOutsourceOrder = useCallback((record: AllocationHistoryRow) => {
     if (!record.outsourcingOrderId) {
@@ -1567,6 +1575,7 @@ const FactoryOrders = () => {
     progressStats.rows,
     progressActionModal.order,
     progressActionModal.stage,
+    triggerReload,
   ]);
 
   const handleDeleteCuttingRecord = useCallback((record: AllocationHistoryRow) => {

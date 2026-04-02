@@ -108,6 +108,8 @@ export type CuttingSheetDetail = {
     actualFabricQty?: number;
     materialUsages?: CuttingSheetMaterialUsage[];
     fabricUsages?: CuttingSheetMaterialUsage[];
+    deletable?: boolean;
+    deleteBlockedReason?: string;
     totalQty: number;
     items: Array<{
       color: string;

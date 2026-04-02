@@ -381,6 +381,8 @@ type CuttingSheetDetailPayload = Partial<{
     actualFabricQty?: number;
     materialUsages?: CuttingSheetMaterialUsagePayload[];
     fabricUsages?: CuttingSheetMaterialUsagePayload[];
+    deletable?: boolean;
+    deleteBlockedReason?: string;
     totalQty?: number;
     items?: Array<{
       color?: string;
@@ -577,6 +579,8 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
         : undefined,
       materialUsages: (record.materialUsages ?? []).map(adaptCuttingSheetMaterialUsage),
       fabricUsages: (record.fabricUsages ?? []).map(adaptCuttingSheetMaterialUsage),
+      deletable: typeof record.deletable === 'boolean' ? record.deletable : undefined,
+      deleteBlockedReason: typeof record.deleteBlockedReason === 'string' ? record.deleteBlockedReason : undefined,
       totalQty: Number(record.totalQty ?? 0),
       items: (record.items ?? []).map((item) => ({
         color: item.color ?? '-',
@@ -885,6 +889,19 @@ export const pieceworkService = {
       materialUsages: payload.materialUsages?.map(normalizeUsage),
       fabricUsages: payload.fabricUsages?.map(normalizeUsage),
     }, {
+      params: { tenantId },
+    });
+  },
+
+  async deleteCuttingSheetBed(
+    workOrderId: number,
+    payload: {
+      bedNumber: string;
+      recordedAt: string;
+    },
+  ): Promise<void> {
+    const tenantId = ensureTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/delete`, payload, {
       params: { tenantId },
     });
   },
