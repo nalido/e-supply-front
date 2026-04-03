@@ -376,6 +376,7 @@ type CuttingSheetDetailPayload = Partial<{
     pendingSubtotal: number;
   }>;
   bedRecords: Array<{
+    bedId?: string;
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;
@@ -572,6 +573,7 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
       pendingSubtotal: Number(row.pendingSubtotal ?? 0),
     })),
     bedRecords: (payload.bedRecords ?? []).map((record) => ({
+      bedId: record.bedId,
       bedNumber: record.bedNumber ?? '-',
       recordedAt: record.recordedAt,
       actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
@@ -896,8 +898,7 @@ export const pieceworkService = {
   async deleteCuttingSheetBed(
     workOrderId: number,
     payload: {
-      bedNumber: string;
-      recordedAt: string;
+      bedId: string;
     },
   ): Promise<void> {
     const tenantId = ensureTenantId();

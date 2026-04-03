@@ -147,16 +147,15 @@ const CuttingCompletedPage = () => {
       message.warning('当前裁床单缺少工单信息，无法删除床次');
       return;
     }
-    if (!record.recordedAt) {
-      message.warning('该床次缺少录入时间，暂时无法删除');
+    if (!record.bedId) {
+      message.warning('该床次缺少床次标识，暂时无法删除');
       return;
     }
-    const deleteKey = `${record.bedNumber}::${record.recordedAt}`;
+    const deleteKey = record.bedId;
     setDeletingBedKey(deleteKey);
     try {
       await pieceworkService.deleteCuttingSheetBed(detailState.task.workOrderId, {
-        bedNumber: record.bedNumber,
-        recordedAt: record.recordedAt,
+        bedId: record.bedId,
       });
       message.success('床次已删除');
       const nextDetail = await loadSheetDetail(detailState.task, { silent: true });

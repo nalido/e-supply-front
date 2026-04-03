@@ -296,7 +296,7 @@ export default function CuttingSheetDetailModal({
                       ]);
                       return (
                         <Card
-                          key={`${record.bedNumber}-${record.recordedAt ?? index}`}
+                          key={record.bedId ?? `${record.bedNumber}-${record.recordedAt ?? index}`}
                           size="small"
                           title={`床次 ${record.bedNumber}（${record.totalQty} 件）`}
                           extra={(
@@ -321,17 +321,17 @@ export default function CuttingSheetDetailModal({
                                     description={`床次 ${record.bedNumber} 删除后会回退对应裁剪数量与用料。`}
                                     okText="删除"
                                     cancelText="取消"
-                                    okButtonProps={{ danger: true, loading: deletingBedKey === `${record.bedNumber}::${record.recordedAt ?? index}` }}
+                                    okButtonProps={{ danger: true, loading: deletingBedKey === (record.bedId ?? `${record.bedNumber}::${record.recordedAt ?? index}`) }}
                                     onConfirm={() => onDeleteBed(record)}
-                                    disabled={!record.recordedAt}
+                                    disabled={!record.bedId}
                                   >
                                     <Button
                                       type="link"
                                       danger
                                       size="small"
                                       icon={<DeleteOutlined />}
-                                      disabled={!record.recordedAt}
-                                      loading={deletingBedKey === `${record.bedNumber}::${record.recordedAt ?? index}`}
+                                      disabled={!record.bedId}
+                                      loading={deletingBedKey === (record.bedId ?? `${record.bedNumber}::${record.recordedAt ?? index}`)}
                                     >
                                       删除床次
                                     </Button>
@@ -466,6 +466,7 @@ export default function CuttingSheetDetailModal({
                   pagination={false}
                   dataSource={detail.materialDocuments ?? []}
                   locale={{ emptyText: '暂无关联领退料单据' }}
+                  scroll={{ x: 720, y: 320 }}
                   columns={[
                     { title: '单据类型', dataIndex: 'documentTypeLabel', width: 120 },
                     { title: '单据号', dataIndex: 'documentNo', width: 180 },

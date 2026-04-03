@@ -103,6 +103,7 @@ export type CuttingSheetDetail = {
   sizes: string[];
   rows: CuttingSheetColorRow[];
   bedRecords?: Array<{
+    bedId?: string;
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;

@@ -582,11 +582,12 @@ export const factoryOrdersApi = {
   async deleteCuttingRecord(
     orderId: string | number,
     payload: {
+      bedId?: string;
       bedNumber?: string;
       source?: string;
       workOrderId?: number;
-      completedAt: string;
-      items: Array<{ color?: string; size?: string; quantity: number }>;
+      completedAt?: string;
+      items?: Array<{ color?: string; size?: string; quantity: number }>;
     },
   ): Promise<void> {
     const tenantId = ensureTenantId();

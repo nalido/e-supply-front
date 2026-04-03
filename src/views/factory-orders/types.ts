@@ -73,6 +73,7 @@ export type AllocationQuantityMatrix = Record<string, Record<string, number>>;
 
 export type AllocationHistoryRow = {
   key: string;
+  bedId?: string;
   completedAt?: string;
   bedNumber?: string;
   source?: string;

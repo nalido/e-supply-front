@@ -712,6 +712,7 @@ const FactoryOrders = () => {
     try {
       type AllocationItem = { color: string; size: string; quantity: number };
       type AllocationEntry = {
+        bedId?: string;
         completedAt?: string;
         bedNumber?: string;
         source?: string;
@@ -758,6 +759,7 @@ const FactoryOrders = () => {
         try {
           const payload = JSON.parse(node.payloadJson) as {
             allocations?: Array<{
+              bedId?: unknown;
               completedAt?: unknown;
               bedNumber?: unknown;
               source?: unknown;
@@ -776,6 +778,7 @@ const FactoryOrders = () => {
             : [];
           if (sourceAllocations.length > 0) {
             return sourceAllocations.map((allocation) => ({
+              bedId: typeof allocation.bedId === 'string' ? allocation.bedId : undefined,
               completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
               bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
               source: typeof allocation.source === 'string' ? allocation.source : undefined,
@@ -884,6 +887,7 @@ const FactoryOrders = () => {
         }
         historyRows.push({
           key: `${stageNodeCode}-${index}`,
+          bedId: allocation.bedId,
           completedAt: allocation.completedAt,
           bedNumber: allocation.bedNumber,
           source: allocation.source,
@@ -1598,6 +1602,7 @@ const FactoryOrders = () => {
       cancelText: '取消',
       onOk: async () => {
         await factoryOrdersApi.deleteCuttingRecord(progressActionModal.order!.orderId, {
+          bedId: record.bedId,
           bedNumber: record.bedNumber,
           source: record.source,
           workOrderId: record.workOrderId,
