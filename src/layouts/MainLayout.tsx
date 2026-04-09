@@ -7,9 +7,12 @@ import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { FolderOpenFilled, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { pieceworkService } from '../api/piecework'
+import settingsApi from '../api/settings'
 import { REPORT_DOWNLOAD_LABELS } from '../constants/report-downloads'
 import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils/download-center-hint'
+import { PREFERENCE_UPDATED_EVENT, type PreferenceUpdatedDetail } from '../utils/preference-events'
+import AiAgentFloatingWidget from '../modules/ai-agent/ui/AiAgentFloatingWidget'
 
 const { Header, Sider, Content } = Layout
 const DOWNLOAD_CENTER_PATH = '/downloads'
@@ -65,6 +68,16 @@ const shouldHintDownloadCenter = (args: unknown[]): boolean => {
   return false
 }
 
+const asBooleanPreference = (value: unknown, fallback = true): boolean => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
 const MainLayout = () => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -72,6 +85,8 @@ const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [downloadNoticeCount, setDownloadNoticeCount] = useState(0)
   const [isDownloadCenterAnimating, setIsDownloadCenterAnimating] = useState(false)
+  const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(true)
   const [notificationApi, notificationContextHolder] = notification.useNotification()
   const hasInitializedDownloadPoll = useRef(false)
   const knownDownloadIdsRef = useRef<Set<string>>(new Set())
@@ -92,8 +107,53 @@ const MainLayout = () => {
   }, [location.pathname])
 
   useEffect(() => {
+    const onPreferenceUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<PreferenceUpdatedDetail>
+      const detail = customEvent.detail
+      if (!detail || detail.key !== 'ai-agent-enabled') {
+        return
+      }
+      const enabled = asBooleanPreference(detail.value, true)
+      setAiEnabled(enabled)
+      if (!enabled) {
+        setAiPanelOpen(false)
+      }
+    }
+    window.addEventListener(PREFERENCE_UPDATED_EVENT, onPreferenceUpdated as EventListener)
+    return () => {
+      window.removeEventListener(PREFERENCE_UPDATED_EVENT, onPreferenceUpdated as EventListener)
+    }
+  }, [])
+
+  useEffect(() => {
     setOpenKeys(deriveOpenKeys(location.pathname))
   }, [location.pathname])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadAiSwitch = async () => {
+      try {
+        const groups = await settingsApi.preferences.list()
+        if (cancelled) {
+          return
+        }
+        const item = groups.flatMap((group) => group.items).find((entry) => entry.key === 'ai-agent-enabled')
+        const enabled = asBooleanPreference(item?.value, true)
+        setAiEnabled(enabled)
+        if (!enabled) {
+          setAiPanelOpen(false)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('failed to load ai agent switch', error)
+        }
+      }
+    }
+    void loadAiSwitch()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (isDownloadCenterOpen) {
@@ -269,49 +329,60 @@ const MainLayout = () => {
           items={menuItems}
         />
       </Sider>
-      <Layout className="oc-main">
-        <Header className="oc-topbar">
-          <Space size={12} align="center">
-            <Button
-              type="text"
-              className="oc-topbar__toggle"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed((prev) => !prev)}
-              aria-label={collapsed ? '展开左侧菜单' : '折叠左侧菜单'}
+      <Layout className={`oc-main${aiPanelOpen ? ' oc-main--ai-open' : ''}`}>
+        <div className="oc-main__workspace">
+          <Header className="oc-topbar">
+            <Space size={12} align="center">
+              <Button
+                type="text"
+                className="oc-topbar__toggle"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed((prev) => !prev)}
+                aria-label={collapsed ? '展开左侧菜单' : '折叠左侧菜单'}
+              />
+              <Breadcrumb items={breadcrumbItems} />
+            </Space>
+            <div className="oc-topbar__actions">
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button type="primary">登录账号</Button>
+                </SignInButton>
+              </SignedOut>
+              <SignedIn>
+                <div className="oc-topbar__action-item">
+                  <Tooltip title="下载中心" placement="bottom">
+                    <Badge count={downloadNoticeCount} size="small" offset={[-2, 2]}>
+                      <Button
+                        type="text"
+                        icon={<FolderOpenFilled />}
+                        className={`oc-topbar__download${isDownloadCenterAnimating ? ' is-attention' : ''}`}
+                        onClick={openDownloadCenter}
+                        aria-label="下载中心"
+                      />
+                    </Badge>
+                  </Tooltip>
+                </div>
+                <div className="oc-topbar__action-item oc-topbar__avatar">
+                  <UserButton afterSignOutUrl="/" />
+                </div>
+              </SignedIn>
+            </div>
+          </Header>
+          <Content className="oc-content">
+            <div className="oc-content__inner">
+              <Outlet />
+            </div>
+          </Content>
+        </div>
+        <SignedIn>
+          {aiEnabled ? (
+            <AiAgentFloatingWidget
+              open={aiPanelOpen}
+              onOpen={() => setAiPanelOpen(true)}
+              onClose={() => setAiPanelOpen(false)}
             />
-            <Breadcrumb items={breadcrumbItems} />
-          </Space>
-          <div className="oc-topbar__actions">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button type="primary">登录账号</Button>
-              </SignInButton>
-            </SignedOut>
-            <SignedIn>
-              <div className="oc-topbar__action-item">
-                <Tooltip title="下载中心" placement="bottom">
-                  <Badge count={downloadNoticeCount} size="small" offset={[-2, 2]}>
-                    <Button
-                      type="text"
-                      icon={<FolderOpenFilled />}
-                      className={`oc-topbar__download${isDownloadCenterAnimating ? ' is-attention' : ''}`}
-                      onClick={openDownloadCenter}
-                      aria-label="下载中心"
-                    />
-                  </Badge>
-                </Tooltip>
-              </div>
-              <div className="oc-topbar__action-item oc-topbar__avatar">
-                <UserButton afterSignOutUrl="/" />
-              </div>
-            </SignedIn>
-          </div>
-        </Header>
-        <Content className="oc-content">
-          <div className="oc-content__inner">
-            <Outlet />
-          </div>
-        </Content>
+          ) : null}
+        </SignedIn>
       </Layout>
     </Layout>
   )

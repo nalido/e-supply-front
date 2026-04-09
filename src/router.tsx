@@ -70,6 +70,7 @@ const OrganizationSettings = lazy(() => import('./views/settings').then((module)
 const RolesSettings = lazy(() => import('./views/settings').then((module) => ({ default: module.RolesSettings })));
 const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ default: module.ActionLogPage })));
 const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
+const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
 
 const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
 
@@ -121,6 +122,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/org' &&
     n.key !== '/settings/roles' &&
     n.key !== '/settings/audit' &&
+    n.key !== '/ai/agent' &&
     n.key !== '/settings/preferences' &&
     n.key !== '/guide' &&
     n.key !== '/piecework/cutting/pending' &&
@@ -224,6 +226,7 @@ const router = createBrowserRouter([
       { path: 'settings/roles', element: createLazyPageElement(RolesSettings) },
       { path: 'settings/preferences', element: createLazyPageElement(PreferencesPage) },
       { path: 'settings/audit', element: createLazyPageElement(ActionLogPage) },
+      { path: 'ai/agent', element: createLazyPageElement(AIAgentPoC) },
       { path: 'piecework/cutting/pending', element: createLazyPageElement(CuttingPendingPage) },
       { path: 'piecework/cutting/done', element: createLazyPageElement(CuttingCompletedPage) },
       { path: 'piecework/cutting/list', element: React.createElement(Navigate, { to: '/piecework/cutting/pending', replace: true }) },
@@ -254,6 +257,7 @@ const router = createBrowserRouter([
       { path: 'collab', element: createPlaceholderElement('协同中心') },
       { path: 'settlement', element: createPlaceholderElement('对账结算') },
       { path: 'basic', element: createPlaceholderElement('基础资料') },
+      { path: 'ai', element: React.createElement(Navigate, { to: '/ai/agent', replace: true }) },
       { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
     ],
   },
