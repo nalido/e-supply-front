@@ -1331,12 +1331,11 @@ const FactoryOrders = () => {
   }, []);
 
   const handleAllocationMatrixQtyChange = useCallback((color: string, size: string, value?: number | null) => {
-    const qty = normalizeQtyValue(value);
     setAllocationMatrix((prev) => ({
       ...prev,
       [color]: {
         ...(prev[color] ?? {}),
-        [size]: qty,
+        [size]: value == null ? null : normalizeQtyValue(value),
       },
     }));
   }, []);
@@ -1474,8 +1473,8 @@ const FactoryOrders = () => {
     }
     setAllocationMatrix(
       allocationColors.reduce<AllocationQuantityMatrix>((matrix, color) => {
-        matrix[color] = allocationSizes.reduce<Record<string, number>>((row, size) => {
-          row[size] = 0;
+        matrix[color] = allocationSizes.reduce<Record<string, number | null>>((row, size) => {
+          row[size] = null;
           return row;
         }, {});
         return matrix;

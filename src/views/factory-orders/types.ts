@@ -69,7 +69,7 @@ export type ProgressNodeQuantitySnapshot = {
   sewingCompletedQty?: number;
 };
 
-export type AllocationQuantityMatrix = Record<string, Record<string, number>>;
+export type AllocationQuantityMatrix = Record<string, Record<string, number | null>>;
 
 export type AllocationHistoryRow = {
   key: string;

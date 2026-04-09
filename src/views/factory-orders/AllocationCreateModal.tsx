@@ -1,7 +1,6 @@
-import { Alert, Button, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type { AllocationQuantityMatrix, SelectOption } from './types';
-import { normalizeQtyValue } from './utils';
 
 const { Text } = Typography;
 
@@ -37,9 +36,7 @@ export default function AllocationCreateModal({
   form,
   factoryOptions,
   allocationHistoryTotal,
-  allocationCapacityTotal,
   orderedTotal,
-  cuttingCompletedTotal,
   allocationGrandTotal,
   allocationColors,
   allocationSizes,
@@ -105,19 +102,9 @@ export default function AllocationCreateModal({
           <Text type="secondary">{isCuttingProgressStage ? '暂无可录入的颜色/尺码裁剪数据' : '暂无可领取的颜色/尺码数据'}</Text>
         ) : (
           <>
-            <Alert
-              type={allocationHistoryTotal + allocationGrandTotal > allocationCapacityTotal ? 'warning' : 'info'}
-              showIcon
-              style={{ marginBottom: 8 }}
-              message={
-                isCuttingProgressStage
-                  ? `下单总量：${orderedTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`
-                  : `裁床累计已完成：${cuttingCompletedTotal}，车缝累计已领取：${allocationHistoryTotal}，本次领取：${allocationGrandTotal}，领取后累计已领：${allocationHistoryTotal + allocationGrandTotal}，剩余可领：${Math.max(allocationCapacityTotal - allocationHistoryTotal - allocationGrandTotal, 0)}`
-              }
-            />
-            {!isCuttingProgressStage ? (
+            {isCuttingProgressStage ? (
               <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                领取口径按“裁床累计已完成 - 车缝累计已领取”控制；进度百分比仍按下单总量计算。
+                {`下单总量：${orderedTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`}
               </Text>
             ) : null}
             <div className="factory-create-matrix-wrap">
@@ -138,29 +125,21 @@ export default function AllocationCreateModal({
                       {allocationSizes.map((size) => {
                         const capacityQty = allocationCapacityMatrix[color]?.[size] ?? 0;
                         const historyAllocatedQty = allocationHistoryMatrix[color]?.[size] ?? 0;
-                        const allocatedQty = normalizeQtyValue(allocationMatrix[color]?.[size]);
-                        const remainingQty = Math.max(capacityQty - historyAllocatedQty - allocatedQty, 0);
+                        const allocatedValue = allocationMatrix[color]?.[size];
                         const availableQty = Math.max(capacityQty - historyAllocatedQty, 0);
-                        const exceededQty = Math.max(historyAllocatedQty + allocatedQty - capacityQty, 0);
                         return (
                           <td key={`alloc-create-${color}-${size}`}>
-                            <div style={{ display: 'grid', gap: 4 }}>
-                              <InputNumber
-                                min={0}
-                                precision={0}
-                                max={isCuttingProgressStage ? undefined : availableQty}
-                                value={allocatedQty}
-                                onChange={(value) => onAllocationMatrixQtyChange(color, size, value)}
-                                controls={false}
-                                style={{ width: '100%' }}
-                                placeholder={!isCuttingProgressStage ? `最多可领 ${availableQty}` : '填写裁剪数量'}
-                              />
-                              <Text type="secondary" style={{ fontSize: 11 }}>
-                                {isCuttingProgressStage
-                                  ? `${historyAllocatedQty + allocatedQty}/${capacityQty}${exceededQty > 0 ? `（超裁 ${exceededQty}）` : ''}`
-                                  : `已领后 ${historyAllocatedQty + allocatedQty}/${capacityQty}，剩余可领 ${remainingQty}`}
-                              </Text>
-                            </div>
+                            <InputNumber
+                              min={0}
+                              precision={0}
+                              max={isCuttingProgressStage ? undefined : availableQty}
+                              value={allocatedValue ?? null}
+                              onChange={(value) => onAllocationMatrixQtyChange(color, size, value)}
+                              controls={false}
+                              keyboard
+                              placeholder={isCuttingProgressStage ? '填写裁剪数量' : undefined}
+                              style={{ width: '100%' }}
+                            />
                           </td>
                         );
                       })}
