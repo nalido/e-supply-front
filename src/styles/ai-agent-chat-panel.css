@@ -1,0 +1,122 @@
+.ai-agent-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ai-agent-chat__session-bar {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-agent-chat__session-select {
+  flex: 1 1 auto;
+}
+
+.ai-agent-chat__alert {
+  margin-bottom: 12px;
+}
+
+.ai-agent-chat__model-bar {
+  margin-bottom: 10px;
+}
+
+.ai-agent-chat__history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  margin-bottom: 16px;
+}
+
+.ai-agent-chat--compact .ai-agent-chat__history {
+  max-height: none;
+}
+
+.ai-agent-chat__message {
+  margin-bottom: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+}
+
+.ai-agent-chat__message--assistant {
+  border-left: 3px solid #1677ff;
+}
+
+.ai-agent-chat__message--user {
+  border-left: 3px solid #faad14;
+}
+
+.ai-agent-chat__message-header {
+  margin-bottom: 8px;
+}
+
+.ai-agent-chat__markdown p {
+  margin: 0 0 8px;
+}
+
+.ai-agent-chat__markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.ai-agent-chat__markdown th,
+.ai-agent-chat__markdown td {
+  border: 1px solid #f0f0f0;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.ai-agent-chat__markdown code {
+  background: #f6f8fa;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.ai-agent-chat__action {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-agent-chat__action pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px;
+  margin: 0;
+  border-radius: 8px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+}
+
+.ai-agent-chat__composer {
+  width: 100%;
+}
+
+.ai-agent-chat__composer .ant-input {
+  border-radius: 10px 0 0 10px;
+}
+
+.ai-agent-chat__composer .ant-btn {
+  height: auto;
+  min-width: 90px;
+  border-radius: 0 10px 10px 0;
+}
+
+.ai-agent-chat__confirm-card {
+  border: 1px solid #e6ebf3;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #1f2937;
+}

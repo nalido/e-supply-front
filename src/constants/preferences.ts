@@ -2,6 +2,19 @@ import type { PreferenceGroup } from '../types/settings';
 
 export const preferenceGroupTemplates: PreferenceGroup[] = [
   {
+    key: 'ai',
+    title: 'AI 助手',
+    items: [
+      {
+        key: 'ai-agent-enabled',
+        label: '启用 AI 助手',
+        description: '关闭后将隐藏右侧 AI 助手，并禁用 AI 接口调用。',
+        type: 'switch',
+        value: false,
+      },
+    ],
+  },
+  {
     key: 'production',
     title: '生产流程',
     items: [

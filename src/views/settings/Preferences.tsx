@@ -2,8 +2,19 @@ import { useEffect, useState } from 'react';
 import { Alert, Card, Col, Row, Select, Space, Switch, Typography, message } from 'antd';
 import type { PreferenceGroup, PreferenceItem } from '../../types/settings';
 import settingsApi from '../../api/settings';
+import { emitPreferenceUpdated } from '../../utils/preference-events';
 
 const { Text, Paragraph } = Typography;
+
+const asBooleanPreference = (value: unknown, fallback = false): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return fallback;
+};
 
 const PreferencesPage = () => {
   const [groups, setGroups] = useState<PreferenceGroup[]>([]);
@@ -48,6 +59,7 @@ const PreferencesPage = () => {
     try {
       await settingsApi.preferences.update({ key: item.key, value });
       setPreferenceValue(item.key, value);
+      emitPreferenceUpdated({ key: item.key, value });
       message.success('设置已更新');
     } catch (error) {
       console.error(error);
@@ -81,7 +93,7 @@ const PreferencesPage = () => {
                     </div>
                     {item.type === 'switch' ? (
                       <Switch
-                        checked={Boolean(item.value)}
+                        checked={asBooleanPreference(item.value, false)}
                         loading={loadingKeys.has(item.key)}
                         onChange={(checked) => handleChange(item, checked)}
                       />

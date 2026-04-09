@@ -1,0 +1,17 @@
+.ai-agent-poc {
+  padding: 24px;
+}
+
+.ai-agent-poc__panel {
+  border-radius: 14px;
+}
+
+@media (max-width: 768px) {
+  .ai-agent-poc {
+    padding: 12px;
+  }
+
+  .ai-agent-poc__history {
+    max-height: 52vh;
+  }
+}
