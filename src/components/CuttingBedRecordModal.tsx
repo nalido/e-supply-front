@@ -1,6 +1,7 @@
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Table, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
+import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 
@@ -10,13 +11,13 @@ type Props = {
   open: boolean;
   task?: CuttingTask;
   detail: CuttingSheetDetail | null;
-  qtyMap: Record<string, number>;
+  qtyMap: Record<string, number | null>;
   form: FormInstance;
   submitting: boolean;
   stockAvailabilityMap: Record<string, number>;
   warehouseOptions: Array<{ label: string; value: number }>;
   zIndex?: number;
-  onQtyChange: (key: string, value: number) => void;
+  onQtyChange: (key: string, value: number | null) => void;
   onFillPendingQty: () => void;
   onCancel: () => void;
   onSubmit: () => void;
@@ -201,7 +202,7 @@ export default function CuttingBedRecordModal({
         >
           {sortedRows.length ? (
             <div className="factory-create-matrix-wrap">
-              <table className="factory-create-matrix-table">
+              <table className="factory-create-matrix-table factory-editable-matrix-table">
                 <thead>
                   <tr>
                     <th>颜色 \\ 尺码</th>
@@ -217,16 +218,17 @@ export default function CuttingBedRecordModal({
                       <td>{row.color}</td>
                       {matrixSizes.map((size) => {
                         const key = buildSpecKey(row.color, size);
-                        const value = qtyMap[key] ?? 0;
+                        const value = qtyMap[key];
                         return (
                           <td key={`bed-record-${row.color}-${size}`}>
                             <InputNumber
+                              className="factory-matrix-cell-input"
                               min={0}
                               precision={0}
                               controls={false}
-                              value={value}
+                              value={value ?? null}
                               onChange={(nextValue) => {
-                                const qty = Math.max(0, Math.round(Number(nextValue) || 0));
+                                const qty = nextValue == null ? null : Math.max(0, Math.round(Number(nextValue) || 0));
                                 onQtyChange(key, qty);
                               }}
                               style={{ width: '100%' }}

@@ -1320,12 +1320,11 @@ const FactoryOrders = () => {
   }, [createColors]);
 
   const handleCreateMatrixQtyChange = useCallback((color: string, size: string, value?: number | null) => {
-    const qty = normalizeQtyValue(value);
     setCreateMatrix((prev) => ({
       ...prev,
       [color]: {
         ...(prev[color] ?? {}),
-        [size]: qty,
+        [size]: value == null ? null : normalizeQtyValue(value),
       },
     }));
   }, []);

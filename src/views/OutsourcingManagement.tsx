@@ -164,7 +164,7 @@ const OutsourcingManagement = () => {
   }>({ visible: false });
   const [submittingReceive, setSubmittingReceive] = useState(false);
   const [receivePlan, setReceivePlan] = useState<OutsourcingReceiptPlan | null>(null);
-  const [receiveQtyMap, setReceiveQtyMap] = useState<Record<string, number>>({});
+  const [receiveQtyMap, setReceiveQtyMap] = useState<Record<string, number | null>>({});
   const [exporting, setExporting] = useState(false);
   const [receiveForm] = Form.useForm();
   const [createForm] = Form.useForm<OutsourcingCreateForm>();
@@ -410,7 +410,7 @@ const OutsourcingManagement = () => {
       .then((plan) => {
         setReceivePlan(plan);
         setReceiveQtyMap(
-          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, 0])),
+          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, null])),
         );
       })
       .catch((error) => {

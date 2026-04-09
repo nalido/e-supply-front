@@ -30,14 +30,37 @@
   - `InputNumber` 直接绑定 `null`/数字，允许空白态展示
   - 非裁剪阶段继续沿用可领数量上限控制
   - 裁剪阶段顶部仅展示“下单总量 / 已裁 / 本次录入 / 录入后”汇总
+- 可编辑矩阵样式统一
+  - 把输入型矩阵表抽成统一样式文件：`src/styles/matrix-table.css`
+  - 把输入型矩阵表抽成统一 class：
+    - `factory-editable-matrix-table`
+    - `factory-matrix-cell-input`
+  - 已覆盖的输入型矩阵：
+    - 新建工厂订单数量矩阵
+    - 工厂订单分配弹窗矩阵
+    - 裁床床次录入矩阵
+    - 委外收货录入矩阵
+  - 效果：
+    - 输入框边框与表格网格融合
+    - 输入单元格改为贴边编辑态
+    - 共享样式不再依赖 `FactoryOrders.tsx` 单页引入，跨页面使用时边框不会丢失
+    - 纯展示矩阵继续保留原表格样式，不受影响
+- 可编辑矩阵默认空白
+  - 新建工厂订单数量矩阵默认值改为 `null`
+  - 工厂订单分配弹窗矩阵默认值改为 `null`
+  - 裁床床次录入矩阵默认值改为 `null`
+  - 委外收货录入矩阵默认值改为 `null`
+  - 界面表现为默认留空，但统计、提交和校验仍按 `0` 口径归一化处理
 
 ## 验证
 
 - 本地前端启动成功：`npm run dev -- --host 127.0.0.1 --port 5173`
 - 本地后端启动成功：`scripts/start_backend_local.sh`
-- 本地登录后已打开 `http://[::1]:5173/orders/factory`
-- 构建验证待执行：
-  - `npm run build`
+- 本地登录后已完成页面验收，已覆盖：
+  - `http://[::1]:5173/orders/factory`
+  - `http://[::1]:5173/piecework/outsource`
+  - `http://[::1]:5173/piecework/cutting/pending`
+- 构建验证通过：`npm run build`
 
 ## 结论
 

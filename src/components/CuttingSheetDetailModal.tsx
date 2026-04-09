@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
+import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 import { getCuttingDeleteBlockedTooltip } from '../utils/cutting-delete-guard';

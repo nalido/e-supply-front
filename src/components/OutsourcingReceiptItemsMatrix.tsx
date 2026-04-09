@@ -1,12 +1,13 @@
 import { Alert, InputNumber, Typography } from 'antd';
 import type { OutsourcingReceiptPlan } from '../types/outsourcing-management';
+import '../styles/matrix-table.css';
 
 const { Text } = Typography;
 
 type Props = {
   plan?: OutsourcingReceiptPlan | null;
-  qtyMap: Record<string, number>;
-  onChange: (lineId: string, value: number) => void;
+  qtyMap: Record<string, number | null>;
+  onChange: (lineId: string, value: number | null) => void;
 };
 
 export default function OutsourcingReceiptItemsMatrix({ plan, qtyMap, onChange }: Props) {
@@ -23,7 +24,7 @@ export default function OutsourcingReceiptItemsMatrix({ plan, qtyMap, onChange }
         message={`派工 ${plan.dispatchQty} 件，已收 ${plan.receivedQty} 件，待收 ${plan.pendingQty} 件`}
       />
       <div className="factory-create-matrix-wrap">
-        <table className="factory-create-matrix-table">
+        <table className="factory-create-matrix-table factory-editable-matrix-table">
           <thead>
             <tr>
               <th>颜色</th>
@@ -36,7 +37,7 @@ export default function OutsourcingReceiptItemsMatrix({ plan, qtyMap, onChange }
           </thead>
           <tbody>
             {plan.items.map((item) => {
-              const value = qtyMap[item.productionOrderLineId] ?? 0;
+              const value = qtyMap[item.productionOrderLineId];
               return (
                 <tr key={item.productionOrderLineId}>
                   <td>{item.color}</td>
@@ -46,14 +47,15 @@ export default function OutsourcingReceiptItemsMatrix({ plan, qtyMap, onChange }
                   <td>{item.pendingQty}</td>
                   <td>
                     <InputNumber
+                      className="factory-matrix-cell-input"
                       min={0}
                       max={item.pendingQty}
                       precision={0}
                       controls={false}
-                      value={value}
+                      value={value ?? null}
                       onChange={(nextValue) => {
-                        const qty = Math.max(0, Math.round(Number(nextValue) || 0));
-                        onChange(item.productionOrderLineId, Math.min(qty, item.pendingQty));
+                        const qty = nextValue == null ? null : Math.max(0, Math.round(Number(nextValue) || 0));
+                        onChange(item.productionOrderLineId, qty == null ? null : Math.min(qty, item.pendingQty));
                       }}
                       style={{ width: '100%' }}
                       placeholder="填写"

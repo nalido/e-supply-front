@@ -1,0 +1,79 @@
+.factory-create-matrix-wrap {
+  width: 100%;
+  border: 1px solid var(--ant-color-border, #f0f0f0);
+  border-radius: 8px;
+}
+
+.factory-create-matrix-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.factory-create-matrix-table th,
+.factory-create-matrix-table td {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  padding: 8px;
+  text-align: center;
+}
+
+.factory-create-matrix-table th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+.factory-create-matrix-table td:first-child,
+.factory-create-matrix-table th:first-child {
+  width: 120px;
+  text-align: left;
+}
+
+.factory-inout-delivery-matrix-table td:first-child,
+.factory-inout-delivery-matrix-table th:first-child {
+  text-align: center;
+}
+
+.factory-create-matrix-table tfoot td {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+.factory-editable-matrix-table tbody td {
+  padding: 0;
+}
+
+.factory-editable-matrix-table tbody td:first-child,
+.factory-editable-matrix-table tbody td:last-child {
+  padding: 8px;
+}
+
+.factory-matrix-cell-input.ant-input-number {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.factory-matrix-cell-input.ant-input-number:hover,
+.factory-matrix-cell-input.ant-input-number-focused,
+.factory-matrix-cell-input.ant-input-number:focus-within {
+  border: 0;
+  box-shadow: none;
+}
+
+.factory-matrix-cell-input.ant-input-number .ant-input-number-input-wrap {
+  height: 100%;
+}
+
+.factory-matrix-cell-input.ant-input-number .ant-input-number-input {
+  height: 40px;
+  padding: 0 10px;
+  text-align: center;
+  border: 0;
+  background: transparent;
+}
+
+.factory-editable-matrix-table tbody td:not(:first-child):not(:last-child):focus-within {
+  background: rgba(22, 119, 255, 0.04);
+}

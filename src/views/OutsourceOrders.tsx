@@ -79,7 +79,7 @@ const OutsourceOrders = () => {
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
   const [receiptTargets, setReceiptTargets] = useState<string[]>([]);
   const [receiptPlan, setReceiptPlan] = useState<OutsourcingReceiptPlan | null>(null);
-  const [receiptQtyMap, setReceiptQtyMap] = useState<Record<string, number>>({});
+  const [receiptQtyMap, setReceiptQtyMap] = useState<Record<string, number | null>>({});
   const [materialTarget, setMaterialTarget] = useState<OutsourceOrder | null>(null);
   const [pagination, setPagination] = useState<{ current: number; pageSize: number; total: number }>(
     { current: 1, pageSize: 10, total: 0 },
@@ -144,7 +144,7 @@ const OutsourceOrders = () => {
       .then((plan) => {
         setReceiptPlan(plan);
         setReceiptQtyMap(
-          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, 0])),
+          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, null])),
         );
       })
       .catch((error) => {

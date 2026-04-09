@@ -281,7 +281,7 @@ const CuttingPendingPage = () => {
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
   const [deletingBedKey, setDeletingBedKey] = useState<string | null>(null);
   const [completeQtyMap, setCompleteQtyMap] = useState<Record<string, number>>({});
-  const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number>>({});
+  const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number | null>>({});
   const [startForm] = Form.useForm();
   const [completeReasonForm] = Form.useForm();
   const [bedRecordForm] = Form.useForm();
@@ -770,10 +770,10 @@ const CuttingPendingPage = () => {
           actualQty: undefined,
         })),
       });
-      const initialQtyMap: Record<string, number> = {};
+      const initialQtyMap: Record<string, number | null> = {};
       detail.rows.forEach((row) => {
         row.cells.forEach((cell) => {
-          initialQtyMap[buildSpecKey(row.color, cell.size)] = 0;
+          initialQtyMap[buildSpecKey(row.color, cell.size)] = null;
         });
       });
       setBedRecordQtyMap(initialQtyMap);
@@ -1194,10 +1194,18 @@ const CuttingPendingPage = () => {
         warehouseOptions={materialWarehouseOptions}
         zIndex={BED_RECORD_MODAL_Z_INDEX}
         onQtyChange={(key, value) => {
-          setBedRecordQtyMap((prev) => ({
-            ...prev,
-            [key]: value,
-          }));
+          setBedRecordQtyMap((prev) => {
+            if (value == null) {
+              return {
+                ...prev,
+                [key]: null,
+              };
+            }
+            return {
+              ...prev,
+              [key]: value,
+            };
+          });
         }}
         onFillPendingQty={() => {
           setBedRecordQtyMap(buildPendingQtyMapFromDetail(sheetDetail));

@@ -1,7 +1,8 @@
 import { Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Space, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import ListImage from '../../components/common/ListImage';
-import { materialStatusOptions, normalizeQtyValue, overallStatusOptions } from './utils';
+import '../../styles/matrix-table.css';
+import { materialStatusOptions, overallStatusOptions } from './utils';
 import type { CreateQuantityMatrix, CreateStyleMaterial, SelectOption } from './types';
 
 const { Text } = Typography;
@@ -218,7 +219,7 @@ export default function CreateOrderModal({
                 <Text type="secondary">请先补全颜色和尺码，再录入数量。</Text>
               ) : (
                 <div className="factory-create-matrix-wrap">
-                  <table className="factory-create-matrix-table">
+                  <table className="factory-create-matrix-table factory-editable-matrix-table">
                     <thead>
                       <tr>
                         <th>颜色 \\ 尺码</th>
@@ -235,13 +236,14 @@ export default function CreateOrderModal({
                           {createSizes.map((size) => (
                             <td key={`${color}-${size}`}>
                               <InputNumber
+                                className="factory-matrix-cell-input"
                                 min={0}
                                 precision={0}
-                                value={normalizeQtyValue(createMatrix[color]?.[size])}
+                                value={createMatrix[color]?.[size] ?? null}
                                 onChange={(value) => onCreateMatrixQtyChange(color, size, value)}
                                 controls={false}
                                 style={{ width: '100%' }}
-                                placeholder="0"
+                                placeholder="填写数量"
                               />
                             </td>
                           ))}

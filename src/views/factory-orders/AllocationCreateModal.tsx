@@ -1,5 +1,6 @@
 import { Button, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
+import '../../styles/matrix-table.css';
 import type { AllocationQuantityMatrix, SelectOption } from './types';
 
 const { Text } = Typography;
@@ -108,7 +109,7 @@ export default function AllocationCreateModal({
               </Text>
             ) : null}
             <div className="factory-create-matrix-wrap">
-              <table className="factory-create-matrix-table">
+              <table className="factory-create-matrix-table factory-editable-matrix-table">
                 <thead>
                   <tr>
                     <th>颜色 \ 尺码</th>
@@ -130,6 +131,7 @@ export default function AllocationCreateModal({
                         return (
                           <td key={`alloc-create-${color}-${size}`}>
                             <InputNumber
+                              className="factory-matrix-cell-input"
                               min={0}
                               precision={0}
                               max={isCuttingProgressStage ? undefined : availableQty}

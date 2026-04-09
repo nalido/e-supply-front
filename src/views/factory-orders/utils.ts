@@ -186,8 +186,8 @@ export const buildCreateMatrix = (
   prev?: CreateQuantityMatrix,
 ): CreateQuantityMatrix =>
   colors.reduce<CreateQuantityMatrix>((matrix, color) => {
-    matrix[color] = sizes.reduce<Record<string, number>>((row, size) => {
-      row[size] = normalizeQtyValue(prev?.[color]?.[size]);
+    matrix[color] = sizes.reduce<Record<string, number | null>>((row, size) => {
+      row[size] = prev?.[color]?.[size] == null ? null : normalizeQtyValue(prev[color]?.[size]);
       return row;
     }, {});
     return matrix;

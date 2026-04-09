@@ -36,7 +36,7 @@ export type OrderActionSnapshot = {
   deleteBlockedReason?: string;
 };
 
-export type CreateQuantityMatrix = Record<string, Record<string, number>>;
+export type CreateQuantityMatrix = Record<string, Record<string, number | null>>;
 
 export type CreateStyleMaterial = {
   materialId: number;

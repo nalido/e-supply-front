@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Alert, Button, DatePicker, Form, Modal, Skeleton, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import dayjs from 'dayjs';
+import '../../styles/matrix-table.css';
 import type { AllocationHistoryRow, CuttingSheetTarget, InOutDataState, InOutDetailRow, ProgressActionModalState, ProgressStatsState, SelectOption } from './types';
 import { normalizeProgressLabel } from './utils';
 import { getCuttingDeleteBlockedTooltip } from '../../utils/cutting-delete-guard';

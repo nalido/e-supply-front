@@ -24,6 +24,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { finishedGoodsDispatchService, finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
 import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 import ListImage from '../components/common/ListImage';
+import '../styles/matrix-table.css';
 import type {
   FinishedGoodsStockMeta,
   FinishedGoodsStockStyleListParams,
