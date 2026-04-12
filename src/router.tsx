@@ -71,6 +71,13 @@ const RolesSettings = lazy(() => import('./views/settings').then((module) => ({ 
 const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ default: module.ActionLogPage })));
 const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
 const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
+const SaleDashboard = lazy(() => import('./views/sale/SaleDashboard'));
+const SaleOrders = lazy(() => import('./views/sale/SaleOrders'));
+const SaleFulfillments = lazy(() => import('./views/sale/SaleFulfillments'));
+const SaleChannelAccounts = lazy(() => import('./views/sale/SaleChannelAccounts'));
+const SaleChannelCredentials = lazy(() => import('./views/sale/SaleChannelCredentials'));
+const SaleChannelMappings = lazy(() => import('./views/sale/SaleChannelMappings'));
+const SaleSyncLogs = lazy(() => import('./views/sale/SaleSyncLogs'));
 
 const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
 
@@ -108,6 +115,13 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sample/list' &&
     n.key !== '/sample/follow-template' &&
     n.key !== '/sample/type' &&
+    n.key !== '/sale/dashboard' &&
+    n.key !== '/sale/orders' &&
+    n.key !== '/sale/fulfillments' &&
+    n.key !== '/sale/channels/accounts' &&
+    n.key !== '/sale/channels/credentials' &&
+    n.key !== '/sale/channels/mappings' &&
+    n.key !== '/sale/sync-logs' &&
     n.key !== '/orders/factory' &&
     n.key !== '/piecework/orders' &&
     n.key !== '/orders/efficiency' &&
@@ -190,6 +204,14 @@ const router = createBrowserRouter([
       { path: 'sample/detail', element: createLazyPageElement(SampleDetail) },
       { path: 'sample/follow-template', element: createLazyPageElement(FollowTemplate) },
       { path: 'sample/type', element: createLazyPageElement(SampleType) },
+      { path: 'sale', element: React.createElement(Navigate, { to: '/sale/dashboard', replace: true }) },
+      { path: 'sale/dashboard', element: createLazyPageElement(SaleDashboard) },
+      { path: 'sale/orders', element: createLazyPageElement(SaleOrders) },
+      { path: 'sale/fulfillments', element: createLazyPageElement(SaleFulfillments) },
+      { path: 'sale/channels/accounts', element: createLazyPageElement(SaleChannelAccounts) },
+      { path: 'sale/channels/credentials', element: createLazyPageElement(SaleChannelCredentials) },
+      { path: 'sale/channels/mappings', element: createLazyPageElement(SaleChannelMappings) },
+      { path: 'sale/sync-logs', element: createLazyPageElement(SaleSyncLogs) },
       { path: 'sample/report/costing', element: createLazyPageElement(SampleCostingReport) },
       { path: 'sample/report/order-compare', element: createLazyPageElement(SampleOrderComparisonReport) },
       { path: 'orders/factory', element: createLazyPageElement(FactoryOrders) },

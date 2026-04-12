@@ -1,0 +1,327 @@
+import http from './http';
+import { tenantStore } from '../stores/tenant';
+import type {
+  SaleChannelAccount,
+  SaleChannelCredential,
+  SaleFulfillmentItem,
+  SaleIdempotencyRecordItem,
+  SaleOrderItem,
+  SaleRetryCandidateItem,
+  SaleSyncLogItem,
+} from '../types/sale';
+
+type BackendListResponse<T> = {
+  list?: T[];
+  total?: number;
+};
+
+const getTenantIdOrThrow = (): string => {
+  const tenantId = tenantStore.getTenantId();
+  if (!tenantId) {
+    throw new Error('Tenant ID is not available.');
+  }
+  return tenantId;
+};
+
+export const saleApi = {
+  async listChannelAccounts(): Promise<SaleChannelAccount[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleChannelAccount>>('/api/v1/channel/accounts', {
+      params: { tenantId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async getChannelCredentialDetail(accountId: string): Promise<SaleChannelCredential> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleChannelCredential>(`/api/v1/channel/credentials/${accountId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async createChannelAccount(payload: {
+    platformCode: string;
+    accountName: string;
+    shopId?: string;
+    shopName?: string;
+    regionCode?: string;
+    gatewayUrl?: string;
+    sellerType?: string;
+    orderSyncMode?: string;
+    authorizationType?: string;
+    remarks?: string;
+  }): Promise<SaleChannelAccount> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleChannelAccount>('/api/v1/channel/accounts', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async updateChannelAccount(
+    accountId: string,
+    payload: {
+      accountName?: string;
+      shopId?: string;
+      shopName?: string;
+      regionCode?: string;
+      gatewayUrl?: string;
+      sellerType?: string;
+      orderSyncMode?: string;
+      authorizationType?: string;
+      status?: string;
+      remarks?: string;
+    },
+  ): Promise<SaleChannelAccount> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleChannelAccount>(`/api/v1/channel/accounts/${accountId}/update`, payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async updateChannelCredential(
+    accountId: string,
+    payload: {
+      appKey: string;
+      appSecret: string;
+      accessToken?: string;
+      refreshToken?: string;
+      status?: string;
+      extraPayload?: Record<string, unknown>;
+    },
+  ): Promise<SaleChannelCredential> {
+    const tenantId = getTenantIdOrThrow();
+    const normalizedPayload = { ...payload } as {
+      appKey: string;
+      appSecret: string;
+      accessToken?: string;
+      refreshToken?: string;
+      status?: string;
+      extraPayload?: Record<string, unknown>;
+    };
+    const rawExtraPayload = (payload as { extraPayload?: unknown }).extraPayload;
+    if (typeof rawExtraPayload === 'string') {
+      const text = rawExtraPayload.trim();
+      normalizedPayload.extraPayload = text ? (JSON.parse(text) as Record<string, unknown>) : undefined;
+    }
+    const response = await http.post<SaleChannelCredential>(
+      `/api/v1/channel/credentials/${accountId}/update`,
+      normalizedPayload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async checkToken(
+    accountId: string,
+  ): Promise<{ passed: boolean; message?: string; requestId?: string; errorCode?: string }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{ passed: boolean; message?: string; requestId?: string; errorCode?: string }>(
+      `/api/v1/channel/credentials/${accountId}/check-token`,
+      {},
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async probeCapabilities(accountId: string): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/channel/credentials/${accountId}/probe-capabilities`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listOrders(channelAccountId?: string): Promise<SaleOrderItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
+      params: { tenantId, channelAccountId: channelAccountId || undefined },
+    });
+    return response.data.list ?? [];
+  },
+
+  async syncProducts(payload: { channelAccountId: number; page?: number; pageSize?: number }): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>('/api/v1/sale/products/sync', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listProductMappings(params?: {
+    channelAccountId?: string;
+    mappingStatus?: string;
+  }): Promise<
+    Array<{
+      id: string;
+      channelAccountId: string;
+      platformSpuId?: string;
+      platformSkuId: string;
+      platformSkuCode?: string;
+      styleId?: string;
+      styleVariantId?: string;
+      warehouseId?: string;
+      mappingStatus?: string;
+      lastSyncedAt?: string;
+      updatedAt?: string;
+    }>
+  > {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<
+      BackendListResponse<{
+        id: string;
+        channelAccountId: string;
+        platformSpuId?: string;
+        platformSkuId: string;
+        platformSkuCode?: string;
+        styleId?: string;
+        styleVariantId?: string;
+        warehouseId?: string;
+        mappingStatus?: string;
+        lastSyncedAt?: string;
+        updatedAt?: string;
+      }>
+    >('/api/v1/sale/product-mappings', {
+      params: { tenantId, ...params },
+    });
+    return response.data.list ?? [];
+  },
+
+  async createProductMapping(payload: {
+    channelAccountId: number;
+    platformSpuId?: string;
+    platformSkuId: string;
+    platformSkuCode?: string;
+    styleId?: number;
+    styleVariantId?: number;
+    warehouseId?: number;
+    mappingStatus?: string;
+    remark?: string;
+  }): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>('/api/v1/sale/product-mappings', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async updateProductMapping(
+    mappingId: string,
+    payload: {
+      styleId?: number;
+      styleVariantId?: number;
+      warehouseId?: number;
+      mappingStatus?: string;
+      remark?: string;
+    },
+  ): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/sale/product-mappings/${mappingId}/update`, payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async syncOrders(payload: { channelAccountId: number; page?: number; pageSize?: number }): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>('/api/v1/sale/orders/sync', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listFulfillments(channelAccountId?: string): Promise<SaleFulfillmentItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleFulfillmentItem>>('/api/v1/sale/fulfillments', {
+      params: { tenantId, channelAccountId: channelAccountId || undefined },
+    });
+    return response.data.list ?? [];
+  },
+
+  async createFulfillment(payload: {
+    channelAccountId?: number;
+    saleOrderId: number;
+    dispatchId?: number;
+    trackingNo?: string;
+    carrierCode?: string;
+    carrierName?: string;
+    idempotencyKey?: string;
+  }): Promise<SaleFulfillmentItem> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleFulfillmentItem>('/api/v1/sale/fulfillments', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async pushFulfillment(
+    fulfillmentId: string,
+    payload?: {
+      trackingNo?: string;
+      carrierCode?: string;
+      carrierName?: string;
+      deliveryMethod?: number;
+      shipOrderNo?: string;
+      sendAddressId?: number;
+      subWarehouseId?: number;
+      receiveAddressInfo?: Record<string, unknown>;
+      createExtra?: Record<string, unknown>;
+      selfDeliveryInfo?: Record<string, unknown>;
+      thirdPartyDeliveryInfo?: Record<string, unknown>;
+      thirdPartyExpressDeliveryInfoVO?: Record<string, unknown>;
+    },
+  ): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/sale/fulfillments/${fulfillmentId}/push`, payload ?? {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listSyncLogs(params?: {
+    channelAccountId?: string;
+    bizType?: string;
+    success?: boolean;
+  }): Promise<SaleSyncLogItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleSyncLogItem>>('/api/v1/sale/sync-logs', {
+      params: { tenantId, ...params },
+    });
+    return response.data.list ?? [];
+  },
+
+  async listRetryCandidates(params?: {
+    channelAccountId?: string;
+    bizType?: string;
+  }): Promise<SaleRetryCandidateItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleRetryCandidateItem>>(
+      '/api/v1/sale/sync-logs/retry-candidates',
+      {
+        params: { tenantId, ...params },
+      },
+    );
+    return response.data.list ?? [];
+  },
+
+  async listIdempotencyRecords(params?: {
+    bizType?: string;
+    status?: string;
+    idempotencyKey?: string;
+  }): Promise<SaleIdempotencyRecordItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleIdempotencyRecordItem>>(
+      '/api/v1/sale/idempotency-records',
+      {
+        params: { tenantId, ...params },
+      },
+    );
+    return response.data.list ?? [];
+  },
+};

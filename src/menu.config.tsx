@@ -127,6 +127,26 @@ export const menuTree: MenuNode[] = [
     ],
   },
   {
+    key: '/sale',
+    icon: <ShoppingCartOutlined />,
+    label: '销售中心',
+    children: [
+      { key: '/sale/dashboard', label: <Link to="/sale/dashboard">销售看板</Link> },
+      { key: '/sale/orders', label: <Link to="/sale/orders">销售订单</Link> },
+      { key: '/sale/fulfillments', label: <Link to="/sale/fulfillments">履约与发货</Link> },
+      {
+        key: '/sale/channels',
+        label: '渠道管理',
+        children: [
+          { key: '/sale/channels/accounts', label: <Link to="/sale/channels/accounts">渠道账号</Link> },
+          { key: '/sale/channels/credentials', label: <Link to="/sale/channels/credentials">凭证配置</Link> },
+          { key: '/sale/channels/mappings', label: <Link to="/sale/channels/mappings">商品映射</Link> },
+        ],
+      },
+      { key: '/sale/sync-logs', label: <Link to="/sale/sync-logs">同步日志</Link> },
+    ],
+  },
+  {
     key: '/settlement',
     icon: <AppstoreOutlined />,
     label: '对账结算',
