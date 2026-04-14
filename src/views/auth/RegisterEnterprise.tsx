@@ -5,11 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { onboardingApi, type RegisterEnterprisePayload } from '../../api/onboarding';
 import { buildFriendlyError } from '../../utils/friendly-error';
 import { useBindAuthTokenResolver } from '../../hooks/useBindAuthTokenResolver';
+import { buildFriendlyErrorFromUnknown } from '../../utils/http-error';
+import OnboardingStatusError from './OnboardingStatusError';
 
 const RegisterEnterprise = () => {
   const [form] = Form.useForm<RegisterEnterprisePayload>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusCheckError, setStatusCheckError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { isLoaded, isSignedIn } = useAuth();
 
@@ -27,12 +30,17 @@ const RegisterEnterprise = () => {
         if (status.linked) {
           navigate('/dashboard/workplace', { replace: true });
         }
-      } catch {
-        // ignore and stay on onboarding page
+        setStatusCheckError(null);
+      } catch (err) {
+        setStatusCheckError(buildFriendlyErrorFromUnknown(err).description ?? '状态检查接口调用失败，请稍后重试。');
       }
     };
     void run();
   }, [isLoaded, isSignedIn, navigate]);
+
+  if (statusCheckError) {
+    return <OnboardingStatusError description={statusCheckError} />;
+  }
 
   const submit = async () => {
     setError(null);

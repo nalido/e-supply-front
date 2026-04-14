@@ -1,11 +1,13 @@
 import { SignedIn, SignedOut, useAuth } from '@clerk/clerk-react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Button, Result, Spin } from 'antd'
+import { Spin } from 'antd'
 import MainLayout from './MainLayout'
 import TenantProvider from '../providers/TenantProvider'
 import { onboardingApi } from '../api/onboarding'
 import { useBindAuthTokenResolver } from '../hooks/useBindAuthTokenResolver'
+import OnboardingStatusError from '../views/auth/OnboardingStatusError'
+import { buildFriendlyErrorFromUnknown } from '../utils/http-error'
 
 const ONBOARDING_PATH = '/onboarding/register-enterprise'
 const WELCOME_PATH = '/welcome'
@@ -14,8 +16,7 @@ const SignedInGate = () => {
   const { isLoaded, isSignedIn } = useAuth()
   const location = useLocation()
   const [linked, setLinked] = useState<boolean | null>(null)
-  const [statusError, setStatusError] = useState<string | null>(null)
-  const [statusCheckVersion, setStatusCheckVersion] = useState(0)
+  const [statusCheckError, setStatusCheckError] = useState<string | null>(null)
 
   useBindAuthTokenResolver()
 
@@ -24,30 +25,22 @@ const SignedInGate = () => {
       if (!isLoaded || !isSignedIn) {
         return
       }
-      setStatusError(null)
       try {
         const status = await onboardingApi.status()
         setLinked(status.linked)
-      } catch {
-        setStatusError('账号状态校验失败，请重试')
+        setStatusCheckError(null)
+      } catch (error) {
+        setStatusCheckError(
+          buildFriendlyErrorFromUnknown(error).description ?? '状态检查接口调用失败，请稍后重试。',
+        )
+        setLinked(null)
       }
     }
     void run()
-  }, [isLoaded, isSignedIn, location.pathname, statusCheckVersion])
+  }, [isLoaded, isSignedIn, location.pathname])
 
-  if (statusError && linked === null) {
-    return (
-      <Result
-        status="error"
-        title="账号状态校验失败"
-        subTitle={statusError}
-        extra={
-          <Button type="primary" onClick={() => setStatusCheckVersion((current) => current + 1)}>
-            重试校验
-          </Button>
-        }
-      />
-    )
+  if (statusCheckError) {
+    return <OnboardingStatusError description={statusCheckError} />
   }
 
   if (linked === null) {
