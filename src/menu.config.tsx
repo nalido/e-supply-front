@@ -138,8 +138,7 @@ export const menuTree: MenuNode[] = [
         key: '/sale/channels',
         label: '渠道管理',
         children: [
-          { key: '/sale/channels/accounts', label: <Link to="/sale/channels/accounts">渠道账号</Link> },
-          { key: '/sale/channels/credentials', label: <Link to="/sale/channels/credentials">凭证配置</Link> },
+          { key: '/sale/channels/accounts', label: <Link to="/sale/channels/accounts">渠道绑定</Link> },
           { key: '/sale/channels/mappings', label: <Link to="/sale/channels/mappings">商品映射</Link> },
         ],
       },

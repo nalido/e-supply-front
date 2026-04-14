@@ -6,6 +6,8 @@ import type {
   SaleFulfillmentItem,
   SaleIdempotencyRecordItem,
   SaleOrderItem,
+  SaleProductSyncStatus,
+  SaleProductSyncTaskSubmitResponse,
   SaleRetryCandidateItem,
   SaleSyncLogItem,
 } from '../types/sale';
@@ -81,6 +83,14 @@ export const saleApi = {
     return response.data;
   },
 
+  async deleteChannelAccount(accountId: string): Promise<SaleChannelAccount> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleChannelAccount>(`/api/v1/channel/accounts/${accountId}/delete`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async updateChannelCredential(
     accountId: string,
     payload: {
@@ -146,10 +156,22 @@ export const saleApi = {
     return response.data.list ?? [];
   },
 
-  async syncProducts(payload: { channelAccountId: number; page?: number; pageSize?: number }): Promise<unknown> {
+  async syncProducts(payload: {
+    channelAccountId: number;
+    page?: number;
+    pageSize?: number;
+  }): Promise<SaleProductSyncTaskSubmitResponse> {
     const tenantId = getTenantIdOrThrow();
-    const response = await http.post<unknown>('/api/v1/sale/products/sync', payload, {
+    const response = await http.post<SaleProductSyncTaskSubmitResponse>('/api/v1/sale/products/sync', payload, {
       params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async getProductSyncStatus(channelAccountId: string): Promise<SaleProductSyncStatus> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductSyncStatus>('/api/v1/sale/products/sync-status', {
+      params: { tenantId, channelAccountId },
     });
     return response.data;
   },
@@ -162,14 +184,32 @@ export const saleApi = {
       id: string;
       channelAccountId: string;
       platformSpuId?: string;
+      platformSkcId?: string;
       platformSkuId: string;
       platformSkuCode?: string;
+      platformProductName?: string;
+      platformMainImageUrl?: string;
+      platformCategoryId?: string;
+      platformCategoryPath?: string;
+      platformStatus?: string;
+      normalizedColor?: string;
+      normalizedSize?: string;
+      normalizedSpecSummary?: string;
+      normalizedAttributesJson?: string;
+      platformSnapshotJson?: string;
       styleId?: string;
+      styleNo?: string;
+      styleName?: string;
+      styleImageUrl?: string;
       styleVariantId?: string;
+      styleVariantColor?: string;
+      styleVariantSize?: string;
+      styleVariantAttributesJson?: string;
       warehouseId?: string;
       mappingStatus?: string;
       lastSyncedAt?: string;
       updatedAt?: string;
+      remark?: string;
     }>
   > {
     const tenantId = getTenantIdOrThrow();
@@ -178,19 +218,119 @@ export const saleApi = {
         id: string;
         channelAccountId: string;
         platformSpuId?: string;
+        platformSkcId?: string;
         platformSkuId: string;
         platformSkuCode?: string;
+        platformProductName?: string;
+        platformMainImageUrl?: string;
+        platformCategoryId?: string;
+        platformCategoryPath?: string;
+        platformStatus?: string;
+        normalizedColor?: string;
+        normalizedSize?: string;
+        normalizedSpecSummary?: string;
+        normalizedAttributesJson?: string;
+        platformSnapshotJson?: string;
         styleId?: string;
+        styleNo?: string;
+        styleName?: string;
+        styleImageUrl?: string;
         styleVariantId?: string;
+        styleVariantColor?: string;
+        styleVariantSize?: string;
+        styleVariantAttributesJson?: string;
         warehouseId?: string;
         mappingStatus?: string;
         lastSyncedAt?: string;
         updatedAt?: string;
+        remark?: string;
       }>
     >('/api/v1/sale/product-mappings', {
       params: { tenantId, ...params },
     });
     return response.data.list ?? [];
+  },
+
+  async generateProductMappingDrafts(payload: {
+    channelAccountId: number;
+  }): Promise<{ channelAccountId: string; generatedCount: number; pendingCount: number }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{ channelAccountId: string; generatedCount: number; pendingCount: number }>(
+      '/api/v1/sale/product-mappings/drafts/generate',
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async listProductMappingDrafts(channelAccountId: string): Promise<
+    Array<{
+      id: string;
+      productMappingId: string;
+      channelAccountId: string;
+      platformSkuId: string;
+      candidateStyleId?: string;
+      candidateStyleNo?: string;
+      candidateStyleName?: string;
+      candidateStyleImageUrl?: string;
+      candidateVariantId?: string;
+      candidateColor?: string;
+      candidateSize?: string;
+      candidateAttributesJson?: string;
+      matchSource?: string;
+      matchReason?: string;
+      confidence?: string;
+      draftStatus?: string;
+      reviewNote?: string;
+      reviewedAt?: string;
+      updatedAt?: string;
+    }>
+  > {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<
+      BackendListResponse<{
+        id: string;
+        productMappingId: string;
+        channelAccountId: string;
+        platformSkuId: string;
+        candidateStyleId?: string;
+        candidateStyleNo?: string;
+        candidateStyleName?: string;
+        candidateStyleImageUrl?: string;
+        candidateVariantId?: string;
+        candidateColor?: string;
+        candidateSize?: string;
+        candidateAttributesJson?: string;
+        matchSource?: string;
+        matchReason?: string;
+        confidence?: string;
+        draftStatus?: string;
+        reviewNote?: string;
+        reviewedAt?: string;
+        updatedAt?: string;
+      }>
+    >('/api/v1/sale/product-mapping-drafts', {
+      params: { tenantId, channelAccountId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async approveProductMappingDraft(draftId: string): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/sale/product-mapping-drafts/${draftId}/approve`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async rejectProductMappingDraft(draftId: string): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/sale/product-mapping-drafts/${draftId}/reject`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
   },
 
   async createProductMapping(payload: {

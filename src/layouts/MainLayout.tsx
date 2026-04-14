@@ -7,11 +7,20 @@ import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { FolderOpenFilled, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { pieceworkService } from '../api/piecework'
+import { saleApi } from '../api/sale'
 import settingsApi from '../api/settings'
 import { REPORT_DOWNLOAD_LABELS } from '../constants/report-downloads'
 import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils/download-center-hint'
 import { PREFERENCE_UPDATED_EVENT, type PreferenceUpdatedDetail } from '../utils/preference-events'
+import type { SaleChannelAccount } from '../types/sale'
+import {
+  SALE_ACTIVE_ACCOUNT_ID_KEY,
+  SALE_CONTEXT_CHANGED_EVENT,
+  type SaleContextChangedDetail,
+  pickPreferredSaleAccount,
+  resolveSaleOrderMenuLabel,
+} from '../utils/sale-menu-context'
 import AiAgentFloatingWidget from '../modules/ai-agent/ui/AiAgentFloatingWidget'
 
 const { Header, Sider, Content } = Layout
@@ -42,8 +51,6 @@ const buildLabelMap = (nodes: MenuNode[], map = new Map<string, string>()) => {
   return map
 }
 
-const LABEL_MAP = buildLabelMap(menuTree)
-LABEL_MAP.set(DOWNLOAD_CENTER_PATH, '下载中心')
 const DOWNLOAD_CENTER_HINT_KEYWORDS = ['下载中心', '已生成导出文件', '导出任务已生成', '已生成导出任务', '导出任务已创建']
 
 const resolveMessageContentText = (content: unknown): string => {
@@ -78,6 +85,22 @@ const asBooleanPreference = (value: unknown, fallback = true): boolean => {
   return fallback
 }
 
+const updateSaleOrderMenuLabel = (nodes: MenuNode[], label: string): MenuNode[] =>
+  nodes.map((node) => {
+    if (node.key === '/sale/orders') {
+      return { ...node, label: <Link to="/sale/orders">{label}</Link> }
+    }
+    if (!node.children) {
+      return node
+    }
+    return { ...node, children: updateSaleOrderMenuLabel(node.children, label) }
+  })
+
+const resolveCurrentSaleAccount = (accounts: SaleChannelAccount[]): SaleChannelAccount | undefined => {
+  const activeAccountId = window.localStorage.getItem(SALE_ACTIVE_ACCOUNT_ID_KEY)
+  return pickPreferredSaleAccount(accounts, activeAccountId)
+}
+
 const MainLayout = () => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -87,12 +110,22 @@ const MainLayout = () => {
   const [isDownloadCenterAnimating, setIsDownloadCenterAnimating] = useState(false)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
+  const [saleOrderMenuLabel, setSaleOrderMenuLabel] = useState<string>('订单管理')
   const [notificationApi, notificationContextHolder] = notification.useNotification()
   const hasInitializedDownloadPoll = useRef(false)
   const knownDownloadIdsRef = useRef<Set<string>>(new Set())
   const downloadHintTimerRef = useRef<number | null>(null)
 
-  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), [])
+  const menuNodes = useMemo<MenuNode[]>(
+    () => updateSaleOrderMenuLabel(menuTree, saleOrderMenuLabel),
+    [saleOrderMenuLabel],
+  )
+  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuNodes), [menuNodes])
+  const labelMap = useMemo(() => {
+    const map = buildLabelMap(menuNodes)
+    map.set(DOWNLOAD_CENTER_PATH, '下载中心')
+    return map
+  }, [menuNodes])
   const isDownloadCenterOpen = useMemo(() => {
     const searchParams = new URLSearchParams(location.search)
     return (
@@ -128,6 +161,43 @@ const MainLayout = () => {
   useEffect(() => {
     setOpenKeys(deriveOpenKeys(location.pathname))
   }, [location.pathname])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadSaleMenuContext = async () => {
+      try {
+        const accounts = await saleApi.listChannelAccounts()
+        if (cancelled) {
+          return
+        }
+        const current = resolveCurrentSaleAccount(accounts)
+        setSaleOrderMenuLabel(resolveSaleOrderMenuLabel(current?.sellerType))
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('failed to load sale menu context', error)
+          setSaleOrderMenuLabel('订单管理')
+        }
+      }
+    }
+
+    void loadSaleMenuContext()
+
+    const handleSaleContextChanged = (event: Event) => {
+      const detail = (event as CustomEvent<SaleContextChangedDetail>).detail
+      if (detail?.sellerType) {
+        setSaleOrderMenuLabel(resolveSaleOrderMenuLabel(detail.sellerType))
+        return
+      }
+      void loadSaleMenuContext()
+    }
+
+    window.addEventListener(SALE_CONTEXT_CHANGED_EVENT, handleSaleContextChanged)
+    return () => {
+      cancelled = true
+      window.removeEventListener(SALE_CONTEXT_CHANGED_EVENT, handleSaleContextChanged)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -285,18 +355,18 @@ const MainLayout = () => {
     const breadcrumbPaths = paths.slice(0, -1)
 
     if (breadcrumbPaths.length === 0 && paths[0]) {
-      const label = LABEL_MAP.get(paths[0]) ?? pathSnippets[0]
+      const label = labelMap.get(paths[0]) ?? pathSnippets[0]
       return [{ title: <span>{label}</span> }]
     }
 
     return breadcrumbPaths.map((path, index) => {
-      const label = LABEL_MAP.get(path) ?? pathSnippets[index]
+      const label = labelMap.get(path) ?? pathSnippets[index]
       const isLast = index === breadcrumbPaths.length - 1
       return {
         title: isLast ? <span>{label}</span> : <Link to={path}>{label}</Link>,
       }
     })
-  }, [location.pathname])
+  }, [labelMap, location.pathname])
 
   const handleOpenChange: MenuProps['onOpenChange'] = (keys) => {
     setOpenKeys(keys as string[])

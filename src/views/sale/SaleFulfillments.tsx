@@ -3,6 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Form, Input, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
 import type { SaleChannelAccount, SaleFulfillmentItem } from '../../types/sale';
+import { publishSaleContextChanged, resolveSaleAccountSelection } from '../../utils/sale-menu-context';
 
 const SaleFulfillments = () => {
   const [loading, setLoading] = useState(false);
@@ -35,8 +36,17 @@ const SaleFulfillments = () => {
     try {
       const list = await saleApi.listChannelAccounts();
       setAccounts(list);
-      if (!selectedAccountId && list[0]) {
-        setSelectedAccountId(list[0].id);
+      const preferred = resolveSaleAccountSelection(list, selectedAccountId);
+      if (preferred?.id !== selectedAccountId) {
+        setSelectedAccountId(preferred?.id);
+      }
+      if (preferred) {
+        publishSaleContextChanged({
+          accountId: preferred.id,
+          sellerType: preferred.sellerType,
+        });
+      } else {
+        publishSaleContextChanged({});
       }
     } catch (error) {
       console.error(error);

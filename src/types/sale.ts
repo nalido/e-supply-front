@@ -14,6 +14,16 @@ export type SaleChannelAccount = {
   updatedAt?: string | null;
 };
 
+export const getSaleSellerTypeLabel = (sellerType?: string | null): string => {
+  if (sellerType === 'FULLY_MANAGED') {
+    return '全托管';
+  }
+  if (sellerType === 'SEMI_MANAGED') {
+    return '半托管';
+  }
+  return sellerType || '--';
+};
+
 export type SaleChannelCredential = {
   accountId: string;
   appKeyMasked?: string | null;
@@ -113,4 +123,31 @@ export type SaleIdempotencyRecordItem = {
   expiredAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+export type SaleSyncTaskSummary = {
+  taskId: string;
+  status?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  processedCount?: number | null;
+  successCount?: number | null;
+  failedCount?: number | null;
+  errorMessage?: string | null;
+  remark?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleProductSyncTaskSubmitResponse = {
+  channelAccountId: string;
+  taskId: string;
+  status?: string | null;
+  alreadyRunning: boolean;
+  message?: string | null;
+};
+
+export type SaleProductSyncStatus = {
+  channelAccountId: string;
+  currentTask?: SaleSyncTaskSummary | null;
+  latestFinishedTask?: SaleSyncTaskSummary | null;
 };

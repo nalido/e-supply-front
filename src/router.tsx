@@ -75,7 +75,6 @@ const SaleDashboard = lazy(() => import('./views/sale/SaleDashboard'));
 const SaleOrders = lazy(() => import('./views/sale/SaleOrders'));
 const SaleFulfillments = lazy(() => import('./views/sale/SaleFulfillments'));
 const SaleChannelAccounts = lazy(() => import('./views/sale/SaleChannelAccounts'));
-const SaleChannelCredentials = lazy(() => import('./views/sale/SaleChannelCredentials'));
 const SaleChannelMappings = lazy(() => import('./views/sale/SaleChannelMappings'));
 const SaleSyncLogs = lazy(() => import('./views/sale/SaleSyncLogs'));
 
@@ -119,7 +118,6 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sale/orders' &&
     n.key !== '/sale/fulfillments' &&
     n.key !== '/sale/channels/accounts' &&
-    n.key !== '/sale/channels/credentials' &&
     n.key !== '/sale/channels/mappings' &&
     n.key !== '/sale/sync-logs' &&
     n.key !== '/orders/factory' &&
@@ -209,7 +207,7 @@ const router = createBrowserRouter([
       { path: 'sale/orders', element: createLazyPageElement(SaleOrders) },
       { path: 'sale/fulfillments', element: createLazyPageElement(SaleFulfillments) },
       { path: 'sale/channels/accounts', element: createLazyPageElement(SaleChannelAccounts) },
-      { path: 'sale/channels/credentials', element: createLazyPageElement(SaleChannelCredentials) },
+      { path: 'sale/channels/credentials', element: React.createElement(Navigate, { to: '/sale/channels/accounts', replace: true }) },
       { path: 'sale/channels/mappings', element: createLazyPageElement(SaleChannelMappings) },
       { path: 'sale/sync-logs', element: createLazyPageElement(SaleSyncLogs) },
       { path: 'sample/report/costing', element: createLazyPageElement(SampleCostingReport) },

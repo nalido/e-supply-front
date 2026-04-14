@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Descriptions, Form, Input, Popconfirm, Select, Space, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
 import type { SaleChannelAccount, SaleChannelCredential } from '../../types/sale';
+import { publishSaleContextChanged, resolveSaleAccountSelection } from '../../utils/sale-menu-context';
 
 const SaleChannelCredentials = () => {
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
@@ -20,8 +21,17 @@ const SaleChannelCredentials = () => {
     try {
       const list = await saleApi.listChannelAccounts();
       setAccounts(list);
-      if (!selectedAccountId && list[0]) {
-        setSelectedAccountId(list[0].id);
+      const preferred = resolveSaleAccountSelection(list, selectedAccountId);
+      if (preferred?.id !== selectedAccountId) {
+        setSelectedAccountId(preferred?.id);
+      }
+      if (preferred) {
+        publishSaleContextChanged({
+          accountId: preferred.id,
+          sellerType: preferred.sellerType,
+        });
+      } else {
+        publishSaleContextChanged({});
       }
     } catch (error) {
       console.error(error);

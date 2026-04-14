@@ -3,6 +3,12 @@ import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Form, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
 import type { SaleChannelAccount, SaleOrderItem } from '../../types/sale';
+import {
+  SALE_ACTIVE_ACCOUNT_ID_KEY,
+  publishSaleContextChanged,
+  resolveSaleAccountSelection,
+  resolveSaleOrderMenuLabel,
+} from '../../utils/sale-menu-context';
 
 const SaleOrders = () => {
   const [loading, setLoading] = useState(false);
@@ -20,6 +26,11 @@ const SaleOrders = () => {
     () => accounts.find((item) => item.id === selectedAccountId),
     [accounts, selectedAccountId],
   );
+  const orderMenuLabel = useMemo(
+    () => resolveSaleOrderMenuLabel(selectedAccount?.sellerType),
+    [selectedAccount?.sellerType],
+  );
+  const orderEntityLabel = orderMenuLabel.includes('备货') ? '备货单' : '订单';
 
   const loadData = useCallback(async (accountId?: string) => {
     setLoading(true);
@@ -38,8 +49,20 @@ const SaleOrders = () => {
     try {
       const list = await saleApi.listChannelAccounts();
       setAccounts(list);
-      if (!selectedAccountId && list[0]) {
-        setSelectedAccountId(list[0].id);
+      const preferredAccount = resolveSaleAccountSelection(
+        list,
+        selectedAccountId ?? window.localStorage.getItem(SALE_ACTIVE_ACCOUNT_ID_KEY),
+      );
+      if (preferredAccount?.id !== selectedAccountId) {
+        setSelectedAccountId(preferredAccount?.id);
+      }
+      if (preferredAccount) {
+        publishSaleContextChanged({
+          accountId: preferredAccount.id,
+          sellerType: preferredAccount.sellerType,
+        });
+      } else {
+        publishSaleContextChanged({});
       }
     } catch (error) {
       console.error(error);
@@ -55,9 +78,19 @@ const SaleOrders = () => {
     void loadData(selectedAccountId);
   }, [selectedAccountId, loadData]);
 
+  useEffect(() => {
+    if (!selectedAccountId) {
+      return;
+    }
+    publishSaleContextChanged({
+      accountId: selectedAccountId,
+      sellerType: selectedAccount?.sellerType,
+    });
+  }, [selectedAccount?.sellerType, selectedAccountId]);
+
   const columns: ColumnsType<SaleOrderItem> = [
     { title: '订单ID', dataIndex: 'id', width: 90 },
-    { title: '平台订单号', dataIndex: 'platformOrderNo', width: 180 },
+    { title: `平台${orderEntityLabel}号`, dataIndex: 'platformOrderNo', width: 180 },
     { title: '父单号', dataIndex: 'platformParentOrderNo', width: 180 },
     {
       title: '状态',
@@ -99,7 +132,7 @@ const SaleOrders = () => {
       <Card>
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            销售订单
+            {orderMenuLabel}
           </Typography.Title>
           <Space>
             <Select
@@ -129,9 +162,9 @@ const SaleOrders = () => {
             <InputNumber min={1} max={100} />
           </Form.Item>
           <Form.Item>
-            <Popconfirm title="确认同步订单到本地？" onConfirm={() => void handleSync()} okText="确认" cancelText="取消">
+            <Popconfirm title={`确认同步${orderEntityLabel}到本地？`} onConfirm={() => void handleSync()} okText="确认" cancelText="取消">
               <Button type="primary" loading={syncing}>
-                同步订单
+                {`同步${orderEntityLabel}`}
               </Button>
             </Popconfirm>
           </Form.Item>
