@@ -1,15 +1,18 @@
 import { type Key, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, Button, Card, Image, Popconfirm, Popover, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Checkbox, Empty, Image, Modal, Popconfirm, Popover, Select, Space, Spin, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
+import stylesApi from '../../api/styles';
+import styleDetailApi from '../../api/style-detail';
 import type { SaleChannelAccount, SaleProductSyncStatus, SaleProductSyncTaskSubmitResponse } from '../../types/sale';
+import type { StyleData, StyleDetailData } from '../../types/style';
 import {
   SALE_ACTIVE_ACCOUNT_ID_KEY,
   publishSaleContextChanged,
   resolveSaleAccountSelection,
 } from '../../utils/sale-menu-context';
 
-type MappingStatus = 'UNMAPPED' | 'ACTIVE' | 'DISABLED' | 'CONFLICT';
+type MappingStatus = 'ALL' | 'UNMAPPED' | 'ACTIVE' | 'DISABLED' | 'CONFLICT';
 
 type MappingRow = {
   id: string;
@@ -58,6 +61,8 @@ type SnapshotProperty = {
 
 type SnapshotPayload = {
   extCode?: string;
+  productExtCode?: string;
+  skuExtCode?: string;
   productProperties?: SnapshotProperty[];
 };
 
@@ -85,7 +90,23 @@ type DraftGenerateResult = {
   pendingCount: number;
 };
 
+type StyleOption = {
+  label: string;
+  value: string;
+  style: StyleData;
+};
+
+type MappingModalState = {
+  open: boolean;
+  record: MappingRow | null;
+  styleKeyword: string;
+  selectedStyleId?: string;
+  selectedVariantId?: string;
+  sourceDraftId?: string;
+};
+
 const MAPPING_STATUS_OPTIONS: Array<{ label: string; value: MappingStatus }> = [
+  { label: '全部', value: 'ALL' },
   { label: '待绑定(UNMAPPED)', value: 'UNMAPPED' },
   { label: '已绑定(ACTIVE)', value: 'ACTIVE' },
   { label: '冲突(CONFLICT)', value: 'CONFLICT' },
@@ -114,6 +135,29 @@ const renderImage = (src?: string, alt?: string) => (
   />
 );
 
+const renderSingleLineEllipsisText = (value?: string) => {
+  const displayValue = value || '--';
+  return (
+    <Tooltip title={displayValue}>
+      <div
+        style={{
+          display: 'block',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontWeight: 600,
+          lineHeight: 1.4,
+        }}
+      >
+        {displayValue}
+      </div>
+    </Tooltip>
+  );
+};
+
 const parseAttributeEntries = (payload?: string) => {
   if (!payload) {
     return [];
@@ -141,6 +185,9 @@ const parsePlatformSnapshot = (payload?: string): SnapshotPayload | null => {
     return null;
   }
 };
+
+const filterSpecAttributeEntries = (entries: string[]) =>
+  entries.filter((item) => !item.startsWith('color:') && !item.startsWith('size:'));
 
 const formatPropertyValue = (item: SnapshotProperty) => {
   if (item.numberInputValue && item.valueUnit) {
@@ -200,17 +247,29 @@ const SaleChannelMappings = () => {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [draftGenerating, setDraftGenerating] = useState(false);
+  const [batchApplyingDrafts, setBatchApplyingDrafts] = useState(false);
   const [draftActionId, setDraftActionId] = useState<string>();
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>();
-  const [mappingStatus, setMappingStatus] = useState<MappingStatus>('UNMAPPED');
+  const [mappingStatus, setMappingStatus] = useState<MappingStatus>('ALL');
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [rows, setRows] = useState<MappingRow[]>([]);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [syncStatus, setSyncStatus] = useState<SaleProductSyncStatus | null>(null);
   const [syncSubmission, setSyncSubmission] = useState<SaleProductSyncTaskSubmitResponse | null>(null);
   const [draftResult, setDraftResult] = useState<DraftGenerateResult | null>(null);
+  const [mappingModal, setMappingModal] = useState<MappingModalState>({
+    open: false,
+    record: null,
+    styleKeyword: '',
+  });
+  const [styleSearchLoading, setStyleSearchLoading] = useState(false);
+  const [styleOptions, setStyleOptions] = useState<StyleOption[]>([]);
+  const [styleDetailLoading, setStyleDetailLoading] = useState(false);
+  const [selectedStyleDetail, setSelectedStyleDetail] = useState<StyleDetailData | null>(null);
+  const [mappingSaving, setMappingSaving] = useState(false);
   const previousActiveTaskIdRef = useRef<string | null>(null);
+  const styleSearchRequestRef = useRef(0);
 
   const selectedAccount = useMemo(
     () => accounts.find((item) => item.id === selectedAccountId),
@@ -303,6 +362,35 @@ const SaleChannelMappings = () => {
     () => displayRows.filter((item) => item.skcGroupHead).map((item) => item.id),
     [displayRows],
   );
+  const selectedSkcRowSet = useMemo(() => new Set(selectedRowKeys.map((item) => String(item))), [selectedRowKeys]);
+  const isAllSkcSelected = skcSelectableRowIds.length > 0 && skcSelectableRowIds.every((id) => selectedRowKeys.includes(id));
+  const isPartiallySelected = selectedRowKeys.length > 0 && !isAllSkcSelected;
+  const selectedMappingRows = useMemo(
+    () =>
+      displayRows.filter((item) => {
+        const groupHeadId = displayRows.find(
+          (candidate) =>
+            candidate.skcGroupHead &&
+            candidate.platformSpuId === item.platformSpuId &&
+            candidate.platformSkcId === item.platformSkcId,
+        )?.id;
+        return Boolean(groupHeadId && selectedSkcRowSet.has(groupHeadId));
+      }),
+    [displayRows, selectedSkcRowSet],
+  );
+  const selectedDrafts = useMemo(() => {
+    const mappingIds = new Set(selectedMappingRows.map((item) => item.id));
+    return drafts.filter((item) => mappingIds.has(item.productMappingId));
+  }, [drafts, selectedMappingRows]);
+  const applicableSelectedDrafts = useMemo(() => {
+    const firstDraftByMappingId = new Map<string, DraftRow>();
+    selectedDrafts.forEach((item) => {
+      if (!firstDraftByMappingId.has(item.productMappingId)) {
+        firstDraftByMappingId.set(item.productMappingId, item);
+      }
+    });
+    return Array.from(firstDraftByMappingId.values());
+  }, [selectedDrafts]);
 
   const currentSyncTask = syncStatus?.currentTask ?? null;
   const latestFinishedSyncTask = syncStatus?.latestFinishedTask ?? null;
@@ -359,6 +447,89 @@ const SaleChannelMappings = () => {
         (!syncStatus.currentTask && !syncStatus.latestFinishedTask)),
   );
 
+  const variantOptions = useMemo(() => {
+    const variants = selectedStyleDetail?.variants ?? [];
+    return variants.map((variant) => ({
+      label: [variant.color || '无颜色', variant.size || '无尺码'].join(' / '),
+      value: variant.id,
+    }));
+  }, [selectedStyleDetail]);
+
+  const loadStyleOptions = useCallback(async (keyword?: string, preferredStyleId?: string) => {
+    const requestId = styleSearchRequestRef.current + 1;
+    styleSearchRequestRef.current = requestId;
+    setStyleSearchLoading(true);
+    try {
+      const result = await stylesApi.list({
+        page: 0,
+        pageSize: 20,
+        keyword: keyword?.trim() || undefined,
+      });
+      if (styleSearchRequestRef.current !== requestId) {
+        return;
+      }
+      let options = result.list.map((style) => ({
+        label: `${style.styleNo} / ${style.styleName}`,
+        value: style.id,
+        style,
+      }));
+      if (preferredStyleId && !options.some((item) => item.value === preferredStyleId)) {
+        try {
+          const detail = await styleDetailApi.fetchDetail(preferredStyleId);
+          const fallbackStyle: StyleData = {
+            id: preferredStyleId,
+            styleNo: detail.styleNo,
+            styleName: detail.styleName,
+            image: detail.coverImageUrl,
+            colors: detail.colors,
+            sizes: detail.sizes,
+            status: detail.status,
+          };
+          options = [
+            {
+              label: `${fallbackStyle.styleNo} / ${fallbackStyle.styleName}`,
+              value: fallbackStyle.id,
+              style: fallbackStyle,
+            },
+            ...options,
+          ];
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      setStyleOptions(options);
+    } catch (error) {
+      console.error(error);
+      message.error('加载本地款式失败');
+    } finally {
+      if (styleSearchRequestRef.current === requestId) {
+        setStyleSearchLoading(false);
+      }
+    }
+  }, []);
+
+  const loadStyleDetail = useCallback(async (styleId: string, preferredVariantId?: string) => {
+    setStyleDetailLoading(true);
+    try {
+      const detail = await styleDetailApi.fetchDetail(styleId);
+      setSelectedStyleDetail(detail);
+      setMappingModal((previous) => {
+        const hasPreferredVariant =
+          preferredVariantId && (detail.variants ?? []).some((variant) => variant.id === preferredVariantId);
+        return {
+          ...previous,
+          selectedStyleId: styleId,
+          selectedVariantId: hasPreferredVariant ? preferredVariantId : detail.variants?.[0]?.id,
+        };
+      });
+    } catch (error) {
+      console.error(error);
+      message.error('加载款式规格失败');
+    } finally {
+      setStyleDetailLoading(false);
+    }
+  }, []);
+
   const loadDrafts = useCallback(async (accountId?: string) => {
     if (!accountId) {
       setDrafts([]);
@@ -369,7 +540,7 @@ const SaleChannelMappings = () => {
       setDrafts(list);
     } catch (error) {
       console.error(error);
-      message.error('加载草稿映射失败');
+      message.error('加载推荐映射失败');
     }
   }, []);
 
@@ -384,7 +555,7 @@ const SaleChannelMappings = () => {
       const [list, draftList] = await Promise.all([
         saleApi.listProductMappings({
           channelAccountId: accountId,
-          mappingStatus: status || undefined,
+          mappingStatus: status && status !== 'ALL' ? status : undefined,
         }),
         saleApi.listProductMappingDrafts(accountId),
       ]);
@@ -516,15 +687,151 @@ const SaleChannelMappings = () => {
         channelAccountId: Number(selectedAccountId),
       });
       setDraftResult(result);
-      message.success(`草稿生成完成：新增 ${result.generatedCount} 条候选，当前待评审 ${result.pendingCount} 条`);
+      message.success(`推荐映射生成完成：新增 ${result.generatedCount} 条推荐，当前待确认 ${result.pendingCount} 条`);
       await loadDrafts(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('生成草稿映射失败');
+      message.error('生成推荐映射失败');
     } finally {
       setDraftGenerating(false);
     }
   };
+
+  const openMappingModal = useCallback(
+    async (record: MappingRow, draft?: DraftRow) => {
+      const preferredStyleId = draft?.candidateStyleId || record.styleId;
+      const preferredVariantId = draft?.candidateVariantId || record.styleVariantId;
+      setMappingModal({
+        open: true,
+        record,
+        styleKeyword: '',
+        selectedStyleId: preferredStyleId,
+        selectedVariantId: preferredVariantId,
+        sourceDraftId: draft?.id,
+      });
+      setSelectedStyleDetail(null);
+      await loadStyleOptions(undefined, preferredStyleId);
+      if (preferredStyleId) {
+        await loadStyleDetail(preferredStyleId, preferredVariantId);
+      }
+    },
+    [loadStyleDetail, loadStyleOptions],
+  );
+
+  const closeMappingModal = useCallback(() => {
+    setMappingModal({
+      open: false,
+      record: null,
+      styleKeyword: '',
+      sourceDraftId: undefined,
+    });
+    setSelectedStyleDetail(null);
+    setStyleOptions([]);
+  }, []);
+
+  const handleStyleSearch = useCallback(
+    async (keyword: string) => {
+      setMappingModal((previous) => ({
+        ...previous,
+        styleKeyword: keyword,
+      }));
+      await loadStyleOptions(keyword, mappingModal.selectedStyleId);
+    },
+    [loadStyleOptions, mappingModal.selectedStyleId],
+  );
+
+  const handleStyleChange = useCallback(
+    async (styleId: string) => {
+      setMappingModal((previous) => ({
+        ...previous,
+        selectedStyleId: styleId,
+        selectedVariantId: undefined,
+      }));
+      await loadStyleDetail(styleId);
+    },
+    [loadStyleDetail],
+  );
+
+  const handleSaveMapping = useCallback(async () => {
+    if (!mappingModal.record) {
+      return;
+    }
+    if (!mappingModal.selectedStyleId || !mappingModal.selectedVariantId) {
+      message.warning('请先选择本地款式和规格');
+      return;
+    }
+    setMappingSaving(true);
+    try {
+      await saleApi.updateProductMapping(mappingModal.record.id, {
+        styleId: Number(mappingModal.selectedStyleId),
+        styleVariantId: Number(mappingModal.selectedVariantId),
+        mappingStatus: 'ACTIVE',
+      });
+      if (mappingModal.sourceDraftId) {
+        try {
+          await saleApi.rejectProductMappingDraft(mappingModal.sourceDraftId);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      message.success('商品映射已保存');
+      closeMappingModal();
+      await loadRows(selectedAccountId, mappingStatus);
+    } catch (error) {
+      console.error(error);
+      const errorMessage =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message || '保存商品映射失败';
+      message.error(errorMessage);
+    } finally {
+      setMappingSaving(false);
+    }
+  }, [
+    closeMappingModal,
+    loadRows,
+    mappingModal.record,
+    mappingModal.selectedStyleId,
+    mappingModal.selectedVariantId,
+    mappingModal.sourceDraftId,
+    mappingStatus,
+    selectedAccountId,
+  ]);
+
+  const handleDeleteMapping = useCallback(
+    async (record: MappingRow) => {
+      try {
+        await saleApi.deleteProductMapping(record.id);
+        message.success('已解除商品映射');
+        await loadRows(selectedAccountId, mappingStatus);
+      } catch (error) {
+        console.error(error);
+        const errorMessage =
+          (error as { response?: { data?: { message?: string } } })?.response?.data?.message || '解除映射失败';
+        message.error(errorMessage);
+      }
+    },
+    [loadRows, mappingStatus, selectedAccountId],
+  );
+
+  const handleBatchApplyDrafts = useCallback(async () => {
+    if (!applicableSelectedDrafts.length) {
+      message.warning('当前选中的 SKC 没有可应用的推荐映射');
+      return;
+    }
+    setBatchApplyingDrafts(true);
+    try {
+      for (const draft of applicableSelectedDrafts) {
+        await saleApi.approveProductMappingDraft(draft.id);
+      }
+      message.success(`已批量应用 ${applicableSelectedDrafts.length} 条推荐映射`);
+      await loadRows(selectedAccountId, mappingStatus);
+      setSelectedRowKeys([]);
+    } catch (error) {
+      console.error(error);
+      message.error('批量应用推荐映射失败');
+    } finally {
+      setBatchApplyingDrafts(false);
+    }
+  }, [applicableSelectedDrafts, loadRows, mappingStatus, selectedAccountId]);
 
   const handleApproveDraft = useCallback(async (draftId: string) => {
     setDraftActionId(draftId);
@@ -544,7 +851,7 @@ const SaleChannelMappings = () => {
     setDraftActionId(draftId);
     try {
       await saleApi.rejectProductMappingDraft(draftId);
-      message.success('已驳回该候选');
+      message.success('已驳回该推荐');
       await loadDrafts(selectedAccountId);
     } catch (error) {
       console.error(error);
@@ -556,6 +863,39 @@ const SaleChannelMappings = () => {
 
   const columns: ColumnsType<DisplayMappingRow> = useMemo(
     () => [
+      {
+        title: (
+          <Checkbox
+            checked={isAllSkcSelected}
+            indeterminate={isPartiallySelected}
+            onChange={(event) => {
+              setSelectedRowKeys(event.target.checked ? skcSelectableRowIds : []);
+            }}
+          />
+        ),
+        key: 'selection',
+        width: 52,
+        fixed: 'left',
+        align: 'center',
+        onCell: (record) => ({ rowSpan: record.skcGroupRowSpan }),
+        render: (_, record) => {
+          if (!record.skcGroupHead) {
+            return null;
+          }
+          return (
+            <Checkbox
+              checked={selectedRowKeys.includes(record.id)}
+              onChange={(event) => {
+                setSelectedRowKeys((current) =>
+                  event.target.checked
+                    ? Array.from(new Set([...current, record.id]))
+                    : current.filter((item) => item !== record.id),
+                );
+              }}
+            />
+          );
+        },
+      },
       {
         title: '商品信息',
         key: 'product',
@@ -579,7 +919,9 @@ const SaleChannelMappings = () => {
                 <Typography.Text type="secondary" copyable={{ text: record.platformSkcId || '' }}>
                   SKC ID：{record.platformSkcId || '--'}
                 </Typography.Text>
-                <Typography.Text type="secondary">货号：{snapshot?.extCode || record.platformSkuCode || '--'}</Typography.Text>
+                <Typography.Text type="secondary">
+                  货号：{snapshot?.productExtCode || '--'}
+                </Typography.Text>
                 <Space size={[4, 4]} wrap>
                   {record.platformStatus ? <Tag color="processing">平台状态：{record.platformStatus}</Tag> : null}
                   {record.normalizedColor ? <Tag color="magenta">{record.normalizedColor}</Tag> : null}
@@ -645,28 +987,119 @@ const SaleChannelMappings = () => {
         ),
       },
       {
+        title: '商品规格',
+        key: 'normalized',
+        width: 230,
+        render: (_, record) => {
+          const attributes = filterSpecAttributeEntries(parseAttributeEntries(record.normalizedAttributesJson));
+          return (
+            <Space direction="vertical" size={6}>
+              <Typography.Text>颜色：{record.normalizedColor || '--'}</Typography.Text>
+              <Typography.Text>尺码：{record.normalizedSize || '--'}</Typography.Text>
+              {attributes.length ? (
+                <Space size={[4, 4]} wrap>
+                  {attributes.map((item) => (
+                    <Tag key={item}>{item}</Tag>
+                  ))}
+                </Space>
+              ) : null}
+            </Space>
+          );
+        },
+      },
+      {
+        title: 'SKU ID',
+        key: 'sku',
+        width: 180,
+        render: (_, record) => (
+          <Typography.Text strong copyable={{ text: record.platformSkuId }}>
+            {record.platformSkuId}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: 'SKU货号',
+        key: 'skuCode',
+        width: 160,
+        render: (_, record) => {
+          const snapshot = parsePlatformSnapshot(record.platformSnapshotJson);
+          return <Typography.Text>{snapshot?.skuExtCode || record.platformSkuCode || '--'}</Typography.Text>;
+        },
+      },
+      {
         title: '映射信息',
         children: [
           {
-            title: '草稿候选',
+            title: '正式映射',
+            key: 'confirmed',
+            width: 280,
+            render: (_, record) => {
+              const attributes = parseAttributeEntries(record.styleVariantAttributesJson);
+              if (!record.styleVariantId) {
+                return (
+                  <Space direction="vertical" size={8}>
+                    <Typography.Text type="secondary">未确认</Typography.Text>
+                    <Button type="link" size="small" style={{ paddingInline: 0 }} onClick={() => void openMappingModal(record)}>
+                      手动映射
+                    </Button>
+                  </Space>
+                );
+              }
+              return (
+                <Space direction="vertical" size={6} style={{ width: '100%', minWidth: 0 }}>
+                  {renderSingleLineEllipsisText(`${record.styleNo || '--'} / ${record.styleName || '--'}`)}
+                  <Typography.Text>
+                    规格：{record.styleVariantColor || '--'} / {record.styleVariantSize || '--'}
+                  </Typography.Text>
+                  {attributes.length ? (
+                    <Space size={[4, 4]} wrap>
+                      {attributes.map((item) => (
+                        <Tag key={item} color="blue">
+                          {item}
+                        </Tag>
+                      ))}
+                    </Space>
+                  ) : null}
+                  <Space>
+                    <Button type="link" size="small" style={{ paddingInline: 0 }} onClick={() => void openMappingModal(record)}>
+                      修改映射
+                    </Button>
+                    <Popconfirm
+                      title="确认解除当前商品映射？"
+                      description="解除后该平台商品会恢复为待绑定状态。"
+                      okText="确认解除"
+                      cancelText="取消"
+                      onConfirm={() => void handleDeleteMapping(record)}
+                    >
+                      <Button type="link" danger size="small" style={{ paddingInline: 0 }}>
+                        删除映射
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                </Space>
+              );
+            },
+          },
+          {
+            title: '推荐映射',
             key: 'drafts',
             width: 300,
             render: (_, record) => {
               const candidates = draftsByMappingId.get(record.id) ?? [];
               if (!candidates.length) {
-                return <Typography.Text type="secondary">暂无候选</Typography.Text>;
+                return <Typography.Text type="secondary">暂无推荐</Typography.Text>;
               }
               const draft = candidates[0];
               const attributeTags = parseAttributeEntries(draft.candidateAttributesJson);
               return (
-                <Space direction="vertical" size={6}>
+                <Space direction="vertical" size={6} style={{ width: '100%', minWidth: 0 }}>
                   <Space size={[4, 4]} wrap>
                     <Tag color="gold">置信度 {draft.confidence || '--'}</Tag>
                     <Tag>{draft.matchSource || '--'}</Tag>
                   </Space>
-                  <Typography.Text strong>
-                    {draft.candidateStyleNo || '--'} / {draft.candidateStyleName || '--'}
-                  </Typography.Text>
+                  {renderSingleLineEllipsisText(
+                    `${draft.candidateStyleNo || '--'} / ${draft.candidateStyleName || '--'}`,
+                  )}
                   <Typography.Text>
                     规格：{draft.candidateColor || '--'} / {draft.candidateSize || '--'}
                   </Typography.Text>
@@ -691,6 +1124,15 @@ const SaleChannelMappings = () => {
                     <Button
                       type="link"
                       size="small"
+                      loading={draftActionId === draft.id}
+                      onClick={() => void openMappingModal(record, draft)}
+                      style={{ paddingInline: 0 }}
+                    >
+                      修改映射
+                    </Button>
+                    <Button
+                      type="link"
+                      size="small"
                       danger
                       loading={draftActionId === draft.id}
                       onClick={() => void handleRejectDraft(draft.id)}
@@ -703,72 +1145,7 @@ const SaleChannelMappings = () => {
               );
             },
           },
-          {
-            title: '正式映射',
-            key: 'confirmed',
-            width: 280,
-            render: (_, record) => {
-              const attributes = parseAttributeEntries(record.styleVariantAttributesJson);
-              if (!record.styleVariantId) {
-                return <Typography.Text type="secondary">未确认</Typography.Text>;
-              }
-              return (
-                <Space direction="vertical" size={6}>
-                  <Typography.Text strong>
-                    {record.styleNo || '--'} / {record.styleName || '--'}
-                  </Typography.Text>
-                  <Typography.Text>
-                    规格：{record.styleVariantColor || '--'} / {record.styleVariantSize || '--'}
-                  </Typography.Text>
-                  <Typography.Text type="secondary">variantId：{record.styleVariantId || '--'}</Typography.Text>
-                  {attributes.length ? (
-                    <Space size={[4, 4]} wrap>
-                      {attributes.map((item) => (
-                        <Tag key={item} color="blue">
-                          {item}
-                        </Tag>
-                      ))}
-                    </Space>
-                  ) : null}
-                </Space>
-              );
-            },
-          },
         ],
-      },
-      {
-        title: 'SKU ID',
-        key: 'sku',
-        width: 180,
-        render: (_, record) => (
-          <Typography.Text strong copyable={{ text: record.platformSkuId }}>
-            {record.platformSkuId}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: '商品规格',
-        key: 'normalized',
-        width: 230,
-        render: (_, record) => {
-          const attributes = parseAttributeEntries(record.normalizedAttributesJson);
-          return (
-            <Space direction="vertical" size={6}>
-              <Typography.Text>颜色：{record.normalizedColor || '--'}</Typography.Text>
-              <Typography.Text>尺码：{record.normalizedSize || '--'}</Typography.Text>
-              {record.normalizedSpecSummary ? (
-                <Typography.Text type="secondary">{record.normalizedSpecSummary}</Typography.Text>
-              ) : null}
-              {attributes.length ? (
-                <Space size={[4, 4]} wrap>
-                  {attributes.map((item) => (
-                    <Tag key={item}>{item}</Tag>
-                  ))}
-                </Space>
-              ) : null}
-            </Space>
-          );
-        },
       },
       {
         title: '库存',
@@ -779,7 +1156,7 @@ const SaleChannelMappings = () => {
       {
         title: '状态',
         key: 'status',
-        width: 170,
+        width: 220,
         render: (_, record) => {
           const color =
             record.mappingStatus === 'ACTIVE'
@@ -790,16 +1167,33 @@ const SaleChannelMappings = () => {
                   ? 'default'
                   : 'gold';
           return (
-            <Space direction="vertical" size={4}>
-              <Tag color={color}>{record.mappingStatus || '--'}</Tag>
-              <Typography.Text type="secondary">最近同步：{record.lastSyncedAt || '--'}</Typography.Text>
-              <Typography.Text type="secondary">更新时间：{record.updatedAt || '--'}</Typography.Text>
+            <Space direction="vertical" size={2}>
+              <Tag color={color} style={{ marginInlineEnd: 0 }}>
+                {record.mappingStatus || '--'}
+              </Tag>
+              <Typography.Text type="secondary" style={{ fontSize: 12, lineHeight: 1.3 }}>
+                最近同步：{record.lastSyncedAt || '--'}
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12, lineHeight: 1.3 }}>
+                更新时间：{record.updatedAt || '--'}
+              </Typography.Text>
             </Space>
           );
         },
       },
     ],
-    [draftActionId, draftsByMappingId, handleApproveDraft, handleRejectDraft],
+    [
+      draftActionId,
+      draftsByMappingId,
+      handleApproveDraft,
+      handleDeleteMapping,
+      handleRejectDraft,
+      isAllSkcSelected,
+      isPartiallySelected,
+      openMappingModal,
+      selectedRowKeys,
+      skcSelectableRowIds,
+    ],
   );
 
   return (
@@ -825,7 +1219,7 @@ const SaleChannelMappings = () => {
           style={{ marginTop: 12 }}
           type="info"
           showIcon
-          message="流程改为：先同步平台商品，再生成草稿映射，最后由人工逐条确认正式映射。系统不会自动写入正式款式关系。"
+          message="流程改为：先同步平台商品，再生成推荐映射，最后由人工逐条确认正式映射。系统不会自动写入正式款式关系。"
         />
       </Card>
 
@@ -842,7 +1236,7 @@ const SaleChannelMappings = () => {
             </Button>
           </Popconfirm>
           <Button loading={draftGenerating} onClick={() => void handleGenerateDrafts()}>
-            生成草稿候选
+            生成推荐映射
           </Button>
         </Space>
         {shouldShowSyncSubmission ? (
@@ -872,7 +1266,7 @@ const SaleChannelMappings = () => {
             style={{ marginTop: 12 }}
             type="success"
             showIcon
-            message={`草稿生成完成：新增 ${draftResult.generatedCount} 条候选，当前待评审 ${draftResult.pendingCount} 条`}
+            message={`推荐映射生成完成：新增 ${draftResult.generatedCount} 条推荐，当前待确认 ${draftResult.pendingCount} 条`}
           />
         ) : null}
       </Card>
@@ -881,6 +1275,18 @@ const SaleChannelMappings = () => {
         title="步骤 2：评审商品与本地款式关系"
         extra={
           <Space>
+            <Popconfirm
+              title="确认批量应用推荐映射？"
+              description={`会将当前勾选的 SKC 下 ${applicableSelectedDrafts.length} 条有效推荐直接转为正式映射。`}
+              okText="确认应用"
+              cancelText="取消"
+              onConfirm={() => void handleBatchApplyDrafts()}
+              disabled={!applicableSelectedDrafts.length}
+            >
+              <Button disabled={!applicableSelectedDrafts.length} loading={batchApplyingDrafts}>
+                批量应用推荐映射
+              </Button>
+            </Popconfirm>
             <Typography.Text type="secondary">状态筛选</Typography.Text>
             <Select
               style={{ width: 180 }}
@@ -893,29 +1299,6 @@ const SaleChannelMappings = () => {
       >
         <Table<DisplayMappingRow>
           rowKey="id"
-          rowSelection={{
-            selectedRowKeys,
-            onSelect: (record, selected) => {
-              if (!record.skcGroupHead) {
-                return;
-              }
-              setSelectedRowKeys((current) =>
-                selected ? Array.from(new Set([...current, record.id])) : current.filter((item) => item !== record.id),
-              );
-            },
-            onSelectAll: (selected) => {
-              setSelectedRowKeys(selected ? skcSelectableRowIds : []);
-            },
-            getCheckboxProps: (record) => ({
-              disabled: !record.skcGroupHead,
-            }),
-            renderCell: (_checked, record, _index, originNode) => {
-              if (!record.skcGroupHead) {
-                return null;
-              }
-              return originNode;
-            },
-          }}
           loading={loading}
           columns={columns}
           dataSource={displayRows}
@@ -923,6 +1306,69 @@ const SaleChannelMappings = () => {
           scroll={{ x: 2410 }}
         />
       </Card>
+
+      <Modal
+        title="手动确认商品映射"
+        open={mappingModal.open}
+        onCancel={closeMappingModal}
+        onOk={() => void handleSaveMapping()}
+        okText="保存映射"
+        cancelText="取消"
+        confirmLoading={mappingSaving}
+        destroyOnClose
+      >
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Card size="small">
+            <Space direction="vertical" size={4}>
+              <Typography.Text strong>{mappingModal.record?.platformProductName || '--'}</Typography.Text>
+              <Typography.Text type="secondary">
+                平台 SKU：{mappingModal.record?.platformSkuId || '--'}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                规格：{mappingModal.record?.normalizedColor || '--'} / {mappingModal.record?.normalizedSize || '--'}
+              </Typography.Text>
+            </Space>
+          </Card>
+
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Typography.Text strong>选择本地款式</Typography.Text>
+            <Select
+              showSearch
+              filterOption={false}
+              placeholder="搜索款号或款式名称"
+              value={mappingModal.selectedStyleId}
+              onSearch={(value) => void handleStyleSearch(value)}
+              onChange={(value) => void handleStyleChange(value)}
+              notFoundContent={styleSearchLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无款式" />}
+              options={styleOptions}
+              style={{ width: '100%' }}
+            />
+          </Space>
+
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Typography.Text strong>选择本地规格</Typography.Text>
+            <Select
+              placeholder={mappingModal.selectedStyleId ? '请选择款式规格' : '请先选择本地款式'}
+              value={mappingModal.selectedVariantId}
+              onChange={(value) =>
+                setMappingModal((previous) => ({
+                  ...previous,
+                  selectedVariantId: value,
+                }))
+              }
+              disabled={!mappingModal.selectedStyleId || styleDetailLoading}
+              notFoundContent={styleDetailLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无规格" />}
+              options={variantOptions}
+              style={{ width: '100%' }}
+            />
+            {selectedStyleDetail ? (
+              <Typography.Text type="secondary">
+                已选款式：{selectedStyleDetail.styleNo} / {selectedStyleDetail.styleName}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        </Space>
+      </Modal>
     </Space>
   );
 };

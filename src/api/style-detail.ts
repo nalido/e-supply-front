@@ -114,6 +114,12 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     sizes: sortSizeValues(Array.from(sizesSet)),
     colorImages,
     sizeChartImageUrl,
+    variants: (payload.variants ?? []).map((variant) => ({
+      id: String(variant.id),
+      color: variant.color ?? undefined,
+      size: variant.size ?? undefined,
+      attributes: (variant.attributes ?? undefined) as Record<string, unknown> | undefined,
+    })),
   };
 };
 

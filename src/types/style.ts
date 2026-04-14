@@ -77,6 +77,12 @@ export interface StyleDetailData {
   colorImages: StyleColorImageMap;
   sizeChartImageUrl?: string;
   materials?: StyleMaterialData[];
+  variants?: Array<{
+    id: string;
+    color?: string;
+    size?: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 export interface StyleDetailSavePayload {

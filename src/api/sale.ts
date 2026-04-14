@@ -368,6 +368,14 @@ export const saleApi = {
     return response.data;
   },
 
+  async deleteProductMapping(mappingId: string): Promise<unknown> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<unknown>(`/api/v1/sale/product-mappings/${mappingId}/delete`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async syncOrders(payload: { channelAccountId: number; page?: number; pageSize?: number }): Promise<unknown> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<unknown>('/api/v1/sale/orders/sync', payload, {
