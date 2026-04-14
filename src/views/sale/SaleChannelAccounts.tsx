@@ -286,12 +286,6 @@ const SaleChannelAccounts = () => {
             </Button>
           </Space>
         </Space>
-        <Alert
-          style={{ marginTop: 12 }}
-          type="info"
-          showIcon
-          message="绑定时只需选择店铺类型（全托/半托），并一次性配置 API Key、API Secret、Access Token，不再拆成两个页面。"
-        />
       </Card>
       <Card>
         <Table<SaleChannelAccount>

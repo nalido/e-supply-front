@@ -4,7 +4,12 @@ import { Alert, Button, Card, Checkbox, Empty, Image, Modal, Popconfirm, Popover
 import { saleApi } from '../../api/sale';
 import stylesApi from '../../api/styles';
 import styleDetailApi from '../../api/style-detail';
-import type { SaleChannelAccount, SaleProductSyncStatus, SaleProductSyncTaskSubmitResponse } from '../../types/sale';
+import {
+  getSaleSellerTypeLabel,
+  type SaleChannelAccount,
+  type SaleProductSyncStatus,
+  type SaleProductSyncTaskSubmitResponse,
+} from '../../types/sale';
 import type { StyleData, StyleDetailData } from '../../types/style';
 import {
   SALE_ACTIVE_ACCOUNT_ID_KEY,
@@ -113,15 +118,30 @@ const MAPPING_STATUS_OPTIONS: Array<{ label: string; value: MappingStatus }> = [
   { label: '停用(DISABLED)', value: 'DISABLED' },
 ];
 
-const sellerTypeTag = (sellerType?: string | null) => {
+const getCompactSellerTypeLabel = (sellerType?: string | null) => {
   if (sellerType === 'FULLY_MANAGED') {
-    return <Tag color="blue">当前店铺：全托</Tag>;
+    return '全托';
   }
   if (sellerType === 'SEMI_MANAGED') {
-    return <Tag color="green">当前店铺：半托</Tag>;
+    return '半托';
   }
-  return <Tag>当前店铺：{sellerType || '--'}</Tag>;
+  return getSaleSellerTypeLabel(sellerType);
 };
+
+const sellerTypeTag = (sellerType?: string | null) => {
+  if (!sellerType) {
+    return null;
+  }
+  const color = sellerType === 'FULLY_MANAGED' ? 'blue' : sellerType === 'SEMI_MANAGED' ? 'green' : 'default';
+  return <Tag color={color}>{getCompactSellerTypeLabel(sellerType)}</Tag>;
+};
+
+const renderAccountOptionLabel = (account: SaleChannelAccount) => (
+  <Space size={8}>
+    <span>{account.accountName || account.shopName || account.shopId || account.id}</span>
+    {sellerTypeTag(account.sellerType)}
+  </Space>
+);
 
 const renderImage = (src?: string, alt?: string) => (
   <Image
@@ -246,6 +266,7 @@ const formatDateTime = (value?: string | null) => {
 const SaleChannelMappings = () => {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncCancelling, setSyncCancelling] = useState(false);
   const [draftGenerating, setDraftGenerating] = useState(false);
   const [batchApplyingDrafts, setBatchApplyingDrafts] = useState(false);
   const [draftActionId, setDraftActionId] = useState<string>();
@@ -277,7 +298,11 @@ const SaleChannelMappings = () => {
   );
 
   const accountOptions = useMemo(
-    () => accounts.map((item) => ({ label: `${item.accountName} (${item.id})`, value: item.id })),
+    () =>
+      accounts.map((item) => ({
+        label: renderAccountOptionLabel(item),
+        value: item.id,
+      })),
     [accounts],
   );
 
@@ -417,7 +442,21 @@ const SaleChannelMappings = () => {
         description: [
           `完成时间：${formatDateTime(latestFinishedSyncTask.finishedAt)}`,
           `处理SKU：${latestFinishedSyncTask.processedCount ?? 0}`,
-          `成功写入：${latestFinishedSyncTask.successCount ?? 0}`,
+          `实际写入：${latestFinishedSyncTask.successCount ?? 0}`,
+          latestFinishedSyncTask.remark || '',
+        ]
+          .filter(Boolean)
+          .join(' / '),
+      };
+    }
+    if (latestFinishedSyncTask?.status === 'CANCELLED') {
+      return {
+        type: 'warning' as const,
+        message: '最近一次商品同步已终止',
+        description: [
+          `结束时间：${formatDateTime(latestFinishedSyncTask.finishedAt)}`,
+          `处理SKU：${latestFinishedSyncTask.processedCount ?? 0}`,
+          `实际写入：${latestFinishedSyncTask.successCount ?? 0}`,
           latestFinishedSyncTask.remark || '',
         ]
           .filter(Boolean)
@@ -673,6 +712,24 @@ const SaleChannelMappings = () => {
       message.error(resolveSyncErrorMessage(error));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleCancelSync = async () => {
+    if (!currentSyncTask?.taskId) {
+      message.warning('当前没有可终止的同步任务');
+      return;
+    }
+    setSyncCancelling(true);
+    try {
+      const result = await saleApi.cancelProductSync(currentSyncTask.taskId);
+      message.success(result.status === 'CANCELLED' ? '已提交终止指令' : '同步任务状态已刷新');
+      await loadSyncStatus(selectedAccountId);
+    } catch (error) {
+      console.error(error);
+      message.error(resolveSyncErrorMessage(error));
+    } finally {
+      setSyncCancelling(false);
     }
   };
 
@@ -1211,7 +1268,6 @@ const SaleChannelMappings = () => {
               onChange={setSelectedAccountId}
               placeholder="选择渠道账号"
             />
-            {sellerTypeTag(selectedAccount?.sellerType)}
             <Button onClick={() => void loadRows(selectedAccountId, mappingStatus)}>刷新</Button>
           </Space>
         </Space>
@@ -1235,6 +1291,18 @@ const SaleChannelMappings = () => {
               {hasActiveSyncTask ? '同步进行中' : '一键同步商品'}
             </Button>
           </Popconfirm>
+          {hasActiveSyncTask ? (
+            <Popconfirm
+              title="确认终止当前商品同步任务？"
+              onConfirm={() => void handleCancelSync()}
+              okText="终止"
+              cancelText="取消"
+            >
+              <Button danger loading={syncCancelling}>
+                终止同步
+              </Button>
+            </Popconfirm>
+          ) : null}
           <Button loading={draftGenerating} onClick={() => void handleGenerateDrafts()}>
             生成推荐映射
           </Button>

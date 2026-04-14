@@ -176,6 +176,25 @@ export const saleApi = {
     return response.data;
   },
 
+  async cancelProductSync(taskId: string): Promise<{
+    taskId: string;
+    status?: string | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    processedCount?: number | null;
+    successCount?: number | null;
+    failedCount?: number | null;
+    errorMessage?: string | null;
+    remark?: string | null;
+    updatedAt?: string | null;
+  }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post(`/api/v1/sale/products/sync/${taskId}/cancel`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async listProductMappings(params?: {
     channelAccountId?: string;
     mappingStatus?: string;
