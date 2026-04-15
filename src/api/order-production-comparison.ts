@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   ProductionComparisonListParams,
   ProductionComparisonListResponse,
@@ -7,14 +7,6 @@ import type {
   ProductionComparisonStage,
   ProductionComparisonSummary,
 } from '../types/order-production-comparison';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
 
 type BackendRecord = Partial<ProductionComparisonRecord> & { id?: string | number };
 
@@ -61,16 +53,17 @@ export const productionComparisonService = {
   async getList(
     params: ProductionComparisonListParams,
   ): Promise<ProductionComparisonListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendResponse>('/api/v1/production/comparison', {
       params: {
         tenantId,
         keyword: params.keyword,
-        page: params.page - 1,
+        page: toBackendPage(params.page),
         size: params.pageSize,
         sortBy: params.sortBy,
         order: params.order === 'ascend' ? 'asc' : params.order === 'descend' ? 'desc' : undefined,
       },
+      skipPageNormalization: true,
     });
     return {
       list: response.data.list.map(adaptRecord),
@@ -81,7 +74,7 @@ export const productionComparisonService = {
   },
 
   async export(params: ProductionComparisonListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/production/comparison/export',
       {

@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 import type {
   OperationalEfficiencyListParams,
   OperationalEfficiencyListResponse,
@@ -8,14 +8,6 @@ import type {
   OperationalEfficiencyTemplatePayload,
   OperationalEfficiencyNode,
 } from '../types/operational-efficiency';
-
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return Number(tenantId);
-};
 
 type BackendNode = {
   id?: number;
@@ -42,12 +34,15 @@ type BackendListResponse = {
 
 type BackendMeta = OperationalEfficiencyMeta;
 
+const normalizeTimeUnit = (value?: string): OperationalEfficiencyNode['timeUnit'] =>
+  value?.toLowerCase() === 'hour' ? 'hour' : 'day';
+
 const adaptNode = (node: BackendNode): OperationalEfficiencyNode => ({
   id: node.id ? String(node.id) : crypto.randomUUID(),
   nodeCode: node.nodeCode ?? '',
   nodeName: node.nodeName ?? '',
   standardDuration: node.standardDuration ?? 0,
-  timeUnit: (node.timeUnit as OperationalEfficiencyNode['timeUnit']) ?? 'day',
+  timeUnit: normalizeTimeUnit(node.timeUnit),
   sequence: node.sequence ?? 0,
 });
 
@@ -82,16 +77,17 @@ export const operationalEfficiencyService = {
   },
 
   async getList(params: OperationalEfficiencyListParams): Promise<OperationalEfficiencyListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendListResponse>(
       '/api/v1/production/operational-efficiency',
       {
         params: {
           tenantId,
           keyword: params.keyword,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -101,7 +97,7 @@ export const operationalEfficiencyService = {
   },
 
   async create(payload: OperationalEfficiencyTemplatePayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post('/api/v1/production/operational-efficiency', {
       tenantId,
       ...buildPayload(payload),
@@ -109,7 +105,7 @@ export const operationalEfficiencyService = {
   },
 
   async update(id: string, payload: OperationalEfficiencyTemplatePayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/production/operational-efficiency/${id}/update`, {
       tenantId,
       ...buildPayload(payload),
@@ -117,14 +113,14 @@ export const operationalEfficiencyService = {
   },
 
   async remove(id: string) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/production/operational-efficiency/${id}/delete`, null, {
       params: { tenantId },
     });
   },
 
   async setDefault(id: string) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/production/operational-efficiency/${id}/default`, null, {
       params: { tenantId },
     });

@@ -5,29 +5,15 @@ import { useAuth } from '@clerk/clerk-react';
 import settingsApi from '../api/settings';
 import type { CompanyOverview } from '../types/settings';
 import { tenantStore } from '../stores/tenant';
-import { setAuthTokenResolver } from '../api/http';
 import { TenantContext, type TenantContextValue } from '../contexts/tenant';
 import { isAxiosError } from 'axios';
 
 const TenantProvider = ({ children }: { children: ReactNode }) => {
-  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { isLoaded, isSignedIn, signOut } = useAuth();
   const [overview, setOverview] = useState<CompanyOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isForbidden, setIsForbidden] = useState(false);
-
-  useEffect(() => {
-    const resolver = async () => {
-      if (!isLoaded || !isSignedIn) {
-        return null;
-      }
-      return getToken();
-    };
-    setAuthTokenResolver(resolver);
-    return () => {
-      setAuthTokenResolver(async () => null);
-    };
-  }, [getToken, isLoaded, isSignedIn]);
 
   const loadOverview = useCallback(async () => {
     if (!isLoaded) {

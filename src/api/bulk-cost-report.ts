@@ -1,19 +1,11 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   BulkCostAggregation,
   BulkCostListParams,
   BulkCostListResponse,
   BulkCostOrderItem,
 } from '../types/bulk-cost-report';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
 
 type BackendAggregation = BulkCostAggregation;
 
@@ -45,7 +37,7 @@ const adaptOrderItem = (item: BackendOrderItem): BulkCostOrderItem => ({
 
 export const bulkCostReportService = {
   async getAggregation(): Promise<BulkCostAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendAggregation>(
       '/api/v1/orders/reports/bulk-cost/aggregation',
       { params: { tenantId } },
@@ -54,7 +46,7 @@ export const bulkCostReportService = {
   },
 
   async getList(params: BulkCostListParams): Promise<BulkCostListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse>('/api/v1/orders/reports/bulk-cost', {
       params: {
         tenantId,
@@ -64,9 +56,10 @@ export const bulkCostReportService = {
         receiptStartDate: params.receiptStartDate,
         receiptEndDate: params.receiptEndDate,
         customerId: params.customerId,
-        page: params.page - 1,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return {
       list: response.data.items.map(adaptOrderItem),
@@ -75,7 +68,7 @@ export const bulkCostReportService = {
   },
 
   async export(params: BulkCostListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/orders/reports/bulk-cost/export',
       {

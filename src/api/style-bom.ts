@@ -5,7 +5,7 @@ import type {
   StyleMaterialData,
 } from '../types/style';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId } from './request-context';
 
 type BackendStyleBomMaterialResponse = {
   materialId: number;
@@ -28,18 +28,6 @@ type BackendStyleBomUpdateRequest = {
     lossRate?: number;
     remark?: string;
   }>;
-};
-
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
 };
 
 const adaptBomMaterial = (item: BackendStyleBomMaterialResponse): StyleMaterialData => ({
@@ -86,7 +74,7 @@ export const buildStyleBomUpdatePayload = (
 
 export const styleBomApi = {
   async fetch(styleId: string): Promise<StyleMaterialData[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     try {
       const response = await http.get<BackendStyleBomMaterialResponse[]>(
         `/api/v1/styles/${styleId}/bom-materials`,
@@ -106,7 +94,7 @@ export const styleBomApi = {
   },
 
   async update(styleId: string, payload: StyleBomUpdatePayload): Promise<StyleMaterialData[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = buildUpdateRequest(tenantId, payload);
     try {
       await http.post(`/api/v1/styles/${styleId}/bom-materials/update`, requestBody);

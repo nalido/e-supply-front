@@ -15,8 +15,8 @@ const SignInPage = () => (
       routing="path"
       path="/sign-in"
       signUpUrl="/onboarding/register-enterprise"
-      fallbackRedirectUrl="/dashboard/workplace"
-      forceRedirectUrl="/dashboard/workplace"
+      fallbackRedirectUrl="/welcome"
+      forceRedirectUrl="/welcome"
       appearance={{
         elements: {
           rootBox: {

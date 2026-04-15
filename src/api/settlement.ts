@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   CustomerReceiptListParams,
   CustomerReceiptListResponse,
@@ -48,14 +48,6 @@ import type {
   ReconciliationDetailsMeta,
 } from '../types/settlement-report-reconciliation-details';
 
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
-
 const exportRequest = async (url: string, payload: Record<string, unknown>) => {
   const response = await http.post<{ fileUrl: string }>(url, payload);
   return response.data;
@@ -63,7 +55,7 @@ const exportRequest = async (url: string, payload: Record<string, unknown>) => {
 
 export const customerReceiptService = {
   async getMeta(): Promise<CustomerReceiptMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CustomerReceiptMeta>(
       '/api/v1/settlements/customers/receipts/meta',
       { params: { tenantId } },
@@ -72,7 +64,7 @@ export const customerReceiptService = {
   },
 
   async getList(params: CustomerReceiptListParams): Promise<CustomerReceiptListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CustomerReceiptListResponse>(
       '/api/v1/settlements/customers/receipts',
       {
@@ -81,16 +73,17 @@ export const customerReceiptService = {
           keyword: params.keyword,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   async create(payload: CustomerReceiptPayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post('/api/v1/settlements/customers/receipts', {
       tenantId,
       ...payload,
@@ -98,7 +91,7 @@ export const customerReceiptService = {
   },
 
   export(params: CustomerReceiptListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/customers/receipts/export', {
       tenantId,
       keyword: params.keyword,
@@ -110,7 +103,7 @@ export const customerReceiptService = {
 
 export const supplierPaymentService = {
   async getMeta(): Promise<SupplierPaymentMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SupplierPaymentMeta>(
       '/api/v1/settlements/suppliers/payments/meta',
       { params: { tenantId } },
@@ -119,7 +112,7 @@ export const supplierPaymentService = {
   },
 
   async getList(params: SupplierPaymentListParams): Promise<SupplierPaymentListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SupplierPaymentListResponse>(
       '/api/v1/settlements/suppliers/payments',
       {
@@ -128,16 +121,17 @@ export const supplierPaymentService = {
           keyword: params.keyword,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   async create(payload: SupplierPaymentPayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post('/api/v1/settlements/suppliers/payments', {
       tenantId,
       ...payload,
@@ -145,7 +139,7 @@ export const supplierPaymentService = {
   },
 
   export(params: SupplierPaymentListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/suppliers/payments/export', {
       tenantId,
       keyword: params.keyword,
@@ -157,7 +151,7 @@ export const supplierPaymentService = {
 
 export const factoryPaymentService = {
   async getMeta(): Promise<FactoryPaymentMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<FactoryPaymentMeta>(
       '/api/v1/settlements/factories/payments/meta',
       { params: { tenantId } },
@@ -166,7 +160,7 @@ export const factoryPaymentService = {
   },
 
   async getList(params: FactoryPaymentListParams): Promise<FactoryPaymentListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<FactoryPaymentListResponse>(
       '/api/v1/settlements/factories/payments',
       {
@@ -175,16 +169,17 @@ export const factoryPaymentService = {
           keyword: params.keyword,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   async create(payload: FactoryPaymentPayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post('/api/v1/settlements/factories/payments', {
       tenantId,
       ...payload,
@@ -192,7 +187,7 @@ export const factoryPaymentService = {
   },
 
   export(params: FactoryPaymentListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/factories/payments/export', {
       tenantId,
       keyword: params.keyword,
@@ -204,7 +199,7 @@ export const factoryPaymentService = {
 
 export const cashierAccountService = {
   async getMeta(): Promise<CashierAccountMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CashierAccountMeta>(
       '/api/v1/settlements/cashier-accounts/meta',
       { params: { tenantId } },
@@ -213,7 +208,7 @@ export const cashierAccountService = {
   },
 
   async getList(params: CashierAccountListParams): Promise<CashierAccountListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CashierAccountListResponse>(
       '/api/v1/settlements/cashier-accounts',
       {
@@ -221,16 +216,17 @@ export const cashierAccountService = {
           tenantId,
           keyword: params.keyword,
           type: params.type,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   async create(payload: CashierAccountPayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post('/api/v1/settlements/cashier-accounts', {
       tenantId,
       ...payload,
@@ -238,7 +234,7 @@ export const cashierAccountService = {
   },
 
   async update(id: string, payload: CashierAccountPayload) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(`/api/v1/settlements/cashier-accounts/${id}/update`, {
       tenantId,
       ...payload,
@@ -246,7 +242,7 @@ export const cashierAccountService = {
   },
 
   async remove(id: string) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(`/api/v1/settlements/cashier-accounts/${id}/delete`, null, {
       params: { tenantId },
     });
@@ -255,7 +251,7 @@ export const cashierAccountService = {
 
 export const customerBusinessDetailReportService = {
   async getMeta(): Promise<CustomerBusinessDetailMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CustomerBusinessDetailMeta>(
       '/api/v1/settlements/reports/customers/details/meta',
       { params: { tenantId } },
@@ -266,7 +262,7 @@ export const customerBusinessDetailReportService = {
   async getOverview(
     params: CustomerBusinessDetailListParams,
   ): Promise<CustomerBusinessDetailAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CustomerBusinessDetailAggregation>(
       '/api/v1/settlements/reports/customers/details/overview',
       {
@@ -278,6 +274,7 @@ export const customerBusinessDetailReportService = {
           page: 0,
           size: 1000,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
@@ -286,7 +283,7 @@ export const customerBusinessDetailReportService = {
   async getList(
     params: CustomerBusinessDetailListParams,
   ): Promise<CustomerBusinessDetailListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<CustomerBusinessDetailListResponse>(
       '/api/v1/settlements/reports/customers/details',
       {
@@ -295,16 +292,17 @@ export const customerBusinessDetailReportService = {
           customerIds: params.customerIds,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   export(params: CustomerBusinessDetailListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/reports/customers/details/export', {
       tenantId,
       customerIds: params.customerIds,
@@ -316,7 +314,7 @@ export const customerBusinessDetailReportService = {
 
 export const supplierBusinessDetailReportService = {
   async getMeta(): Promise<SupplierBusinessDetailMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SupplierBusinessDetailMeta>(
       '/api/v1/settlements/reports/suppliers/details/meta',
       { params: { tenantId } },
@@ -327,7 +325,7 @@ export const supplierBusinessDetailReportService = {
   async getOverview(
     params: SupplierBusinessDetailListParams,
   ): Promise<SupplierBusinessDetailAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SupplierBusinessDetailAggregation>(
       '/api/v1/settlements/reports/suppliers/details/overview',
       {
@@ -339,6 +337,7 @@ export const supplierBusinessDetailReportService = {
           page: 0,
           size: 1000,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
@@ -347,7 +346,7 @@ export const supplierBusinessDetailReportService = {
   async getList(
     params: SupplierBusinessDetailListParams,
   ): Promise<SupplierBusinessDetailListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SupplierBusinessDetailListResponse>(
       '/api/v1/settlements/reports/suppliers/details',
       {
@@ -356,16 +355,17 @@ export const supplierBusinessDetailReportService = {
           supplierIds: params.supplierIds,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
   },
 
   export(params: SupplierBusinessDetailListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/reports/suppliers/details/export', {
       tenantId,
       supplierIds: params.supplierIds,
@@ -377,7 +377,7 @@ export const supplierBusinessDetailReportService = {
 
 export const factoryBusinessDetailReportService = {
   async getMeta(): Promise<FactoryBusinessDetailMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<FactoryBusinessDetailMeta>(
       '/api/v1/settlements/reports/factories/details/meta',
       { params: { tenantId } },
@@ -388,7 +388,7 @@ export const factoryBusinessDetailReportService = {
   async getOverview(
     params: FactoryBusinessDetailListParams,
   ): Promise<FactoryBusinessDetailAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<FactoryBusinessDetailAggregation>(
       '/api/v1/settlements/reports/factories/details/overview',
       {
@@ -408,7 +408,7 @@ export const factoryBusinessDetailReportService = {
   async getList(
     params: FactoryBusinessDetailListParams,
   ): Promise<FactoryBusinessDetailListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<FactoryBusinessDetailListResponse>(
       '/api/v1/settlements/reports/factories/details',
       {
@@ -417,7 +417,7 @@ export const factoryBusinessDetailReportService = {
           factoryIds: params.factoryIds,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
       },
@@ -426,7 +426,7 @@ export const factoryBusinessDetailReportService = {
   },
 
   export(params: FactoryBusinessDetailListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/reports/factories/details/export', {
       tenantId,
       factoryIds: params.factoryIds,
@@ -438,7 +438,7 @@ export const factoryBusinessDetailReportService = {
 
 export const reconciliationDetailsReportService = {
   async getMeta(): Promise<ReconciliationDetailsMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<ReconciliationDetailsMeta>(
       '/api/v1/settlements/reports/reconciliation/meta',
       { params: { tenantId } },
@@ -449,7 +449,7 @@ export const reconciliationDetailsReportService = {
   async getList(
     params: ReconciliationDetailsListParams,
   ): Promise<ReconciliationDetailsListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<ReconciliationDetailsListResponse>(
       '/api/v1/settlements/reports/reconciliation',
       {
@@ -457,7 +457,7 @@ export const reconciliationDetailsReportService = {
           tenantId,
           keyword: params.keyword,
           status: params.status,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
       },
@@ -466,14 +466,14 @@ export const reconciliationDetailsReportService = {
   },
 
   async cancel(id: string) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(`/api/v1/settlements/reports/reconciliation/${id}/cancel`, null, {
       params: { tenantId },
     });
   },
 
   export(params: ReconciliationDetailsListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return exportRequest('/api/v1/settlements/reports/reconciliation/export', {
       tenantId,
       keyword: params.keyword,

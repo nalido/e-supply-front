@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 import type {
   OutsourcingManagementListItem,
   OutsourcingManagementListParams,
@@ -14,18 +14,6 @@ import type { PartnerDataset } from '../types';
 import { partnersApi } from './partners';
 import processTypeApi from './process-type';
 import { materialApi } from './material';
-
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
 
 type BackendOutsourcingListResponse = {
   list: BackendOutsourcingListItem[];
@@ -242,7 +230,7 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
 export const outsourcingManagementApi = {
   async getMeta(): Promise<OutsourcingManagementMeta> {
     const response = await partnersApi.list({
-      page: 0,
+      page: 1,
       pageSize: 200,
       type: 'subcontractor',
     });
@@ -252,7 +240,7 @@ export const outsourcingManagementApi = {
   async getList(
       params: OutsourcingManagementListParams,
     ): Promise<OutsourcingManagementListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<BackendOutsourcingListResponse>('/api/v1/outsourcing-orders', {
       params: {
         tenantId,
@@ -262,9 +250,10 @@ export const outsourcingManagementApi = {
         styleKeyword: params.styleKeyword?.trim() || undefined,
         dispatchStart: params.dispatchDateStart,
         dispatchEnd: params.dispatchDateEnd,
-        page: params.page ? params.page - 1 : 0,
+        page: toBackendPage(params.page),
         size: params.pageSize ?? 10,
       },
+      skipPageNormalization: true,
     });
     return {
       list: (data.list ?? []).map(adaptRecord),
@@ -274,7 +263,7 @@ export const outsourcingManagementApi = {
   },
 
   async confirmReceive(payload: OutsourcingReceivePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       `/api/v1/outsourcing-orders/${Number(payload.orderId)}/receipts`,
       {
@@ -293,7 +282,7 @@ export const outsourcingManagementApi = {
   },
 
   async getReceiptPlan(orderId: string): Promise<OutsourcingReceiptPlan> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<OutsourcingReceiptPlan>(
       `/api/v1/outsourcing-orders/${Number(orderId)}/receipt-plan`,
       { params: { tenantId } },
@@ -302,7 +291,7 @@ export const outsourcingManagementApi = {
   },
 
   async export(params: OutsourcingManagementListParams): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const orderIds = params.selectedOrderIds
       ?.map((value) => {
         const parsed = Number(value);
@@ -326,7 +315,7 @@ export const outsourcingManagementApi = {
   },
 
   async getDetail(orderId: string): Promise<OutsourcingOrderDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const parsedId = Number(orderId);
     if (!Number.isFinite(parsedId)) {
       throw new Error('Invalid outsourcing order id');
@@ -338,7 +327,7 @@ export const outsourcingManagementApi = {
   },
 
   async deleteReceipt(orderId: string, receiptId: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       `/api/v1/outsourcing-orders/${Number(orderId)}/receipts/${Number(receiptId)}/delete`,
       {},
@@ -347,12 +336,12 @@ export const outsourcingManagementApi = {
   },
 
   async listProductionOrderOptions(keyword?: string): Promise<Array<{ id: string; label: string }>> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/production-orders/table', {
       params: {
         tenantId,
         keyword: keyword?.trim() || undefined,
-        page: 0,
+        page: 1,
         size: 50,
       },
     });
@@ -364,7 +353,7 @@ export const outsourcingManagementApi = {
   },
 
   async listWorkOrderOptions(productionOrderId: string): Promise<Array<{ id: string; label: string }>> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const parsed = Number(productionOrderId);
     if (!Number.isFinite(parsed)) {
       return [];
@@ -418,7 +407,7 @@ export const outsourcingManagementApi = {
     attritionRate?: number;
     orderNo?: string;
   }): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       '/api/v1/outsourcing-orders',
       {
@@ -437,7 +426,7 @@ export const outsourcingManagementApi = {
   },
 
   async updateStatus(orderId: string, status: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       `/api/v1/outsourcing-orders/${Number(orderId)}/update`,
       { status },
@@ -452,7 +441,7 @@ export const outsourcingManagementApi = {
     requestedAt?: string;
     remark?: string;
   }): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       `/api/v1/outsourcing-orders/${Number(payload.orderId)}/material-requests`,
       {

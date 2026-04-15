@@ -4,13 +4,16 @@ import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import { onboardingApi, type RegisterEnterprisePayload } from '../../api/onboarding';
 import { buildFriendlyError } from '../../utils/friendly-error';
+import { useBindAuthTokenResolver } from '../../hooks/useBindAuthTokenResolver';
 
 const RegisterEnterprise = () => {
   const [form] = Form.useForm<RegisterEnterprisePayload>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
+
+  useBindAuthTokenResolver();
 
   const onboardingMode: RegisterEnterprisePayload['mode'] = 'CREATE_CLERK';
 
@@ -39,10 +42,8 @@ const RegisterEnterprise = () => {
     } as RegisterEnterprisePayload;
     setLoading(true);
     try {
-      await getToken();
       await onboardingApi.registerEnterprise(values);
       navigate('/dashboard/workplace', { replace: true });
-      window.location.reload();
     } catch (err) {
       const status =
         typeof err === 'object' && err !== null && 'response' in err

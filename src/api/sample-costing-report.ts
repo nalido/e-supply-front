@@ -1,19 +1,11 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   SampleCostAggregation,
   SampleCostCard,
   SampleCostListParams,
   SampleCostListResponse,
 } from '../types/sample-costing-report';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录后再试');
-  }
-  return tenantId;
-};
 
 type BackendAggregation = {
   trend?: Array<{ month?: string; developmentCost?: number; sampleCost?: number }>;
@@ -68,7 +60,7 @@ const adaptCard = (record: BackendCard): SampleCostCard => ({
 
 export const sampleCostingReportService = {
   async getAggregation(): Promise<SampleCostAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendAggregation>(
       '/api/v1/sample/reports/costing/aggregation',
       { params: { tenantId } },
@@ -93,16 +85,17 @@ export const sampleCostingReportService = {
   },
 
   async getList(params: SampleCostListParams): Promise<SampleCostListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse>('/api/v1/sample/reports/costing', {
       params: {
         tenantId,
         keyword: params.keyword,
         startDate: params.startDate,
         endDate: params.endDate,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     const data = response.data ?? { items: [], list: [], total: 0 };
     const items = data.items ?? data.list ?? [];
@@ -113,7 +106,7 @@ export const sampleCostingReportService = {
   },
 
   async export(params: SampleCostListParams): Promise<ExportResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<ExportResponse>('/api/v1/sample/reports/costing/export', {
       tenantId,
       keyword: params.keyword,

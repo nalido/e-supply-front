@@ -11,6 +11,7 @@ import type {
   SampleMaterialItem,
   SampleOrderDetail,
 } from '../../types/sample-detail';
+import { toBackendPage } from '../request-context';
 import { sortColorValues, sortSizeValues } from '../../utils/spec';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
@@ -420,7 +421,7 @@ export const buildListQuery = (params: SampleQueryParams = {}): Record<string, u
     priority: mapPriorityToBackend(safePriority),
     startDeadline: params.startDate,
     endDeadline: params.endDate,
-    page: params.page,
+    page: toBackendPage(params.page),
     size: params.pageSize,
   };
 
