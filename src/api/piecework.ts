@@ -1,7 +1,7 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
 import { normalizeExportDownloadUrl } from '../utils/export-download';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
+import { fromBackendPage, requireNumericTenantId, toBackendPage } from './request-context';
 import type {
   PieceworkDashboardDataset,
   CuttingTaskDataset,
@@ -66,23 +66,6 @@ import type {
   SequentialProcessListParams,
   SequentialProcessListResponse,
 } from '../types/sequential-process-report';
-
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
-const normalizePage = (page?: number): number => {
-  const next = page ?? 1;
-  return next <= 0 ? 0 : next - 1;
-};
 
 const normalizeKeyword = (value?: string): string | undefined => {
   const trimmed = value?.trim();
@@ -726,7 +709,7 @@ const adaptSalaryTicketRecord = (payload: SalaryTicketApiRecord): SalaryTicketRe
 
 export const pieceworkService = {
   async getDashboard(): Promise<PieceworkDashboardDataset> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/piecework-dashboard', {
       params: { tenantId },
     });
@@ -734,24 +717,25 @@ export const pieceworkService = {
   },
 
   async getCuttingPending(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/pending', {
       params: {
         tenantId,
         keyword: normalizeKeyword(params?.keyword),
         includeCompleted: params?.includeCompleted,
-        page: normalizePage(params?.page),
+        page: toBackendPage(params?.page),
         size: params?.pageSize ?? 10,
         startDate: params?.startDate,
         endDate: params?.endDate,
         includeSummary: params?.includeSummary,
       },
+      skipPageNormalization: true,
     });
     return adaptCuttingDataset(data);
   },
 
   async createCuttingTasks(tasks: CuttingTaskCreateItem[]): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       '/api/v1/cutting-tasks',
       {
@@ -771,23 +755,24 @@ export const pieceworkService = {
   },
 
   async getCuttingCompleted(params?: CuttingTaskQueryParams): Promise<CuttingTaskDataset> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/completed', {
       params: {
         tenantId,
         keyword: normalizeKeyword(params?.keyword),
-        page: normalizePage(params?.page),
+        page: toBackendPage(params?.page),
         size: params?.pageSize ?? 10,
         startDate: params?.startDate,
         endDate: params?.endDate,
         includeSummary: params?.includeSummary,
       },
+      skipPageNormalization: true,
     });
     return adaptCuttingDataset(data);
   },
 
   async getCuttingSheetDetail(workOrderId: number): Promise<CuttingSheetDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get(`/api/v1/workshop/cutting/sheets/${workOrderId}`, {
       params: { tenantId },
     });
@@ -824,7 +809,7 @@ export const pieceworkService = {
       }>;
     },
   ): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/start`, payload, {
       params: { tenantId },
     });
@@ -839,7 +824,7 @@ export const pieceworkService = {
       overCutRemark?: string;
     },
   ): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/complete`, payload, {
       params: { tenantId },
     });
@@ -871,7 +856,7 @@ export const pieceworkService = {
       items: Array<{ color: string; size: string; quantity: number }>;
     },
   ): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const normalizeUsage = (
       usage: {
         warehouseId?: number;
@@ -901,14 +886,14 @@ export const pieceworkService = {
       bedId: string;
     },
   ): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/delete`, payload, {
       params: { tenantId },
     });
   },
 
   async getCuttingReport(params?: CuttingReportQueryParams): Promise<CuttingReportDataset> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/cutting/report', {
       params: {
         tenantId,
@@ -918,9 +903,10 @@ export const pieceworkService = {
         remarkKeyword: normalizeKeyword(params?.remarkKeyword),
         startDate: params?.startDate,
         endDate: params?.endDate,
-        page: normalizePage(params?.page),
+        page: toBackendPage(params?.page),
         size: params?.pageSize ?? 10,
       },
+      skipPageNormalization: true,
     });
     return adaptCuttingReport(data);
   },
@@ -932,7 +918,7 @@ export const pieceworkService = {
     includeCompleted?: boolean;
     includeSummary?: boolean;
   }): Promise<WorkshopProgressDataset> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const page = params?.page ?? 1;
     const pageSize = params?.pageSize ?? 10;
     const keyword = params?.keyword?.trim();
@@ -968,7 +954,7 @@ export const pieceworkService = {
   },
 
   async getSalaryMeta(): Promise<SalaryMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/payroll/overview/meta', {
       params: { tenantId },
     });
@@ -979,9 +965,9 @@ export const pieceworkService = {
   },
 
   async getSalaryList(params: SalaryListParams): Promise<SalaryListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { startDate, endDate, page, pageSize, department, keyword } = params;
-    const normalizedPage = normalizePage(page);
+    const normalizedPage = toBackendPage(page);
     const { data } = await http.get<SalaryListApiResponse>('/api/v1/workshop/payroll/overview/employees', {
       params: {
         tenantId,
@@ -992,6 +978,7 @@ export const pieceworkService = {
         page: normalizedPage,
         size: pageSize,
       },
+      skipPageNormalization: true,
     });
     const records: SalaryEmployeeRecord[] = (data.list ?? []).map((item) => ({
       id: String(item.id),
@@ -1018,7 +1005,7 @@ export const pieceworkService = {
   },
 
   async getSalaryTickets(params: SalaryTicketListParams): Promise<SalaryTicketListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { employeeId, startDate, endDate, page, pageSize, status, keyword } = params;
     const normalizedStatus = !status || status === 'all' ? undefined : status;
     const { data } = await http.get<SalaryTicketApiResponse>(
@@ -1030,9 +1017,10 @@ export const pieceworkService = {
           endDate,
           status: normalizedStatus,
           keyword: keyword?.trim() || undefined,
-          page: normalizePage(page),
+          page: toBackendPage(page),
           size: pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     const list = (data.list ?? []).map(adaptSalaryTicketRecord);
@@ -1045,7 +1033,7 @@ export const pieceworkService = {
     return {
       list,
       total: data.total ?? 0,
-      page: (data.page ?? 0) + 1,
+      page: fromBackendPage(data.page),
       pageSize: data.size ?? pageSize,
       summary,
     };
@@ -1054,7 +1042,7 @@ export const pieceworkService = {
   async getPayrollScanStatistics(
     params: SalaryScanStatisticsParams,
   ): Promise<SalaryScanStatistics> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<SalaryScanStatisticsPayload>(
       '/api/v1/workshop/payroll/overview/scan-statistics',
       {
@@ -1073,7 +1061,7 @@ export const pieceworkService = {
   async getPayrollTicketDetails(
     params: SalaryTicketDetailParams,
   ): Promise<SalaryTicketDetailResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<SalaryTicketDetailApiResponse>(
       '/api/v1/workshop/payroll/overview/tickets/detail',
       {
@@ -1083,36 +1071,37 @@ export const pieceworkService = {
           endDate: params.endDate,
           department: params.department?.trim() || undefined,
           keyword: params.keyword?.trim() || undefined,
-          page: normalizePage(params.page),
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     const list = (data.list ?? []).map(adaptSalaryTicketDetailRecord);
     return {
       list,
       total: data.total ?? 0,
-      page: (data.page ?? 0) + 1,
+      page: fromBackendPage(data.page),
       pageSize: data.size ?? params.pageSize,
     };
   },
 
   async settlePayroll(payload: SalarySettlePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post('/api/v1/workshop/payroll/overview/settle', payload, {
       params: { tenantId },
     });
   },
 
   async batchAdjustSalary(payload: SalaryBatchAdjustPayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post('/api/v1/workshop/payroll/overview/adjustments', payload, {
       params: { tenantId },
     });
   },
 
   async sendPayslips(payload: SalaryPayslipSendPayload): Promise<SalaryPayslipSendResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.post('/api/v1/workshop/payroll/overview/payslips/send', payload, {
       params: { tenantId },
     });
@@ -1133,7 +1122,7 @@ export const pieceworkService = {
   async getPayslipLogs(
     params: SalaryPayslipLogListParams,
   ): Promise<SalaryPayslipLogResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<SalaryPayslipLogApiResponse>(
       '/api/v1/workshop/payroll/overview/payslips',
       {
@@ -1143,7 +1132,7 @@ export const pieceworkService = {
           endDate: params.endDate,
           status: params.status && params.status !== 'all' ? params.status : undefined,
           keyword: params.keyword?.trim() || undefined,
-          page: normalizePage(params.page),
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
       },
@@ -1167,15 +1156,15 @@ export const pieceworkService = {
     return {
       list,
       total: data.total ?? 0,
-      page: (data.page ?? 0) + 1,
+      page: fromBackendPage(data.page),
       pageSize: data.size ?? params.pageSize,
     };
   },
 
   async getQualityList(params: QualityControlListParams): Promise<QualityControlListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { page, pageSize, startDate, endDate, keyword, inspectorId, status, workOrderId } = params;
-    const normalizedPage = normalizePage(page);
+    const normalizedPage = toBackendPage(page);
     const normalizedWorkOrderId = workOrderId ? Number(workOrderId) : undefined;
     const normalizedInspectorId = inspectorId ? Number(inspectorId) : undefined;
     const normalizedStatus = status && status !== 'all' ? status : undefined;
@@ -1195,14 +1184,14 @@ export const pieceworkService = {
     return {
       list: (data.list ?? []).map(adaptQualityRecord),
       total: data.total ?? 0,
-      page: (data.page ?? 0) + 1,
+      page: fromBackendPage(data.page),
       pageSize: data.size ?? pageSize,
       summary: data.summary ?? { inspectedQty: 0, passedQty: 0, failedQty: 0, reworkQty: 0 },
     };
   },
 
   async getQualityMeta(): Promise<QualityControlMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<{
       statusOptions?: QualityStatusOptionResponse[];
       inspectorOptions?: QualityInspectorOptionResponse[];
@@ -1226,7 +1215,7 @@ export const pieceworkService = {
   },
 
   async getOrderProgress(params: OrderProgressDetailsListParams): Promise<OrderProgressDetailsListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { page, pageSize, orderDateStart, orderDateEnd, keyword } = params;
     const { data } = await http.get('/api/v1/workshop/reports/order-progress', {
       params: {
@@ -1234,7 +1223,7 @@ export const pieceworkService = {
         startDate: orderDateStart,
         endDate: orderDateEnd,
         keyword: normalizeKeyword(keyword),
-        page: normalizePage(page),
+        page: toBackendPage(page),
         size: pageSize,
       },
     });
@@ -1244,7 +1233,7 @@ export const pieceworkService = {
   async exportOrderProgress(
     params: Pick<OrderProgressDetailsListParams, 'orderDateStart' | 'orderDateEnd' | 'keyword'> & { maxRows?: number },
   ): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/reports/order-progress/export',
       {
@@ -1259,7 +1248,7 @@ export const pieceworkService = {
   },
 
   async getTicketLots(params: OrderTicketLotListParams): Promise<OrderTicketLotListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/ticket-lots', {
       params: {
         tenantId,
@@ -1272,7 +1261,7 @@ export const pieceworkService = {
   },
 
   async getTicketRecords(params: OrderTicketRecordListParams): Promise<OrderTicketRecordListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/ticket-records', {
       params: { tenantId, lotId: params.lotId },
     });
@@ -1284,7 +1273,7 @@ export const pieceworkService = {
   },
 
   async getProcessComparison(params: ProcessProductionListParams): Promise<ProcessProductionListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/process-comparison', {
       params: {
         tenantId,
@@ -1305,7 +1294,7 @@ export const pieceworkService = {
   async getSequentialProcesses(
     params: SequentialProcessListParams,
   ): Promise<SequentialProcessListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/sequential-processes', {
       params: {
         tenantId,
@@ -1313,7 +1302,7 @@ export const pieceworkService = {
         endDate: params.endDate,
         keyword: params.keyword,
         status: params.status,
-        page: normalizePage(params.page),
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
     });
@@ -1326,7 +1315,7 @@ export const pieceworkService = {
   async exportSequentialProcesses(
     params: SequentialProcessExportParams,
   ): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/reports/sequential-processes/export',
       {
@@ -1343,7 +1332,7 @@ export const pieceworkService = {
   async getReportDownloads(
     params: ReportDownloadListParams,
   ): Promise<ReportDownloadListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get('/api/v1/workshop/reports/downloads', {
       params: {
         tenantId,
@@ -1352,9 +1341,10 @@ export const pieceworkService = {
         keyword: params.keyword?.trim() || undefined,
         startDate: params.startDate,
         endDate: params.endDate,
-        page: normalizePage(params.page),
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     const list: ReportDownloadRecord[] = (data.list ?? []).map((item: Record<string, unknown>) => ({
       id: item.id != null ? String(item.id) : '',
@@ -1371,7 +1361,7 @@ export const pieceworkService = {
     return {
       list,
       total: data.total ?? 0,
-      page: (data.page ?? 0) + 1,
+      page: fromBackendPage(data.page),
       pageSize: data.size ?? params.pageSize,
     };
   },
@@ -1379,7 +1369,7 @@ export const pieceworkService = {
   async exportCuttingReport(
     params: CuttingReportExportParams,
   ): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/cutting/report/export',
       params,
@@ -1391,7 +1381,7 @@ export const pieceworkService = {
   async exportQualityInspections(
     params: QualityInspectionExportParams,
   ): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const normalizedStatus = params.status && params.status !== 'all' ? params.status : undefined;
     const normalizedWorkOrderId = params.workOrderId ? Number(params.workOrderId) : undefined;
     const response = await http.post<{ fileUrl: string }>(
@@ -1410,7 +1400,7 @@ export const pieceworkService = {
   },
 
   async createQualityInspection(payload: QualityControlCreatePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       '/api/v1/quality-inspections',
       {
@@ -1428,7 +1418,7 @@ export const pieceworkService = {
   },
 
   async getQualityDetail(inspectionId: string): Promise<QualityControlRecord> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get(`/api/v1/quality-inspections/${inspectionId}`, {
       params: { tenantId },
     });
@@ -1439,7 +1429,7 @@ export const pieceworkService = {
     inspectionId: string,
     payload: QualityExceptionResolvePayload,
   ): Promise<QualityControlRecord> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.post(
       `/api/v1/quality-inspections/${inspectionId}/resolve`,
       { note: payload.note },
@@ -1449,7 +1439,7 @@ export const pieceworkService = {
   },
 
   async getQualityExceptionLogs(inspectionId: string): Promise<QualityExceptionLog[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get(`/api/v1/quality-inspections/${inspectionId}/logs`, {
       params: { tenantId },
     });
@@ -1460,7 +1450,7 @@ export const pieceworkService = {
   async exportTicketRecords(
     params: TicketRecordExportParams,
   ): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/workshop/reports/ticket-records/export',
       {

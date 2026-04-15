@@ -5,6 +5,12 @@ import { buildFriendlyError } from '../utils/friendly-error';
 
 const traceHeaderKeys = ['traceid', 'trace-id', 'x-trace-id', 'x-request-id'];
 
+type RequestConfigWithDataflow = {
+  headers?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  skipPageNormalization?: boolean;
+};
+
 const findTraceIdFromBody = (payload: unknown): string | undefined => {
   if (!payload || typeof payload !== 'object') {
     return undefined;
@@ -90,7 +96,7 @@ const http = axios.create({
 });
 
 http.interceptors.request.use(async (config) => {
-  const nextConfig = config;
+  const nextConfig = config as typeof config & RequestConfigWithDataflow;
   nextConfig.headers = nextConfig.headers ?? {};
 
   if (tokenResolver) {
@@ -109,7 +115,7 @@ http.interceptors.request.use(async (config) => {
     nextConfig.headers['X-Tenant-Id'] = tenantId;
   }
 
-  if (nextConfig.params && typeof nextConfig.params === 'object' && 'page' in nextConfig.params) {
+  if (!nextConfig.skipPageNormalization && nextConfig.params && typeof nextConfig.params === 'object' && 'page' in nextConfig.params) {
     const pageValue = Number(nextConfig.params.page);
     if (!Number.isNaN(pageValue)) {
       nextConfig.params.page = Math.max(pageValue - 1, 0);
