@@ -1,19 +1,11 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   OrderShipmentProfitAggregation,
   OrderShipmentProfitListParams,
   OrderShipmentProfitListResponse,
   OrderShipmentProfitRecord,
 } from '../types/order-shipment-profit-report';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
 
 type BackendAggregation = OrderShipmentProfitAggregation;
 
@@ -45,7 +37,7 @@ const adaptRecord = (record: BackendRecord): OrderShipmentProfitRecord => ({
 
 export const orderShipmentProfitReportService = {
   async getAggregation(): Promise<OrderShipmentProfitAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendAggregation>(
       '/api/v1/orders/reports/shipment-profit/aggregation',
       { params: { tenantId } },
@@ -58,16 +50,17 @@ export const orderShipmentProfitReportService = {
   },
 
   async getList(params: OrderShipmentProfitListParams): Promise<OrderShipmentProfitListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse>(
       '/api/v1/orders/reports/shipment-profit',
       {
         params: {
           tenantId,
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     const data = response.data ?? { items: [], list: [], total: 0, summary: {} };
@@ -83,7 +76,7 @@ export const orderShipmentProfitReportService = {
   },
 
   async export(params: OrderShipmentProfitListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/orders/reports/shipment-profit/export',
       {

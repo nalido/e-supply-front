@@ -8,7 +8,7 @@ import type {
   UpdatePartnerPayload,
 } from '../types';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 
 type BackendPartnerType = 'CUSTOMER' | 'SUPPLIER' | 'FACTORY' | 'SUBCONTRACTOR';
 type BackendPartnerStatus = 'UNINVITED' | 'INVITED' | 'BOUND' | 'DISABLED';
@@ -118,18 +118,6 @@ const adaptPartner = (item: BackendPartnerResponse): Partner => {
   };
 };
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新登录或选择企业。');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const buildPartnerPayload = (
   tenantId: number,
   payload: SavePartnerPayload,
@@ -150,7 +138,7 @@ const setPartnerStatus = async (
   partnerId: string,
   status: PartnerStatus,
 ): Promise<Partner | undefined> => {
-  const tenantId = ensureTenantId();
+  const tenantId = requireNumericTenantId();
   const response = await http.post<BackendPartnerResponse>(
     `/api/v1/partners/${partnerId}/status/update`,
     { status: normalizePartnerStatus(status) },
@@ -161,7 +149,7 @@ const setPartnerStatus = async (
 
 export const partnersApi = {
   list: async (params: PartnerListParams): Promise<PartnerDataset> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const statusFilter = params.onlyDisabled ? 'disabled' : params.status;
     const response = await http.get<BackendPageResponse<BackendPartnerResponse>>(
       '/api/v1/partners',
@@ -171,9 +159,10 @@ export const partnersApi = {
           type: normalizePartnerType(params.type),
           status: normalizePartnerStatus(statusFilter),
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -182,14 +171,14 @@ export const partnersApi = {
     };
   },
   create: async (payload: SavePartnerPayload): Promise<Partner> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendPartnerResponse>('/api/v1/partners', {
       ...buildPartnerPayload(tenantId, payload),
     });
     return adaptPartner(response.data);
   },
   update: async (id: string, payload: UpdatePartnerPayload): Promise<Partner | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendPartnerResponse>(
       `/api/v1/partners/${id}/update`,
       buildPartnerPayload(tenantId, payload),
@@ -197,7 +186,7 @@ export const partnersApi = {
     return adaptPartner(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.delete(`/api/v1/partners/${id}`, {
       params: { tenantId },
     });

@@ -6,7 +6,7 @@ import type {
   StyleStatus,
 } from '../types/style';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId } from './request-context';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
@@ -69,18 +69,6 @@ const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
 
 const toBackendStatus = (status: StyleStatus): BackendStyleStatus =>
   status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
-
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
 
 const adaptMetadata = (payload: BackendMetadataResponse): StyleFormMeta => ({
   units: Array.isArray(payload.units) ? payload.units : [],
@@ -171,21 +159,21 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
 
 export const styleDetailApi = {
   async fetchMeta(): Promise<StyleFormMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendMetadataResponse>('/api/v1/styles/meta', {
       params: { tenantId },
     });
     return adaptMetadata(response.data);
   },
   async fetchDetail(styleId: string): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const detailResponse = await http.get<BackendStyleResponse>(`/api/v1/styles/${styleId}`, {
       params: { tenantId },
     });
     return adaptDetail(detailResponse.data);
   },
   async fetchMaterials(styleId: string): Promise<StyleMaterialData[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendStyleMaterialResponse[]>(`/api/v1/styles/${styleId}/materials`, {
       params: { tenantId },
     });
@@ -200,13 +188,13 @@ export const styleDetailApi = {
     }));
   },
   async create(payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     const response = await http.post<BackendStyleResponse>('/api/v1/styles', requestBody);
     return adaptDetail(response.data);
   },
   async update(styleId: string, payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     await http.post<BackendStyleResponse>(`/api/v1/styles/${styleId}/update`, requestBody);
     return this.fetchDetail(styleId);

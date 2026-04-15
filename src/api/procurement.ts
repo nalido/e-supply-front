@@ -13,7 +13,7 @@ import type {
   StockingReceiptListResponse,
 } from '../types/stocking-purchase-inbound';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 
 type BackendProcurementOrderSummary = {
   id: string;
@@ -21,14 +21,6 @@ type BackendProcurementOrderSummary = {
   status: string;
   statusLabel: string;
   statusTagColor: string;
-};
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到企业信息，请重新选择');
-  }
-  return tenantId;
 };
 
 const adaptOrderSummary = (data: BackendProcurementOrderSummary): ProcurementOrderSummary => ({
@@ -46,22 +38,23 @@ export const stockingPurchaseInboundService = {
   },
 
   async getList(params: StockingPurchaseListParams): Promise<StockingPurchaseListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<StockingPurchaseListResponse>('/api/v1/procurement/stocking', {
       params: {
         tenantId,
         materialType: params.materialType,
         status: params.status,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return response.data;
   },
 
   async batchReceive(payload: StockingBatchReceivePayload): Promise<{ success: boolean }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const orderIds = payload.orderIds
       .map((id) => Number(id))
       .filter((value) => !Number.isNaN(value));
@@ -74,7 +67,7 @@ export const stockingPurchaseInboundService = {
   },
 
   async setStatus(payload: StockingStatusUpdatePayload): Promise<{ success: boolean }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const orderIds = payload.orderIds
       .map((id) => Number(id))
       .filter((value) => !Number.isNaN(value));
@@ -90,7 +83,7 @@ export const stockingPurchaseInboundService = {
   },
 
   async export(params: StockingPurchaseExportParams): Promise<{ fileUrl: string }> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/procurement/stocking/export',
       {
@@ -104,7 +97,7 @@ export const stockingPurchaseInboundService = {
   },
 
   async createOrder(payload: StockingPurchaseCreatePayload): Promise<ProcurementOrderSummary> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<BackendProcurementOrderSummary>(
       '/api/v1/procurement/orders',
       {
@@ -131,7 +124,7 @@ export const stockingPurchaseInboundService = {
     orderId: string,
     payload: StockingReceivePayload,
   ): Promise<ProcurementReceiptSummary> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<ProcurementReceiptSummary>(
       `/api/v1/procurement/orders/${orderId}/receive`,
       {
@@ -155,7 +148,7 @@ export const stockingPurchaseInboundService = {
   },
 
   async getReceipts(params: { orderId: string; lineId?: string }): Promise<StockingReceiptRecord[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<StockingReceiptListResponse>(
       `/api/v1/procurement/stocking/orders/${params.orderId}/receipts`,
       {

@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId } from './request-context';
 import type {
   SalesStockingSuggestionMaterial,
   SalesStockingSuggestionQueryParams,
@@ -78,18 +78,6 @@ const toNumber = (value: unknown, fallback = 0): number => {
 const toMode = (value: string | undefined): SalesStockingWeeklySalesMode =>
   value?.toUpperCase() === 'MANUAL' ? 'MANUAL' : 'AUTO';
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新登录');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const adaptStyle = (style: BackendSuggestionStyle): SalesStockingSuggestionStyle => ({
   styleId: String(style.styleId ?? ''),
   styleNo: style.styleNo ?? '--',
@@ -138,7 +126,7 @@ const adaptSummary = (summary: BackendSuggestionSummary | undefined): SalesStock
 
 export const salesStockingSuggestionService = {
   async query(params: SalesStockingSuggestionQueryParams): Promise<SalesStockingSuggestionQueryResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendSuggestionResult>(
       '/api/v1/inventory/materials/sales-stocking-suggestions/query',
       {

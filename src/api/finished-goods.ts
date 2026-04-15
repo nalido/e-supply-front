@@ -39,15 +39,7 @@ import type {
   FinishedGoodsInventoryQueryParams,
 } from '../types/finished-goods-inventory';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到企业信息，请重新登录');
-  }
-  return tenantId;
-};
+import { requireTenantId, toBackendPage } from './request-context';
 
 const toNumber = (value?: string): number | undefined => {
   if (!value) {
@@ -59,14 +51,14 @@ const toNumber = (value?: string): number | undefined => {
 
 export const finishedGoodsStockService = {
   async getMeta(): Promise<FinishedGoodsStockMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsStockMeta>('/api/v1/finished-goods/stock/meta', {
       params: { tenantId },
     });
     return data;
   },
   async getList(params: FinishedGoodsStockListParams): Promise<FinishedGoodsStockListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsStockListResponse>('/api/v1/finished-goods/stock', {
       params: {
         tenantId,
@@ -75,28 +67,30 @@ export const finishedGoodsStockService = {
         keywordSku: params.keywordSku,
         keywordMixed: params.keywordMixed,
         groupBy: params.groupBy,
-        page: params.page,
+        page: toBackendPage(params.page),
         pageSize: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return data;
   },
   async getStyleList(params: FinishedGoodsStockStyleListParams): Promise<FinishedGoodsStockStyleListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsStockStyleListResponse>('/api/v1/finished-goods/stock/styles', {
       params: {
         tenantId,
         onlyInStock: params.onlyInStock,
         warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         pageSize: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return data;
   },
   async getStyleMatrix(styleId: string, warehouseId: string): Promise<FinishedGoodsStockStyleMatrixResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsStockStyleMatrixResponse>(
       `/api/v1/finished-goods/stock/styles/${styleId}/matrix`,
       {
@@ -112,7 +106,7 @@ export const finishedGoodsStockService = {
 
 export const finishedGoodsPendingReceiptService = {
   async getMeta(): Promise<FinishedGoodsPendingReceiptMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsPendingReceiptMeta>(
       '/api/v1/finished-goods/pending-receipts/meta',
       { params: { tenantId } },
@@ -120,7 +114,7 @@ export const finishedGoodsPendingReceiptService = {
     return data;
   },
   async getList(params: FinishedGoodsPendingReceiptListParams): Promise<FinishedGoodsPendingReceiptListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsPendingReceiptListResponse>(
       '/api/v1/finished-goods/pending-receipts',
       {
@@ -131,15 +125,16 @@ export const finishedGoodsPendingReceiptService = {
           keywordOrderOrStyle: params.keywordOrderOrStyle,
           keywordCustomer: params.keywordCustomer,
           keywordSku: params.keywordSku,
-          page: params.page,
+          page: toBackendPage(params.page),
           pageSize: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return data;
   },
   async receive(payload: FinishedGoodsPendingReceiptReceivePayload): Promise<boolean> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.post<unknown>(
       '/api/v1/finished-goods/pending-receipts/receive',
       {
@@ -159,14 +154,14 @@ export const finishedGoodsPendingReceiptService = {
 
 export const finishedGoodsReceivedService = {
   async getMeta(): Promise<FinishedGoodsReceivedMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsReceivedMeta>('/api/v1/finished-goods/received/meta', {
       params: { tenantId },
     });
     return data;
   },
   async getList(params: FinishedGoodsReceivedListParams): Promise<FinishedGoodsReceivedListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsReceivedListResponse>('/api/v1/finished-goods/received', {
       params: {
         tenantId,
@@ -175,14 +170,15 @@ export const finishedGoodsReceivedService = {
         productionOrderId: params.productionOrderId ? Number(params.productionOrderId) : undefined,
         keywordOrderOrStyle: params.keywordOrderOrStyle,
         keywordProcessor: params.keywordProcessor,
-        page: params.page,
+        page: toBackendPage(params.page),
         pageSize: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return data;
   },
   async update(id: string, payload: FinishedGoodsReceivedUpdatePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       `/api/v1/finished-goods/received/${id}/update`,
       {
@@ -194,7 +190,7 @@ export const finishedGoodsReceivedService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/received/delete',
       { ids },
@@ -203,7 +199,7 @@ export const finishedGoodsReceivedService = {
     return data.removed;
   },
   async export(params: FinishedGoodsReceivedListParams): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       '/api/v1/finished-goods/received/export',
       null,
@@ -222,7 +218,7 @@ export const finishedGoodsReceivedService = {
 
 export const finishedGoodsOtherInboundService = {
   async getMeta(): Promise<FinishedGoodsOtherInboundMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsOtherInboundMeta>(
       '/api/v1/finished-goods/other-inbound/meta',
       { params: { tenantId } },
@@ -230,7 +226,7 @@ export const finishedGoodsOtherInboundService = {
     return data;
   },
   async getList(params: FinishedGoodsOtherInboundListParams): Promise<FinishedGoodsOtherInboundListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsOtherInboundListResponse>(
       '/api/v1/finished-goods/other-inbound',
       {
@@ -239,15 +235,16 @@ export const finishedGoodsOtherInboundService = {
           viewMode: params.viewMode,
           warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           pageSize: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return data;
   },
   async create(payload: FinishedGoodsOtherInboundFormPayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       '/api/v1/finished-goods/other-inbound',
       {
@@ -266,7 +263,7 @@ export const finishedGoodsOtherInboundService = {
     );
   },
   async update(id: string, payload: FinishedGoodsOtherInboundFormPayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       `/api/v1/finished-goods/other-inbound/${id}/update`,
       {
@@ -285,7 +282,7 @@ export const finishedGoodsOtherInboundService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/other-inbound/delete',
       { ids },
@@ -297,14 +294,14 @@ export const finishedGoodsOtherInboundService = {
 
 export const finishedGoodsOutboundService = {
   async getMeta(): Promise<FinishedGoodsOutboundMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsOutboundMeta>('/api/v1/finished-goods/outbound/meta', {
       params: { tenantId },
     });
     return data;
   },
   async getList(params: FinishedGoodsOutboundListParams): Promise<FinishedGoodsOutboundListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsOutboundListResponse>(
       '/api/v1/finished-goods/outbound',
       {
@@ -315,9 +312,10 @@ export const finishedGoodsOutboundService = {
           warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
           groupBy: params.groupBy,
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           pageSize: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return data;
@@ -326,7 +324,7 @@ export const finishedGoodsOutboundService = {
 
 export const finishedGoodsDispatchService = {
   async create(payload: FinishedGoodsDispatchCreatePayload): Promise<FinishedGoodsDispatchSummary> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const requestBody: Record<string, unknown> = {
       warehouseId: Number(payload.warehouseId),
       logisticsProviderId: payload.logisticsProviderId ? Number(payload.logisticsProviderId) : undefined,
@@ -352,7 +350,7 @@ export const finishedGoodsDispatchService = {
     return data;
   },
   async update(id: string, payload: FinishedGoodsDispatchUpdatePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       `/api/v1/finished-goods/dispatches/${id}/update`,
       {
@@ -366,7 +364,7 @@ export const finishedGoodsDispatchService = {
     );
   },
   async remove(ids: string[]): Promise<number> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.post<{ removed: number }>(
       '/api/v1/finished-goods/dispatches/delete',
       { ids },
@@ -378,7 +376,7 @@ export const finishedGoodsDispatchService = {
 
 export const finishedGoodsInventoryReportService = {
   async getOverview(params: FinishedGoodsInventoryQueryParams = {}): Promise<FinishedGoodsInventoryAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsInventoryAggregation>(
       '/api/v1/finished-goods/inventory/aggregation',
       { params: { tenantId, ...params } },
@@ -386,7 +384,7 @@ export const finishedGoodsInventoryReportService = {
     return data;
   },
   async getList(params: FinishedGoodsInventoryListParams): Promise<FinishedGoodsInventoryListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<FinishedGoodsInventoryListResponse>(
       '/api/v1/finished-goods/inventory',
       {
@@ -395,9 +393,10 @@ export const finishedGoodsInventoryReportService = {
           startDate: params.startDate,
           endDate: params.endDate,
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           pageSize: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return data;

@@ -7,7 +7,7 @@ import type {
   MaterialUnit,
 } from '../types';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 
 type BackendMaterialStatus = 'ACTIVE' | 'INACTIVE';
 type BackendMaterialType = 'FABRIC' | 'ACCESSORY';
@@ -139,18 +139,6 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
   };
 };
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const generateSku = (type: MaterialBasicType): string => {
   const prefix = type === 'accessory' ? 'ACC' : 'FAB';
   return `${prefix}-${Date.now()}`;
@@ -229,7 +217,7 @@ const buildImportPayload = (
 
 export const materialApi = {
   list: async (params: MaterialListParams): Promise<MaterialDataset> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendPageResponse<BackendMaterialResponse>>(
       '/api/v1/materials',
       {
@@ -237,9 +225,10 @@ export const materialApi = {
           tenantId,
           materialType: normalizeMaterialType(params.materialType),
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -248,14 +237,14 @@ export const materialApi = {
     };
   },
   create: async (payload: CreateMaterialPayload): Promise<MaterialItem> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendMaterialResponse>('/api/v1/materials', {
       ...buildRequestPayload(tenantId, payload, { includeStatus: true }),
     });
     return adaptMaterial(response.data);
   },
   update: async (id: string, payload: CreateMaterialPayload): Promise<MaterialItem | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendMaterialResponse>(
       `/api/v1/materials/${id}/update`,
       buildRequestPayload(tenantId, payload, { includeStatus: false }),
@@ -263,21 +252,21 @@ export const materialApi = {
     return adaptMaterial(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.delete(`/api/v1/materials/${id}`, {
       params: { tenantId },
     });
     return true;
   },
   import: async (payload: CreateMaterialPayload[], materialType: MaterialBasicType): Promise<number> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<MaterialImportResponse>('/api/v1/materials/import', {
       ...buildImportPayload(tenantId, materialType, payload),
     });
     return response.data.imported;
   },
   export: async (params: { materialType: MaterialBasicType; keyword?: string }): Promise<Blob> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<MaterialExportResponse>('/api/v1/materials/export', {
       params: {
         tenantId,

@@ -7,7 +7,7 @@ import type {
   UpdateProcessTypePayload,
 } from '../types';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 
 type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 type BackendStatus = 'ACTIVE' | 'INACTIVE';
@@ -81,18 +81,6 @@ const adaptProcessType = (item: BackendProcessCatalogResponse): ProcessType => (
   updatedAt: item.updatedAt,
 });
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新登录或选择企业。');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const buildPayload = (
   tenantId: number,
   payload: CreateProcessTypePayload,
@@ -118,7 +106,7 @@ const sequentialInvoke = async <T>(queue: Array<() => Promise<T>>): Promise<T[]>
 
 export const processTypeApi = {
   list: async (params: ProcessTypeListParams): Promise<ProcessTypeDataset> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendPageResponse<BackendProcessCatalogResponse>>(
       '/api/v1/process-catalog',
       {
@@ -126,9 +114,10 @@ export const processTypeApi = {
           tenantId,
           keyword: params.keyword,
           status: normalizeStatus(params.status),
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -137,14 +126,14 @@ export const processTypeApi = {
     };
   },
   create: async (payload: CreateProcessTypePayload): Promise<ProcessType> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendProcessCatalogResponse>('/api/v1/process-catalog', {
       ...buildPayload(tenantId, payload),
     });
     return adaptProcessType(response.data);
   },
   update: async (id: string, payload: UpdateProcessTypePayload): Promise<ProcessType | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendProcessCatalogResponse>(
       `/api/v1/process-catalog/${id}/update`,
       buildPayload(tenantId, payload),
@@ -152,7 +141,7 @@ export const processTypeApi = {
     return adaptProcessType(response.data);
   },
   toggleStatus: async (id: string, status: ProcessTypeStatus): Promise<ProcessType | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendProcessCatalogResponse>(
       `/api/v1/process-catalog/${id}/status/update`,
       { status: normalizeStatus(status) },
@@ -161,7 +150,7 @@ export const processTypeApi = {
     return adaptProcessType(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.delete(`/api/v1/process-catalog/${id}`, { params: { tenantId } });
     return true;
   },
@@ -188,7 +177,7 @@ export const processTypeApi = {
     return new Blob([json], { type: 'application/json' });
   },
   hot: async (): Promise<ProcessType[]> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendProcessCatalogResponse[]>(
       '/api/v1/process-catalog/hot',
       { params: { tenantId } },

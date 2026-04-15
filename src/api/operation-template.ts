@@ -6,7 +6,7 @@ import type {
   UpdateOperationTemplatePayload,
 } from '../types';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 
 type BackendChargeMode = 'PIECEWORK' | 'HOURLY' | 'STAGE_BASED';
 
@@ -78,18 +78,6 @@ const adaptTemplate = (item: BackendOperationTemplateResponse): OperationTemplat
   })),
 });
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新登录或选择企业。');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const buildOperationsPayload = (
   operations: SaveOperationTemplatePayload['operations'],
 ): Array<Record<string, unknown>> =>
@@ -102,16 +90,17 @@ const buildOperationsPayload = (
 
 export const operationTemplateApi = {
   list: async (params: OperationTemplateListParams): Promise<OperationTemplateDataset> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendPageResponse<BackendOperationTemplateResponse>>(
       '/api/v1/operation-templates',
       {
         params: {
           tenantId,
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -120,7 +109,7 @@ export const operationTemplateApi = {
     };
   },
   create: async (payload: SaveOperationTemplatePayload): Promise<OperationTemplate> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendOperationTemplateResponse>('/api/v1/operation-templates', {
       tenantId,
       name: payload.name,
@@ -130,7 +119,7 @@ export const operationTemplateApi = {
     return adaptTemplate(response.data);
   },
   update: async (id: string, payload: UpdateOperationTemplatePayload): Promise<OperationTemplate | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendOperationTemplateResponse>(
       `/api/v1/operation-templates/${id}/update`,
       {
@@ -143,7 +132,7 @@ export const operationTemplateApi = {
     return adaptTemplate(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.delete(`/api/v1/operation-templates/${id}`, {
       params: { tenantId },
     });

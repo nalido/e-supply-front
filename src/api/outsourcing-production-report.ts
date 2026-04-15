@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   OutsourcingProductionReportListParams,
   OutsourcingProductionReportListResponse,
@@ -8,14 +8,6 @@ import type {
   OutsourcingSubcontractorStat,
 } from '../types/outsourcing-production-report';
 
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
-
 type BackendListResponse = {
   items: OutsourcingProductionReportListItem[];
   total: number;
@@ -23,7 +15,7 @@ type BackendListResponse = {
 
 export const outsourcingProductionReportService = {
   async getMeta(): Promise<OutsourcingProductionReportMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<OutsourcingProductionReportMeta>(
       '/api/v1/outsourcing/reports/production/meta',
       { params: { tenantId } },
@@ -32,7 +24,7 @@ export const outsourcingProductionReportService = {
   },
 
   async getSubcontractorStats(): Promise<OutsourcingSubcontractorStat[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<OutsourcingSubcontractorStat[]>(
       '/api/v1/outsourcing/reports/production/stats',
       { params: { tenantId } },
@@ -43,11 +35,11 @@ export const outsourcingProductionReportService = {
   async getList(
     params: OutsourcingProductionReportListParams,
   ): Promise<OutsourcingProductionReportListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse>('/api/v1/outsourcing/reports/production', {
       params: {
         tenantId,
-        page: params.page - 1,
+        page: toBackendPage(params.page),
         size: params.pageSize,
         subcontractorName: params.subcontractorName,
         keyword: params.keyword,
@@ -56,6 +48,7 @@ export const outsourcingProductionReportService = {
         sortBy: params.sortBy,
         order: params.order,
       },
+      skipPageNormalization: true,
     });
     return {
       list: response.data.items ?? [],
@@ -64,7 +57,7 @@ export const outsourcingProductionReportService = {
   },
 
   async export(params: OutsourcingProductionReportListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/outsourcing/reports/production/export',
       {
@@ -81,7 +74,7 @@ export const outsourcingProductionReportService = {
   },
 
   async print(orderIds: string[]) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post('/api/v1/outsourcing/reports/production/print', {
       tenantId,
       orderIds,

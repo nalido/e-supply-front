@@ -304,6 +304,7 @@ export const sampleOrderApi = {
         tenantId,
         ...query,
       },
+      skipPageNormalization: true,
     });
 
     const pageZero = typeof data.page === 'number' ? data.page : 0;

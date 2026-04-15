@@ -1253,9 +1253,10 @@ export const pieceworkService = {
       params: {
         tenantId,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return { list: data.list ?? [], total: data.total ?? 0 };
   },
@@ -1280,9 +1281,10 @@ export const pieceworkService = {
         startDate: params.startDate,
         endDate: params.endDate,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return {
       list: data.list ?? [],

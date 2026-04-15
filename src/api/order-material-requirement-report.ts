@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   OrderMaterialRequirementListParams,
   OrderMaterialRequirementListResponse,
@@ -8,14 +8,6 @@ import type {
   SalesStockingSuggestionListParams,
   SalesStockingSuggestionListResponse,
 } from '../types/order-material-requirement-report';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
 
 type BackendOrderRecord = Partial<OrderMaterialRequirementListItem> & { id?: string | number };
 type BackendSalesRecord = Partial<SalesStockingSuggestionListItem> & {
@@ -104,7 +96,7 @@ export const orderMaterialRequirementReportService = {
   async getList(
     params: OrderMaterialRequirementListParams,
   ): Promise<OrderMaterialRequirementListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse<BackendOrderRecord>>(
       '/api/v1/orders/reports/material-requirement',
       {
@@ -113,9 +105,10 @@ export const orderMaterialRequirementReportService = {
           materialType: params.materialType,
           restockNeeded: params.restockNeeded,
           name: params.name,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     const items = response.data.items ?? response.data.list ?? [];
@@ -128,7 +121,7 @@ export const orderMaterialRequirementReportService = {
   async getSalesStockingSuggestions(
     params: SalesStockingSuggestionListParams,
   ): Promise<SalesStockingSuggestionListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse<BackendSalesRecord>>(
       '/api/v1/orders/reports/material-requirement/sales-planning',
       {
@@ -137,9 +130,10 @@ export const orderMaterialRequirementReportService = {
           materialType: params.materialType,
           restockNeeded: params.restockNeeded,
           name: params.name,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     const items = response.data.items ?? response.data.list ?? [];

@@ -1,5 +1,5 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   SampleChartPoint,
   SampleDashboardStats,
@@ -8,17 +8,9 @@ import type {
 } from '../types/sample';
 import type { Paginated } from '../types/pagination';
 
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
-
 export const sampleDashboardService = {
   async getStats(): Promise<SampleDashboardStats> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SampleDashboardStats>('/api/v1/sample/dashboard/stats', {
       params: { tenantId },
     });
@@ -26,7 +18,7 @@ export const sampleDashboardService = {
   },
 
   async getChart(): Promise<SampleChartPoint[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SampleChartPoint[]>('/api/v1/sample/dashboard/chart', {
       params: { tenantId },
     });
@@ -34,7 +26,7 @@ export const sampleDashboardService = {
   },
 
   async getPie(): Promise<SamplePieDatum[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SamplePieDatum[]>('/api/v1/sample/dashboard/pie', {
       params: { tenantId },
     });
@@ -42,15 +34,16 @@ export const sampleDashboardService = {
   },
 
   async getOverdueSamples(params: { page: number; pageSize: number }): Promise<Paginated<SampleOverdueItem>> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<Paginated<SampleOverdueItem>>(
       '/api/v1/sample/dashboard/overdue',
       {
         params: {
           tenantId,
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;

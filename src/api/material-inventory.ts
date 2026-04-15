@@ -27,15 +27,7 @@ import type {
   MaterialStockListSummary,
 } from '../types/material-stock';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到企业信息，请重新选择');
-  }
-  return tenantId;
-};
+import { requireTenantId, toBackendPage } from './request-context';
 
 const inflightRequests = new Map<string, Promise<unknown>>();
 
@@ -71,7 +63,7 @@ const buildInventoryParams = (
 
 export const materialStockService = {
   async getMeta(): Promise<MaterialStockMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return withInflightDedup(`material-stock-meta:${tenantId}`, async () => {
       const response = await http.get<MaterialStockMeta>('/api/v1/inventory/materials/meta', {
         params: { tenantId },
@@ -81,26 +73,27 @@ export const materialStockService = {
   },
 
   async getList(params: MaterialStockListParams): Promise<MaterialStockListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const query = {
       tenantId,
       materialType: params.materialType,
       onlyInStock: params.onlyInStock,
       keywordRemark: params.keywordRemark,
       keywordOrderStyle: params.keywordOrderStyle,
-      page: params.page,
+      page: toBackendPage(params.page),
       size: params.pageSize,
     };
     return withInflightDedup(`material-stock-list:${JSON.stringify(query)}`, async () => {
       const response = await http.get<MaterialStockListResponse>('/api/v1/inventory/materials', {
         params: query,
+        skipPageNormalization: true,
       });
       return response.data;
     });
   },
 
   async getSummary(): Promise<MaterialStockListSummary> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return withInflightDedup(`material-stock-summary:${tenantId}`, async () => {
       const response = await http.get<MaterialStockListSummary>('/api/v1/inventory/materials/summary', {
         params: { tenantId },
@@ -112,7 +105,7 @@ export const materialStockService = {
   async getMovements(
     params: MaterialMovementListParams,
   ): Promise<MaterialMovementListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialMovementListResponse>(
       `/api/v1/inventory/materials/${params.materialId}/movements`,
       {
@@ -121,9 +114,10 @@ export const materialStockService = {
           warehouseId: params.warehouseId,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;
@@ -137,13 +131,13 @@ export const materialIssueService = {
   },
 
   async getList(params: MaterialIssueListParams): Promise<MaterialIssueListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialIssueListResponse>('/api/v1/inventory/material-issues', {
       params: {
         tenantId,
         materialType: params.materialType,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
     });
@@ -151,7 +145,7 @@ export const materialIssueService = {
   },
 
   async createIssue(payload: MaterialIssueCreatePayload): Promise<MaterialIssueCreateResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<MaterialIssueCreateResponse>(
       '/api/v1/inventory/material-issues',
       {
@@ -176,7 +170,7 @@ export const materialIssueService = {
   async updateStatus(
     payload: MaterialIssueStatusUpdatePayload,
   ): Promise<MaterialIssueStatusUpdateResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<MaterialIssueStatusUpdateResult>(
       '/api/v1/inventory/material-issues/status/update',
       {
@@ -191,7 +185,7 @@ export const materialIssueService = {
 
 export const materialInventoryReportService = {
   async getOverview(params: MaterialInventoryQueryParams = {}): Promise<MaterialInventoryAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialInventoryAggregation>(
       '/api/v1/inventory/materials/report/overview',
       { params: buildInventoryParams(tenantId, params) },
@@ -200,11 +194,11 @@ export const materialInventoryReportService = {
   },
 
   async getList(params: MaterialInventoryListParams): Promise<MaterialInventoryListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialInventoryListResponse>('/api/v1/inventory/materials/report', {
       params: {
         ...buildInventoryParams(tenantId, params),
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
     });
@@ -214,7 +208,7 @@ export const materialInventoryReportService = {
 
 export const materialPurchaseReportService = {
   async getMeta(): Promise<MaterialPurchaseReportMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialPurchaseReportMeta>(
       '/api/v1/inventory/materials/purchase-report/meta',
       { params: { tenantId } },
@@ -225,7 +219,7 @@ export const materialPurchaseReportService = {
   async getList(
     params: MaterialPurchaseReportListParams,
   ): Promise<MaterialPurchaseReportListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<MaterialPurchaseReportListResponse>(
       '/api/v1/inventory/materials/purchase-report',
       {
@@ -239,9 +233,10 @@ export const materialPurchaseReportService = {
           dateType: params.dateType,
           startDate: params.startDate,
           endDate: params.endDate,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return response.data;

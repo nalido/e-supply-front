@@ -14,7 +14,7 @@ const Welcome = () => {
 
   useEffect(() => {
     const run = async () => {
-      if (!isLoaded || !isSignedIn) {
+      if (!isLoaded) {
         return;
       }
       setCheckingStatus(true);
@@ -24,16 +24,16 @@ const Welcome = () => {
           navigate('/dashboard/workplace', { replace: true });
         }
       } catch {
-        // keep user on welcome page when onboarding context is incomplete
+        // keep user on welcome page when onboarding context is incomplete or unauthenticated
       } finally {
         setCheckingStatus(false);
       }
     };
 
     void run();
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isLoaded, navigate]);
 
-  if (isLoaded && isSignedIn && checkingStatus) {
+  if (isLoaded && checkingStatus) {
     return <Spin size="large" tip="正在校验账号状态..." fullscreen />;
   }
 
