@@ -1,32 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Button, Card, Form, Input, InputNumber, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Col, Form, InputNumber, Row, Space, Statistic, Table, Tag, Typography, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { saleApi } from '../../api/sale';
-import type { SaleChannelAccount, SaleFulfillmentItem } from '../../types/sale';
-import { publishSaleContextChanged, resolveSaleAccountSelection } from '../../utils/sale-menu-context';
+import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
+import { getSaleChannelAccountDisplayName } from '../../components/sale/sale-channel-account-helper';
+import type { SaleChannelAccount, SaleFulfillmentDemandItem, SaleFulfillmentDemandStats } from '../../types/sale';
 
 const SaleFulfillments = () => {
+  const controlSize = 'large' as const;
+  const controlBorderRadius = 12;
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>();
-  const [fulfillments, setFulfillments] = useState<SaleFulfillmentItem[]>([]);
-  const [createForm] = Form.useForm();
-  const [pushForm] = Form.useForm();
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [demands, setDemands] = useState<SaleFulfillmentDemandItem[]>([]);
+  const [stats, setStats] = useState<SaleFulfillmentDemandStats>({ total: 0, readyCount: 0, urgentCount: 0, overdueCount: 0 });
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [syncForm] = Form.useForm();
 
-  const accountOptions = useMemo(
-    () => accounts.map((item) => ({ label: `${item.accountName} (${item.id})`, value: item.id })),
-    [accounts],
+  const selectedAccount = useMemo(
+    () => accounts.find((item) => item.id === selectedAccountId),
+    [accounts, selectedAccountId],
   );
+  const accountMap = useMemo(() => new Map(accounts.map((item) => [item.id, item])), [accounts]);
+  const fullManagedEnabled = selectedAccount?.platformCode === 'TEMU' && selectedAccount?.sellerType === 'FULLY_MANAGED';
 
   const loadData = useCallback(async (accountId?: string) => {
     setLoading(true);
     try {
-      const list = await saleApi.listFulfillments(accountId);
-      setFulfillments(list);
+      const [list, statsResponse] = await Promise.all([
+        saleApi.listFulfillmentDemands(accountId),
+        saleApi.getFulfillmentDemandStats(accountId),
+      ]);
+      setDemands(list);
+      setStats(statsResponse);
     } catch (error) {
       console.error(error);
-      message.error('加载履约单失败');
     } finally {
       setLoading(false);
     }
@@ -36,23 +47,10 @@ const SaleFulfillments = () => {
     try {
       const list = await saleApi.listChannelAccounts();
       setAccounts(list);
-      const preferred = resolveSaleAccountSelection(list, selectedAccountId);
-      if (preferred?.id !== selectedAccountId) {
-        setSelectedAccountId(preferred?.id);
-      }
-      if (preferred) {
-        publishSaleContextChanged({
-          accountId: preferred.id,
-          sellerType: preferred.sellerType,
-        });
-      } else {
-        publishSaleContextChanged({});
-      }
     } catch (error) {
       console.error(error);
-      message.error('加载渠道账号失败');
     }
-  }, [selectedAccountId]);
+  }, []);
 
   useEffect(() => {
     void loadAccounts();
@@ -62,69 +60,77 @@ const SaleFulfillments = () => {
     void loadData(selectedAccountId);
   }, [selectedAccountId, loadData]);
 
-  const columns: ColumnsType<SaleFulfillmentItem> = [
-    { title: '履约ID', dataIndex: 'id', width: 90 },
-    { title: '履约单号', dataIndex: 'fulfillmentNo', width: 170 },
-    { title: '销售单ID', dataIndex: 'saleOrderId', width: 110 },
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [selectedAccountId]);
+
+  const columns: ColumnsType<SaleFulfillmentDemandItem> = [
+    { title: '备货单号', dataIndex: 'bizDocNo', width: 180 },
+    {
+      title: '店铺',
+      dataIndex: 'channelAccountId',
+      width: 220,
+      render: (value: string) => getSaleChannelAccountDisplayName(accountMap.get(String(value))),
+    },
     {
       title: '状态',
-      dataIndex: 'status',
-      width: 120,
-      render: (value) => <Tag>{value ?? '--'}</Tag>,
+      dataIndex: 'normalizedStatus',
+      width: 140,
+      render: (value) => <Tag color={value === 'READY_TO_SHIP' ? 'blue' : value === 'SHIPPED' ? 'green' : 'default'}>{value ?? '--'}</Tag>,
     },
-    {
-      title: '推送状态',
-      dataIndex: 'pushStatus',
-      width: 120,
-      render: (value) => <Tag color={value === 'SUCCESS' ? 'green' : value === 'FAILED' ? 'red' : 'default'}>{value ?? '--'}</Tag>,
-    },
-    { title: '运单号', dataIndex: 'trackingNo', width: 160 },
-    { title: '物流公司', dataIndex: 'carrierName', width: 160 },
-    { title: '错误', dataIndex: 'lastPushError', ellipsis: true },
+    { title: '平台状态', dataIndex: 'externalStatus', width: 120 },
+    { title: '收件人', dataIndex: 'receiverName', width: 120 },
+    { title: '国家', dataIndex: 'receiverCountry', width: 100 },
+    { title: 'SKU 行数', dataIndex: 'itemCount', width: 100 },
+    { title: '数量', dataIndex: 'quantity', width: 100 },
+    { title: '最晚时限', dataIndex: 'deadlineAt', width: 180 },
+    { title: '仓提示', dataIndex: 'warehouseHint', width: 180 },
+    { title: '同步时间', dataIndex: 'lastSyncedAt', width: 180 },
   ];
 
-  const handleCreate = async () => {
-    const values = await createForm.validateFields();
-    setSubmitting(true);
+  const handleSync = async () => {
+    if (!selectedAccountId) {
+      message.warning('请先选择具体店铺后再执行同步');
+      return;
+    }
+    const values = await syncForm.validateFields();
+    setSyncing(true);
     try {
-      await saleApi.createFulfillment({
-        channelAccountId: selectedAccountId ? Number(selectedAccountId) : undefined,
-        saleOrderId: Number(values.saleOrderId),
-        dispatchId: values.dispatchId ? Number(values.dispatchId) : undefined,
-        trackingNo: values.trackingNo,
-        carrierCode: values.carrierCode,
-        carrierName: values.carrierName,
-        idempotencyKey: values.idempotencyKey,
+      await saleApi.syncFulfillmentDemands({
+        channelAccountId: Number(selectedAccountId),
+        page: values.page,
+        pageSize: values.pageSize,
       });
-      message.success('履约单创建请求已提交');
-      createForm.resetFields();
+      message.success('待履约单据同步完成');
       await loadData(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('创建履约单失败');
     } finally {
-      setSubmitting(false);
+      setSyncing(false);
     }
   };
 
-  const handlePush = async () => {
-    const values = await pushForm.validateFields();
-    setSubmitting(true);
+  const handleOpenWorkbench = async () => {
+    if (!selectedAccountId) {
+      message.warning('请先选择具体店铺');
+      return;
+    }
+    if (!selectedRowKeys.length) {
+      message.warning('请至少选择一条待履约单据');
+      return;
+    }
     try {
-      await saleApi.pushFulfillment(String(values.fulfillmentId), {
-        trackingNo: values.trackingNo,
-        carrierCode: values.carrierCode,
-        carrierName: values.carrierName,
-        deliveryMethod: values.deliveryMethod,
+      const resolved = await saleApi.resolveFulfillmentWorkbench({
+        channelAccountId: Number(selectedAccountId),
+        demandIds: selectedRowKeys.map((item) => Number(item)),
       });
-      message.success('履约推送请求已提交');
-      pushForm.resetFields();
-      await loadData(selectedAccountId);
+      const query = new URLSearchParams({
+        accountId: selectedAccountId,
+        demandIds: resolved.sourceIds.join(','),
+      });
+      navigate(`${resolved.pageRoute}?${query.toString()}`);
     } catch (error) {
       console.error(error);
-      message.error('履约推送失败');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -132,82 +138,109 @@ const SaleFulfillments = () => {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card>
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            履约与发货
-          </Typography.Title>
-          <Space>
-            <Select
-              style={{ width: 320 }}
-              options={accountOptions}
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              placeholder="选择渠道账号"
-            />
-            <Button onClick={() => void loadData(selectedAccountId)}>刷新</Button>
-          </Space>
+          <div>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              待发货工作台
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              这里聚焦待发货单据、时限、仓提示和发货执行；订单主数据查看与对账请回到“订单 / 备货单”。
+            </Typography.Paragraph>
+          </div>
         </Space>
       </Card>
-      <Card title="创建履约单">
-        <Form form={createForm} layout="inline">
-          <Form.Item label="销售单ID" name="saleOrderId" rules={[{ required: true, message: '必填' }]}>
-            <InputNumber min={1} />
-          </Form.Item>
-          <Form.Item label="Dispatch ID" name="dispatchId">
-            <InputNumber min={1} />
-          </Form.Item>
-          <Form.Item label="运单号" name="trackingNo">
-            <Input />
-          </Form.Item>
-          <Form.Item label="物流编码" name="carrierCode">
-            <Input />
-          </Form.Item>
-          <Form.Item label="物流公司" name="carrierName">
-            <Input />
-          </Form.Item>
-          <Form.Item label="幂等键" name="idempotencyKey">
-            <Input />
-          </Form.Item>
-          <Form.Item>
-            <Popconfirm title="确认创建履约单？" onConfirm={() => void handleCreate()} okText="确认" cancelText="取消">
-              <Button type="primary" loading={submitting}>
-                创建履约单
+      <Row gutter={16}>
+        <Col span={6}>
+          <Card><Statistic title="单据总数" value={stats.total} /></Card>
+        </Col>
+        <Col span={6}>
+          <Card><Statistic title="待发货" value={stats.readyCount} /></Card>
+        </Col>
+        <Col span={6}>
+          <Card><Statistic title="急采" value={stats.urgentCount} /></Card>
+        </Col>
+        <Col span={6}>
+          <Card><Statistic title="已逾期" value={stats.overdueCount} /></Card>
+        </Col>
+      </Row>
+      <Card>
+        <Form form={syncForm} layout="vertical" initialValues={{ page: 1, pageSize: 20 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Space size={16} wrap align="end">
+              <Form.Item label="店铺" style={{ marginBottom: 0 }}>
+                <SaleChannelAccountSelect
+                  accounts={accounts}
+                  allowAll
+                  value={selectedAccountId}
+                  onChange={setSelectedAccountId}
+                  allLabel="全部店铺"
+                  placeholder="筛选店铺"
+                  size={controlSize}
+                  width={320}
+                />
+              </Form.Item>
+              <Form.Item label="页码" name="page" style={{ marginBottom: 0 }}>
+                <InputNumber min={1} size={controlSize} style={{ width: 96, borderRadius: controlBorderRadius }} />
+              </Form.Item>
+              <Form.Item label="每页" name="pageSize" style={{ marginBottom: 0 }}>
+                <InputNumber min={1} max={100} size={controlSize} style={{ width: 108, borderRadius: controlBorderRadius }} />
+              </Form.Item>
+            </Space>
+            <Space size={12} wrap>
+              <Button
+                type="primary"
+                size={controlSize}
+                style={{ borderRadius: controlBorderRadius }}
+                loading={syncing}
+                onClick={() => void handleSync()}
+                disabled={!selectedAccountId || !fullManagedEnabled}
+              >
+                同步待履约单据
               </Button>
-            </Popconfirm>
-          </Form.Item>
-        </Form>
-      </Card>
-      <Card title="推送履约单">
-        <Form form={pushForm} layout="inline">
-          <Form.Item label="履约ID" name="fulfillmentId" rules={[{ required: true, message: '必填' }]}>
-            <InputNumber min={1} />
-          </Form.Item>
-          <Form.Item label="运单号" name="trackingNo">
-            <Input />
-          </Form.Item>
-          <Form.Item label="物流编码" name="carrierCode">
-            <Input />
-          </Form.Item>
-          <Form.Item label="物流公司" name="carrierName">
-            <Input />
-          </Form.Item>
-          <Form.Item label="配送方式" name="deliveryMethod">
-            <InputNumber min={1} max={3} />
-          </Form.Item>
-          <Form.Item>
-            <Popconfirm title="确认推送履约？" onConfirm={() => void handlePush()} okText="确认" cancelText="取消">
-              <Button loading={submitting}>推送履约</Button>
-            </Popconfirm>
-          </Form.Item>
+              <Button
+                size={controlSize}
+                style={{ borderRadius: controlBorderRadius }}
+                onClick={() => void handleOpenWorkbench()}
+                disabled={!selectedAccountId || !fullManagedEnabled || !selectedRowKeys.length}
+              >
+                批量发货
+              </Button>
+              <Button size={controlSize} style={{ borderRadius: controlBorderRadius }} onClick={() => void loadData(selectedAccountId)}>
+                刷新
+              </Button>
+            </Space>
+          </div>
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 12 }}>
+            {!selectedAccountId
+              ? '默认展示全部店铺的待发货数据；同步和发货前请先选择具体店铺。'
+              : !fullManagedEnabled
+                ? '当前仅 Temu 全托店铺开放新发货工作台。'
+                : '选择具体店铺后可执行待发货同步，并对当前筛选结果进入发货处理。'}
+          </Typography.Text>
         </Form>
       </Card>
       <Card>
-        <Table<SaleFulfillmentItem>
+        <Table<SaleFulfillmentDemandItem>
           rowKey="id"
           loading={loading}
           columns={columns}
-          dataSource={fulfillments}
+          dataSource={demands}
           pagination={false}
-          scroll={{ x: 1300 }}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys.map(String)),
+            getCheckboxProps: (record) => ({
+              disabled: record.normalizedStatus !== 'READY_TO_SHIP' || !fullManagedEnabled || !selectedAccountId,
+            }),
+          }}
+          scroll={{ x: 1620 }}
         />
       </Card>
     </Space>

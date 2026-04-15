@@ -132,8 +132,8 @@ export const menuTree: MenuNode[] = [
     label: '销售中心',
     children: [
       { key: '/sale/dashboard', label: <Link to="/sale/dashboard">销售看板</Link> },
-      { key: '/sale/orders', label: <Link to="/sale/orders">销售订单</Link> },
-      { key: '/sale/fulfillments', label: <Link to="/sale/fulfillments">履约与发货</Link> },
+      { key: '/sale/orders', label: <Link to="/sale/orders">订单 / 备货单</Link> },
+      { key: '/sale/fulfillments', label: <Link to="/sale/fulfillments">待发货 / 发货工作台</Link> },
       {
         key: '/sale/channels',
         label: '渠道管理',

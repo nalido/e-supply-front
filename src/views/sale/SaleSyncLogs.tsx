@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Button, Card, Descriptions, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Button, Card, Descriptions, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
+import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
+import { getSaleChannelAccountDisplayName } from '../../components/sale/sale-channel-account-helper';
 import type {
   SaleChannelAccount,
   SaleIdempotencyRecordItem,
@@ -12,16 +14,13 @@ import type {
 const SaleSyncLogs = () => {
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>();
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [syncLogs, setSyncLogs] = useState<SaleSyncLogItem[]>([]);
   const [retryCandidates, setRetryCandidates] = useState<SaleRetryCandidateItem[]>([]);
   const [idempotencyRecords, setIdempotencyRecords] = useState<SaleIdempotencyRecordItem[]>([]);
   const [detailLog, setDetailLog] = useState<SaleSyncLogItem | null>(null);
 
-  const accountOptions = useMemo(
-    () => [{ label: '全部账号', value: '' }, ...accounts.map((item) => ({ label: `${item.accountName} (${item.id})`, value: item.id }))],
-    [accounts],
-  );
+  const accountMap = useMemo(() => new Map(accounts.map((item) => [item.id, item])), [accounts]);
 
   const loadAll = useCallback(async (accountId?: string) => {
     setLoading(true);
@@ -36,7 +35,6 @@ const SaleSyncLogs = () => {
       setIdempotencyRecords(idempotencies);
     } catch (error) {
       console.error(error);
-      message.error('加载同步治理数据失败');
     } finally {
       setLoading(false);
     }
@@ -46,14 +44,10 @@ const SaleSyncLogs = () => {
     try {
       const list = await saleApi.listChannelAccounts();
       setAccounts(list);
-      if (selectedAccountId === undefined) {
-        setSelectedAccountId('');
-      }
     } catch (error) {
       console.error(error);
-      message.error('加载渠道账号失败');
     }
-  }, [selectedAccountId]);
+  }, []);
 
   useEffect(() => {
     void loadAccounts();
@@ -79,6 +73,12 @@ const SaleSyncLogs = () => {
 
   const syncLogColumns: ColumnsType<SaleSyncLogItem> = [
     { title: '日志ID', dataIndex: 'id', width: 90 },
+    {
+      title: '店铺',
+      dataIndex: 'channelAccountId',
+      width: 220,
+      render: (value?: string | null) => getSaleChannelAccountDisplayName(accountMap.get(String(value ?? ''))),
+    },
     { title: '业务类型', dataIndex: 'bizType', width: 160 },
     { title: '请求ID', dataIndex: 'requestId', width: 220 },
     {
@@ -111,6 +111,12 @@ const SaleSyncLogs = () => {
 
   const retryColumns: ColumnsType<SaleRetryCandidateItem> = [
     { title: '来源日志ID', dataIndex: 'syncLogId', width: 100 },
+    {
+      title: '店铺',
+      dataIndex: 'channelAccountId',
+      width: 220,
+      render: (value?: string | null) => getSaleChannelAccountDisplayName(accountMap.get(String(value ?? ''))),
+    },
     { title: '业务类型', dataIndex: 'bizType', width: 170 },
     { title: '请求ID', dataIndex: 'requestId', width: 220 },
     { title: '错误码', dataIndex: 'errorCode', width: 110 },
@@ -142,16 +148,20 @@ const SaleSyncLogs = () => {
           <Typography.Title level={4} style={{ margin: 0 }}>
             同步日志与重试治理
           </Typography.Title>
-          <Space>
-            <Select
-              style={{ width: 320 }}
-              options={accountOptions}
-              value={selectedAccountId}
-              onChange={setSelectedAccountId}
-              placeholder="选择渠道账号"
-            />
-            <Button onClick={() => void loadAll(selectedAccountId)}>刷新</Button>
-          </Space>
+        </Space>
+      </Card>
+      <Card>
+        <Space wrap>
+          <Typography.Text type="secondary">筛选条件</Typography.Text>
+          <SaleChannelAccountSelect
+            accounts={accounts}
+            allowAll
+            value={selectedAccountId}
+            onChange={setSelectedAccountId}
+            allLabel="全部店铺"
+            placeholder="筛选店铺"
+          />
+          <Button onClick={() => void loadAll(selectedAccountId)}>刷新</Button>
         </Space>
       </Card>
       <Card loading={loading}>
@@ -166,7 +176,7 @@ const SaleSyncLogs = () => {
                   columns={syncLogColumns}
                   dataSource={syncLogs}
                   pagination={false}
-                  scroll={{ x: 1420 }}
+                  scroll={{ x: 1640 }}
                   onRow={(record) => ({
                     onClick: () => setDetailLog(record),
                     style: { cursor: 'pointer' },
@@ -183,7 +193,7 @@ const SaleSyncLogs = () => {
                   columns={retryColumns}
                   dataSource={retryCandidates}
                   pagination={false}
-                  scroll={{ x: 1400 }}
+                  scroll={{ x: 1700 }}
                 />
               ),
             },
@@ -215,6 +225,9 @@ const SaleSyncLogs = () => {
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions column={2} size="small" bordered>
               <Descriptions.Item label="日志ID">{detailLog.id}</Descriptions.Item>
+              <Descriptions.Item label="店铺">
+                {getSaleChannelAccountDisplayName(accountMap.get(String(detailLog.channelAccountId ?? '')))}
+              </Descriptions.Item>
               <Descriptions.Item label="账号ID">{detailLog.channelAccountId ?? '--'}</Descriptions.Item>
               <Descriptions.Item label="业务类型">{detailLog.bizType ?? '--'}</Descriptions.Item>
               <Descriptions.Item label="请求ID">{detailLog.requestId ?? '--'}</Descriptions.Item>

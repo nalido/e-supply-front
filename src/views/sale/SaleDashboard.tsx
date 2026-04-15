@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Col, Row, Space, Statistic, Typography, message } from 'antd';
+import { Card, Col, Row, Space, Statistic, Typography } from 'antd';
 import { saleApi } from '../../api/sale';
 
 const SaleDashboard = () => {
@@ -34,7 +34,6 @@ const SaleDashboard = () => {
       });
     } catch (error) {
       console.error(error);
-      message.error('加载销售看板失败');
     } finally {
       setLoading(false);
     }

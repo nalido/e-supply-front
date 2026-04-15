@@ -2,10 +2,10 @@ import { type Key, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import type { ColumnsType } from 'antd/es/table';
 import { Alert, Button, Card, Checkbox, Empty, Image, Modal, Popconfirm, Popover, Select, Space, Spin, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
+import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
 import stylesApi from '../../api/styles';
 import styleDetailApi from '../../api/style-detail';
 import {
-  getSaleSellerTypeLabel,
   type SaleChannelAccount,
   type SaleProductSyncStatus,
   type SaleProductSyncTaskSubmitResponse,
@@ -118,31 +118,6 @@ const MAPPING_STATUS_OPTIONS: Array<{ label: string; value: MappingStatus }> = [
   { label: '停用(DISABLED)', value: 'DISABLED' },
 ];
 
-const getCompactSellerTypeLabel = (sellerType?: string | null) => {
-  if (sellerType === 'FULLY_MANAGED') {
-    return '全托';
-  }
-  if (sellerType === 'SEMI_MANAGED') {
-    return '半托';
-  }
-  return getSaleSellerTypeLabel(sellerType);
-};
-
-const sellerTypeTag = (sellerType?: string | null) => {
-  if (!sellerType) {
-    return null;
-  }
-  const color = sellerType === 'FULLY_MANAGED' ? 'blue' : sellerType === 'SEMI_MANAGED' ? 'green' : 'default';
-  return <Tag color={color}>{getCompactSellerTypeLabel(sellerType)}</Tag>;
-};
-
-const renderAccountOptionLabel = (account: SaleChannelAccount) => (
-  <Space size={8}>
-    <span>{account.accountName || account.shopName || account.shopId || account.id}</span>
-    {sellerTypeTag(account.sellerType)}
-  </Space>
-);
-
 const renderImage = (src?: string, alt?: string) => (
   <Image
     src={src}
@@ -225,31 +200,6 @@ const compareNullableText = (left?: string, right?: string) => {
   return leftValue.localeCompare(rightValue, 'zh-CN');
 };
 
-const resolveSyncErrorMessage = (error: unknown) => {
-  const status = (error as { response?: { status?: number; data?: { message?: string } } })?.response?.status;
-  const messageText =
-    (error as { response?: { data?: { message?: string } } })?.response?.data?.message || '商品同步失败';
-  if (status === 409) {
-    if (messageText.includes('同步进行中')) {
-      return '当前店铺已有同步任务在执行，请稍后再试。';
-    }
-    if (messageText.includes('并发更新')) {
-      return '商品同步时发生并发写入冲突，请稍后重新同步。';
-    }
-    return messageText;
-  }
-  if (status === 502) {
-    return `Temu 商品接口调用失败：${messageText}`;
-  }
-  if (status === 408) {
-    return '商品同步执行时间过长，系统已自动终止本次同步，请稍后重试。';
-  }
-  if (status === 401 || status === 403) {
-    return `店铺授权信息不可用：${messageText}`;
-  }
-  return messageText;
-};
-
 const ACTIVE_SYNC_STATUSES = new Set(['QUEUED', 'RUNNING']);
 
 const formatDateTime = (value?: string | null) => {
@@ -295,15 +245,6 @@ const SaleChannelMappings = () => {
   const selectedAccount = useMemo(
     () => accounts.find((item) => item.id === selectedAccountId),
     [accounts, selectedAccountId],
-  );
-
-  const accountOptions = useMemo(
-    () =>
-      accounts.map((item) => ({
-        label: renderAccountOptionLabel(item),
-        value: item.id,
-      })),
-    [accounts],
   );
 
   const draftsByMappingId = useMemo(() => {
@@ -539,7 +480,6 @@ const SaleChannelMappings = () => {
       setStyleOptions(options);
     } catch (error) {
       console.error(error);
-      message.error('加载本地款式失败');
     } finally {
       if (styleSearchRequestRef.current === requestId) {
         setStyleSearchLoading(false);
@@ -563,7 +503,6 @@ const SaleChannelMappings = () => {
       });
     } catch (error) {
       console.error(error);
-      message.error('加载款式规格失败');
     } finally {
       setStyleDetailLoading(false);
     }
@@ -579,7 +518,6 @@ const SaleChannelMappings = () => {
       setDrafts(list);
     } catch (error) {
       console.error(error);
-      message.error('加载推荐映射失败');
     }
   }, []);
 
@@ -602,7 +540,6 @@ const SaleChannelMappings = () => {
       setDrafts(draftList);
     } catch (error) {
       console.error(error);
-      message.error('加载商品绑定列表失败');
     } finally {
       setLoading(false);
     }
@@ -642,7 +579,6 @@ const SaleChannelMappings = () => {
       }
     } catch (error) {
       console.error(error);
-      message.error('加载渠道账号失败');
     }
   }, [selectedAccountId]);
 
@@ -709,7 +645,6 @@ const SaleChannelMappings = () => {
       await loadSyncStatus(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error(resolveSyncErrorMessage(error));
     } finally {
       setSyncing(false);
     }
@@ -727,7 +662,6 @@ const SaleChannelMappings = () => {
       await loadSyncStatus(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error(resolveSyncErrorMessage(error));
     } finally {
       setSyncCancelling(false);
     }
@@ -748,7 +682,6 @@ const SaleChannelMappings = () => {
       await loadDrafts(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('生成推荐映射失败');
     } finally {
       setDraftGenerating(false);
     }
@@ -836,9 +769,6 @@ const SaleChannelMappings = () => {
       await loadRows(selectedAccountId, mappingStatus);
     } catch (error) {
       console.error(error);
-      const errorMessage =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message || '保存商品映射失败';
-      message.error(errorMessage);
     } finally {
       setMappingSaving(false);
     }
@@ -861,9 +791,6 @@ const SaleChannelMappings = () => {
         await loadRows(selectedAccountId, mappingStatus);
       } catch (error) {
         console.error(error);
-        const errorMessage =
-          (error as { response?: { data?: { message?: string } } })?.response?.data?.message || '解除映射失败';
-        message.error(errorMessage);
       }
     },
     [loadRows, mappingStatus, selectedAccountId],
@@ -884,7 +811,6 @@ const SaleChannelMappings = () => {
       setSelectedRowKeys([]);
     } catch (error) {
       console.error(error);
-      message.error('批量应用推荐映射失败');
     } finally {
       setBatchApplyingDrafts(false);
     }
@@ -898,7 +824,6 @@ const SaleChannelMappings = () => {
       await loadRows(selectedAccountId, mappingStatus);
     } catch (error) {
       console.error(error);
-      message.error('确认映射失败');
     } finally {
       setDraftActionId(undefined);
     }
@@ -912,7 +837,6 @@ const SaleChannelMappings = () => {
       await loadDrafts(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('驳回草稿失败');
     } finally {
       setDraftActionId(undefined);
     }
@@ -1261,9 +1185,8 @@ const SaleChannelMappings = () => {
             商品绑定
           </Typography.Title>
           <Space>
-            <Select
-              style={{ width: 320 }}
-              options={accountOptions}
+            <SaleChannelAccountSelect
+              accounts={accounts}
               value={selectedAccountId}
               onChange={setSelectedAccountId}
               placeholder="选择渠道账号"
@@ -1307,7 +1230,7 @@ const SaleChannelMappings = () => {
             生成推荐映射
           </Button>
         </Space>
-        {shouldShowSyncSubmission ? (
+        {shouldShowSyncSubmission && syncSubmission ? (
           <Alert
             style={{ marginTop: 12 }}
             type="success"

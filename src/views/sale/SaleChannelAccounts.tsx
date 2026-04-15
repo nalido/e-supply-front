@@ -73,7 +73,6 @@ const SaleChannelAccounts = () => {
       setAccounts(list);
     } catch (error) {
       console.error(error);
-      message.error('加载渠道账号失败');
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,6 @@ const SaleChannelAccounts = () => {
             await loadData();
           } catch (error) {
             console.error(error);
-            message.error('删除店铺绑定失败');
           }
         },
       });
@@ -153,7 +151,6 @@ const SaleChannelAccounts = () => {
       })
       .catch((error) => {
         console.error(error);
-        message.error('加载当前凭证失败');
       })
       .finally(() => {
         setCredentialLoading(false);
@@ -266,7 +263,6 @@ const SaleChannelAccounts = () => {
       await loadData();
     } catch (error) {
       console.error(error);
-      message.error(editing ? '更新店铺绑定失败' : '绑定店铺失败');
     } finally {
       setSubmitting(false);
     }

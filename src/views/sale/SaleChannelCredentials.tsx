@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Descriptions, Form, Input, Popconfirm, Select, Space, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
+import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
 import type { SaleChannelAccount, SaleChannelCredential } from '../../types/sale';
 import { publishSaleContextChanged, resolveSaleAccountSelection } from '../../utils/sale-menu-context';
 
@@ -11,11 +12,6 @@ const SaleChannelCredentials = () => {
   const [credential, setCredential] = useState<SaleChannelCredential | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
-
-  const accountOptions = useMemo(
-    () => accounts.map((item) => ({ label: `${item.accountName} (${item.id})`, value: item.id })),
-    [accounts],
-  );
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -35,7 +31,6 @@ const SaleChannelCredentials = () => {
       }
     } catch (error) {
       console.error(error);
-      message.error('加载渠道账号失败');
     }
   }, [selectedAccountId]);
 
@@ -46,7 +41,6 @@ const SaleChannelCredentials = () => {
       setCredential(detail);
     } catch (error) {
       console.error(error);
-      message.error('加载凭证详情失败');
     } finally {
       setDetailLoading(false);
     }
@@ -77,7 +71,6 @@ const SaleChannelCredentials = () => {
       await loadDetail(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('凭证保存失败');
     } finally {
       setSubmitting(false);
     }
@@ -99,7 +92,6 @@ const SaleChannelCredentials = () => {
       await loadDetail(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('Token 检测失败');
     } finally {
       setSubmitting(false);
     }
@@ -117,7 +109,6 @@ const SaleChannelCredentials = () => {
       await loadDetail(selectedAccountId);
     } catch (error) {
       console.error(error);
-      message.error('能力探测失败');
     } finally {
       setSubmitting(false);
     }
@@ -131,14 +122,11 @@ const SaleChannelCredentials = () => {
             渠道凭证
           </Typography.Title>
           <Space>
-            <Select
-              style={{ width: 320 }}
-              placeholder="选择渠道账号"
-              options={accountOptions}
+            <SaleChannelAccountSelect
+              accounts={accounts}
               value={selectedAccountId}
               onChange={setSelectedAccountId}
-              showSearch
-              optionFilterProp="label"
+              placeholder="选择渠道账号"
             />
             <Button onClick={() => selectedAccountId && void loadDetail(selectedAccountId)}>刷新</Button>
           </Space>
