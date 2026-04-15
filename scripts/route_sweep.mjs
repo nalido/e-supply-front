@@ -23,6 +23,7 @@ const includeUnstable = args.get('include-unstable') === 'true';
 const storageStatePath = args.get('storage-state') || '';
 const saveStoragePath = args.get('save-storage') || '';
 const manualLogin = args.get('manual') === 'true';
+const autoLogin = args.get('auto-login') !== 'false';
 const onlyRoutes = (args.get('only') || '')
   .split(',')
   .map((route) => route.trim())
@@ -71,8 +72,11 @@ const context = await browser.newContext(
 );
 
 const adminEmail = process.env.ESUPPLY_ADMIN_EMAIL || '';
+const adminUsername = process.env.ESUPPLY_ADMIN_USERNAME || '';
 const adminPassword = process.env.ESUPPLY_ADMIN_PASSWORD || '';
 let savedLoginSnapshot = false;
+
+const adminIdentifier = adminUsername || adminEmail;
 
 const trySaveLoginSnapshot = async (page) => {
   if (savedLoginSnapshot) {
@@ -89,11 +93,11 @@ const trySaveLoginSnapshot = async (page) => {
 };
 
 const tryClerkLogin = async (page) => {
-  if (!adminEmail || !adminPassword) {
+  if (!adminIdentifier || !adminPassword) {
     return;
   }
   const emailInput = page.locator(
-    'input[type="email"], input[name="identifier"], input[name="emailAddress"]',
+    'input[type="email"], input[type="text"], input[name="identifier"], input[name="emailAddress"], input[autocomplete="username"]',
   );
   const passwordInput = page.locator('input[type="password"]');
   const continueButton = page.getByRole('button', { name: /continue/i });
@@ -101,7 +105,7 @@ const tryClerkLogin = async (page) => {
     'button[type="submit"], button[data-localization-key="formButtonPrimary"], button.cl-formButtonPrimary',
   );
   if ((await emailInput.count()) > 0) {
-    await emailInput.first().fill(adminEmail);
+    await emailInput.first().fill(adminIdentifier);
   }
   if ((await passwordInput.count()) > 0) {
     await passwordInput.first().fill(adminPassword);
@@ -117,10 +121,52 @@ const tryClerkLogin = async (page) => {
   }
 };
 
+const tryAppLogin = async (page) => {
+  if (!adminIdentifier || !adminPassword) {
+    return false;
+  }
+  const loginButton = page.getByRole('button', { name: /登录系统/i });
+  if ((await loginButton.count()) > 0) {
+    await loginButton.first().click({ force: true });
+    await page.waitForTimeout(1000);
+  }
+
+  const identifierInput = page.locator(
+    'input[type="email"], input[type="text"], input[name="identifier"], input[name="emailAddress"], input[autocomplete="username"]',
+  );
+  const passwordInput = page.locator('input[type="password"]');
+  if ((await identifierInput.count()) === 0 || (await passwordInput.count()) === 0) {
+    return false;
+  }
+  await identifierInput.first().fill(adminIdentifier);
+  await passwordInput.first().fill(adminPassword);
+
+  const continueButton = page.getByRole('button', { name: /继续|登录/i });
+  if ((await continueButton.count()) > 0) {
+    await continueButton.first().click({ force: true });
+    return true;
+  }
+  const submitButton = page.locator('button[type="submit"]');
+  if ((await submitButton.count()) > 0) {
+    await submitButton.first().click({ force: true });
+    return true;
+  }
+  return false;
+};
+
+const hasLoggedIn = async (page) => {
+  try {
+    await page.getByText('易供云').first().waitFor({ timeout: 1000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const loginPage = await context.newPage();
 await loginPage.goto(`${baseUrl}/dashboard/workplace`, { waitUntil: 'domcontentloaded' });
 if (!storageStatePath) {
-  console.log('Waiting for login... please complete Clerk sign-in in the opened browser.');
+  console.log('Waiting for login... attempting auto-login first, then falling back to manual if needed.');
   if (manualLogin) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     await rl.question('完成登录后回到终端按 Enter 继续...');
@@ -132,8 +178,17 @@ if (!storageStatePath) {
     for (const page of pages) {
       const url = page.url();
       if (url.startsWith(baseUrl)) {
+        if (autoLogin) {
+          try {
+            await tryAppLogin(page);
+          } catch {
+            // ignore and continue polling
+          }
+        }
         try {
-          await page.getByText('易供云').first().waitFor({ timeout: 1000 });
+          if (!(await hasLoggedIn(page))) {
+            throw new Error('not-logged-in-yet');
+          }
           if (saveStoragePath) {
             await context.storageState({ path: saveStoragePath });
             console.log(`Saved storage state to ${saveStoragePath}`);
@@ -146,7 +201,9 @@ if (!storageStatePath) {
       } else if (url.includes('accounts.dev')) {
         try {
           await trySaveLoginSnapshot(page);
-          await tryClerkLogin(page);
+          if (autoLogin) {
+            await tryClerkLogin(page);
+          }
         } catch {
           // ignore and keep waiting
         }
