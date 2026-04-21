@@ -81,6 +81,152 @@ export type SaleFulfillmentItem = {
   lines?: SaleFulfillmentLine[];
 };
 
+export type SaleFulfillmentDemandItem = {
+  id: string;
+  channelAccountId: string;
+  platformCode: string;
+  sellerType?: string | null;
+  bizDocType: string;
+  bizDocNo: string;
+  parentBizDocNo?: string | null;
+  externalStatus?: string | null;
+  normalizedStatus?: string | null;
+  strategyCode?: string | null;
+  receiverName?: string | null;
+  receiverCountry?: string | null;
+  currencyCode?: string | null;
+  itemCount?: number | null;
+  quantity?: number | null;
+  amount?: string | null;
+  deadlineAt?: string | null;
+  warehouseHint?: string | null;
+  urgent: boolean;
+  goodsSummary?: string | null;
+  linePreview?: SaleFulfillmentDemandLinePreview[] | null;
+  lastSyncedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleFulfillmentDemandLinePreview = {
+  platformSkuId?: string | null;
+  platformSkuCode?: string | null;
+  goodsName?: string | null;
+  specSummary?: string | null;
+  color?: string | null;
+  size?: string | null;
+  quantity?: number | null;
+};
+
+export type SaleFulfillmentDemandLine = {
+  id: string;
+  platformLineNo?: string | null;
+  platformGoodsId?: string | null;
+  platformSkuId?: string | null;
+  platformSkuCode?: string | null;
+  goodsName?: string | null;
+  specSummary?: string | null;
+  color?: string | null;
+  size?: string | null;
+  quantity?: number | null;
+  lineAmount?: string | null;
+};
+
+export type SaleFulfillmentDemandDetail = SaleFulfillmentDemandItem & {
+  lines: SaleFulfillmentDemandLine[];
+};
+
+export type SaleFulfillmentDemandStats = {
+  total: number;
+  readyCount: number;
+  urgentCount: number;
+  overdueCount: number;
+};
+
+export type SaleFulfillmentWorkbenchResolveResult = {
+  strategyCode: string;
+  pageRoute: string;
+  allowBatch: boolean;
+  sourceType: string;
+  title?: string | null;
+  description?: string | null;
+  sourceIds: string[];
+};
+
+export type SaleTemuSellerAddress = {
+  id: string;
+  label: string;
+  provinceName?: string | null;
+  cityName?: string | null;
+  districtName?: string | null;
+  addressDetail?: string | null;
+  isDefault: boolean;
+};
+
+export type SaleTemuReceiveAddressGroup = {
+  subWarehouseId: string;
+  subWarehouseName?: string | null;
+  receiveAddressInfoJson: string;
+};
+
+export type SaleTemuLogisticsVendor = {
+  expressCompanyId: string;
+  expressCompanyName: string;
+};
+
+export type SaleTemuDeliveryAddressTypeOption = {
+  value: number;
+  label: string;
+};
+
+export type SaleTemuPackageDetail = {
+  productSkuId: string;
+  platformSkuCode?: string | null;
+  goodsName?: string | null;
+  quantity?: number | null;
+};
+
+export type SaleTemuPackageInfo = {
+  packageKey: string;
+  packageDetails: SaleTemuPackageDetail[];
+};
+
+export type SaleTemuPackagePlan = {
+  demandId: string;
+  bizDocNo: string;
+  totalQuantity?: number | null;
+  detailItems: SaleTemuPackageDetail[];
+  packageInfos: SaleTemuPackageInfo[];
+};
+
+export type SaleTemuFullyManagedWorkbenchInitResult = {
+  workbenchId: string;
+  strategyCode: string;
+  demands: SaleFulfillmentDemandItem[];
+  packagePlans: SaleTemuPackagePlan[];
+  sellerAddresses: SaleTemuSellerAddress[];
+  receiveAddressGroups: SaleTemuReceiveAddressGroup[];
+  thirdPartyVendors: SaleTemuLogisticsVendor[];
+  deliveryAddressTypeOptions: SaleTemuDeliveryAddressTypeOption[];
+};
+
+export type SaleTemuPrintAsset = {
+  assetType: string;
+  refNo?: string | null;
+  dataKey?: string | null;
+  printUrl?: string | null;
+};
+
+export type SaleTemuFullyManagedWorkbenchSubmitResult = {
+  workbenchId: string;
+  success: boolean;
+  status?: string | null;
+  requestId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  deliveryOrderNos?: string[] | null;
+  printAssets?: SaleTemuPrintAsset[] | null;
+};
+
 export type SaleSyncLogItem = {
   id: string;
   channelAccountId?: string | null;

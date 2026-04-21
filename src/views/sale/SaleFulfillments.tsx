@@ -1,11 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Button, Card, Col, Form, InputNumber, Row, Space, Statistic, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Col, Descriptions, Drawer, Form, InputNumber, Row, Space, Statistic, Table, Tag, Typography, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { saleApi } from '../../api/sale';
 import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
 import { getSaleChannelAccountDisplayName } from '../../components/sale/sale-channel-account-helper';
-import type { SaleChannelAccount, SaleFulfillmentDemandItem, SaleFulfillmentDemandStats } from '../../types/sale';
+import type {
+  SaleChannelAccount,
+  SaleFulfillmentDemandDetail,
+  SaleFulfillmentDemandItem,
+  SaleFulfillmentDemandLine,
+  SaleFulfillmentDemandLinePreview,
+  SaleFulfillmentDemandStats,
+} from '../../types/sale';
+
+const renderLineTagSummary = (line: SaleFulfillmentDemandLinePreview | SaleFulfillmentDemandLine) => {
+  const tags = [line.color, line.size].filter(Boolean);
+  if (tags.length) {
+    return tags.join(' / ');
+  }
+  return line.specSummary || '--';
+};
 
 const SaleFulfillments = () => {
   const controlSize = 'large' as const;
@@ -18,6 +33,9 @@ const SaleFulfillments = () => {
   const [demands, setDemands] = useState<SaleFulfillmentDemandItem[]>([]);
   const [stats, setStats] = useState<SaleFulfillmentDemandStats>({ total: 0, readyCount: 0, urgentCount: 0, overdueCount: 0 });
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<SaleFulfillmentDemandDetail>();
   const [syncForm] = Form.useForm();
 
   const selectedAccount = useMemo(
@@ -65,27 +83,107 @@ const SaleFulfillments = () => {
   }, [selectedAccountId]);
 
   const columns: ColumnsType<SaleFulfillmentDemandItem> = [
-    { title: '备货单号', dataIndex: 'bizDocNo', width: 180 },
     {
-      title: '店铺',
-      dataIndex: 'channelAccountId',
+      title: '备货单',
+      dataIndex: 'bizDocNo',
       width: 220,
-      render: (value: string) => getSaleChannelAccountDisplayName(accountMap.get(String(value))),
+      render: (value, record) => (
+        <Space direction="vertical" size={4}>
+          <Typography.Text strong>{value}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {record.parentBizDocNo ? `母单：${record.parentBizDocNo}` : getSaleChannelAccountDisplayName(accountMap.get(String(record.channelAccountId)))}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '商品与规格',
+      dataIndex: 'linePreview',
+      width: 460,
+      render: (_, record) => (
+        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+          {(record.linePreview ?? []).length ? (
+            (record.linePreview ?? []).map((line, index) => (
+              <div key={`${record.id}-${line.platformSkuId ?? index}`}>
+                <Typography.Text strong>{line.goodsName || '未识别商品名'}</Typography.Text>
+                <Space size={6} wrap style={{ marginLeft: 8 }}>
+                  <Tag>{renderLineTagSummary(line)}</Tag>
+                  <Typography.Text type="secondary">数量 {line.quantity ?? 0}</Typography.Text>
+                  {line.platformSkuCode ? <Typography.Text type="secondary">商家 SKU {line.platformSkuCode}</Typography.Text> : null}
+                </Space>
+              </div>
+            ))
+          ) : (
+            <Typography.Text type="secondary">{record.goodsSummary || '--'}</Typography.Text>
+          )}
+          {record.itemCount && record.itemCount > (record.linePreview?.length ?? 0) ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              另有 {record.itemCount - (record.linePreview?.length ?? 0)} 行未展开
+            </Typography.Text>
+          ) : null}
+        </Space>
+      ),
     },
     {
       title: '状态',
       dataIndex: 'normalizedStatus',
       width: 140,
-      render: (value) => <Tag color={value === 'READY_TO_SHIP' ? 'blue' : value === 'SHIPPED' ? 'green' : 'default'}>{value ?? '--'}</Tag>,
+      render: (value, record) => (
+        <Space size={4} wrap>
+          <Tag color={value === 'READY_TO_SHIP' ? 'blue' : value === 'SHIPPED' ? 'green' : 'default'}>{value ?? '--'}</Tag>
+          {record.urgent ? <Tag color="red">急采</Tag> : null}
+        </Space>
+      ),
     },
     { title: '平台状态', dataIndex: 'externalStatus', width: 120 },
     { title: '收件人', dataIndex: 'receiverName', width: 120 },
     { title: '国家', dataIndex: 'receiverCountry', width: 100 },
     { title: 'SKU 行数', dataIndex: 'itemCount', width: 100 },
     { title: '数量', dataIndex: 'quantity', width: 100 },
-    { title: '最晚时限', dataIndex: 'deadlineAt', width: 180 },
+    { title: '要求发货时限', dataIndex: 'deadlineAt', width: 180 },
     { title: '仓提示', dataIndex: 'warehouseHint', width: 180 },
     { title: '同步时间', dataIndex: 'lastSyncedAt', width: 180 },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 120,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button type="link" onClick={() => void handleOpenDetail(record.id)}>
+          查看明细
+        </Button>
+      ),
+    },
+  ];
+
+  const lineColumns: ColumnsType<SaleFulfillmentDemandLine> = [
+    {
+      title: '商品',
+      dataIndex: 'goodsName',
+      width: 280,
+      render: (value, record) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>{value || '--'}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {record.platformSkuCode ? `商家 SKU：${record.platformSkuCode}` : record.platformSkuId ? `平台 SKU：${record.platformSkuId}` : '--'}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '颜色/尺码',
+      width: 220,
+      render: (_, record) => (
+        <Space size={4} wrap>
+          {record.color ? <Tag color="blue">{record.color}</Tag> : null}
+          {record.size ? <Tag color="purple">{record.size}</Tag> : null}
+          <Typography.Text>{record.specSummary || '--'}</Typography.Text>
+        </Space>
+      ),
+    },
+    { title: '平台 SKU', dataIndex: 'platformSkuId', width: 160 },
+    { title: '数量', dataIndex: 'quantity', width: 100 },
+    { title: '金额', dataIndex: 'lineAmount', width: 120 },
   ];
 
   const handleSync = async () => {
@@ -134,6 +232,20 @@ const SaleFulfillments = () => {
     }
   };
 
+  const handleOpenDetail = async (demandId: string) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const response = await saleApi.getFulfillmentDemandDetail(demandId);
+      setDetail(response);
+    } catch (error) {
+      console.error(error);
+      message.error('加载备货单明细失败');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card>
@@ -143,7 +255,7 @@ const SaleFulfillments = () => {
               待发货工作台
             </Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              这里聚焦待发货单据、时限、仓提示和发货执行；订单主数据查看与对账请回到“订单 / 备货单”。
+              这里聚焦待发货备货单、商品明细、要求发货时限、仓提示和发货执行。
             </Typography.Paragraph>
           </div>
         </Space>
@@ -240,9 +352,42 @@ const SaleFulfillments = () => {
               disabled: record.normalizedStatus !== 'READY_TO_SHIP' || !fullManagedEnabled || !selectedAccountId,
             }),
           }}
-          scroll={{ x: 1620 }}
+          scroll={{ x: 1980 }}
         />
       </Card>
+      <Drawer
+        title={detail ? `备货单明细 · ${detail.bizDocNo}` : '备货单明细'}
+        width={960}
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetail(undefined);
+        }}
+        destroyOnClose
+      >
+        <Card loading={detailLoading} bordered={false}>
+          <Descriptions column={3} size="small">
+            <Descriptions.Item label="备货单号">{detail?.bizDocNo ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="状态">{detail?.normalizedStatus ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="平台状态">{detail?.externalStatus ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="商品概览">{detail?.goodsSummary ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="总数量">{detail?.quantity ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="SKU 行数">{detail?.itemCount ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="要求发货时限">{detail?.deadlineAt ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="仓提示">{detail?.warehouseHint ?? '--'}</Descriptions.Item>
+            <Descriptions.Item label="收件人">{detail?.receiverName ?? '--'}</Descriptions.Item>
+          </Descriptions>
+          <Table<SaleFulfillmentDemandLine>
+            style={{ marginTop: 16 }}
+            rowKey="id"
+            columns={lineColumns}
+            dataSource={detail?.lines ?? []}
+            loading={detailLoading}
+            pagination={false}
+            scroll={{ x: 900 }}
+          />
+        </Card>
+      </Drawer>
     </Space>
   );
 };

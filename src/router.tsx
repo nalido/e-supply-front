@@ -74,6 +74,7 @@ const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
 const SaleDashboard = lazy(() => import('./views/sale/SaleDashboard'));
 const SaleOrders = lazy(() => import('./views/sale/SaleOrders'));
 const SaleFulfillments = lazy(() => import('./views/sale/SaleFulfillments'));
+const TemuFullManagedWorkbench = lazy(() => import('./views/sale/TemuFullManagedWorkbench'));
 const SaleChannelAccounts = lazy(() => import('./views/sale/SaleChannelAccounts'));
 const SaleChannelMappings = lazy(() => import('./views/sale/SaleChannelMappings'));
 const SaleSyncLogs = lazy(() => import('./views/sale/SaleSyncLogs'));
@@ -117,6 +118,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/sale/dashboard' &&
     n.key !== '/sale/orders' &&
     n.key !== '/sale/fulfillments' &&
+    n.key !== '/sale/fulfillment-workbench/temu-full-managed' &&
     n.key !== '/sale/channels/accounts' &&
     n.key !== '/sale/channels/mappings' &&
     n.key !== '/sale/sync-logs' &&
@@ -206,6 +208,7 @@ const router = createBrowserRouter([
       { path: 'sale/dashboard', element: createLazyPageElement(SaleDashboard) },
       { path: 'sale/orders', element: createLazyPageElement(SaleOrders) },
       { path: 'sale/fulfillments', element: createLazyPageElement(SaleFulfillments) },
+      { path: 'sale/fulfillment-workbench/temu-full-managed', element: createLazyPageElement(TemuFullManagedWorkbench) },
       { path: 'sale/channels/accounts', element: createLazyPageElement(SaleChannelAccounts) },
       { path: 'sale/channels/credentials', element: React.createElement(Navigate, { to: '/sale/channels/accounts', replace: true }) },
       { path: 'sale/channels/mappings', element: createLazyPageElement(SaleChannelMappings) },

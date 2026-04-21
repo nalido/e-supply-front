@@ -3,13 +3,19 @@ import { tenantStore } from '../stores/tenant';
 import type {
   SaleChannelAccount,
   SaleChannelCredential,
+  SaleFulfillmentDemandDetail,
+  SaleFulfillmentDemandItem,
+  SaleFulfillmentDemandStats,
   SaleFulfillmentItem,
+  SaleFulfillmentWorkbenchResolveResult,
   SaleIdempotencyRecordItem,
   SaleOrderItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
   SaleRetryCandidateItem,
   SaleSyncLogItem,
+  SaleTemuFullyManagedWorkbenchInitResult,
+  SaleTemuFullyManagedWorkbenchSubmitResult,
 } from '../types/sale';
 
 type BackendListResponse<T> = {
@@ -99,7 +105,7 @@ export const saleApi = {
       accessToken?: string;
       refreshToken?: string;
       status?: string;
-      extraPayload?: Record<string, unknown>;
+      extraPayload?: Record<string, unknown> | string;
     },
   ): Promise<SaleChannelCredential> {
     const tenantId = getTenantIdOrThrow();
@@ -400,6 +406,120 @@ export const saleApi = {
     const response = await http.post<unknown>('/api/v1/sale/orders/sync', payload, {
       params: { tenantId },
     });
+    return response.data;
+  },
+
+  async syncFulfillmentDemands(payload: {
+    channelAccountId: number;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    channelAccountId: string;
+    page: number;
+    pageSize: number;
+    syncedCount: number;
+    createdCount: number;
+    updatedCount: number;
+    requestId?: string | null;
+  }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post('/api/v1/sale/fulfillment-demands/sync', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listFulfillmentDemands(channelAccountId?: string): Promise<SaleFulfillmentDemandItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleFulfillmentDemandItem>>('/api/v1/sale/fulfillment-demands', {
+      params: { tenantId, channelAccountId: channelAccountId || undefined },
+    });
+    return response.data.list ?? [];
+  },
+
+  async getFulfillmentDemandStats(channelAccountId?: string): Promise<SaleFulfillmentDemandStats> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleFulfillmentDemandStats>('/api/v1/sale/fulfillment-demands/stats', {
+      params: { tenantId, channelAccountId: channelAccountId || undefined },
+    });
+    return response.data;
+  },
+
+  async getFulfillmentDemandDetail(demandId: string): Promise<SaleFulfillmentDemandDetail> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleFulfillmentDemandDetail>(`/api/v1/sale/fulfillment-demands/${demandId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async resolveFulfillmentWorkbench(payload: {
+    channelAccountId: number;
+    demandIds: number[];
+  }): Promise<SaleFulfillmentWorkbenchResolveResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleFulfillmentWorkbenchResolveResult>(
+      '/api/v1/sale/fulfillment-workbenches/resolve',
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async initTemuFullyManagedWorkbench(payload: {
+    channelAccountId: number;
+    demandIds: number[];
+  }): Promise<SaleTemuFullyManagedWorkbenchInitResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleTemuFullyManagedWorkbenchInitResult>(
+      '/api/v1/sale/fulfillment-workbenches/temu-full-managed/init',
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async submitTemuFullyManagedWorkbench(
+    workbenchId: string,
+    payload: {
+      sellerAddressId: number;
+      deliveryAddressType: number;
+      trackingNo?: string;
+      carrierCode?: string;
+      carrierName?: string;
+      deliveryMethod: number;
+      predictPackageVolume?: number;
+      predictTotalPackageWeight?: number;
+      totalPackageNum?: number;
+      expressPackageNum?: number;
+      pickupMethod?: number;
+      packagePlans?: Array<{
+        demandId: string;
+        bizDocNo: string;
+        packageInfos: Array<{
+          packageDetails: Array<{
+            productSkuId: string;
+            skuNum: number;
+          }>;
+        }>;
+      }>;
+      selfDeliveryInfo?: Record<string, unknown>;
+      thirdPartyDeliveryInfo?: Record<string, unknown>;
+      thirdPartyExpressDeliveryInfoVO?: Record<string, unknown>;
+    },
+  ): Promise<SaleTemuFullyManagedWorkbenchSubmitResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleTemuFullyManagedWorkbenchSubmitResult>(
+      `/api/v1/sale/fulfillment-workbenches/${workbenchId}/temu-full-managed/submit`,
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
     return response.data;
   },
 
