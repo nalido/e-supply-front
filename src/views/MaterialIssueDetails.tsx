@@ -3,7 +3,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Input, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons';
 import { materialIssueService } from '../api/material-inventory';
-import { useSearchParams } from 'react-router-dom';
+import { pieceworkService } from '../api/piecework';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ListImage from '../components/common/ListImage';
 import type {
   MaterialIssueListParams,
@@ -32,6 +33,7 @@ const formatCurrency = (value?: number): string => {
 
 const MaterialIssueDetails = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [meta, setMeta] = useState<MaterialIssueMeta | null>(null);
   const [materialType, setMaterialType] = useState<MaterialIssueType>('fabric');
   const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '');
@@ -145,6 +147,27 @@ const MaterialIssueDetails = () => {
   const handleExport = () => {
     message.success('已生成导出任务，请在下载中心查看');
   };
+
+  const handleOpenCuttingSheet = useCallback(async (record: MaterialIssueRecord) => {
+    if (!record.workOrderId) {
+      message.warning('当前出库记录未关联裁床单');
+      return;
+    }
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(Number(record.workOrderId));
+      const targetPath = detail.status === 'COMPLETED' ? '/piecework/cutting/done' : '/piecework/cutting/pending';
+      const params = new URLSearchParams();
+      if (detail.orderCode?.trim()) {
+        params.set('keyword', detail.orderCode.trim());
+      }
+      params.set('workOrderId', String(record.workOrderId));
+      params.set('openDetail', '1');
+      navigate(`${targetPath}?${params.toString()}`);
+    } catch (error) {
+      console.error('failed to open cutting sheet detail', error);
+      message.error('打开裁床单失败，请稍后重试');
+    }
+  }, [navigate]);
 
   const columns: ColumnsType<MaterialIssueRecord> = useMemo(
     () => [
@@ -291,6 +314,16 @@ const MaterialIssueDetails = () => {
         render: (value?: string) => value || <Text type="secondary">-</Text>,
       },
       {
+        title: '裁床单',
+        dataIndex: 'workOrderId',
+        width: 140,
+        render: (_value: string | undefined, record) => record.workOrderId ? (
+          <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
+            查看裁床单
+          </Button>
+        ) : <Text type="secondary">-</Text>,
+      },
+      {
         title: '出库类型',
         dataIndex: 'issueType',
         width: 120,
@@ -308,11 +341,13 @@ const MaterialIssueDetails = () => {
       {
         title: '备注',
         dataIndex: 'remark',
+        width: 220,
+        fixed: 'right',
         ellipsis: true,
         render: (value?: string) => value || <Text type="secondary">无备注</Text>,
       },
     ],
-    [page, pageSize],
+    [handleOpenCuttingSheet, page, pageSize],
   );
 
   const tabs = useMemo(() => meta?.tabs ?? [{ value: 'fabric', label: '面料' }], [meta?.tabs]);
@@ -328,7 +363,7 @@ const MaterialIssueDetails = () => {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Space size={12} wrap>
             <Input
-              placeholder="请输入物料/来源订单号/发料订单号"
+              placeholder="请输入物料/来源订单号/发料订单号/备注"
               allowClear
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}

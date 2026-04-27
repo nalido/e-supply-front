@@ -11,6 +11,7 @@ import type {
   ProcurementReceiptSummary,
   StockingReceiptRecord,
   StockingReceiptListResponse,
+  StockingPurchaseOrderDetail,
 } from '../types/stocking-purchase-inbound';
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
@@ -96,6 +97,14 @@ export const stockingPurchaseInboundService = {
     return response.data;
   },
 
+  async getOrderDetail(orderId: string): Promise<StockingPurchaseOrderDetail> {
+    const tenantId = requireTenantId();
+    const response = await http.get<StockingPurchaseOrderDetail>(`/api/v1/procurement/orders/${orderId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async createOrder(payload: StockingPurchaseCreatePayload): Promise<ProcurementOrderSummary> {
     const tenantId = requireTenantId();
     const response = await http.post<BackendProcurementOrderSummary>(
@@ -118,6 +127,30 @@ export const stockingPurchaseInboundService = {
       { params: { tenantId } },
     );
     return adaptOrderSummary(response.data);
+  },
+
+  async updateOrder(orderId: string, payload: StockingPurchaseCreatePayload): Promise<StockingPurchaseOrderDetail> {
+    const tenantId = requireTenantId();
+    const response = await http.post<StockingPurchaseOrderDetail>(
+      `/api/v1/procurement/orders/${orderId}/update`,
+      {
+        type: 'STOCKING',
+        supplierId: Number(payload.supplierId),
+        warehouseId: Number(payload.warehouseId),
+        orderDate: payload.orderDate,
+        expectedArrival: payload.expectedArrival,
+        remarks: payload.remark,
+        lines: payload.lines.map((line) => ({
+          materialId: Number(line.materialId),
+          orderQty: line.quantity,
+          color: line.color,
+          unit: line.unit,
+          unitPrice: line.unitPrice,
+        })),
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
   },
 
   async receive(

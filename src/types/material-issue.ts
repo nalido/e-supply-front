@@ -13,6 +13,7 @@ export type MaterialIssueStatusOption = {
 
 export type MaterialIssueRecord = {
   id: string;
+  workOrderId?: string;
   poNumber: string;
   warehouseName: string;
   materialName: string;

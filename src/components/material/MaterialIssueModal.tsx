@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, Modal, Space, Table, Typography, InputNumber, message } from 'antd';
+import { Alert, Input, Modal, Space, Table, Typography, InputNumber, message } from 'antd';
 import type { MaterialStockListItem, MaterialStockType } from '../../types/material-stock';
 import { materialIssueService } from '../../api/material-inventory';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
@@ -17,11 +17,13 @@ export type MaterialIssueModalProps = {
 
 const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }: MaterialIssueModalProps) => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [remark, setRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setQuantities({});
+      setRemark('');
     }
   }, [open, materials]);
 
@@ -113,6 +115,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
     const payload: MaterialIssueCreatePayload = {
       warehouseId,
       materialType,
+      remark: remark.trim() || undefined,
       lines: rowsWithQuantity.map((item) => ({
         materialId: item.materialId,
         quantity: quantities[item.id],
@@ -166,6 +169,17 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         <Text type="secondary">
           已填写数量的物料：<Text strong>{rowsWithQuantity.length}</Text> 项
         </Text>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Text type="secondary">备注</Text>
+          <Input.TextArea
+            rows={3}
+            maxLength={200}
+            showCount
+            value={remark}
+            onChange={(event) => setRemark(event.target.value)}
+            placeholder="可填写本次领料出库备注"
+          />
+        </Space>
       </Space>
     </Modal>
   );
