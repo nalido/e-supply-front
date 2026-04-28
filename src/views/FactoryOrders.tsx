@@ -44,9 +44,11 @@ import type {
 } from '../types';
 import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
 import { finishedGoodsReceivedService } from '../api/finished-goods';
+import materialApi from '../api/material';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
 import { pieceworkService } from '../api/piecework';
 import { stylesApi } from '../api/styles';
+import styleBomApi from '../api/style-bom';
 import { styleDetailApi } from '../api/style-detail';
 import { partnersApi } from '../api/partners';
 import sampleOrderApi from '../api/sample-order';
@@ -202,6 +204,26 @@ const FactoryOrders = () => {
       });
     });
     return Array.from(optionMap.values()).sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
+  }, []);
+
+  const enrichStyleMaterialsWithImages = useCallback(async (materials: CreateStyleMaterial[]) => {
+    if (!materials.length) {
+      return materials;
+    }
+    const [fabricDataset, accessoryDataset] = await Promise.all([
+      materialApi.list({ page: 1, pageSize: 500, materialType: 'fabric' }).catch(() => ({ list: [], total: 0 })),
+      materialApi.list({ page: 1, pageSize: 500, materialType: 'accessory' }).catch(() => ({ list: [], total: 0 })),
+    ]);
+    const imageById = new Map<string, string>();
+    [...fabricDataset.list, ...accessoryDataset.list].forEach((item) => {
+      if (item.id && item.imageUrl) {
+        imageById.set(String(item.id), item.imageUrl);
+      }
+    });
+    return materials.map((item) => ({
+      ...item,
+      imageUrl: item.imageUrl || imageById.get(String(item.materialId)),
+    }));
   }, []);
 
   const fetchSummary = useCallback(() => {
@@ -425,6 +447,7 @@ const FactoryOrders = () => {
         image: item.image,
         colors: item.colors ?? [],
         sizes: item.sizes ?? [],
+        colorImages: {},
       })));
       setFactoryOptions(factoriesOptions);
       setMerchandiserOptions((sampleMeta?.merchandisers ?? []).map((item) => ({
@@ -643,6 +666,11 @@ const FactoryOrders = () => {
       if (!order?.styleId) {
         throw new Error('当前订单缺少款式信息，无法编辑');
       }
+      const styleId = order.styleId;
+      const [styleDetail, styleMaterials] = await Promise.all([
+        styleDetailApi.fetchDetail(String(styleId)),
+        styleDetailApi.fetchMaterials(String(styleId)),
+      ]);
       const lineGroups = (detail.lines ?? []).filter((line) => Number(line.orderedQty ?? 0) > 0);
       const colors = sortColorValues(lineGroups.map((line) => normalizeSpecLabel(line.color)));
       const sizes = sortSizeValues(lineGroups.map((line) => normalizeSpecLabel(line.size)));
@@ -652,13 +680,29 @@ const FactoryOrders = () => {
         const size = normalizeSpecLabel(line.size);
         nextMatrix[color][size] = normalizeQtyValue(line.orderedQty);
       });
+      setStyleOptions((prev) => {
+        const current = prev.find((item) => item.value === order.styleId);
+        const nextEntry: SelectOption = {
+          value: styleId,
+          label: current?.label ?? `${styleDetail.styleNo} / ${styleDetail.styleName}`,
+          image: current?.image ?? styleDetail.coverImageUrl,
+          colors: styleDetail.colors ?? colors,
+          sizes: styleDetail.sizes ?? sizes,
+          colorImages: styleDetail.colorImages ?? {},
+        };
+        if (current) {
+          return prev.map((item) => (item.value === styleId ? { ...item, ...nextEntry } : item));
+        }
+        return [...prev, nextEntry];
+      });
+      setCreateStyleMaterials(styleMaterials);
       setCreateColors(colors);
       setCreateSizes(sizes);
       setCreateMatrix(nextMatrix);
-      setCreateMatrixSeedStyleId(order.styleId ?? null);
+      setCreateMatrixSeedStyleId(styleId);
       createForm.setFieldsValue({
         orderNo: order.orderNo,
-        styleId: order.styleId,
+        styleId,
         expectedDelivery: order.expectedDelivery ? dayjs(order.expectedDelivery) : undefined,
         factoryId: order.factoryId,
         merchandiserId: order.merchandiserId,
@@ -1235,7 +1279,7 @@ const FactoryOrders = () => {
       try {
         const [detail, materials] = await Promise.all([
           styleDetailApi.fetchDetail(String(styleId)),
-          styleDetailApi.fetchMaterials(String(styleId)),
+          styleBomApi.fetch(String(styleId)).then(enrichStyleMaterialsWithImages),
         ]);
         if (cancelled) {
           return;
@@ -1250,6 +1294,7 @@ const FactoryOrders = () => {
             image: current?.image ?? detail.coverImageUrl,
             colors: detailColors,
             sizes: detailSizes,
+            colorImages: detail.colorImages ?? {},
           };
           if (current) {
             return prev.map((item) => (item.value === styleId ? { ...item, ...nextEntry } : item));
@@ -1290,7 +1335,7 @@ const FactoryOrders = () => {
     let cancelled = false;
     const loadMaterials = async () => {
       try {
-        const materials = await styleDetailApi.fetchMaterials(String(styleId));
+        const materials = await styleBomApi.fetch(String(styleId)).then(enrichStyleMaterialsWithImages);
         if (!cancelled) {
           setCreateStyleMaterials(materials);
         }

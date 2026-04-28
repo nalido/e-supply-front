@@ -31,6 +31,7 @@ import {
   ReloadOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import ListImage from '../components/common/ListImage';
 import type {
   SampleAttachment,
   SampleDevelopmentCostItem,
@@ -253,7 +254,7 @@ const SampleDetail = () => {
       title: '物料图片',
       width: 100,
       render: (src: string | undefined) => (
-        src ? <Image src={src} width={64} height={64} style={{ objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 64, height: 64, background: '#f5f5f5', borderRadius: 8 }} />
+        <ListImage src={src} width={64} height={64} borderRadius={8} background="#f5f5f5" />
       ),
     },
     { dataIndex: 'name', title: '物料名称', width: 160 },

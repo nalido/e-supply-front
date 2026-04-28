@@ -87,7 +87,7 @@ const OrderMaterialRequirementReport = () => {
       fixed: 'left',
       render: (_, record) => (
         <Space align="start" size={12}>
-          <ListImage src={record.imageUrl} alt={record.name} fallback={<Text type="secondary">暂无图片</Text>} />
+          <ListImage src={record.imageUrl} alt={record.name} />
           <Space direction="vertical" size={0}>
             <Text strong>{record.name}</Text>
             <Text type="secondary">{record.materialCategory || '--'}</Text>

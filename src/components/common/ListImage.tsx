@@ -1,5 +1,8 @@
 import type { CSSProperties, ReactNode, SyntheticEvent } from 'react';
-import { Tag } from 'antd';
+import { useState } from 'react';
+import { EyeOutlined } from '@ant-design/icons';
+import { Image, Tag } from 'antd';
+import './ListImage.css';
 
 export type ListImageProps = {
   src?: string | null;
@@ -16,6 +19,7 @@ export type ListImageProps = {
   fallback?: ReactNode;
   fallbackText?: string;
   onImageError?: (event: SyntheticEvent<HTMLImageElement, Event>) => void;
+  enablePreview?: boolean;
 };
 
 const ListImage = ({
@@ -33,7 +37,11 @@ const ListImage = ({
   fallback,
   fallbackText = '暂无图片',
   onImageError,
+  enablePreview = true,
 }: ListImageProps) => {
+  const [hovered, setHovered] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   const resolvedStyle: CSSProperties = {
     borderRadius,
     overflow: 'hidden',
@@ -51,15 +59,46 @@ const ListImage = ({
   }
 
   return (
-    <div className={wrapperClassName} style={resolvedStyle}>
+    <div
+      className={[wrapperClassName, 'list-image'].filter(Boolean).join(' ')}
+      style={resolvedStyle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {src ? (
-        <img
-          src={src}
-          alt={alt || fallbackText}
-          className={imageClassName}
-          style={{ width: '100%', height: '100%', objectFit, display: 'block', ...imageStyle }}
-          onError={onImageError}
-        />
+        <>
+          <img
+            src={src}
+            alt={alt || fallbackText}
+            className={imageClassName}
+            style={{ width: '100%', height: '100%', objectFit, display: 'block', ...imageStyle }}
+            onError={onImageError}
+          />
+          {enablePreview ? (
+            <button
+              type="button"
+              className={`list-image__preview-button${hovered ? ' is-visible' : ''}`}
+              aria-label="查看大图"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setPreviewOpen(true);
+              }}
+            >
+              <EyeOutlined />
+            </button>
+          ) : null}
+          <Image
+            style={{ display: 'none' }}
+            src={src}
+            alt={alt || fallbackText}
+            preview={{
+              visible: previewOpen,
+              src,
+              onVisibleChange: (visible) => setPreviewOpen(visible),
+            }}
+          />
+        </>
       ) : (
         fallback ?? (
           <Tag color="default" bordered={false} style={{ margin: 0 }}>

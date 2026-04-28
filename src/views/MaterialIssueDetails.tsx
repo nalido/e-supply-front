@@ -186,7 +186,6 @@ const MaterialIssueDetails = () => {
           <ListImage
             src={value}
             alt={record.materialName}
-            fallback={<Tag bordered={false}>无图</Tag>}
           />
         ),
       },

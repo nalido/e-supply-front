@@ -82,6 +82,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
   const sizesSet = new Set<string>();
   const colorImages: Record<string, string | undefined> = {};
   let sizeChartImageUrl: string | undefined;
+  let detailImageUrls: string[] = [];
 
   payload.variants?.forEach((variant) => {
     const attrs = variant.attributes ?? {};
@@ -99,6 +100,11 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
       sizeChartImageUrl =
         typeof attrs.sizeChartImageUrl === 'string' ? attrs.sizeChartImageUrl : undefined;
     }
+    if (detailImageUrls.length === 0 && Array.isArray(attrs.detailImageUrls)) {
+      detailImageUrls = attrs.detailImageUrls
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim());
+    }
   });
 
   return {
@@ -110,6 +116,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     designerId: payload.designerId ? String(payload.designerId) : undefined,
     remarks: payload.remarks ?? undefined,
     coverImageUrl: payload.coverImageUrl ?? undefined,
+    detailImageUrls,
     colors: sortColorValues(Array.from(colorsSet)),
     sizes: sortSizeValues(Array.from(sizesSet)),
     colorImages,
@@ -120,7 +127,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
   const colors = sortColorValues(payload.colors);
   const sizes = sortSizeValues(payload.sizes);
-  const { colorImages, sizeChartImageUrl } = payload;
+  const { colorImages, sizeChartImageUrl, detailImageUrls } = payload;
   if (!colors.length || !sizes.length) {
     return [];
   }
@@ -134,6 +141,9 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
       }
       if (sizeChartImageUrl) {
         attributes.sizeChartImageUrl = sizeChartImageUrl;
+      }
+      if (detailImageUrls.length > 0) {
+        attributes.detailImageUrls = detailImageUrls;
       }
       variants.push({
         color,

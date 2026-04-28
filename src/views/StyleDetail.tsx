@@ -122,6 +122,7 @@ const StyleDetail = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [colorImages, setColorImages] = useState<StyleColorImageMap>({});
+  const [detailImages, setDetailImages] = useState<string[]>([]);
   const [detail, setDetail] = useState<StyleDetailData>();
   const [materials, setMaterials] = useState<StyleBomMaterialDraft[]>([]);
   const [isDirty, setIsDirty] = useState(false);
@@ -169,9 +170,11 @@ const StyleDetail = () => {
           setDetail(detailPayload);
           setMaterials(toBomDrafts(materialResult));
           setColorImages(detailPayload.colorImages ?? {});
+          setDetailImages(detailPayload.detailImageUrls ?? []);
         } else {
           setDetail(undefined);
           setColorImages({});
+          setDetailImages([]);
           setMaterials([]);
         }
         formRef.setFieldsValue(buildInitialValues(detailPayload));
@@ -212,6 +215,11 @@ const StyleDetail = () => {
       ...prev,
       [color]: value,
     }));
+    markDirty();
+  }, [markDirty]);
+
+  const handleDetailImagesChange = useCallback((value?: string[]) => {
+    setDetailImages(value ?? []);
     markDirty();
   }, [markDirty]);
 
@@ -320,7 +328,6 @@ const StyleDetail = () => {
                 height={56}
                 borderRadius={8}
                 background="#f5f5f5"
-                fallback={<div className="sample-order-material-placeholder" />}
               />
               <div className="sample-order-material-text">
                 <Text strong className="sample-order-material-name">
@@ -410,6 +417,7 @@ const StyleDetail = () => {
         sizes: values.sizes,
         status: values.status,
         coverImageUrl: values.coverImageUrl,
+        detailImageUrls: detailImages,
         sizeChartImageUrl: values.sizeChartImageUrl,
         colorImages: values.colorImagesEnabled ? colorImages : {},
       };
@@ -431,6 +439,7 @@ const StyleDetail = () => {
       } else {
         message.success('款式资料已创建');
         setDetail(savedDetail);
+        setDetailImages(savedDetail.detailImageUrls ?? detailImages);
       }
       setIsDirty(false);
     } catch (error) {
@@ -451,16 +460,17 @@ const StyleDetail = () => {
     } finally {
       setSaving(false);
     }
-  }, [colorImages, form, isEditing, load, materials, styleId]);
+  }, [colorImages, detailImages, form, isEditing, load, materials, styleId]);
 
   const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
   const overviewStats = useMemo(
     () => [
       { label: '颜色', value: normalizedColors.length || 0 },
       { label: '尺码', value: normalizedSizes.length || 0 },
+      { label: '细节图', value: detailImages.length || 0 },
       { label: 'BOM 物料', value: materials.length || 0 },
     ],
-    [materials.length, normalizedColors.length, normalizedSizes.length],
+    [detailImages.length, materials.length, normalizedColors.length, normalizedSizes.length],
   );
 
   return (
@@ -495,6 +505,15 @@ const StyleDetail = () => {
                 <Form.Item name="sizeChartImageUrl" valuePropName="value" className="style-detail-cover-item">
                   <ImageUploader module="styles" tips="建议尺寸 1200x800px，JPG/PNG" />
                 </Form.Item>
+                <div className="style-detail-gallery-title">细节图</div>
+                <ImageUploader
+                  module="styles"
+                  multiple
+                  maxCount={10}
+                  value={detailImages}
+                  onChange={handleDetailImagesChange}
+                  tips="支持多张细节图上传；点击缩略图可在当前页预览，支持直接删除。"
+                />
               </div>
               <div className="style-detail-info">
                 <Row gutter={[16, 16]}>
@@ -653,7 +672,6 @@ const StyleDetail = () => {
                       height={48}
                       borderRadius={8}
                       background="#f5f5f5"
-                      fallback={<div style={{ width: '100%', height: '100%', borderRadius: 8, background: '#f5f5f5' }} />}
                     />
                     <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
                       <Text strong>{item.name}</Text>
