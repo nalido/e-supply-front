@@ -129,21 +129,11 @@ export const menuTree: MenuNode[] = [
   {
     key: '/sale',
     icon: <ShoppingCartOutlined />,
-    label: '销售中心',
-    children: [
-      { key: '/sale/dashboard', label: <Link to="/sale/dashboard">销售看板</Link> },
-      { key: '/sale/orders', label: <Link to="/sale/orders">订单 / 备货单</Link> },
-      { key: '/sale/fulfillments', label: <Link to="/sale/fulfillments">待发货 / 发货工作台</Link> },
-      {
-        key: '/sale/channels',
-        label: '渠道管理',
-        children: [
-          { key: '/sale/channels/accounts', label: <Link to="/sale/channels/accounts">渠道绑定</Link> },
-          { key: '/sale/channels/mappings', label: <Link to="/sale/channels/mappings">商品映射</Link> },
-        ],
-      },
-      { key: '/sale/sync-logs', label: <Link to="/sale/sync-logs">同步日志</Link> },
-    ],
+    label: (
+      <a href="/sale/workbench" target="_blank" rel="noreferrer">
+        销售中心
+      </a>
+    ),
   },
   {
     key: '/settlement',

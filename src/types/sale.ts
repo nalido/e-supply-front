@@ -46,9 +46,64 @@ export type SaleOrderItem = {
   orderAmount?: string | null;
   payAmount?: string | null;
   receiverName?: string | null;
+  processingStatus?: string | null;
+  processingOwner?: string | null;
+  processingNote?: string | null;
+  processedAt?: string | null;
+  exceptionFlags?: string[] | null;
   platformCreatedAt?: string | null;
   platformUpdatedAt?: string | null;
   updatedAt?: string | null;
+  linePreview?: SaleOrderLine[] | null;
+};
+
+export type SaleOrderLine = {
+  id: string;
+  platformLineNo?: string | null;
+  platformGoodsId?: string | null;
+  platformSkuId?: string | null;
+  platformSkuCode?: string | null;
+  goodsName?: string | null;
+  platformMainImageUrl?: string | null;
+  normalizedColor?: string | null;
+  normalizedSize?: string | null;
+  normalizedSpecSummary?: string | null;
+  quantity?: number | null;
+  unitPrice?: string | null;
+  lineAmount?: string | null;
+  refundStatus?: string | null;
+  styleVariantId?: string | null;
+  mappingStatus?: string | null;
+};
+
+export type SaleOrderDetail = {
+  id: string;
+  channelAccountId: string;
+  platformOrderNo: string;
+  platformParentOrderNo?: string | null;
+  platformOrderStatus?: string | null;
+  normalizedStatus?: string | null;
+  currencyCode?: string | null;
+  orderAmount?: string | null;
+  payAmount?: string | null;
+  shippingFee?: string | null;
+  buyerId?: string | null;
+  receiverName?: string | null;
+  receiverPhone?: string | null;
+  receiverCountry?: string | null;
+  receiverState?: string | null;
+  receiverCity?: string | null;
+  receiverAddress?: string | null;
+  receiverZip?: string | null;
+  processingStatus?: string | null;
+  processingOwner?: string | null;
+  processingNote?: string | null;
+  processedAt?: string | null;
+  exceptionFlags?: string[] | null;
+  platformCreatedAt?: string | null;
+  platformUpdatedAt?: string | null;
+  lastSyncedAt?: string | null;
+  lines: SaleOrderLine[];
 };
 
 export type SaleFulfillmentLine = {
@@ -225,6 +280,26 @@ export type SaleTemuFullyManagedWorkbenchSubmitResult = {
   errorMessage?: string | null;
   deliveryOrderNos?: string[] | null;
   printAssets?: SaleTemuPrintAsset[] | null;
+};
+
+export type SaleInventoryItem = {
+  channelAccountId: string;
+  platformSpuId?: string | null;
+  platformSkcId?: string | null;
+  platformSkuId: string;
+  platformSkuCode?: string | null;
+  goodsName?: string | null;
+  availableSaleDays?: number | null;
+  availableSaleDaysFromInventory?: number | null;
+  lackQuantity?: number | null;
+  lastSevenDaysSaleVolume?: number | null;
+  warehouseInventoryNum?: number | null;
+  waitDeliveryInventoryNum?: number | null;
+  waitReceiveNum?: number | null;
+  unavailableWarehouseInventoryNum?: number | null;
+  styleVariantId?: string | null;
+  mappingStatus?: string | null;
+  rawPayloadJson?: string | null;
 };
 
 export type SaleSyncLogItem = {

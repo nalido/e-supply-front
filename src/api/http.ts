@@ -9,6 +9,7 @@ type RequestConfigWithDataflow = {
   headers?: Record<string, unknown>;
   params?: Record<string, unknown>;
   skipPageNormalization?: boolean;
+  suppressGlobalError?: boolean;
 };
 
 const findTraceIdFromBody = (payload: unknown): string | undefined => {
@@ -146,7 +147,7 @@ http.interceptors.response.use(
       }
     }
 
-    if (status !== 401) {
+    if (status !== 401 && !originalRequest?.suppressGlobalError) {
       const backendMessage = error?.response?.data?.message ?? error.message;
       const traceId = findTraceId(error);
       console.error('API Error:', status, backendMessage, traceId ? `traceId=${traceId}` : '');

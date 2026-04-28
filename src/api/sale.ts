@@ -3,12 +3,14 @@ import { tenantStore } from '../stores/tenant';
 import type {
   SaleChannelAccount,
   SaleChannelCredential,
+  SaleInventoryItem,
   SaleFulfillmentDemandDetail,
   SaleFulfillmentDemandItem,
   SaleFulfillmentDemandStats,
   SaleFulfillmentItem,
   SaleFulfillmentWorkbenchResolveResult,
   SaleIdempotencyRecordItem,
+  SaleOrderDetail,
   SaleOrderItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
@@ -162,10 +164,35 @@ export const saleApi = {
     return response.data.list ?? [];
   },
 
+  async getOrderDetail(orderId: string): Promise<SaleOrderDetail> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleOrderDetail>(`/api/v1/sale/orders/${orderId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async updateOrderProcessing(
+    orderId: string,
+    payload: {
+      processingStatus?: string;
+      processingOwner?: string;
+      processingNote?: string;
+      exceptionFlags?: string[];
+    },
+  ): Promise<SaleOrderDetail> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleOrderDetail>(`/api/v1/sale/orders/${orderId}/processing/update`, payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async syncProducts(payload: {
     channelAccountId: number;
     page?: number;
     pageSize?: number;
+    upsertOnlyUnmapped?: boolean;
   }): Promise<SaleProductSyncTaskSubmitResponse> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleProductSyncTaskSubmitResponse>('/api/v1/sale/products/sync', payload, {
@@ -528,6 +555,19 @@ export const saleApi = {
     const response = await http.get<BackendListResponse<SaleFulfillmentItem>>('/api/v1/sale/fulfillments', {
       params: { tenantId, channelAccountId: channelAccountId || undefined },
     });
+    return response.data.list ?? [];
+  },
+
+  async listInventories(channelAccountId: string, page = 1, pageSize = 100): Promise<SaleInventoryItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleInventoryItem>>(
+      '/api/v1/sale/inventories',
+      {
+        params: { tenantId, channelAccountId, page, pageSize },
+        skipPageNormalization: true,
+        suppressGlobalError: true,
+      } as never,
+    );
     return response.data.list ?? [];
   },
 
