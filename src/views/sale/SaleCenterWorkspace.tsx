@@ -1558,15 +1558,33 @@ const SaleCenterWorkspace = () => {
       </Row>
       <Card className="scw-panel-card">
         <SectionHeading title="问题订单" description="先识别问题商品，再决定处理动作。" />
-        <div className="scw-filter-inline">
-          <Select value={issueStatusFilter} onChange={setIssueStatusFilter} style={{ minWidth: 160 }} options={[{ label: '全部处理状态', value: 'ALL' }, ...processingStatusOptions]} />
-          <Select value={issueCodeFilter} onChange={setIssueCodeFilter} style={{ minWidth: 160 }} options={[{ label: '全部异常标签', value: 'ALL' }, { label: '商品未绑定', value: 'PENDING_BINDING' }, { label: '缺少收件信息', value: 'PENDING_DATA_FIX' }, { label: '待人工确认', value: 'PENDING_CONFIRM' }]} />
-          <Input allowClear value={issueKeyword} onChange={(event) => setIssueKeyword(event.target.value)} placeholder="订单号 / 收件人 / 商品 / SKU" />
-          <Button onClick={() => {
-            setIssueStatusFilter('ALL')
-            setIssueCodeFilter('ALL')
-            setIssueKeyword('')
-          }}
+        <div className="scw-filter-inline scw-filter-inline--issue">
+          <Select
+            className="scw-filter-inline__select"
+            value={issueStatusFilter}
+            onChange={setIssueStatusFilter}
+            options={[{ label: '全部处理状态', value: 'ALL' }, ...processingStatusOptions]}
+          />
+          <Select
+            className="scw-filter-inline__select"
+            value={issueCodeFilter}
+            onChange={setIssueCodeFilter}
+            options={[{ label: '全部异常标签', value: 'ALL' }, { label: '商品未绑定', value: 'PENDING_BINDING' }, { label: '缺少收件信息', value: 'PENDING_DATA_FIX' }, { label: '待人工确认', value: 'PENDING_CONFIRM' }]}
+          />
+          <Input
+            className="scw-filter-inline__search"
+            allowClear
+            value={issueKeyword}
+            onChange={(event) => setIssueKeyword(event.target.value)}
+            placeholder="订单号 / 收件人 / 商品 / SKU"
+          />
+          <Button
+            className="scw-filter-inline__action"
+            onClick={() => {
+              setIssueStatusFilter('ALL')
+              setIssueCodeFilter('ALL')
+              setIssueKeyword('')
+            }}
           >
             重置
           </Button>

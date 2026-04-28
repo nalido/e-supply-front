@@ -314,6 +314,69 @@ body.scw-body {
   align-items: center;
 }
 
+.scw-filter-inline {
+  align-items: stretch;
+}
+
+.scw-filter-inline--issue {
+  display: grid;
+  grid-template-columns: 180px 180px minmax(360px, 520px) auto;
+  justify-content: start;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.scw-filter-inline__select {
+  flex: 0 0 180px;
+  min-width: 180px;
+}
+
+.scw-filter-inline__search {
+  flex: 1 1 320px;
+  min-width: 320px;
+}
+
+.scw-filter-inline__action {
+  flex: 0 0 auto;
+  min-width: 108px;
+}
+
+.scw-filter-inline .ant-select-selector,
+.scw-filter-inline .ant-input,
+.scw-filter-inline .ant-btn {
+  height: 48px !important;
+}
+
+.scw-filter-inline .ant-select-single {
+  height: 48px;
+}
+
+.scw-filter-inline .ant-select-single .ant-select-selector {
+  display: flex;
+  align-items: center;
+}
+
+.scw-filter-inline .ant-input-affix-wrapper {
+  height: 48px;
+  padding-block: 0;
+  padding-inline: 14px;
+  align-items: center;
+  line-height: 48px;
+}
+
+.scw-filter-inline__search.ant-input-affix-wrapper > input.ant-input {
+  flex: 1;
+  height: auto !important;
+  padding-block: 0;
+  line-height: 24px;
+}
+
+.scw-filter-inline__search.ant-input {
+  padding-block: 0;
+  padding-inline: 14px;
+  line-height: 46px;
+}
+
 .scw-binding-candidate {
   margin-top: 12px;
 }
@@ -451,6 +514,17 @@ body.scw-body {
   .scw-issue-card__header,
   .scw-draft-card {
     flex-direction: column;
+  }
+
+  .scw-filter-inline__select,
+  .scw-filter-inline__search,
+  .scw-filter-inline__action {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .scw-filter-inline--issue {
+    grid-template-columns: 1fr;
   }
 }
 
