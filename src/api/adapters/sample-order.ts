@@ -323,6 +323,7 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
 
   return {
     id: String(payload.id),
+    styleId: payload.styleId ? String(payload.styleId) : undefined,
     styleNo: payload.styleNo || '--',
     sampleNo: payload.sampleNo,
     followTemplateId: payload.followTemplateId ? String(payload.followTemplateId) : undefined,

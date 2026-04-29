@@ -65,6 +65,7 @@ import type { SampleFollowProgress } from './sample';
 
 export interface SampleOrderDetail {
   id: string;
+  styleId?: string;
   styleNo: string;
   sampleNo: string;
   followTemplateId?: string;
