@@ -100,33 +100,16 @@ const renderInfoRows = (rows: Array<[string, string]>) => rows
   .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value || '-')}</td></tr>`)
   .join('');
 
-const renderImageGrid = (title: string, images: PrintImageItem[]) => {
-  if (!images.length) {
-    return '';
-  }
-  return `
-    <section class="print-section avoid-break">
-      <h2>${escapeHtml(title)}</h2>
-      <div class="image-grid">
-        ${images.map((image) => `
-          <figure class="image-card">
-            <img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.title)}" />
-            <figcaption>${escapeHtml(image.title)}</figcaption>
-          </figure>
-        `).join('')}
-      </div>
-    </section>
-  `;
-};
+const renderSectionTitle = (title: string) => `<h2>${escapeHtml(title)}</h2>`;
 
 const renderSizeChart = (sizeChartImage?: string) => {
   if (!sizeChartImage) {
     return '';
   }
   return `
-    <section class="print-section avoid-break">
-      <h2>尺寸表</h2>
-      <div class="size-chart-wrap">
+    <section class="section-card compact-card avoid-break full-row-section">
+      ${renderSectionTitle('尺寸表')}
+      <div class="size-chart-wrap compact-wrap">
         <img class="size-chart" src="${escapeHtml(sizeChartImage)}" alt="尺寸表" />
       </div>
     </section>
@@ -156,8 +139,8 @@ const renderQuantityMatrix = (detail: SampleOrderDetail) => {
   const grandTotal = detail.colors.reduce((sum, color) =>
     sum + detail.sizes.reduce((rowTotal, size) => rowTotal + Number(detail.quantityMatrix[color]?.[size] ?? 0), 0), 0);
   return `
-    <section class="print-section avoid-break">
-      <h2>颜色尺码数量表</h2>
+    <section class="section-card compact-card avoid-break full-row-section">
+      ${renderSectionTitle('颜色尺码数量表')}
       <table class="matrix-table">
         <thead>
           <tr>
@@ -184,12 +167,12 @@ const renderMaterialsTable = (title: string, items: PrintMaterialItem[]) => {
     return '';
   }
   return `
-    <section class="print-section avoid-break">
-      <h2>${escapeHtml(title)}</h2>
+    <section class="section-card compact-card avoid-break full-row-section">
+      ${renderSectionTitle(title)}
       <table class="material-table">
         <thead>
           <tr>
-            <th class="image-col">图片</th>
+            <th class="image-col">图</th>
             <th>名称</th>
             <th>编号</th>
             <th>单耗</th>
@@ -221,14 +204,33 @@ const renderProcesses = (processes: SampleProcessItem[]) => {
     return '';
   }
   return `
-    <section class="print-section avoid-break">
-      <h2>工序参考</h2>
+    <section class="section-card compact-card avoid-break full-row-section">
+      ${renderSectionTitle('工序参考')}
       <ol class="process-list">
         ${processes
           .sort((left, right) => left.sequence - right.sequence)
           .map((process) => `<li>${escapeHtml(process.name)}${process.standardTime ? `（${process.standardTime} 分钟）` : ''}</li>`)
           .join('')}
       </ol>
+    </section>
+  `;
+};
+
+const renderGallery = (images: PrintImageItem[]) => {
+  if (!images.length) {
+    return '';
+  }
+  return `
+    <section class="section-card compact-card gallery-section avoid-break full-row-section">
+      ${renderSectionTitle('颜色图 / 细节图')}
+      <div class="image-grid">
+        ${images.map((image) => `
+          <figure class="image-card">
+            <img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.title)}" />
+            <figcaption>${escapeHtml(image.title)}</figcaption>
+          </figure>
+        `).join('')}
+      </div>
     </section>
   `;
 };
@@ -265,127 +267,174 @@ export const buildSamplePrintHtml = ({ detail, styleDetail, styleBom }: SamplePr
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 18mm 12mm;
+        padding: 6mm 6mm 8mm;
         color: #111827;
         font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", sans-serif;
-        font-size: 12px;
-        line-height: 1.5;
+        font-size: 11px;
+        line-height: 1.25;
         background: #fff;
       }
       h1, h2, h3, p { margin: 0; }
-      h1 { font-size: 24px; font-weight: 700; }
-      h2 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+      h1 { font-size: 18px; font-weight: 700; line-height: 1.1; }
+      h2 { font-size: 12px; font-weight: 700; line-height: 1.1; margin-bottom: 4px; }
       .muted { color: #6b7280; }
+      .print-shell { display: flex; flex-direction: column; gap: 6px; }
+      .section-card {
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 6px;
+        background: #fff;
+      }
+      .compact-card { padding: 5px 6px; }
+      .full-row-section { width: 100%; }
       .page-header {
         display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 16px;
-        align-items: start;
-        margin-bottom: 18px;
+        grid-template-columns: minmax(0, 1.45fr) minmax(200px, 0.55fr);
+        gap: 6px;
+        align-items: stretch;
       }
-      .header-text { display: flex; flex-direction: column; gap: 12px; }
+      .header-text {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        padding-bottom: 3px;
+        border-bottom: 1px dashed #d1d5db;
+      }
+      .title-chip {
+        white-space: nowrap;
+        font-size: 9px;
+        color: #374151;
+        background: #f3f4f6;
+        border-radius: 999px;
+        padding: 1px 7px;
+      }
       .meta-table, .matrix-table, .material-table {
         width: 100%;
         border-collapse: collapse;
       }
       .meta-table th, .meta-table td, .matrix-table th, .matrix-table td, .material-table th, .material-table td {
         border: 1px solid #d1d5db;
-        padding: 8px 10px;
-        vertical-align: top;
+        padding: 3px 5px;
+        vertical-align: middle;
       }
       .meta-table th, .matrix-table th, .material-table th {
         background: #f9fafb;
         font-weight: 600;
       }
-      .meta-table th { width: 88px; }
+      .meta-table th { width: 68px; }
+      .image-panel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 220px;
+      }
       .header-image {
         width: 100%;
-        max-height: 320px;
+        height: 100%;
+        max-height: 220px;
         object-fit: contain;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
         background: #fff;
-        padding: 8px;
       }
-      .print-section { margin-top: 18px; }
+      .empty-image {
+        width: 100%;
+        min-height: 220px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
       .image-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 5px;
       }
       .image-card {
         margin: 0;
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
+        border-radius: 6px;
         overflow: hidden;
         background: #fff;
       }
       .image-card img {
         display: block;
         width: 100%;
-        height: 220px;
+        height: 112px;
         object-fit: contain;
         background: #f9fafb;
       }
       .image-card figcaption {
-        padding: 8px 10px;
-        font-size: 11px;
+        padding: 3px 5px;
+        font-size: 9px;
         color: #374151;
         border-top: 1px solid #e5e7eb;
       }
       .size-chart-wrap {
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 12px;
+        border-radius: 6px;
+        padding: 4px;
       }
+      .compact-wrap { padding: 3px; }
       .size-chart {
         width: 100%;
-        max-height: 420px;
+        max-height: 220px;
         object-fit: contain;
       }
-      .image-col { width: 74px; min-width: 74px; text-align: center; }
+      .image-col { width: 52px; min-width: 52px; text-align: center; }
       .material-image {
-        width: 54px;
-        height: 54px;
+        width: 36px;
+        height: 36px;
         object-fit: cover;
-        border-radius: 8px;
+        border-radius: 4px;
         border: 1px solid #e5e7eb;
       }
       .process-list {
         margin: 0;
-        padding-left: 20px;
+        padding-left: 16px;
+        columns: 2;
+        column-gap: 14px;
       }
-      .process-list li + li { margin-top: 4px; }
+      .process-list li {
+        break-inside: avoid;
+        margin-bottom: 2px;
+      }
       .avoid-break { page-break-inside: avoid; break-inside: avoid; }
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: A4 portrait; margin: 6mm; }
       @media print {
         body { padding: 0; }
       }
     </style>
   </head>
   <body>
-    <section class="page-header avoid-break">
-      <div class="header-text">
-        <div>
-          <h1>样板单打印</h1>
-          <p class="muted">版师用打印版：聚焦款式识别、图片、尺寸与关键材料信息</p>
+    <div class="print-shell">
+      <section class="page-header avoid-break section-card">
+        <div class="header-text">
+          <div class="title-row">
+            <h1>样板单打印</h1>
+            <span class="title-chip">${escapeHtml(detail.sampleNo)}</span>
+          </div>
+          <table class="meta-table">
+            <tbody>
+              ${renderInfoRows(infoRows)}
+            </tbody>
+          </table>
         </div>
-        <table class="meta-table">
-          <tbody>
-            ${renderInfoRows(infoRows)}
-          </tbody>
-        </table>
-      </div>
-      <div>
-        ${mainImage ? `<img class="header-image" src="${escapeHtml(mainImage)}" alt="${escapeHtml(detail.styleName)}" />` : '<div class="header-image muted" style="display:flex;align-items:center;justify-content:center;">暂无主图</div>'}
-      </div>
-    </section>
-    ${renderImageGrid('颜色图 / 细节图', galleryImages)}
-    ${renderSizeChart(sizeChartImage)}
-    ${renderQuantityMatrix(detail)}
-    ${renderMaterialsTable('面料清单', fabricMaterials)}
-    ${renderMaterialsTable('辅料 / 包材清单', trimMaterials)}
-    ${renderProcesses(detail.processes)}
+        <div class="image-panel">
+          ${mainImage ? `<img class="header-image" src="${escapeHtml(mainImage)}" alt="${escapeHtml(detail.styleName)}" />` : '<div class="empty-image muted">暂无主图</div>'}
+        </div>
+      </section>
+      ${renderQuantityMatrix(detail)}
+      ${renderSizeChart(sizeChartImage)}
+      ${renderMaterialsTable('面料清单', fabricMaterials)}
+      ${renderMaterialsTable('辅料 / 包材清单', trimMaterials)}
+      ${renderGallery(galleryImages)}
+      ${renderProcesses(detail.processes)}
+    </div>
   </body>
 </html>`;
 };
