@@ -40,6 +40,12 @@ type SelectedMaterialRow = {
   material: MaterialItem;
 };
 
+type MaterialDrawerRow = {
+  rowId: string;
+  material: MaterialItem;
+  color?: string;
+};
+
 export type StockingPurchaseCreateModalProps = {
   open: boolean;
   materialType: MaterialStockType;
@@ -78,6 +84,29 @@ const buildSelectedMaterialRow = (material: MaterialItem): SelectedMaterialRow =
   material,
 });
 
+const hasUnitPriceValue = (unitPrices: Record<string, number | null>, rowId: string) =>
+  Object.prototype.hasOwnProperty.call(unitPrices, rowId);
+
+const getDefaultUnitPrice = (referencePrice?: number) => referencePrice ?? null;
+
+const getDisplayedUnitPrice = (
+  unitPrices: Record<string, number | null>,
+  rowId: string,
+  referencePrice?: number,
+) => (hasUnitPriceValue(unitPrices, rowId) ? unitPrices[rowId] : getDefaultUnitPrice(referencePrice));
+
+const getSubmitUnitPrice = (
+  unitPrices: Record<string, number | null>,
+  rowId: string,
+  referencePrice?: number,
+) => {
+  if (!hasUnitPriceValue(unitPrices, rowId)) {
+    return referencePrice;
+  }
+  const value = unitPrices[rowId];
+  return value == null ? undefined : value;
+};
+
 const StockingPurchaseCreateModal = ({
   open,
   materialType,
@@ -92,7 +121,7 @@ const StockingPurchaseCreateModal = ({
   const [supplierForm] = Form.useForm<SavePartnerPayload>();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterialRow[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
+  const [unitPrices, setUnitPrices] = useState<Record<string, number | null>>({});
   const [selectedColors, setSelectedColors] = useState<Record<string, string | undefined>>({});
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -102,7 +131,7 @@ const StockingPurchaseCreateModal = ({
   const [supplierSubmitting, setSupplierSubmitting] = useState(false);
   const [supplierSearchText, setSupplierSearchText] = useState('');
   const [materialDrawerOpen, setMaterialDrawerOpen] = useState(false);
-  const [materialOptions, setMaterialOptions] = useState<MaterialItem[]>([]);
+  const [materialOptions, setMaterialOptions] = useState<MaterialDrawerRow[]>([]);
   const [materialOptionsPage, setMaterialOptionsPage] = useState(1);
   const [materialOptionsTotal, setMaterialOptionsTotal] = useState(0);
   const [materialDrawerKeyword, setMaterialDrawerKeyword] = useState('');
@@ -161,7 +190,14 @@ const StockingPurchaseCreateModal = ({
         materialType,
         keyword: materialDrawerKeyword ? materialDrawerKeyword.trim() : undefined,
       });
-      setMaterialOptions(response.list);
+      setMaterialOptions(response.list.flatMap((material) => {
+        const colors = material.colors?.length ? material.colors : [undefined];
+        return colors.map((color, index) => ({
+          rowId: `${material.id}::${color ?? `no-color-${index}`}`,
+          material,
+          color,
+        }));
+      }));
       setMaterialOptionsTotal(response.total);
     } catch (error) {
       console.error('failed to load materials', error);
@@ -257,7 +293,7 @@ const StockingPurchaseCreateModal = ({
         const matchedMaterials: SelectedMaterialRow[] = [];
         const nextQuantities: Record<string, number> = {};
         const nextColors: Record<string, string | undefined> = {};
-        const nextUnitPrices: Record<string, number> = {};
+        const nextUnitPrices: Record<string, number | null> = {};
         for (const line of initialOrder.lines) {
           const materialKeyword = line.materialCode || line.materialName;
           if (!materialKeyword) continue;
@@ -268,7 +304,9 @@ const StockingPurchaseCreateModal = ({
           matchedMaterials.push(row);
           nextQuantities[row.rowId] = Number(line.quantity ?? 0);
           nextColors[row.rowId] = line.color;
-          nextUnitPrices[row.rowId] = Number(line.unitPrice ?? matchedMaterial.referencePrice ?? 0);
+          nextUnitPrices[row.rowId] = line.unitPrice == null
+            ? getDefaultUnitPrice(matchedMaterial.referencePrice)
+            : Number(line.unitPrice);
         }
         if (!matchedMaterials.length) return;
         setSelectedMaterials(matchedMaterials);
@@ -352,11 +390,38 @@ const StockingPurchaseCreateModal = ({
   }, []);
 
   const handleUnitPriceChange = useCallback((recordId: string, value: number | null) => {
-    setUnitPrices((prev) => ({ ...prev, [recordId]: value ?? 0 }));
+    setUnitPrices((prev) => ({ ...prev, [recordId]: value }));
   }, []);
 
   const handleColorChange = useCallback((recordId: string, value?: string) => {
     setSelectedColors((prev) => ({ ...prev, [recordId]: value }));
+  }, []);
+
+  const handleDuplicateMaterial = useCallback((record: SelectedMaterialRow) => {
+    const duplicatedRow = buildSelectedMaterialRow(record.material);
+    setSelectedMaterials((prev) => {
+      const currentIndex = prev.findIndex((item) => item.rowId === record.rowId);
+      if (currentIndex < 0) {
+        return [...prev, duplicatedRow];
+      }
+      const next = [...prev];
+      next.splice(currentIndex + 1, 0, duplicatedRow);
+      return next;
+    });
+    setQuantities((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: prev[record.rowId] ?? 0,
+    }));
+    setUnitPrices((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: hasUnitPriceValue(prev, record.rowId)
+        ? prev[record.rowId]
+        : getDefaultUnitPrice(record.material.referencePrice),
+    }));
+    setSelectedColors((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: prev[record.rowId] ?? (record.material.colors?.length === 1 ? record.material.colors[0] : undefined),
+    }));
   }, []);
 
   const handleRemoveMaterial = useCallback((recordId: string) => {
@@ -448,7 +513,7 @@ const StockingPurchaseCreateModal = ({
               min={0}
               precision={2}
               disabled={lockNonRemarkFields}
-              value={unitPrices[record.rowId] ?? record.material.referencePrice ?? 0}
+              value={getDisplayedUnitPrice(unitPrices, record.rowId, record.material.referencePrice)}
               onChange={(val) => handleUnitPriceChange(record.rowId, val)}
               style={{ width: '100%' }}
               placeholder="请输入采购单价"
@@ -460,15 +525,20 @@ const StockingPurchaseCreateModal = ({
         title: '操作',
         dataIndex: 'actions',
         key: 'actions',
-        width: 80,
+        width: 140,
         render: (_value, record) => (
-          <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
-            移除
-          </Button>
+          <Space size={0}>
+            <Button type="link" disabled={lockNonRemarkFields} onClick={() => handleDuplicateMaterial(record)}>
+              复制
+            </Button>
+            <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
+              移除
+            </Button>
+          </Space>
         ),
       },
     ],
-    [handleColorChange, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, lockNonRemarkFields, quantities, selectedColors, unitPrices],
+    [handleColorChange, handleDuplicateMaterial, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, lockNonRemarkFields, quantities, selectedColors, unitPrices],
   );
 
   const handleDrawerSearch = (value: string) => {
@@ -491,31 +561,34 @@ const StockingPurchaseCreateModal = ({
       message.warning('请勾选需要添加的物料');
       return;
     }
-    const selectedRecords = materialOptions.filter((item) => drawerSelectedRowKeys.includes(item.id));
+    const selectedRecords = materialOptions.filter((item) => drawerSelectedRowKeys.includes(item.rowId));
     if (!selectedRecords.length) {
       message.warning('未找到勾选的物料，请刷新后重试');
       return;
     }
-    const rowsToAdd = selectedRecords.map(buildSelectedMaterialRow);
-    setSelectedMaterials((prev) => [...prev, ...rowsToAdd]);
+    const rowsToAdd = selectedRecords.map((item) => ({
+      row: buildSelectedMaterialRow(item.material),
+      color: item.color,
+    }));
+    setSelectedMaterials((prev) => [...prev, ...rowsToAdd.map((item) => item.row)]);
     setQuantities((quantitiesState) => {
       const nextQuantities = { ...quantitiesState };
-      rowsToAdd.forEach((row) => {
+      rowsToAdd.forEach(({ row }) => {
         nextQuantities[row.rowId] = 0;
       });
       return nextQuantities;
     });
     setUnitPrices((unitPriceState) => {
       const nextUnitPrices = { ...unitPriceState };
-      rowsToAdd.forEach((row) => {
-        nextUnitPrices[row.rowId] = row.material.referencePrice ?? 0;
+      rowsToAdd.forEach(({ row }) => {
+        nextUnitPrices[row.rowId] = getDefaultUnitPrice(row.material.referencePrice);
       });
       return nextUnitPrices;
     });
     setSelectedColors((colorState) => {
       const nextColors = { ...colorState };
-      rowsToAdd.forEach((row) => {
-        nextColors[row.rowId] = row.material.colors?.length === 1 ? row.material.colors[0] : undefined;
+      rowsToAdd.forEach(({ row, color }) => {
+        nextColors[row.rowId] = color ?? (row.material.colors?.length === 1 ? row.material.colors[0] : undefined);
       });
       return nextColors;
     });
@@ -568,7 +641,7 @@ const StockingPurchaseCreateModal = ({
             materialId: line.materialId,
             quantity: Number(line.quantity ?? 0),
             unit: line.unit,
-            unitPrice: Number(line.unitPrice ?? 0),
+            unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
             color: line.color,
             materialName: line.materialName,
           }))
@@ -577,7 +650,7 @@ const StockingPurchaseCreateModal = ({
               materialId: item.material.id,
               quantity: quantities[item.rowId] ?? 0,
               unit: item.material.unit,
-              unitPrice: unitPrices[item.rowId] ?? item.material.referencePrice ?? 0,
+              unitPrice: getSubmitUnitPrice(unitPrices, item.rowId, item.material.referencePrice),
               color: selectedColors[item.rowId],
               materialName: item.material.name,
             }))
@@ -589,11 +662,6 @@ const StockingPurchaseCreateModal = ({
         }
         if (!selectedLines.length) {
           message.warning('请为勾选的物料填写采购数量');
-          return;
-        }
-        const missingUnitPriceLine = selectedLines.find((line) => line.unitPrice <= 0);
-        if (missingUnitPriceLine) {
-          message.warning(`请填写物料「${missingUnitPriceLine.materialName ?? missingUnitPriceLine.materialId}」的采购单价`);
           return;
         }
       }
@@ -817,6 +885,13 @@ const StockingPurchaseCreateModal = ({
         width={520}
         open={materialDrawerOpen}
         onClose={() => setMaterialDrawerOpen(false)}
+        styles={{
+          body: {
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          },
+        }}
         footer={
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Button onClick={() => setMaterialDrawerOpen(false)}>取消</Button>
@@ -826,7 +901,7 @@ const StockingPurchaseCreateModal = ({
           </Space>
         }
       >
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space direction="vertical" size={16} style={{ width: '100%', flex: 1, minHeight: 0 }}>
           <SelectSetupHint config={materialSetup} />
           <SearchField
             allowClear
@@ -836,33 +911,34 @@ const StockingPurchaseCreateModal = ({
             onSearch={handleDrawerSearch}
             enterButton="搜索"
           />
-          <Table<MaterialItem>
-            rowKey="id"
+          <div style={{ flex: 1, minHeight: 0 }}>
+          <Table<MaterialDrawerRow>
+            rowKey="rowId"
             dataSource={materialOptions}
             columns={[
               {
                 title: '物料',
-                dataIndex: 'name',
+                dataIndex: ['material', 'name'],
                 key: 'name',
                 render: (value: string, record) => (
                   <Space direction="vertical" size={2}>
                     <Text strong>{value}</Text>
-                    <Text type="secondary">{record.sku}</Text>
+                    <Text type="secondary">{record.material.sku}</Text>
                   </Space>
                 ),
               },
               {
                 title: '单位',
-                dataIndex: 'unit',
+                dataIndex: ['material', 'unit'],
                 key: 'unit',
                 width: 100,
               },
               {
                 title: '颜色',
-                dataIndex: 'colors',
+                dataIndex: 'color',
                 key: 'colors',
                 width: 160,
-                render: (value?: string[]) => (value && value.length ? value.join(' / ') : '-'),
+                render: (value?: string) => value || <Text type="secondary">未维护颜色</Text>,
               },
             ]}
             loading={materialDrawerLoading}
@@ -877,9 +953,10 @@ const StockingPurchaseCreateModal = ({
               selectedRowKeys: drawerSelectedRowKeys,
               onChange: (keys) => setDrawerSelectedRowKeys(keys),
             }}
-            scroll={{ y: 360 }}
+            scroll={{ y: 'calc(100vh - 340px)' }}
             locale={{ emptyText: '请输入关键词后搜索物料档案' }}
           />
+          </div>
         </Space>
       </Drawer>
     </Modal>

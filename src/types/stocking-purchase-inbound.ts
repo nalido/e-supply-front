@@ -80,7 +80,7 @@ export type StockingPurchaseCreateLine = {
   materialId: string;
   quantity: number;
   unit: string;
-  unitPrice: number;
+  unitPrice?: number;
   color?: string;
 };
 
