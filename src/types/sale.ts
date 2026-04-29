@@ -302,6 +302,132 @@ export type SaleInventoryItem = {
   rawPayloadJson?: string | null;
 };
 
+export type SaleSalesMetric = {
+  key: string;
+  label: string;
+  value: number;
+  unit?: string | null;
+  description?: string | null;
+};
+
+export type SaleSalesTrendPoint = {
+  date: string;
+  totalSalesVolume: number;
+  mappedSalesVolume: number;
+  unmappedSalesVolume: number;
+};
+
+export type SaleSalesTopProduct = {
+  styleId: string;
+  styleNo?: string | null;
+  styleName?: string | null;
+  styleImageUrl?: string | null;
+  salesVolume: number;
+  previousSalesVolume: number;
+  shopCount: number;
+  topShopName?: string | null;
+  topShopContributionRate: number;
+  growthRate: number;
+};
+
+export type SaleSalesUnmappedItem = {
+  channelAccountId?: string | null;
+  shopName?: string | null;
+  platformSkuId: string;
+  platformSkuCode?: string | null;
+  platformProductName?: string | null;
+  platformMainImageUrl?: string | null;
+  normalizedColor?: string | null;
+  normalizedSize?: string | null;
+  salesVolume: number;
+  last7DaysVolume: number;
+  last30DaysVolume: number;
+  impactScore: number;
+};
+
+export type SaleSalesOverview = {
+  days: number;
+  metrics: SaleSalesMetric[];
+  trendPoints: SaleSalesTrendPoint[];
+  topGrowthProducts: SaleSalesTopProduct[];
+  topUnmappedItems: SaleSalesUnmappedItem[];
+};
+
+export type SaleSalesProductItem = {
+  styleId: string;
+  styleNo?: string | null;
+  styleName?: string | null;
+  styleImageUrl?: string | null;
+  salesVolume: number;
+  previousSalesVolume: number;
+  growthRate: number;
+  shopCount: number;
+  mappedSkuCount: number;
+  topShopName?: string | null;
+  topShopSalesVolume: number;
+  topShopContributionRate: number;
+  hotVariantSummaries: string[];
+  tags: string[];
+  trendPoints: SaleSalesTrendPoint[];
+};
+
+export type SaleSalesProductList = {
+  list: SaleSalesProductItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type SaleSalesVariantBreakdown = {
+  styleVariantId?: string | null;
+  color?: string | null;
+  size?: string | null;
+  specSummary?: string | null;
+  salesVolume: number;
+  shopCount: number;
+  topShopName?: string | null;
+};
+
+export type SaleSalesShopContribution = {
+  channelAccountId?: string | null;
+  shopName?: string | null;
+  salesVolume: number;
+  contributionRate: number;
+  topVariantSummary?: string | null;
+};
+
+export type SaleSalesSkuDetail = {
+  channelAccountId?: string | null;
+  shopName?: string | null;
+  platformSkuId: string;
+  platformSkuCode?: string | null;
+  platformProductName?: string | null;
+  localVariantSummary?: string | null;
+  salesVolume: number;
+  shopCoverage: number;
+};
+
+export type SaleSalesProductDetail = {
+  days: number;
+  styleId: string;
+  styleNo?: string | null;
+  styleName?: string | null;
+  styleImageUrl?: string | null;
+  salesVolume: number;
+  previousSalesVolume: number;
+  growthRate: number;
+  shopCount: number;
+  topShopName?: string | null;
+  topShopSalesVolume: number;
+  topShopContributionRate: number;
+  trendPoints: SaleSalesTrendPoint[];
+  colorBreakdown: SaleSalesVariantBreakdown[];
+  sizeBreakdown: SaleSalesVariantBreakdown[];
+  variantBreakdown: SaleSalesVariantBreakdown[];
+  shopBreakdown: SaleSalesShopContribution[];
+  skuDetails: SaleSalesSkuDetail[];
+};
+
 export type SaleSyncLogItem = {
   id: string;
   channelAccountId?: string | null;

@@ -132,9 +132,26 @@ async function main() {
       results.push('问题订单页空态正常');
     }
 
-    await verifyRoute(salePage, '/sale/insights/risk', '经营数据总览');
-    await salePage.getByText('风险影响榜').waitFor({ timeout: 10000 });
-    results.push('经营数据总览页可访问并展示风险榜');
+    await verifyRoute(salePage, '/sale/sales-data', '售卖数据');
+    await salePage.getByText('工厂产品列表').waitFor({ timeout: 10000 });
+    const salesCards = salePage.getByTestId('sales-product-card');
+    if (await salesCards.count()) {
+      const firstTitle = (await salesCards.first().textContent()) || '';
+      const keyword = firstTitle.trim().slice(0, 2);
+      if (keyword) {
+        await salePage.getByPlaceholder('搜索款号 / 款名').fill(keyword);
+        await sleep(1200);
+      }
+      await salesCards.first().click();
+      await salePage.getByText('工厂产品销售详情').waitFor({ timeout: 10000 });
+      await salePage.getByRole('tab', { name: '店铺分布' }).click();
+      await salePage.getByRole('tab', { name: '平台 SKU 明细' }).click();
+      await salePage.keyboard.press('Escape');
+      results.push('售卖数据页可访问、可搜索并可下钻工厂产品详情');
+    } else {
+      await salePage.getByText('当前筛选条件下没有工厂产品售卖数据').waitFor({ timeout: 10000 });
+      results.push('售卖数据页空态正常');
+    }
 
     await verifyRoute(salePage, '/sale/shops', '店铺管理');
     await salePage.getByTestId('shop-create-button').click();

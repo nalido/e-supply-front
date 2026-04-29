@@ -326,6 +326,14 @@ body.scw-body {
   margin-bottom: 20px;
 }
 
+.scw-filter-inline--sales {
+  display: grid;
+  grid-template-columns: auto minmax(260px, 1fr) 180px auto;
+  justify-content: start;
+  align-items: center;
+  gap: 12px;
+}
+
 .scw-filter-inline__select {
   flex: 0 0 180px;
   min-width: 180px;
@@ -457,6 +465,73 @@ body.scw-body {
   padding-inline: 10px;
 }
 
+.scw-sales-chart {
+  min-height: 320px;
+  padding: 4px 0 0;
+}
+
+.scw-sales-chart--detail {
+  min-height: 300px;
+}
+
+.scw-sales-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 280px;
+}
+
+.scw-sales-product-card {
+  width: 100%;
+  border: 1px solid #eaecf0;
+  background: #fcfcfd;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  gap: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scw-sales-product-card__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scw-sales-product-card__top,
+.scw-sales-product-card__metrics,
+.scw-sales-product-card__bottom {
+  display: flex;
+  gap: 16px;
+}
+
+.scw-sales-product-card__top {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.scw-sales-product-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.scw-sales-product-card__trend {
+  min-height: 92px;
+  min-width: 280px;
+  max-width: 360px;
+  padding-right: 8px;
+}
+
+.scw-sales-product-card__summary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 .scw-table-shop__avatar {
   background: #fff1eb;
   color: #ff5a1f;
@@ -511,6 +586,7 @@ body.scw-body {
   }
 
   .scw-binding-card,
+  .scw-sales-product-card,
   .scw-issue-card__header,
   .scw-draft-card {
     flex-direction: column;
@@ -525,6 +601,18 @@ body.scw-body {
 
   .scw-filter-inline--issue {
     grid-template-columns: 1fr;
+  }
+
+  .scw-filter-inline--sales {
+    grid-template-columns: 1fr;
+  }
+
+  .scw-sales-product-card__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scw-sales-product-card__bottom {
+    flex-direction: column;
   }
 }
 

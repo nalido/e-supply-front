@@ -43,6 +43,7 @@ import {
 } from '@ant-design/icons'
 import { UserButton } from '@clerk/clerk-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import MonthlyAreaChart from '../../components/charts/MonthlyAreaChart'
 import { saleApi } from '../../api/sale'
 import styleDetailApi from '../../api/style-detail'
 import stylesApi from '../../api/styles'
@@ -50,16 +51,18 @@ import type {
   SaleChannelAccount,
   SaleChannelCredential,
   SaleIdempotencyRecordItem,
-  SaleInventoryItem,
   SaleOrderDetail,
   SaleOrderItem,
   SaleRetryCandidateItem,
+  SaleSalesOverview,
+  SaleSalesProductDetail,
+  SaleSalesProductItem,
   SaleSyncLogItem,
   SaleProductSyncStatus,
 } from '../../types/sale'
 import { getSaleSellerTypeLabel } from '../../types/sale'
 import type { StyleData, StyleDetailData } from '../../types/style'
-import { deriveOrderIssue, getInventoryReadableAccountIds, getInventoryRiskLevel, getShopLabel, isMappedStatus, pickPreferredInventoryAccountId } from './sale-center-helpers'
+import { deriveOrderIssue, getShopLabel, isMappedStatus } from './sale-center-helpers'
 import './sale-workspace.css'
 
 const { Header, Sider, Content } = Layout
@@ -70,7 +73,7 @@ type SectionKey =
   | 'product-sync'
   | 'product-bindings'
   | 'order-issues'
-  | 'risk-overview'
+  | 'sales-data'
   | 'shop-management'
   | 'governance-sync'
 
@@ -105,7 +108,7 @@ const sectionPathMap: Record<SectionKey, string> = {
   'product-sync': '/sale/products/sync',
   'product-bindings': '/sale/products/bindings',
   'order-issues': '/sale/orders/issues',
-  'risk-overview': '/sale/insights/risk',
+  'sales-data': '/sale/sales-data',
   'shop-management': '/sale/shops',
   'governance-sync': '/sale/governance/sync',
 }
@@ -117,7 +120,8 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/products/bindings': 'product-bindings',
   '/sale/orders/issues': 'order-issues',
   '/sale/orders/overview': 'order-issues',
-  '/sale/insights/risk': 'risk-overview',
+  '/sale/insights/risk': 'sales-data',
+  '/sale/sales-data': 'sales-data',
   '/sale/shops': 'shop-management',
   '/sale/governance/sync': 'governance-sync',
 }
@@ -149,7 +153,7 @@ const navItems = [
     key: 'risk-group',
     icon: <DatabaseOutlined />,
     label: '经营数据',
-    children: [{ key: 'risk-overview', label: '经营数据总览' }],
+    children: [{ key: 'sales-data', label: '售卖数据' }],
   },
   {
     key: 'shop-group',
@@ -180,6 +184,18 @@ const syncBizTypeLabels: Record<string, string> = {
   PRODUCT_SYNC: '商品同步',
   ORDER_SYNC: '订单同步',
   INVENTORY_READ: '售卖数据同步',
+}
+
+const salesTrendColorMap: Record<string, string> = {
+  总销量: '#FF6A3D',
+  已映射销量: '#16B364',
+  售出件数: '#FF6A3D',
+}
+
+const salesTrendGradientMap: Record<string, string> = {
+  总销量: 'l(90) 0:#FFD1BF 0.35:#FF8A5B 1:#FFFFFF',
+  已映射销量: 'l(90) 0:#C7F6D5 0.35:#47CD89 1:#FFFFFF',
+  售出件数: 'l(90) 0:#FFD1BF 0.35:#FF8A5B 1:#FFFFFF',
 }
 
 const toneColorMap: Record<'danger' | 'warning' | 'success' | 'info' | 'default', string> = {
@@ -238,6 +254,13 @@ const formatMoney = (value?: string | number | null) => {
     return String(value)
   }
   return `¥${parsed.toFixed(2)}`
+}
+
+const formatPercent = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '--'
+  }
+  return `${(value * 100).toFixed(value >= 0.1 ? 0 : 1)}%`
 }
 
 const normalizeOptionalText = (value?: string | null) => value || undefined
@@ -322,7 +345,6 @@ const SaleCenterWorkspace = () => {
   const [orderDetails, setOrderDetails] = useState<Record<string, SaleOrderDetail>>({})
   const [mappings, setMappings] = useState<ProductMappingRecord[]>([])
   const [drafts, setDrafts] = useState<ProductMappingDraftRecord[]>([])
-  const [inventories, setInventories] = useState<SaleInventoryItem[]>([])
   const [syncStatus, setSyncStatus] = useState<SaleProductSyncStatus | null>(null)
   const [syncLogs, setSyncLogs] = useState<SaleSyncLogItem[]>([])
   const [retryCandidates, setRetryCandidates] = useState<SaleRetryCandidateItem[]>([])
@@ -347,6 +369,20 @@ const SaleCenterWorkspace = () => {
   const [issueKeyword, setIssueKeyword] = useState('')
   const [issuePage, setIssuePage] = useState(1)
   const [issuePageSize, setIssuePageSize] = useState(8)
+  const [salesDays, setSalesDays] = useState<7 | 30 | 90>(30)
+  const [salesKeyword, setSalesKeyword] = useState('')
+  const [salesSortBy, setSalesSortBy] = useState<'SALES_VOLUME' | 'GROWTH' | 'SHOP_COVERAGE'>('SALES_VOLUME')
+  const [salesOverview, setSalesOverview] = useState<SaleSalesOverview | null>(null)
+  const [salesProducts, setSalesProducts] = useState<SaleSalesProductItem[]>([])
+  const [salesProductsTotal, setSalesProductsTotal] = useState(0)
+  const [salesPage, setSalesPage] = useState(1)
+  const [salesPageSize, setSalesPageSize] = useState(10)
+  const [salesLoading, setSalesLoading] = useState(false)
+  const [salesError, setSalesError] = useState<string>()
+  const [salesDrawerStyleId, setSalesDrawerStyleId] = useState<string>()
+  const [salesDetail, setSalesDetail] = useState<SaleSalesProductDetail | null>(null)
+  const [salesDetailLoading, setSalesDetailLoading] = useState(false)
+  const [salesDetailError, setSalesDetailError] = useState<string>()
   const [governanceDrawerId, setGovernanceDrawerId] = useState<string>()
   const [shopDrawerOpen, setShopDrawerOpen] = useState(false)
   const [editingShop, setEditingShop] = useState<SaleChannelAccount | null>(null)
@@ -422,15 +458,6 @@ const SaleCenterWorkspace = () => {
           : Promise.resolve([]),
       ])
 
-      const readableInventoryAccountIds = new Set(getInventoryReadableAccountIds(channelAccounts, logList))
-      const shouldLoadInventories = activeSection === 'workbench' || activeSection === 'risk-overview'
-      const inventoryAccountId = readableInventoryAccountIds.has(preferredAccountId)
-        ? preferredAccountId
-        : pickPreferredInventoryAccountId(channelAccounts, logList)
-      const inventoryList = shouldLoadInventories && inventoryAccountId
-        ? await saleApi.listInventories(inventoryAccountId).catch(() => [])
-        : []
-
       setAccounts(channelAccounts)
       if (productSectionActive && !effectiveSelectedAccountId && preferredAccountId) {
         setSelectedAccountId(preferredAccountId)
@@ -444,7 +471,6 @@ const SaleCenterWorkspace = () => {
       setIdempotencyRecords(idempotencyList)
       setSyncStatus(syncState)
       setDrafts(draftList)
-      setInventories(inventoryList)
     } catch (error) {
       console.error(error)
       setWorkspaceError('销售中心数据加载失败，请刷新重试。')
@@ -489,10 +515,19 @@ const SaleCenterWorkspace = () => {
     setIssuePage(1)
   }, [issueCodeFilter, issueKeyword, issueStatusFilter, selectedAccountId])
 
+  useEffect(() => {
+    setSalesPage(1)
+  }, [salesDays, salesKeyword, salesSortBy])
+
   const workbenchMetrics = useMemo(() => {
     const pendingBindings = mappings.filter((item) => !isMappedStatus(item.mappingStatus)).length
     const issueOrders = orders.filter((item) => deriveOrderIssue(item)).length
-    const highRiskSkus = inventories.filter((item) => getInventoryRiskLevel(item) !== 'default').length
+    const highRiskSkus = new Set(
+      orders
+        .flatMap((item) => item.linePreview || [])
+        .filter((line) => !isMappedStatus(line.mappingStatus))
+        .map((line) => line.platformSkuId || line.platformSkuCode || line.id),
+    ).size
     const blockedTasks = syncLogs.filter((item) => !item.success).length
     return {
       pendingBindings,
@@ -501,7 +536,7 @@ const SaleCenterWorkspace = () => {
       blockedTasks,
       deviationRate: issueOrders ? Number(((issueOrders / Math.max(orders.length, 1)) * 100).toFixed(2)) : 0,
     }
-  }, [inventories, mappings, orders, syncLogs])
+  }, [mappings, orders, syncLogs])
 
   const shopRiskRows = useMemo(() => {
     return accounts
@@ -544,10 +579,10 @@ const SaleCenterWorkspace = () => {
       path: sectionPathMap['order-issues'],
     },
     {
-      title: '高风险 SKU',
+      title: '售卖数据关注款',
       value: workbenchMetrics.highRiskSkus,
-      desc: '处理缺口风险和可售天数过低商品',
-      path: sectionPathMap['risk-overview'],
+      desc: '查看高销量、高增长和未映射销量商品',
+      path: sectionPathMap['sales-data'],
     },
     {
       title: '同步阻塞任务',
@@ -650,50 +685,30 @@ const SaleCenterWorkspace = () => {
     }))
   }, [selectedStyleDetail])
 
-  const riskTopShops = useMemo(() => shopRiskRows.slice(0, 5), [shopRiskRows])
+  const salesMetricMap = useMemo(
+    () => new Map((salesOverview?.metrics || []).map((item) => [item.key, item])),
+    [salesOverview?.metrics],
+  )
 
-  const riskTopSkus = useMemo(() => {
-    return inventories
-      .filter((item) => getInventoryRiskLevel(item) !== 'default')
-      .sort((left, right) => (right.lackQuantity || 0) - (left.lackQuantity || 0))
-      .slice(0, 5)
-  }, [inventories])
-
-  const riskReasonRows = useMemo(() => {
-    const lowCoverageCount = inventories.filter((item) => (item.availableSaleDays ?? 999) <= 7).length
-    const shortageCount = inventories.filter((item) => (item.lackQuantity || 0) > 0).length
-    const pendingConfirmCount = issueOrders.filter((item) => item.issue?.code === 'PENDING_CONFIRM').length
-    return [
-      {
-        reason: '未绑定商品',
-        count: workbenchMetrics.pendingBindings,
-        detail: `待绑定商品 ${formatNumber(workbenchMetrics.pendingBindings)} 个`,
-        tone: 'danger' as const,
-        route: sectionPathMap['product-bindings'],
-      },
-      {
-        reason: '可售天数过低',
-        count: lowCoverageCount,
-        detail: `可售天数低于 7 天商品 ${formatNumber(lowCoverageCount)} 个`,
-        tone: 'warning' as const,
-        route: sectionPathMap['risk-overview'],
-      },
-      {
-        reason: '库存缺口',
-        count: shortageCount,
-        detail: `存在缺口商品 ${formatNumber(shortageCount)} 个`,
-        tone: 'warning' as const,
-        route: sectionPathMap['risk-overview'],
-      },
-      {
-        reason: '订单待人工确认',
-        count: pendingConfirmCount,
-        detail: `待人工确认订单 ${formatNumber(pendingConfirmCount)} 单`,
-        tone: 'default' as const,
-        route: sectionPathMap['order-issues'],
-      },
-    ].sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
-  }, [inventories, issueOrders, workbenchMetrics.pendingBindings])
+  const salesTopGrowthProducts = useMemo(() => salesOverview?.topGrowthProducts || [], [salesOverview?.topGrowthProducts])
+  const salesTopUnmappedItems = useMemo(() => salesOverview?.topUnmappedItems || [], [salesOverview?.topUnmappedItems])
+  const salesOverviewTrendData = useMemo(
+    () =>
+      (salesOverview?.trendPoints || []).flatMap((point) => [
+        { month: point.date.slice(5), count: point.totalSalesVolume || 0, type: '总销量' },
+        { month: point.date.slice(5), count: point.mappedSalesVolume || 0, type: '已映射销量' },
+      ]),
+    [salesOverview?.trendPoints],
+  )
+  const salesDetailTrendData = useMemo(
+    () =>
+      (salesDetail?.trendPoints || []).map((point) => ({
+        month: point.date.slice(5),
+        count: point.totalSalesVolume || 0,
+        type: '售出件数',
+      })),
+    [salesDetail?.trendPoints],
+  )
 
   const loadStyleOptions = useCallback(async (keyword?: string, preferredStyleId?: string) => {
     const requestId = styleSearchRequestRef.current + 1
@@ -794,9 +809,71 @@ const SaleCenterWorkspace = () => {
     navigate(sectionPathMap[section])
   }, [navigate])
 
+  const loadSalesData = useCallback(async () => {
+    setSalesLoading(true)
+    setSalesError(undefined)
+    try {
+      const [overview, productPage] = await Promise.all([
+        saleApi.getSalesOverview(salesDays),
+        saleApi.listSalesProducts({
+          days: salesDays,
+          keyword: salesKeyword.trim() || undefined,
+          sortBy: salesSortBy,
+          page: salesPage,
+          pageSize: salesPageSize,
+        }),
+      ])
+      setSalesOverview(overview)
+      setSalesProducts(productPage.list)
+      setSalesProductsTotal(productPage.total)
+    } catch (error) {
+      console.error(error)
+      setSalesError('售卖数据加载失败，请刷新后重试。')
+      message.error('售卖数据加载失败，请稍后重试。')
+    } finally {
+      setSalesLoading(false)
+    }
+  }, [message, salesDays, salesKeyword, salesPage, salesPageSize, salesSortBy])
+
+  useEffect(() => {
+    if (activeSection !== 'sales-data') {
+      return
+    }
+    void loadSalesData()
+  }, [activeSection, loadSalesData])
+
   const handleRefresh = useCallback(() => {
+    if (activeSection === 'sales-data') {
+      void loadSalesData()
+      return
+    }
     void loadWorkspaceData()
-  }, [loadWorkspaceData])
+  }, [activeSection, loadSalesData, loadWorkspaceData])
+
+  const loadSalesDetail = useCallback(async (styleId: string) => {
+    setSalesDetailLoading(true)
+    setSalesDetailError(undefined)
+    try {
+      const detail = await saleApi.getSalesProductDetail(styleId, salesDays)
+      setSalesDetail(detail)
+    } catch (error) {
+      console.error(error)
+      setSalesDetail(null)
+      setSalesDetailError('工厂产品售卖明细加载失败，请刷新后重试。')
+      message.error('加载工厂产品售卖明细失败。')
+    } finally {
+      setSalesDetailLoading(false)
+    }
+  }, [message, salesDays])
+
+  useEffect(() => {
+    if (!salesDrawerStyleId) {
+      setSalesDetail(null)
+      setSalesDetailError(undefined)
+      return
+    }
+    void loadSalesDetail(salesDrawerStyleId)
+  }, [loadSalesDetail, salesDrawerStyleId])
 
   const handleStartSync = useCallback(async () => {
     if (!selectedAccountId) {
@@ -1302,7 +1379,7 @@ const SaleCenterWorkspace = () => {
                   <StatusChip label="平台图片快照" tone="success" />
                   <StatusChip label="本地映射补齐" tone={productSyncMode === 'UNMAPPED_ONLY' ? 'warning' : 'info'} />
                 </Space>
-                <Text type="secondary">价格、库存等售卖数据在经营数据和风险页独立同步，不在这里单独勾选。</Text>
+                <Text type="secondary">价格、库存等售卖数据在售卖数据页独立汇总展示，不在这里单独勾选。</Text>
               </div>
               <Space>
                 <Button type="primary" icon={<ReloadOutlined />} onClick={handleStartSync} data-testid="product-sync-start">
@@ -1698,137 +1775,346 @@ const SaleCenterWorkspace = () => {
     </Space>
   )
 
-  const renderRiskOverview = () => (
+  const renderSalesData = () => (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="结果偏差率" value={workbenchMetrics.deviationRate} suffix="%" /><Text type="secondary">异常规模持续上升时优先处理结果偏差</Text></Card></Col>
-        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="风险影响订单数" value={workbenchMetrics.issueOrders} /><Text type="secondary">受高风险 SKU 和异常绑定影响的订单</Text></Card></Col>
-        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="高风险 SKU 数" value={workbenchMetrics.highRiskSkus} /><Text type="secondary">可售天数不足或库存缺口商品</Text></Card></Col>
-        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="同步 / 治理阻塞数" value={workbenchMetrics.blockedTasks} /><Text type="secondary">当前仍在阻塞业务结果的同步问题</Text></Card></Col>
+        {[
+          salesMetricMap.get('totalSalesVolume'),
+          salesMetricMap.get('activeStyleCount'),
+          salesMetricMap.get('highGrowthStyleCount'),
+          salesMetricMap.get('unmappedSalesVolume'),
+          salesMetricMap.get('shopCoverageCount'),
+        ].map((metric, index) => (
+          <Col key={metric?.key || `metric-${index}`} xs={24} md={12} xl={metric?.key === 'shopCoverageCount' ? 4 : 5}>
+            <Card className="scw-metric-card">
+              <Statistic title={metric?.label || '--'} value={formatNumber(metric?.value)} suffix={metric?.unit || undefined} />
+              <Text type="secondary">{metric?.description || '当前时间窗口内的售卖表现概览'}</Text>
+            </Card>
+          </Col>
+        ))}
       </Row>
-      <Row gutter={[20, 20]}>
-        <Col xs={24} xl={14}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="风险影响榜" description="默认按受影响订单数排序。" />
-            <Table
-              pagination={false}
-              rowKey={(row) => row.account.id}
-              dataSource={riskTopShops}
-              columns={[
-                { title: '店铺', key: 'shop', render: (_, row) => getShopLabel(row.account) },
-                { title: '风险等级', key: 'risk', render: (_, row) => <StatusChip label={row.topRiskType} tone={row.failedSyncCount ? 'danger' : 'warning'} /> },
-                { title: '影响订单数', dataIndex: 'impactedOrders' },
-                { title: '结果偏差率', key: 'ratio', render: (_, row) => `${formatNumber(row.riskScore)} 分` },
-                { title: '操作', key: 'action', render: (_, row) => <Button type="link" onClick={() => navigate(row.nextRoute)}>去处理</Button> },
-              ]}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} xl={10}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="风险原因榜" description="按影响强度排序，帮助运营快速理解原因。" />
-            <List
-              dataSource={riskReasonRows}
-              renderItem={(item, index) => (
-                <List.Item actions={[<Button key="action" type="link" onClick={() => navigate(item.route)}>去处理</Button>]}>
-                  <List.Item.Meta title={`${index + 1}. ${item.reason}`} description={item.detail} />
-                  <StatusChip label={item.reason} tone={item.tone} />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-      </Row>
-      <Row gutter={[20, 20]}>
-        <Col xs={24} xl={8}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="未绑定高销量" description="销量高但未完成映射的商品，优先处理。" />
-            <List
-              dataSource={selectedBindings.filter((item) => !isMappedStatus(item.mappingStatus)).slice(0, 5)}
-              renderItem={(item) => (
-                <List.Item actions={[<Button type="link" key="go" onClick={() => setBindingDrawerId(item.id)}>去绑定</Button>]}>
-                  <List.Item.Meta
-                    avatar={<ProductThumb src={item.platformMainImageUrl || item.styleImageUrl} name={item.platformProductName} size={48} />}
-                    title={item.platformProductName || item.platformSkuCode || item.platformSkuId}
-                    description={`SKU：${item.platformSkuCode || item.platformSkuId}`}
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} xl={8}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="可售天数过低" description="可售天数低于 7 天的风险商品。" />
-            <List
-              dataSource={riskTopSkus}
-              renderItem={(item) => (
-                <List.Item actions={[<Button type="link" key="go" onClick={() => handleSectionNavigate('risk-overview')}>补货建议</Button>]}>
-                  <List.Item.Meta
-                    avatar={<ProductThumb name={item.goodsName} size={48} />}
-                    title={item.goodsName || item.platformSkuCode || item.platformSkuId}
-                    description={`可售天数：${item.availableSaleDays ?? '--'}　缺口：${formatNumber(item.lackQuantity)}`}
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} xl={8}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="缺口风险" description="优先解决无法覆盖在途的缺口问题。" />
-            <List
-              dataSource={inventories.filter((item) => (item.lackQuantity || 0) > 0).slice(0, 5)}
-              renderItem={(item) => (
-                <List.Item actions={[<Button type="link" key="go" onClick={() => handleSectionNavigate('risk-overview')}>补货建议</Button>]}>
-                  <List.Item.Meta
-                    avatar={<ProductThumb name={item.goodsName} size={48} />}
-                    title={item.goodsName || item.platformSkuCode || item.platformSkuId}
-                    description={`库存缺口：${formatNumber(item.lackQuantity)}　预计影响订单：${formatNumber(item.lastSevenDaysSaleVolume)}`}
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-      </Row>
-      <Row gutter={[20, 20]}>
-        <Col xs={24} xl={16}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="趋势分析" description="近一段时间的风险走势，用于判断是否持续恶化。" />
-            <div className="scw-trend-chart">
-              {[
-                { label: '超期偏差率', value: workbenchMetrics.deviationRate },
-                { label: '风险影响订单数', value: workbenchMetrics.issueOrders },
-                { label: '高风险 SKU 数', value: workbenchMetrics.highRiskSkus },
-                { label: '缺口风险金额', value: inventories.reduce((sum, item) => sum + (item.lackQuantity || 0), 0) },
-              ].map((item) => (
-                <div key={item.label} className="scw-trend-chart__row">
-                  <Text>{item.label}</Text>
-                  <Progress percent={Math.min(100, Number(item.value) || 0)} showInfo={false} strokeColor="#FF5A1F" />
+      <Card className="scw-panel-card">
+        <SectionHeading title="售卖数据" description="按本地工厂产品汇总所有店铺的售卖情况与增长趋势。" />
+        <div className="scw-filter-inline scw-filter-inline--sales">
+          <Radio.Group
+            value={salesDays}
+            onChange={(event) => setSalesDays(event.target.value)}
+            optionType="button"
+            buttonStyle="solid"
+            options={[
+              { label: '近7天', value: 7 },
+              { label: '近30天', value: 30 },
+              { label: '近90天', value: 90 },
+            ]}
+          />
+          <Input
+            className="scw-filter-inline__search"
+            allowClear
+            value={salesKeyword}
+            onChange={(event) => setSalesKeyword(event.target.value)}
+            placeholder="搜索款号 / 款名"
+          />
+          <Select
+            className="scw-filter-inline__select"
+            value={salesSortBy}
+            onChange={setSalesSortBy}
+            options={[
+              { label: '按销量排序', value: 'SALES_VOLUME' },
+              { label: '按增速排序', value: 'GROWTH' },
+              { label: '按覆盖店铺排序', value: 'SHOP_COVERAGE' },
+            ]}
+          />
+          <Button className="scw-filter-inline__action" onClick={() => {
+            setSalesDays(30)
+            setSalesKeyword('')
+            setSalesSortBy('SALES_VOLUME')
+          }}>
+            重置
+          </Button>
+        </div>
+      </Card>
+      {salesError ? <Alert type="error" showIcon message={salesError} /> : null}
+      <Spin spinning={salesLoading}>
+        <Row gutter={[20, 20]}>
+          <Col xs={24} xl={16}>
+            <Card className="scw-panel-card">
+              <SectionHeading title="销量趋势" description={`近 ${salesDays} 天全部店铺汇总销量走势`} />
+              <div className="scw-sales-chart">
+                <MonthlyAreaChart
+                  data={salesOverviewTrendData}
+                  height={300}
+                  getColor={(type) => salesTrendColorMap[type] || '#FF6A3D'}
+                  getGradient={(type) => salesTrendGradientMap[type] || 'l(90) 0:#FFD1BF 0.35:#FF8A5B 1:#FFFFFF'}
+                  valueFormatter={(value) => `${Math.round(value)} 件`}
+                  tooltipValueFormatter={(value) => `${Math.round(value)} 件`}
+                  seriesLabelFormatter={(type) => type}
+                  xLabelFormatter={(label) => label}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} xl={8}>
+            <Card className="scw-panel-card">
+              <SectionHeading title="未映射销量" description="有销量但尚未映射到本地工厂款的商品，优先处理。" />
+              <List
+                dataSource={salesTopUnmappedItems}
+                locale={{ emptyText: '当前时间窗口内没有未映射销量' }}
+                renderItem={(item) => (
+                  <List.Item actions={[<Button type="link" key="go" onClick={() => handleSectionNavigate('product-bindings')}>去绑定</Button>]}>
+                    <List.Item.Meta
+                      avatar={<ProductThumb src={item.platformMainImageUrl} name={item.platformProductName} size={48} />}
+                      title={item.platformProductName || item.platformSkuCode || item.platformSkuId}
+                      description={`${item.shopName || '--'}　${item.normalizedColor || '--'} / ${item.normalizedSize || '--'}　窗口销量 ${formatNumber(item.salesVolume)}　近7天 ${formatNumber(item.last7DaysVolume)}　影响分 ${formatNumber(item.impactScore)}`}
+                    />
+                  </List.Item>
+                )}
+              />
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={[20, 20]}>
+          <Col xs={24} xl={8}>
+            <Card className="scw-panel-card">
+              <SectionHeading title="高增长工厂款" description="与上一周期对比增长最快的工厂产品。" />
+              <List
+                dataSource={salesTopGrowthProducts}
+                locale={{ emptyText: '当前时间窗口内暂无高增长工厂款' }}
+                renderItem={(item) => (
+                  <List.Item actions={[<Button type="link" key="go" onClick={() => setSalesDrawerStyleId(item.styleId)}>查看明细</Button>]}>
+                    <List.Item.Meta
+                      avatar={<ProductThumb src={item.styleImageUrl} name={item.styleName} size={48} />}
+                      title={`${item.styleNo || '--'} / ${item.styleName || '--'}`}
+                      description={`销量 ${formatNumber(item.salesVolume)}　增速 ${formatPercent(item.growthRate)}　Top店铺 ${item.topShopName || '--'}`}
+                    />
+                  </List.Item>
+                )}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} xl={16}>
+            <Card className="scw-panel-card">
+              <SectionHeading title="工厂产品列表" description="先看工厂产品卖了多少，再下钻查看颜色尺码和店铺分布。" extra={<Text type="secondary">共 {formatNumber(salesProductsTotal)} 款</Text>} />
+              <div className="scw-sales-product-list">
+                {salesProducts.map((item) => (
+                  <button
+                    type="button"
+                    key={item.styleId}
+                    className="scw-sales-product-card"
+                    onClick={() => setSalesDrawerStyleId(item.styleId)}
+                    data-testid="sales-product-card"
+                  >
+                    <ProductThumb src={item.styleImageUrl} name={item.styleName} size={72} />
+                    <div className="scw-sales-product-card__content">
+                      <div className="scw-sales-product-card__top">
+                        <div>
+                          <Title level={5}>{item.styleNo || '--'} / {item.styleName || '--'}</Title>
+                          <Text type="secondary">已映射平台 SKU：{formatNumber(item.mappedSkuCount)}　覆盖店铺：{formatNumber(item.shopCount)}</Text>
+                        </div>
+                        <Space wrap>
+                          {item.tags.map((tag) => (
+                            <StatusChip key={tag} label={tag} tone={tag === '高增长' ? 'success' : 'warning'} />
+                          ))}
+                        </Space>
+                      </div>
+                      <div className="scw-sales-product-card__metrics">
+                        <div>
+                          <Text type="secondary">当前销量</Text>
+                          <Title level={3}>{formatNumber(item.salesVolume)}</Title>
+                        </div>
+                        <div>
+                          <Text type="secondary">上一周期</Text>
+                          <Title level={5}>{formatNumber(item.previousSalesVolume)}</Title>
+                        </div>
+                        <div>
+                          <Text type="secondary">增长</Text>
+                          <Title level={5}>{formatPercent(item.growthRate)}</Title>
+                        </div>
+                        <div>
+                          <Text type="secondary">Top店铺</Text>
+                          <Title level={5}>{item.topShopName || '--'}</Title>
+                          <Text type="secondary">{formatPercent(item.topShopContributionRate)} 贡献</Text>
+                        </div>
+                      </div>
+                      <div className="scw-sales-product-card__bottom">
+                        <div className="scw-sales-product-card__trend">
+                          <MonthlyAreaChart
+                            data={item.trendPoints.map((point) => ({
+                              month: point.date.slice(5),
+                              count: point.totalSalesVolume || 0,
+                              type: '售出件数',
+                            }))}
+                            height={84}
+                            getColor={(type) => salesTrendColorMap[type] || '#FF6A3D'}
+                            getGradient={(type) => salesTrendGradientMap[type] || 'l(90) 0:#FFD1BF 0.35:#FF8A5B 1:#FFFFFF'}
+                            valueFormatter={(value) => `${Math.round(value)}`}
+                            tooltipValueFormatter={(value) => `${Math.round(value)} 件`}
+                            seriesLabelFormatter={(type) => type}
+                            xLabelFormatter={(label) => label}
+                          />
+                        </div>
+                        <div className="scw-sales-product-card__summary">
+                          <Text type="secondary">热销规格：{item.hotVariantSummaries.length ? item.hotVariantSummaries.join('；') : '--'}</Text>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+                {!salesProducts.length ? <Empty description="当前筛选条件下没有工厂产品售卖数据" /> : null}
+              </div>
+              <div className="scw-pagination-bar">
+                <Pagination
+                  current={salesPage}
+                  pageSize={salesPageSize}
+                  total={salesProductsTotal}
+                  showSizeChanger
+                  onChange={(page, pageSize) => {
+                    setSalesPage(page)
+                    setSalesPageSize(pageSize)
+                  }}
+                />
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      </Spin>
+      <Drawer
+        open={Boolean(salesDrawerStyleId)}
+        onClose={() => setSalesDrawerStyleId(undefined)}
+        width={620}
+        title="工厂产品销售详情"
+        className="scw-drawer"
+      >
+        <Spin spinning={salesDetailLoading}>
+          {salesDetailError ? (
+            <Alert type="error" showIcon message={salesDetailError} />
+          ) : salesDetail ? (
+            <Space direction="vertical" size={20} style={{ width: '100%' }}>
+              <div className="scw-drawer-product">
+                <ProductThumb src={salesDetail.styleImageUrl} name={salesDetail.styleName} size={92} />
+                <div>
+                  <Title level={4}>{salesDetail.styleNo || '--'} / {salesDetail.styleName || '--'}</Title>
+                  <Paragraph type="secondary">
+                    当前销量：{formatNumber(salesDetail.salesVolume)}　上一周期：{formatNumber(salesDetail.previousSalesVolume)}
+                    <br />
+                    覆盖店铺：{formatNumber(salesDetail.shopCount)}　Top 店铺：{salesDetail.topShopName || '--'}（{formatPercent(salesDetail.topShopContributionRate)}）
+                  </Paragraph>
                 </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} xl={8}>
-          <Card className="scw-panel-card">
-            <SectionHeading title="推荐操作" description="结合风险榜和原因榜，给出当前优先动作。" />
-            <List
-              dataSource={[
-                `处理未绑定高销量商品 ${formatNumber(bindingSummary.unmapped)} 个`,
-                `补货可售天数过低商品 ${formatNumber(riskTopSkus.length)} 个`,
-                `处理缺口风险商品 ${formatNumber(inventories.filter((item) => (item.lackQuantity || 0) > 0).length)} 个`,
-              ]}
-              renderItem={(item, index) => (
-                <List.Item actions={[<Button type="primary" key="go" onClick={() => index === 0 ? handleSectionNavigate('product-bindings') : handleSectionNavigate('risk-overview')}>去处理</Button>]}>
-                  <List.Item.Meta title={`${index + 1}. ${item}`} />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-      </Row>
+              </div>
+              <Tabs
+                items={[
+                  {
+                    key: 'trend',
+                    label: '销量趋势',
+                    children: (
+                      <div className="scw-sales-chart scw-sales-chart--detail">
+                        <MonthlyAreaChart
+                          data={salesDetailTrendData}
+                          height={280}
+                          getColor={(type) => salesTrendColorMap[type] || '#FF6A3D'}
+                          getGradient={(type) => salesTrendGradientMap[type] || 'l(90) 0:#FFD1BF 0.35:#FF8A5B 1:#FFFFFF'}
+                          valueFormatter={(value) => `${Math.round(value)} 件`}
+                          tooltipValueFormatter={(value) => `${Math.round(value)} 件`}
+                          seriesLabelFormatter={(type) => type}
+                          xLabelFormatter={(label) => label}
+                        />
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'variant',
+                    label: '颜色 / 尺码结构',
+                    children: (
+                      <Row gutter={[16, 16]}>
+                        <Col span={12}>
+                          <Card size="small" title="颜色排行">
+                            <List
+                              dataSource={salesDetail.colorBreakdown}
+                              renderItem={(item) => (
+                                <List.Item>
+                                  <List.Item.Meta title={item.color || '--'} description={`销量 ${formatNumber(item.salesVolume)}　Top店铺 ${item.topShopName || '--'}`} />
+                                </List.Item>
+                              )}
+                            />
+                          </Card>
+                        </Col>
+                        <Col span={12}>
+                          <Card size="small" title="尺码排行">
+                            <List
+                              dataSource={salesDetail.sizeBreakdown}
+                              renderItem={(item) => (
+                                <List.Item>
+                                  <List.Item.Meta title={item.size || '--'} description={`销量 ${formatNumber(item.salesVolume)}　Top店铺 ${item.topShopName || '--'}`} />
+                                </List.Item>
+                              )}
+                            />
+                          </Card>
+                        </Col>
+                        <Col span={24}>
+                          <Card size="small" title="规格矩阵">
+                            <Table
+                              rowKey={(row) => `${row.styleVariantId || 'variant'}-${row.specSummary || ''}`}
+                              pagination={false}
+                              dataSource={salesDetail.variantBreakdown}
+                              columns={[
+                                { title: '颜色', dataIndex: 'color' },
+                                { title: '尺码', dataIndex: 'size' },
+                                { title: '规格摘要', dataIndex: 'specSummary' },
+                                { title: '销量', dataIndex: 'salesVolume', render: (value) => formatNumber(value) },
+                                { title: '覆盖店铺', dataIndex: 'shopCount', render: (value) => formatNumber(value) },
+                                { title: 'Top 店铺', dataIndex: 'topShopName' },
+                              ]}
+                            />
+                          </Card>
+                        </Col>
+                      </Row>
+                    ),
+                  },
+                  {
+                    key: 'shops',
+                    label: '店铺分布',
+                    children: (
+                      <Table
+                        rowKey={(row) => `${row.channelAccountId || row.shopName}`}
+                        pagination={false}
+                        dataSource={salesDetail.shopBreakdown}
+                        columns={[
+                          { title: '店铺', dataIndex: 'shopName' },
+                          { title: '销量', dataIndex: 'salesVolume', render: (value) => formatNumber(value) },
+                          { title: '贡献占比', dataIndex: 'contributionRate', render: (value) => formatPercent(value) },
+                          { title: '主卖规格', dataIndex: 'topVariantSummary' },
+                        ]}
+                      />
+                    ),
+                  },
+                  {
+                    key: 'sku',
+                    label: '平台 SKU 明细',
+                    children: (
+                      <Table
+                        rowKey={(row) => `${row.channelAccountId || 'shop'}-${row.platformSkuId}`}
+                        pagination={false}
+                        dataSource={salesDetail.skuDetails}
+                        columns={[
+                          { title: 'Top 店铺', dataIndex: 'shopName' },
+                          { title: '平台 SKU', key: 'sku', render: (_, row) => row.platformSkuCode || row.platformSkuId },
+                          { title: '商品名', dataIndex: 'platformProductName' },
+                          { title: '本地规格', dataIndex: 'localVariantSummary' },
+                          { title: '销量', dataIndex: 'salesVolume', render: (value) => formatNumber(value) },
+                          { title: '覆盖店铺', dataIndex: 'shopCoverage', render: (value) => formatNumber(value) },
+                        ]}
+                      />
+                    ),
+                  },
+                ]}
+              />
+              <Space>
+                <Button onClick={() => handleSectionNavigate('product-bindings')}>去商品绑定</Button>
+                <Button onClick={() => handleSectionNavigate('order-issues')}>查看问题订单</Button>
+              </Space>
+            </Space>
+          ) : null}
+        </Spin>
+      </Drawer>
     </Space>
   )
 
@@ -2079,8 +2365,8 @@ const SaleCenterWorkspace = () => {
         return renderProductBindings()
       case 'order-issues':
         return renderOrderIssues()
-      case 'risk-overview':
-        return renderRiskOverview()
+      case 'sales-data':
+        return renderSalesData()
       case 'shop-management':
         return renderShopManagement()
       case 'governance-sync':
@@ -2093,7 +2379,7 @@ const SaleCenterWorkspace = () => {
   const openKeys = useMemo(() => {
     if (activeSection.startsWith('product')) return ['product-group']
     if (activeSection.startsWith('order')) return ['order-group']
-    if (activeSection.startsWith('risk')) return ['risk-group']
+    if (activeSection.startsWith('sales')) return ['risk-group']
     if (activeSection.startsWith('shop')) return ['shop-group']
     if (activeSection.startsWith('governance')) return ['governance-group']
     return []
@@ -2141,10 +2427,10 @@ const SaleCenterWorkspace = () => {
                   ? '商品同步'
                   : activeSection === 'product-bindings'
                     ? '商品绑定'
-                    : activeSection === 'order-issues'
-                      ? '问题订单'
-                      : activeSection === 'risk-overview'
-                        ? '经营数据总览'
+                      : activeSection === 'order-issues'
+                        ? '问题订单'
+                      : activeSection === 'sales-data'
+                        ? '售卖数据'
                         : activeSection === 'shop-management'
                           ? '店铺管理'
                           : '同步任务与日志'}
@@ -2158,8 +2444,8 @@ const SaleCenterWorkspace = () => {
                     ? '将平台 SKU 与本地款式规格准确映射。'
                     : activeSection === 'order-issues'
                       ? '聚焦需要人工处理的异常订单。'
-                      : activeSection === 'risk-overview'
-                        ? '从风险影响和推荐动作两个角度看经营数据。'
+                      : activeSection === 'sales-data'
+                        ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
                         : activeSection === 'shop-management'
                           ? '管理销售渠道店铺名册、接入信息与健康状态。'
                           : '排查同步失败、不可重试和幂等冲突。'}
@@ -2175,7 +2461,7 @@ const SaleCenterWorkspace = () => {
                 onChange={handleAccountChange}
               />
             ) : null}
-            <Button icon={<ReloadOutlined />} loading={refreshing} onClick={handleRefresh}>
+            <Button icon={<ReloadOutlined />} loading={activeSection === 'sales-data' ? salesLoading : refreshing} onClick={handleRefresh}>
               刷新
             </Button>
             <AlertOutlined className="scw-topbar__icon" />

@@ -15,6 +15,9 @@ import type {
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
   SaleRetryCandidateItem,
+  SaleSalesOverview,
+  SaleSalesProductDetail,
+  SaleSalesProductList,
   SaleSyncLogItem,
   SaleTemuFullyManagedWorkbenchInitResult,
   SaleTemuFullyManagedWorkbenchSubmitResult,
@@ -569,6 +572,36 @@ export const saleApi = {
       } as never,
     );
     return response.data.list ?? [];
+  },
+
+  async getSalesOverview(days = 30): Promise<SaleSalesOverview> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleSalesOverview>('/api/v1/sale/sales-data/overview', {
+      params: { tenantId, days },
+    });
+    return response.data;
+  },
+
+  async listSalesProducts(params?: {
+    days?: number;
+    keyword?: string;
+    sortBy?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<SaleSalesProductList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleSalesProductList>('/api/v1/sale/sales-data/products', {
+      params: { tenantId, ...params },
+    });
+    return response.data;
+  },
+
+  async getSalesProductDetail(styleId: string, days = 30): Promise<SaleSalesProductDetail> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleSalesProductDetail>(`/api/v1/sale/sales-data/products/${styleId}`, {
+      params: { tenantId, days },
+    });
+    return response.data;
   },
 
   async createFulfillment(payload: {
