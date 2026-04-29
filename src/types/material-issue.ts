@@ -98,3 +98,11 @@ export type MaterialIssueStatusUpdateResult = {
   success: boolean;
   affectedCount: number;
 };
+
+export type MaterialIssueLineUpdatePayload = {
+  quantity: number;
+};
+
+export type MaterialIssueLineDeletePayload = {
+  lineIds: string[];
+};

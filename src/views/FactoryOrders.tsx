@@ -939,7 +939,10 @@ const FactoryOrders = () => {
           outsourcingOrderId: allocation.outsourcingOrderId,
           factoryId: allocation.subcontractorId,
           unitPrice: allocation.unitPrice,
-          deletable: allocation.deletable ?? (stageKey === 'cutting' && allocation.source !== CUTTING_SHEET_START_SOURCE),
+          deletable:
+            allocation.deletable
+            ?? ((stageKey === 'cutting' && allocation.source !== CUTTING_SHEET_START_SOURCE)
+              || stageKey === 'sewing'),
           deleteBlockedReason: allocation.deleteBlockedReason,
           totalQty,
           itemSummary: allocation.items.map((item) => `${item.color}/${item.size}:${item.quantity}`).join('；'),
@@ -1625,38 +1628,61 @@ const FactoryOrders = () => {
     triggerReload,
   ]);
 
-  const handleDeleteCuttingRecord = useCallback((record: AllocationHistoryRow) => {
-    if (!progressActionModal.order || !progressActionModal.stage || progressActionModal.stage.key !== 'cutting') {
+  const handleDeleteAllocationRecord = useCallback((record: AllocationHistoryRow) => {
+    if (!progressActionModal.order || !progressActionModal.stage) {
       return;
     }
     if (!record.completedAt) {
-      message.warning('该条裁剪记录缺少录入时间，暂时无法删除');
+      message.warning(progressActionModal.stage.key === 'cutting' ? '该条裁剪记录缺少录入时间，暂时无法删除' : '该条车缝领取记录缺少领取时间，暂时无法删除');
       return;
     }
     if (record.deletable === false) {
-      message.warning(record.deleteBlockedReason || '该条裁剪记录不允许删除');
+      message.warning(record.deleteBlockedReason || (progressActionModal.stage.key === 'cutting' ? '该条裁剪记录不允许删除' : '该条车缝领取记录不允许删除'));
       return;
     }
-    Modal.confirm({
-      title: '确认删除该条裁剪数据？',
-      content: `床次：${record.bedNumber ?? '-'}；录入时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
-      okText: '删除',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      onOk: async () => {
-        await factoryOrdersApi.deleteCuttingRecord(progressActionModal.order!.orderId, {
-          bedId: record.bedId,
-          bedNumber: record.bedNumber,
-          source: record.source,
-          workOrderId: record.workOrderId,
-          completedAt: record.completedAt!,
-          items: record.items,
-        });
-        message.success('裁剪数据已删除');
-        await loadProgressStats(progressActionModal.order!.orderId, 'cutting');
-        triggerReload();
-      },
-    });
+    if (progressActionModal.stage.key === 'cutting') {
+      Modal.confirm({
+        title: '确认删除该条裁剪数据？',
+        content: `床次：${record.bedNumber ?? '-'}；录入时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
+        okText: '删除',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: async () => {
+          await factoryOrdersApi.deleteCuttingRecord(progressActionModal.order!.orderId, {
+            bedId: record.bedId,
+            bedNumber: record.bedNumber,
+            source: record.source,
+            workOrderId: record.workOrderId,
+            completedAt: record.completedAt!,
+            items: record.items,
+          });
+          message.success('裁剪数据已删除');
+          await loadProgressStats(progressActionModal.order!.orderId, 'cutting');
+          triggerReload();
+        },
+      });
+      return;
+    }
+    if (progressActionModal.stage.key === 'sewing') {
+      Modal.confirm({
+        title: '确认删除该条车缝领取记录？',
+        content: `领取时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
+        okText: '删除',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: async () => {
+          await factoryOrdersApi.deleteSewingRecord(progressActionModal.order!.orderId, {
+            workOrderId: record.workOrderId,
+            outsourcingOrderId: record.outsourcingOrderId,
+            completedAt: record.completedAt!,
+            items: record.items,
+          });
+          message.success('车缝领取记录已删除');
+          await loadProgressStats(progressActionModal.order!.orderId, 'sewing');
+          triggerReload();
+        },
+      });
+    }
   }, [loadProgressStats, progressActionModal.order, progressActionModal.stage, triggerReload]);
 
   const handleCloseProgressActionModal = useCallback(() => {
@@ -2538,7 +2564,7 @@ const FactoryOrders = () => {
         onNavigateToCurrentCuttingSheet={handleNavigateToCurrentCuttingSheet}
         onNavigateToCuttingSheet={handleNavigateToCuttingSheet}
         onNavigateToOutsourceOrder={handleNavigateToOutsourceOrder}
-        onDeleteCuttingRecord={handleDeleteCuttingRecord}
+        onDeleteAllocationRecord={handleDeleteAllocationRecord}
       />
 
       <AllocationCreateModal
