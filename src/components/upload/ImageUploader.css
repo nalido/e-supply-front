@@ -1,0 +1,66 @@
+.image-uploader__item {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.image-uploader__item .ant-upload-list-item-actions,
+.image-uploader__item .ant-upload-list-item-name {
+  display: none !important;
+}
+
+.image-uploader__preview-button,
+.image-uploader__remove-button {
+  position: absolute;
+  z-index: 2;
+  border: none;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.image-uploader__preview-button {
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+.image-uploader__remove-button {
+  right: 8px;
+  top: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.image-uploader__item .image-uploader__preview-button.is-visible,
+.image-uploader__item .image-uploader__remove-button.is-visible,
+.image-uploader__item .image-uploader__preview-button:focus-visible,
+.image-uploader__item .image-uploader__remove-button:focus-visible {
+  opacity: 1 !important;
+  pointer-events: auto;
+}
+
+.image-uploader__item .image-uploader__preview-button.is-visible {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.image-uploader__preview-button:hover,
+.image-uploader__preview-button:focus-visible {
+  background: rgba(22, 119, 255, 0.92);
+}
+
+.image-uploader__remove-button:hover,
+.image-uploader__remove-button:focus-visible {
+  background: rgba(255, 77, 79, 0.92);
+}

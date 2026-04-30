@@ -10,6 +10,8 @@ import type {
   MaterialIssueListParams,
   MaterialIssueListResponse,
   MaterialIssueMeta,
+  MaterialIssueLineDeletePayload,
+  MaterialIssueLineUpdatePayload,
   MaterialIssueStatusUpdatePayload,
   MaterialIssueStatusUpdateResult,
 } from '../types/material-issue';
@@ -177,6 +179,26 @@ export const materialIssueService = {
         lineIds: payload.lineIds.map((id) => Number(id)),
         status: payload.status,
       },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async updateLine(lineId: string, payload: MaterialIssueLineUpdatePayload): Promise<MaterialIssueStatusUpdateResult> {
+    const tenantId = requireTenantId();
+    const response = await http.post<MaterialIssueStatusUpdateResult>(
+      `/api/v1/inventory/material-issues/${lineId}/update`,
+      { quantity: payload.quantity },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async deleteLines(payload: MaterialIssueLineDeletePayload): Promise<MaterialIssueStatusUpdateResult> {
+    const tenantId = requireTenantId();
+    const response = await http.post<MaterialIssueStatusUpdateResult>(
+      '/api/v1/inventory/material-issues/delete',
+      { lineIds: payload.lineIds.map((id) => Number(id)) },
       { params: { tenantId } },
     );
     return response.data;

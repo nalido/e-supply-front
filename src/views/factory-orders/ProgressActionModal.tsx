@@ -67,7 +67,7 @@ type Props = {
   onNavigateToCurrentCuttingSheet: () => void;
   onNavigateToCuttingSheet: (record: AllocationHistoryRow) => void | Promise<void>;
   onNavigateToOutsourceOrder: (record: AllocationHistoryRow) => void;
-  onDeleteCuttingRecord: (record: AllocationHistoryRow) => void;
+  onDeleteAllocationRecord: (record: AllocationHistoryRow) => void;
 };
 
 export default function ProgressActionModal({
@@ -127,7 +127,7 @@ export default function ProgressActionModal({
   onNavigateToCurrentCuttingSheet,
   onNavigateToCuttingSheet,
   onNavigateToOutsourceOrder,
-  onDeleteCuttingRecord,
+  onDeleteAllocationRecord,
 }: Props) {
   const footer =
     state.stage?.key === 'cutting' || state.stage?.key === 'sewing'
@@ -431,14 +431,14 @@ export default function ProgressActionModal({
                             <Text type="secondary" style={{ marginLeft: 12 }}>
                               工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
                             </Text>
-                            {isCuttingProgressStage ? (
+                            {(isCuttingProgressStage || isSewingProgressStage) ? (
                               record.deletable ? (
                                 <Button
                                   danger
                                   type="link"
                                   size="small"
                                   style={{ padding: 0, height: 'auto', marginLeft: 12 }}
-                                  onClick={() => onDeleteCuttingRecord(record)}
+                                  onClick={() => onDeleteAllocationRecord(record)}
                                 >
                                   删除
                                 </Button>

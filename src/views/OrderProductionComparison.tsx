@@ -165,7 +165,6 @@ const OrderProductionComparison = () => {
             src={value}
             alt={record.styleName}
             borderRadius={10}
-            fallback={<Text type="secondary">暂无图片</Text>}
           />
         ),
       },

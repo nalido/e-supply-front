@@ -588,6 +588,23 @@ export const factoryOrdersApi = {
     );
   },
 
+  async deleteSewingRecord(
+    orderId: string | number,
+    payload: {
+      workOrderId?: number;
+      outsourcingOrderId?: number;
+      completedAt?: string;
+      items?: Array<{ color?: string; size?: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(
+      `/api/v1/production-orders/${orderId}/progress/sewing-records/delete`,
+      payload,
+      { params: { tenantId } },
+    );
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
     const tenantId = requireNumericTenantId();
     const requestBody = {

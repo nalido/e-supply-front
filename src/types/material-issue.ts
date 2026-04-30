@@ -13,6 +13,7 @@ export type MaterialIssueStatusOption = {
 
 export type MaterialIssueRecord = {
   id: string;
+  workOrderId?: string;
   poNumber: string;
   warehouseName: string;
   materialName: string;
@@ -96,4 +97,12 @@ export type MaterialIssueStatusUpdatePayload = {
 export type MaterialIssueStatusUpdateResult = {
   success: boolean;
   affectedCount: number;
+};
+
+export type MaterialIssueLineUpdatePayload = {
+  quantity: number;
+};
+
+export type MaterialIssueLineDeletePayload = {
+  lineIds: string[];
 };

@@ -1,4 +1,5 @@
 import { Card, Divider, Image, Tag, Typography } from 'antd';
+import { EyeOutlined } from '@ant-design/icons';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { guideSections } from './guide-data';
@@ -52,7 +53,17 @@ const GuideSectionPage = () => {
                   </div>
                   {image ? (
                     <div className="guide-section__step-shot">
-                      <Image src={image.src} alt={image.alt} />
+                      <Image
+                        src={image.src}
+                        alt={image.alt}
+                        preview={{
+                          mask: (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <EyeOutlined /> 查看大图
+                            </span>
+                          ),
+                        }}
+                      />
                       <div className="guide-section__caption">{image.caption}</div>
                     </div>
                   ) : null}
