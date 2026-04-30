@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Empty, Space, Typography } from 'antd';
 import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
 import { saleApi } from '../../api/sale';
+import { toDisplayText } from '../../components/sale/sale-center-formatters';
 import {
   ProductThumb,
   SaleHero,
   SaleMetricCard,
   SaleSection,
   SaleToneTag,
-  toDisplayText,
 } from '../../components/sale/SaleCenterUI';
 import type { SaleChannelAccount, SaleInventoryItem } from '../../types/sale';
 import { getInventoryRiskLevel } from './sale-center-helpers';

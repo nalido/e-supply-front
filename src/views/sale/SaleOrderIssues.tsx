@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Drawer, Empty, Form, Input, Select, Space, Typography, message } from 'antd';
 import { saleApi } from '../../api/sale';
 import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
+import { formatSaleDateTime, toDisplayText } from '../../components/sale/sale-center-formatters';
 import {
-  formatSaleDateTime,
   ProductThumb,
   SaleActionButton,
   SaleHero,
@@ -11,7 +11,6 @@ import {
   SaleSection,
   SaleStatusTag,
   SaleToneTag,
-  toDisplayText,
 } from '../../components/sale/SaleCenterUI';
 import type { SaleChannelAccount, SaleOrderDetail, SaleOrderItem } from '../../types/sale';
 import { deriveOrderIssue, getShopLabel, isMappedStatus } from './sale-center-helpers';

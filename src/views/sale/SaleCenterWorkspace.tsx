@@ -1673,7 +1673,7 @@ const SaleCenterWorkspace = () => {
                 <div>
                   <Text strong>订单号：{order.platformOrderNo}</Text>
                   <Paragraph type="secondary">
-                    店铺：{getShopLabel(accountMap.get(order.channelAccountId))}　下单：{formatDateTime(order.platformCreatedAt || order.updatedAt)}　收件人：{order.receiverName || '--'}
+                    店铺：{getShopLabel(accountMap.get(order.channelAccountId))} · 下单：{formatDateTime(order.platformCreatedAt || order.updatedAt)} · 收件人：{order.receiverName || '--'}
                   </Paragraph>
                 </div>
                 <Space>
@@ -1690,7 +1690,7 @@ const SaleCenterWorkspace = () => {
                     <div className="scw-issue-product__content">
                       <Text strong>{line.goodsName || '--'}</Text>
                       <Text type="secondary">平台 SKU：{line.platformSkuCode || line.platformSkuId || '--'}</Text>
-                      <Text type="secondary">颜色 / 尺码：{line.normalizedColor || '--'} / {line.normalizedSize || '--'}　数量：{formatNumber(line.quantity)}</Text>
+                      <Text type="secondary">颜色 / 尺码：{line.normalizedColor || '--'} / {line.normalizedSize || '--'} · 数量：{formatNumber(line.quantity)}</Text>
                       <Space wrap>
                         <StatusChip label={isMappedStatus(line.mappingStatus) ? '已绑定' : '待补绑定'} tone={isMappedStatus(line.mappingStatus) ? 'success' : 'warning'} />
                         <StatusChip label={issue?.recommendedAction || '需要人工处理'} tone={issue?.tone || 'warning'} />
@@ -1743,7 +1743,7 @@ const SaleCenterWorkspace = () => {
                   <div>
                     <Text strong>{line.goodsName || '--'}</Text>
                     <br />
-                    <Text type="secondary">{line.platformSkuCode || line.platformSkuId || '--'}　{line.normalizedColor || '--'} / {line.normalizedSize || '--'}</Text>
+                    <Text type="secondary">{line.platformSkuCode || line.platformSkuId || '--'} · {line.normalizedColor || '--'} / {line.normalizedSize || '--'}</Text>
                   </div>
                 </div>
               ))}
@@ -1864,7 +1864,7 @@ const SaleCenterWorkspace = () => {
                     <List.Item.Meta
                       avatar={<ProductThumb src={item.platformMainImageUrl} name={item.platformProductName} size={48} />}
                       title={item.platformProductName || item.platformSkuCode || item.platformSkuId}
-                      description={`${item.shopName || '--'}　${item.normalizedColor || '--'} / ${item.normalizedSize || '--'}　窗口销量 ${formatNumber(item.salesVolume)}　近7天 ${formatNumber(item.last7DaysVolume)}　影响分 ${formatNumber(item.impactScore)}`}
+                      description={`${item.shopName || '--'} · ${item.normalizedColor || '--'} / ${item.normalizedSize || '--'} · 窗口销量 ${formatNumber(item.salesVolume)} · 近7天 ${formatNumber(item.last7DaysVolume)} · 影响分 ${formatNumber(item.impactScore)}`}
                     />
                   </List.Item>
                 )}
@@ -1884,7 +1884,7 @@ const SaleCenterWorkspace = () => {
                     <List.Item.Meta
                       avatar={<ProductThumb src={item.styleImageUrl} name={item.styleName} size={48} />}
                       title={`${item.styleNo || '--'} / ${item.styleName || '--'}`}
-                      description={`销量 ${formatNumber(item.salesVolume)}　增速 ${formatPercent(item.growthRate)}　Top店铺 ${item.topShopName || '--'}`}
+                      description={`销量 ${formatNumber(item.salesVolume)} · 增速 ${formatPercent(item.growthRate)} · Top店铺 ${item.topShopName || '--'}`}
                     />
                   </List.Item>
                 )}
@@ -1908,7 +1908,7 @@ const SaleCenterWorkspace = () => {
                       <div className="scw-sales-product-card__top">
                         <div>
                           <Title level={5}>{item.styleNo || '--'} / {item.styleName || '--'}</Title>
-                          <Text type="secondary">已映射平台 SKU：{formatNumber(item.mappedSkuCount)}　覆盖店铺：{formatNumber(item.shopCount)}</Text>
+                          <Text type="secondary">已映射平台 SKU：{formatNumber(item.mappedSkuCount)} · 覆盖店铺：{formatNumber(item.shopCount)}</Text>
                         </div>
                         <Space wrap>
                           {item.tags.map((tag) => (
@@ -1994,9 +1994,9 @@ const SaleCenterWorkspace = () => {
                 <div>
                   <Title level={4}>{salesDetail.styleNo || '--'} / {salesDetail.styleName || '--'}</Title>
                   <Paragraph type="secondary">
-                    当前销量：{formatNumber(salesDetail.salesVolume)}　上一周期：{formatNumber(salesDetail.previousSalesVolume)}
+                    当前销量：{formatNumber(salesDetail.salesVolume)} · 上一周期：{formatNumber(salesDetail.previousSalesVolume)}
                     <br />
-                    覆盖店铺：{formatNumber(salesDetail.shopCount)}　Top 店铺：{salesDetail.topShopName || '--'}（{formatPercent(salesDetail.topShopContributionRate)}）
+                    覆盖店铺：{formatNumber(salesDetail.shopCount)} · Top 店铺：{salesDetail.topShopName || '--'}（{formatPercent(salesDetail.topShopContributionRate)}）
                   </Paragraph>
                 </div>
               </div>
@@ -2031,7 +2031,7 @@ const SaleCenterWorkspace = () => {
                               dataSource={salesDetail.colorBreakdown}
                               renderItem={(item) => (
                                 <List.Item>
-                                  <List.Item.Meta title={item.color || '--'} description={`销量 ${formatNumber(item.salesVolume)}　Top店铺 ${item.topShopName || '--'}`} />
+                                  <List.Item.Meta title={item.color || '--'} description={`销量 ${formatNumber(item.salesVolume)} · Top店铺 ${item.topShopName || '--'}`} />
                                 </List.Item>
                               )}
                             />
@@ -2043,7 +2043,7 @@ const SaleCenterWorkspace = () => {
                               dataSource={salesDetail.sizeBreakdown}
                               renderItem={(item) => (
                                 <List.Item>
-                                  <List.Item.Meta title={item.size || '--'} description={`销量 ${formatNumber(item.salesVolume)}　Top店铺 ${item.topShopName || '--'}`} />
+                                  <List.Item.Meta title={item.size || '--'} description={`销量 ${formatNumber(item.salesVolume)} · Top店铺 ${item.topShopName || '--'}`} />
                                 </List.Item>
                               )}
                             />

@@ -3,8 +3,8 @@ import { Button, Col, Empty, Form, InputNumber, Row, Space, Typography, message 
 import { useNavigate } from 'react-router-dom';
 import { saleApi } from '../../api/sale';
 import SaleChannelAccountSelect from '../../components/sale/SaleChannelAccountSelect';
+import { formatSaleDateTime } from '../../components/sale/sale-center-formatters';
 import {
-  formatSaleDateTime,
   SaleHero,
   SaleMetricCard,
   SaleMiniStat,
