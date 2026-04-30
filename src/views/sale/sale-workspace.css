@@ -43,13 +43,10 @@ body.scw-body {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: #ff5a1f;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 20px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 4px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
 }
 
 .scw-brand__title {

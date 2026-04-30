@@ -2393,7 +2393,7 @@ const SaleCenterWorkspace = () => {
     <Layout className="scw-layout">
       <Sider width={228} breakpoint="lg" collapsedWidth={80} className="scw-sider">
         <div className="scw-brand">
-          <div className="scw-brand__icon">A</div>
+          <img src="/assets/images/logo.png" alt="易供云" className="scw-brand__icon" />
           <div>
             <div className="scw-brand__title">销售中心 V1</div>
             <div className="scw-brand__subtitle">运营工作台</div>
