@@ -1,17 +1,41 @@
-import { Button, Card, Space, Typography } from 'antd';
+import { Button, Card, Space, Spin, Typography } from 'antd';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { onboardingApi } from '../../api/onboarding';
+import { useBindAuthTokenResolver } from '../../hooks/useBindAuthTokenResolver';
 
 const Welcome = () => {
   const navigate = useNavigate();
   const { isLoaded, isSignedIn } = useAuth();
+  const [checkingStatus, setCheckingStatus] = useState(false);
+
+  useBindAuthTokenResolver();
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      navigate('/dashboard/workplace', { replace: true });
-    }
-  }, [isLoaded, isSignedIn, navigate]);
+    const run = async () => {
+      if (!isLoaded) {
+        return;
+      }
+      setCheckingStatus(true);
+      try {
+        const status = await onboardingApi.status();
+        if (status.linked) {
+          navigate('/dashboard/workplace', { replace: true });
+        }
+      } catch {
+        // keep user on welcome page when onboarding context is incomplete or unauthenticated
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    void run();
+  }, [isLoaded, navigate]);
+
+  if (isLoaded && checkingStatus) {
+    return <Spin size="large" tip="正在校验账号状态..." fullscreen />;
+  }
 
   return (
     <div

@@ -28,9 +28,11 @@ import {
   DownloadOutlined,
   EditOutlined,
   FileOutlined,
+  PrinterOutlined,
   ReloadOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import ListImage from '../components/common/ListImage';
 import type {
   SampleAttachment,
   SampleDevelopmentCostItem,
@@ -41,6 +43,9 @@ import type {
 import sampleOrderApi from '../api/sample-order';
 import SampleOrderFormModal, { type SampleOrderFormSection } from '../components/sample/SampleOrderFormModal';
 import DonutChart from '../components/charts/DonutChart';
+import { styleDetailApi } from '../api/style-detail';
+import styleBomApi from '../api/style-bom';
+import { buildSamplePrintHtml } from '../utils/sample-print';
 
 const { Title, Text } = Typography;
 
@@ -87,6 +92,7 @@ const SampleDetail = () => {
   const [previewAttachment, setPreviewAttachment] = useState<SampleAttachment | null>(null);
   const [loading, setLoading] = useState(true);
   const [costRefreshing, setCostRefreshing] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTabKey>('bom');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [initialEditSection, setInitialEditSection] = useState<SampleOrderFormSection>('core');
@@ -183,6 +189,63 @@ const SampleDetail = () => {
     openEditModal('attachments');
   }, [openEditModal]);
 
+  const handlePrint = useCallback(async () => {
+    if (!detail) {
+      message.warning('样板单详情尚未加载完成');
+      return;
+    }
+    setPrinting(true);
+    try {
+      const [styleDetail, styleBom] = detail.styleId
+        ? await Promise.all([
+            styleDetailApi.fetchDetail(detail.styleId).catch(() => undefined),
+            styleBomApi.fetch(detail.styleId).catch(() => undefined),
+          ])
+        : [undefined, undefined];
+      const html = buildSamplePrintHtml({
+        detail,
+        styleDetail,
+        styleBom,
+      });
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        window.setTimeout(() => {
+          iframe.remove();
+        }, 800);
+      };
+
+      iframe.onload = () => {
+        window.setTimeout(() => {
+          const frameWindow = iframe.contentWindow;
+          if (!frameWindow) {
+            cleanup();
+            message.error('打印失败，请稍后重试');
+            return;
+          }
+          frameWindow.focus();
+          frameWindow.print();
+          cleanup();
+        }, 120);
+      };
+
+      iframe.srcdoc = html;
+    } catch (error) {
+      console.error('Failed to print sample detail', error);
+      message.error('打印失败，请稍后重试');
+    } finally {
+      setPrinting(false);
+    }
+  }, [detail]);
+
   const handleEditModalOk = useCallback(() => {
     setEditModalVisible(false);
   }, []);
@@ -253,7 +316,7 @@ const SampleDetail = () => {
       title: '物料图片',
       width: 100,
       render: (src: string | undefined) => (
-        src ? <Image src={src} width={64} height={64} style={{ objectFit: 'cover', borderRadius: 8 }} /> : <div style={{ width: 64, height: 64, background: '#f5f5f5', borderRadius: 8 }} />
+        <ListImage src={src} width={64} height={64} borderRadius={8} background="#f5f5f5" />
       ),
     },
     { dataIndex: 'name', title: '物料名称', width: 160 },
@@ -789,6 +852,9 @@ const SampleDetail = () => {
             <Space size={8}>
               <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate('/sample/list')}>
                 返回列表
+              </Button>
+              <Button type="link" icon={<PrinterOutlined />} loading={printing} onClick={handlePrint}>
+                打印版师单
               </Button>
               {sectionButtons.map(({ key, label }) => (
                 <Button key={key} type="link" onClick={() => handleScrollTo(key)}>

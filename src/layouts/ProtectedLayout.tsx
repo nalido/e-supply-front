@@ -5,30 +5,20 @@ import { Spin } from 'antd'
 import MainLayout from './MainLayout'
 import TenantProvider from '../providers/TenantProvider'
 import { onboardingApi } from '../api/onboarding'
-import { setAuthTokenResolver } from '../api/http'
+import { useBindAuthTokenResolver } from '../hooks/useBindAuthTokenResolver'
+import OnboardingStatusError from '../views/auth/OnboardingStatusError'
+import { buildFriendlyErrorFromUnknown } from '../utils/http-error'
 
 const ONBOARDING_PATH = '/onboarding/register-enterprise'
 const WELCOME_PATH = '/welcome'
-const DASHBOARD_PATH = '/dashboard'
-const DASHBOARD_WORKPLACE_PATH = '/dashboard/workplace'
 
 const SignedInGate = () => {
-  const { isLoaded, isSignedIn, getToken } = useAuth()
+  const { isLoaded, isSignedIn } = useAuth()
   const location = useLocation()
   const [linked, setLinked] = useState<boolean | null>(null)
+  const [statusCheckError, setStatusCheckError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const resolver = async () => {
-      if (!isLoaded || !isSignedIn) {
-        return null
-      }
-      return getToken()
-    }
-    setAuthTokenResolver(resolver)
-    return () => {
-      setAuthTokenResolver(async () => null)
-    }
-  }, [getToken, isLoaded, isSignedIn])
+  useBindAuthTokenResolver()
 
   useEffect(() => {
     const run = async () => {
@@ -38,12 +28,20 @@ const SignedInGate = () => {
       try {
         const status = await onboardingApi.status()
         setLinked(status.linked)
-      } catch {
-        setLinked(false)
+        setStatusCheckError(null)
+      } catch (error) {
+        setStatusCheckError(
+          buildFriendlyErrorFromUnknown(error).description ?? '状态检查接口调用失败，请稍后重试。',
+        )
+        setLinked(null)
       }
     }
     void run()
-  }, [isLoaded, isSignedIn])
+  }, [isLoaded, isSignedIn, location.pathname])
+
+  if (statusCheckError) {
+    return <OnboardingStatusError description={statusCheckError} />
+  }
 
   if (linked === null) {
     return <Spin size="large" tip="加载中..." fullscreen />
@@ -52,9 +50,7 @@ const SignedInGate = () => {
   if (!linked) {
     const allowSignedInLanding =
       location.pathname === ONBOARDING_PATH ||
-      location.pathname === WELCOME_PATH ||
-      location.pathname === DASHBOARD_PATH ||
-      location.pathname === DASHBOARD_WORKPLACE_PATH
+      location.pathname === WELCOME_PATH
 
     if (!allowSignedInLanding) {
       return <Navigate to={WELCOME_PATH} replace />

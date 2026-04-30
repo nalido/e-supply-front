@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload/interface';
 import {
-  Avatar,
   Button,
-  Image,
   Modal,
   Popconfirm,
   Space,
@@ -13,8 +11,9 @@ import {
   Tag,
   message,
 } from 'antd';
-import { DeleteOutlined, EditOutlined, PictureOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import MaterialActionBar from '../components/material/MaterialActionBar';
+import ListImage from '../components/common/ListImage';
 import MaterialFormModal from '../components/material/MaterialFormModal';
 import MaterialImportModal from '../components/material/MaterialImportModal';
 import materialApi from '../api/material';
@@ -308,14 +307,7 @@ const MaterialArchive = () => {
         dataIndex: 'imageUrl',
         width: 80,
         align: 'center',
-        render: (value, record) => {
-          if (value) {
-            return <Image src={value} alt={record.name} width={48} height={48} style={{ objectFit: 'cover', borderRadius: 4 }} />;
-          }
-          return (
-            <Avatar shape="square" size={48} icon={<PictureOutlined />} style={{ backgroundColor: '#f5f5f5' }} />
-          );
-        },
+        render: (value, record) => <ListImage src={value} alt={record.name} width={48} height={48} borderRadius={4} />,
       },
       {
         title: '物料名称',

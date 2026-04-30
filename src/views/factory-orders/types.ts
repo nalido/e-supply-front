@@ -9,6 +9,7 @@ export type SelectOption = {
   image?: string;
   colors?: string[];
   sizes?: string[];
+  colorImages?: Record<string, string | undefined>;
 };
 
 export type ImportRecord = {
@@ -46,6 +47,7 @@ export type CreateStyleMaterial = {
   unit: string;
   consumption: number;
   lossRate: number;
+  imageUrl?: string;
 };
 
 export type ProgressStatRow = {

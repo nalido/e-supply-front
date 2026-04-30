@@ -8,7 +8,7 @@ import type {
   WarehouseType,
 } from '../types';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, toBackendPage } from './request-context';
 
 type BackendWarehouseType = 'MATERIAL' | 'FINISHED' | 'VIRTUAL';
 type BackendWarehouseStatus = 'ACTIVE' | 'INACTIVE';
@@ -85,18 +85,6 @@ const adaptWarehouse = (item: BackendWarehouseResponse): Warehouse => ({
   updatedAt: item.updatedAt,
 });
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新登录或选择企业。');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const buildRequestPayload = (
   tenantId: number,
   payload: SaveWarehousePayload,
@@ -112,7 +100,7 @@ const buildRequestPayload = (
 
 export const warehouseApi = {
   list: async (params: WarehouseListParams): Promise<WarehouseDataset> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendPageResponse<BackendWarehouseResponse>>(
       '/api/v1/warehouses',
       {
@@ -121,9 +109,10 @@ export const warehouseApi = {
           type: normalizeWarehouseType(params.type),
           status: normalizeWarehouseStatus(params.status),
           keyword: params.keyword,
-          page: params.page,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -132,14 +121,14 @@ export const warehouseApi = {
     };
   },
   create: async (payload: SaveWarehousePayload): Promise<Warehouse> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendWarehouseResponse>('/api/v1/warehouses', {
       ...buildRequestPayload(tenantId, payload),
     });
     return adaptWarehouse(response.data);
   },
   update: async (id: string, payload: UpdateWarehousePayload): Promise<Warehouse | undefined> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.post<BackendWarehouseResponse>(
       `/api/v1/warehouses/${id}/update`,
       buildRequestPayload(tenantId, payload),
@@ -147,7 +136,7 @@ export const warehouseApi = {
     return adaptWarehouse(response.data);
   },
   remove: async (id: string): Promise<boolean> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.delete(`/api/v1/warehouses/${id}`, {
       params: { tenantId },
     });

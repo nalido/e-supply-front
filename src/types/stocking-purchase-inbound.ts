@@ -2,6 +2,8 @@ export type StockingMaterialType = 'fabric' | 'accessory';
 
 export type StockingPurchaseStatus = 'pending' | 'partial' | 'completed' | 'void';
 
+export type StockingPurchaseEditableScope = 'full' | 'remark_only';
+
 export type StockingPurchaseStatusFilter = 'pending' | 'completed' | 'all';
 
 export type StockingPurchaseStatusOption = {
@@ -78,7 +80,7 @@ export type StockingPurchaseCreateLine = {
   materialId: string;
   quantity: number;
   unit: string;
-  unitPrice: number;
+  unitPrice?: number;
   color?: string;
 };
 
@@ -97,6 +99,36 @@ export type ProcurementOrderSummary = {
   status: string;
   statusLabel: string;
   statusTagColor: string;
+};
+
+export type StockingPurchaseOrderLineDetail = {
+  lineId: string;
+  materialId: string;
+  materialCode?: string;
+  materialName: string;
+  unit: string;
+  quantity: number;
+  unitPrice?: number;
+  color?: string;
+  remark?: string;
+};
+
+export type StockingPurchaseOrderDetail = {
+  id: string;
+  orderNo: string;
+  status: string;
+  statusLabel: string;
+  statusTagColor: string;
+  materialType?: StockingMaterialType;
+  supplierId?: string;
+  supplierName?: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  orderDate?: string;
+  expectedArrival?: string;
+  remark?: string;
+  editableScope: StockingPurchaseEditableScope;
+  lines: StockingPurchaseOrderLineDetail[];
 };
 
 export type ProcurementReceiptSummary = {

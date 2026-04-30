@@ -1,5 +1,4 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
 import type {
   FactoryOrderDetailSummary,
   FactoryOrderItem,
@@ -8,6 +7,7 @@ import type {
   FactoryOrderStatusSummary,
   FactoryOrderTableRow,
 } from '../types';
+import { fromBackendPage, requireNumericTenantId, toBackendPage } from './request-context';
 
 export type FactoryOrdersQuery = {
   status?: string | string[];
@@ -298,18 +298,6 @@ const normalizeMaterialStatus = (value?: string): string | undefined => {
   return value;
 };
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const resolveCompletionFlag = (payload: CompletionFlag): boolean => {
   if (typeof payload.completed === 'boolean') {
     return payload.completed;
@@ -441,14 +429,14 @@ const adaptCostDetail = (payload: BackendFactoryOrderCostDetail): FactoryOrderCo
 const adaptCardPage = (payload: BackendFactoryOrderCardPage): FactoryOrderCardPage => ({
   list: (payload.list ?? []).map(adaptCard),
   total: payload.total ?? payload.list?.length ?? 0,
-  page: (payload.page ?? 0) + 1,
+  page: fromBackendPage(payload.page),
   pageSize: payload.size ?? (payload.list?.length ?? 0),
 });
 
 const adaptTablePage = (payload: BackendFactoryOrderTablePage): FactoryOrderTablePage => ({
   list: (payload.list ?? []).map(adaptTableRow),
   total: payload.total ?? payload.list?.length ?? 0,
-  page: (payload.page ?? 0) + 1,
+  page: fromBackendPage(payload.page),
   pageSize: payload.size ?? (payload.list?.length ?? 0),
 });
 
@@ -490,14 +478,14 @@ const buildQueryParams = (params?: FactoryOrdersQuery) => {
     keyword: params.keyword?.trim() || undefined,
     sort: params.sort,
     includeCompleted: params.includeCompleted,
-    page: params.page ?? 1,
+    page: toBackendPage(params.page),
     size: params.pageSize ?? 40,
   };
 };
 
 export const factoryOrdersApi = {
   async getSummary(): Promise<FactoryOrderSummary> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<BackendFactoryOrderSummary>('/api/v1/production-orders/summary', {
       params: { tenantId },
     });
@@ -505,31 +493,33 @@ export const factoryOrdersApi = {
   },
 
   async getCards(params?: FactoryOrdersQuery): Promise<FactoryOrderCardPage> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const query = buildQueryParams(params);
     const { data } = await http.get<BackendFactoryOrderCardPage>('/api/v1/production-orders/cards', {
       params: {
         tenantId,
         ...query,
       },
+      skipPageNormalization: true,
     });
     return adaptCardPage(data);
   },
 
   async getTable(params?: FactoryOrdersQuery): Promise<FactoryOrderTablePage> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const query = buildQueryParams(params);
     const { data } = await http.get<BackendFactoryOrderTablePage>('/api/v1/production-orders/table', {
       params: {
         tenantId,
         ...query,
       },
+      skipPageNormalization: true,
     });
     return adaptTablePage(data);
   },
 
   async getCostDetail(orderId: string | number): Promise<FactoryOrderCostDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<BackendFactoryOrderCostDetail>(`/api/v1/production-orders/${orderId}/cost-detail`, {
       params: { tenantId },
     });
@@ -537,7 +527,7 @@ export const factoryOrdersApi = {
   },
 
   async getProgress(orderId: string | number): Promise<FactoryOrderProgressNode[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<FactoryOrderProgressNode[]>(
       `/api/v1/production-orders/${orderId}/progress`,
       { params: { tenantId } },
@@ -546,7 +536,7 @@ export const factoryOrdersApi = {
   },
 
   async getDetail(orderId: string | number): Promise<FactoryOrderDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const { data } = await http.get<BackendFactoryOrderDetail>(
       `/api/v1/production-orders/${orderId}`,
       { params: { tenantId } },
@@ -563,7 +553,7 @@ export const factoryOrdersApi = {
       payload?: Record<string, unknown>;
     },
   ): Promise<FactoryOrderProgressNode[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const body = payload
       ? {
           completedAt: payload.completedAt,
@@ -590,7 +580,7 @@ export const factoryOrdersApi = {
       items?: Array<{ color?: string; size?: string; quantity: number }>;
     },
   ): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(
       `/api/v1/production-orders/${orderId}/progress/cutting-records/delete`,
       payload,
@@ -598,8 +588,25 @@ export const factoryOrdersApi = {
     );
   },
 
+  async deleteSewingRecord(
+    orderId: string | number,
+    payload: {
+      workOrderId?: number;
+      outsourcingOrderId?: number;
+      completedAt?: string;
+      items?: Array<{ color?: string; size?: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(
+      `/api/v1/production-orders/${orderId}/progress/sewing-records/delete`,
+      payload,
+      { params: { tenantId } },
+    );
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = {
       tenantId,
       orders: payload.orders.map((order) => ({
@@ -620,7 +627,7 @@ export const factoryOrdersApi = {
   },
 
   async batchUpdateStatus(payload: FactoryOrderBatchUpdatePayload): Promise<FactoryOrderBatchUpdateResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const body = {
       tenantId,
       orderIds: payload.orderIds.map((id) => Number(id)),
@@ -637,7 +644,7 @@ export const factoryOrdersApi = {
   },
 
   async exportOrders(params: FactoryOrdersQuery): Promise<FactoryOrderExportResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const body = {
       tenantId,
       statuses: params.status ? (Array.isArray(params.status) ? params.status : [params.status]) : undefined,
@@ -652,7 +659,7 @@ export const factoryOrdersApi = {
   },
 
   async createOrder(payload: FactoryOrderCreatePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const normalizedLines = (payload.lines ?? [])
       .map((line) => ({
         color: line.color?.trim() || undefined,
@@ -698,7 +705,7 @@ export const factoryOrdersApi = {
   },
 
   async updateOrder(orderId: string | number, payload: FactoryOrderCreatePayload): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const normalizedLines = (payload.lines ?? [])
       .map((line) => ({
         color: line.color?.trim() || undefined,
@@ -744,7 +751,7 @@ export const factoryOrdersApi = {
   },
 
   async deleteOrder(orderId: string | number): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/production-orders/${orderId}/delete`, null, {
       params: { tenantId },
     });

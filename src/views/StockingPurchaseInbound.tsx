@@ -39,6 +39,7 @@ import type {
   StockingStatusUpdatePayload,
   StockingReceiptRecord,
   StockingReceivePayload,
+  StockingPurchaseOrderDetail,
 } from '../types/stocking-purchase-inbound';
 import dayjs from 'dayjs';
 import { BulkActionBar, FilterBar, NumberWithUnitInput, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
@@ -159,6 +160,8 @@ const StockingPurchaseInbound = () => {
   const [tableLoading, setTableLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [createModalOpen, setCreateModalOpen] = useState(searchParams.get('openCreate') === 'true');
+  const [editingOrder, setEditingOrder] = useState<StockingPurchaseOrderDetail | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({
     open: false,
     submitting: false,
@@ -282,6 +285,28 @@ const StockingPurchaseInbound = () => {
     setReceiveModalState({ open: false, submitting: false });
     receiveForm.resetFields();
   }, [receiveForm]);
+
+  const openEditModal = useCallback(async (record: StockingPurchaseRecord) => {
+    if (!record.orderId) {
+      message.warning('未找到订单信息，无法编辑');
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const detail = await stockingPurchaseInboundService.getOrderDetail(record.orderId);
+      setEditingOrder({
+        ...detail,
+        supplierName: record.supplierName,
+        warehouseName: record.warehouseName,
+      });
+      setCreateModalOpen(true);
+    } catch (error) {
+      console.error('failed to load stocking order detail', error);
+      message.error('加载采购单详情失败');
+    } finally {
+      setEditLoading(false);
+    }
+  }, []);
 
   const openReceiveModal = useCallback(
     async (record: StockingPurchaseRecord) => {
@@ -732,11 +757,14 @@ const StockingPurchaseInbound = () => {
         title: '操作',
         key: 'actions',
         fixed: 'right',
-        width: 200,
+        width: 240,
         render: (_value, record) => {
           const disableReceive = !record.orderId || record.status === 'void';
           return (
             <Space size={8}>
+              <Button size="small" type="link" loading={editLoading && editingOrder?.id === record.orderId} onClick={() => openEditModal(record)}>
+                编辑
+              </Button>
               <Button size="small" type="link" disabled={disableReceive} onClick={() => openReceiveModal(record)}>
                 收料
               </Button>
@@ -748,7 +776,7 @@ const StockingPurchaseInbound = () => {
         },
       },
     ],
-    [openReceiptDrawer, openReceiveModal],
+    [editLoading, editingOrder?.id, openEditModal, openReceiptDrawer, openReceiveModal],
   );
 
   const receiptItemColumns: ColumnsType<StockingReceiptRecord> = useMemo(
@@ -915,9 +943,12 @@ const StockingPurchaseInbound = () => {
         <StockingPurchaseCreateModal
           open={createModalOpen}
           materialType={materialType}
-          initialDraft={createDraft}
+          mode={editingOrder ? 'edit' : 'create'}
+          initialDraft={editingOrder ? undefined : createDraft}
+          initialOrder={editingOrder ?? undefined}
           onClose={() => {
             setCreateModalOpen(false);
+            setEditingOrder(null);
             if (searchParams.get('openCreate') === 'true') {
               const next = new URLSearchParams(searchParams);
               const prefillKey = next.get('prefillKey');
@@ -938,6 +969,7 @@ const StockingPurchaseInbound = () => {
           onCreated={(summary) => {
             message.success(`已创建采购单 ${summary.orderNo}`);
             setCreateModalOpen(false);
+            setEditingOrder(null);
             setSelectedRowKeys([]);
             if (searchParams.get('openCreate') === 'true') {
               const next = new URLSearchParams(searchParams);
@@ -955,6 +987,12 @@ const StockingPurchaseInbound = () => {
               next.delete('prefillKey');
               setSearchParams(next, { replace: true });
             }
+            void loadList();
+          }}
+          onUpdated={(detail) => {
+            message.success(`已更新采购单 ${detail.orderNo}`);
+            setEditingOrder(null);
+            setCreateModalOpen(false);
             void loadList();
           }}
         />

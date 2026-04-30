@@ -5,7 +5,7 @@ import type {
   SampleOrderComparisonResponse,
 } from '../types/sample-order-comparison-report';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 
 type BackendRecord = {
   styleId?: number;
@@ -29,14 +29,6 @@ type ExportResponse = {
   fileUrl: string;
 };
 
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未选择企业，请重新登录或刷新页面');
-  }
-  return tenantId;
-};
-
 const adaptRecord = (record: BackendRecord): SampleOrderComparisonItem => ({
   id:
     record.styleId
@@ -58,7 +50,7 @@ const adaptListResponse = (payload: BackendListResponse): SampleOrderComparisonR
 
 export const sampleOrderComparisonReportService = {
   async getAggregation(): Promise<SampleOrderAggregation> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<SampleOrderAggregation>(
       '/api/v1/sample/reports/order-comparison/aggregation',
       { params: { tenantId } },
@@ -67,22 +59,23 @@ export const sampleOrderComparisonReportService = {
   },
 
   async getList(params: SampleOrderComparisonParams): Promise<SampleOrderComparisonResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendListResponse>('/api/v1/sample/reports/order-comparison', {
       params: {
         tenantId,
         styleName: params.styleName,
         sortBy: params.sortBy,
         order: params.order,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return adaptListResponse(response.data);
   },
 
   async export(params: SampleOrderComparisonParams): Promise<ExportResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<ExportResponse>(
       '/api/v1/sample/reports/order-comparison/export',
       {

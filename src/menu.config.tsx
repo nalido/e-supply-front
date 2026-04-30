@@ -127,6 +127,15 @@ export const menuTree: MenuNode[] = [
     ],
   },
   {
+    key: '/sale',
+    icon: <ShoppingCartOutlined />,
+    label: (
+      <a href="/sale/workbench" target="_blank" rel="noreferrer">
+        销售中心
+      </a>
+    ),
+  },
+  {
     key: '/settlement',
     icon: <AppstoreOutlined />,
     label: '对账结算',

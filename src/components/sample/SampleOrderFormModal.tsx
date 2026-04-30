@@ -36,7 +36,6 @@ import type { MessageInstance } from 'antd/es/message/interface';
 import {
   DeleteOutlined,
   InboxOutlined,
-  PictureOutlined,
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
@@ -429,7 +428,6 @@ const StyleSelectorDrawer: React.FC<{
                         background="#fafafa"
                         wrapperStyle={{ padding: 8 }}
                         objectFit="contain"
-                        fallback={<PictureOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />}
                       />
                     }
                   >
@@ -556,7 +554,6 @@ const MaterialSelectorDrawer: React.FC<{
                     height={48}
                     borderRadius={8}
                     background="#f5f5f5"
-                    fallback={<div style={{ width: '100%', height: '100%', borderRadius: 8, background: '#f5f5f5' }} />}
                   />
                   <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
                     <Text strong>{item.name}</Text>
@@ -751,7 +748,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                 height={56}
                 borderRadius={8}
                 background="#f5f5f5"
-                fallback={<div className="sample-order-material-placeholder" />}
               />
               <div className="sample-order-material-text">
                 <Text strong className="sample-order-material-name">
@@ -1236,6 +1232,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
       styleName: values.styleName.trim(),
       defaultUnit: values.unit,
       status: 'active',
+      detailImageUrls: [],
       colors,
       sizes,
       colorImages: colorImagesEnabled ? colorImageMap : {},
@@ -1335,6 +1332,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           styleName: values.styleName.trim(),
           defaultUnit: values.unit,
           status: 'active',
+          detailImageUrls: [],
           colors,
           sizes,
           colorImages: colorImagesEnabled ? colorImageMap : {},

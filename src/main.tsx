@@ -23,8 +23,8 @@ createRoot(document.getElementById('root')!).render(
       afterSignOutUrl="/"
       signInUrl="/sign-in"
       signUpUrl="/onboarding/register-enterprise"
-      signInForceRedirectUrl="/dashboard/workplace"
-      signInFallbackRedirectUrl="/dashboard/workplace"
+      signInForceRedirectUrl="/welcome"
+      signInFallbackRedirectUrl="/welcome"
     >
       <ConfigProvider
         locale={zhCN}

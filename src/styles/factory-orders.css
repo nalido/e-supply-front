@@ -249,6 +249,20 @@
   background: #fafafa;
 }
 
+.factory-create-color-preview {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.factory-create-color-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .factory-create-material-preview {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -260,6 +274,24 @@
   border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.factory-create-material-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.factory-create-material-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.factory-create-material-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  background: #eef2f6;
 }
 
 .factory-create-material-top {

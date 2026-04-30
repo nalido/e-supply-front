@@ -42,8 +42,6 @@ const buildLabelMap = (nodes: MenuNode[], map = new Map<string, string>()) => {
   return map
 }
 
-const LABEL_MAP = buildLabelMap(menuTree)
-LABEL_MAP.set(DOWNLOAD_CENTER_PATH, '下载中心')
 const DOWNLOAD_CENTER_HINT_KEYWORDS = ['下载中心', '已生成导出文件', '导出任务已生成', '已生成导出任务', '导出任务已创建']
 
 const resolveMessageContentText = (content: unknown): string => {
@@ -92,7 +90,13 @@ const MainLayout = () => {
   const knownDownloadIdsRef = useRef<Set<string>>(new Set())
   const downloadHintTimerRef = useRef<number | null>(null)
 
-  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuTree), [])
+  const menuNodes = useMemo<MenuNode[]>(() => menuTree, [])
+  const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuNodes), [menuNodes])
+  const labelMap = useMemo(() => {
+    const map = buildLabelMap(menuNodes)
+    map.set(DOWNLOAD_CENTER_PATH, '下载中心')
+    return map
+  }, [menuNodes])
   const isDownloadCenterOpen = useMemo(() => {
     const searchParams = new URLSearchParams(location.search)
     return (
@@ -285,18 +289,18 @@ const MainLayout = () => {
     const breadcrumbPaths = paths.slice(0, -1)
 
     if (breadcrumbPaths.length === 0 && paths[0]) {
-      const label = LABEL_MAP.get(paths[0]) ?? pathSnippets[0]
+      const label = labelMap.get(paths[0]) ?? pathSnippets[0]
       return [{ title: <span>{label}</span> }]
     }
 
     return breadcrumbPaths.map((path, index) => {
-      const label = LABEL_MAP.get(path) ?? pathSnippets[index]
+      const label = labelMap.get(path) ?? pathSnippets[index]
       const isLast = index === breadcrumbPaths.length - 1
       return {
         title: isLast ? <span>{label}</span> : <Link to={path}>{label}</Link>,
       }
     })
-  }, [location.pathname])
+  }, [labelMap, location.pathname])
 
   const handleOpenChange: MenuProps['onOpenChange'] = (keys) => {
     setOpenKeys(keys as string[])

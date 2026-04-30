@@ -156,6 +156,22 @@ export default function CreateOrderModal({
                   <Text>{selectedStyleOption.label}</Text>
                 </Space>
               </div>
+              {selectedStyleOption.colors && selectedStyleOption.colors.length > 0 ? (
+                <div className="factory-create-color-preview">
+                  {selectedStyleOption.colors.map((color) => (
+                    <div key={color} className="factory-create-color-card">
+                      <ListImage
+                        src={selectedStyleOption.colorImages?.[color]}
+                        alt={color}
+                        width={72}
+                        height={72}
+                        borderRadius={8}
+                      />
+                      <Text type="secondary">{color}</Text>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </Col>
           ) : null}
           {selectedStyleOption ? (
@@ -167,16 +183,21 @@ export default function CreateOrderModal({
                   <div className="factory-create-material-preview">
                     {createStyleMaterials.map((item) => (
                       <div key={`${item.materialId}-${item.materialType}`} className="factory-create-material-card">
-                        <div className="factory-create-material-top">
-                          <span className={`factory-create-material-type ${item.materialType.toLowerCase()}`}>
-                            {item.materialType === 'FABRIC' ? '面料' : item.materialType === 'ACCESSORY' ? '辅料' : '包装'}
-                          </span>
-                          <span className="factory-create-material-sku">{item.materialSku || '未配置编码'}</span>
-                        </div>
-                        <div className="factory-create-material-name">{item.materialName}</div>
-                        <div className="factory-create-material-meta">
-                          单耗 {item.consumption || 0}{item.unit || '件'}
-                          {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
+                        <div className="factory-create-material-card-body">
+                          <ListImage src={item.imageUrl} alt={item.materialName} width={64} height={64} borderRadius={10} />
+                          <div className="factory-create-material-content">
+                            <div className="factory-create-material-top">
+                              <span className={`factory-create-material-type ${item.materialType.toLowerCase()}`}>
+                                {item.materialType === 'FABRIC' ? '面料' : item.materialType === 'ACCESSORY' ? '辅料' : '包装'}
+                              </span>
+                              <span className="factory-create-material-sku">{item.materialSku || '未配置编码'}</span>
+                            </div>
+                            <div className="factory-create-material-name">{item.materialName}</div>
+                            <div className="factory-create-material-meta">
+                              单耗 {item.consumption || 0}{item.unit || '件'}
+                              {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}

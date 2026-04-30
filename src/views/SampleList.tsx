@@ -33,7 +33,6 @@ import {
   EllipsisOutlined,
   EyeOutlined,
   ExportOutlined,
-  PictureOutlined,
   PlusOutlined,
   ReloadOutlined,
   ShoppingCartOutlined,
@@ -885,7 +884,6 @@ const SampleList: React.FC = () => {
           height={56}
           borderRadius={6}
           background="#f5f5f5"
-          fallback={<PictureOutlined style={{ fontSize: 24, color: '#bfbfbf' }} />}
         />
       ),
     },
@@ -1015,7 +1013,6 @@ const SampleList: React.FC = () => {
               borderRadius={0}
               background="transparent"
               wrapperStyle={{ position: 'absolute', inset: 0 }}
-              fallback={<PictureOutlined style={{ fontSize: 64, color: '#bfbfbf' }} />}
               objectFit="cover"
             />
           </div>

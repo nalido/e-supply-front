@@ -1,6 +1,6 @@
 import type { PaginatedStyleData, StyleData, StyleListParams, StyleStatus } from '../types/style';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { fromBackendPage, requireNumericTenantId, toBackendPage } from './request-context';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
@@ -42,39 +42,28 @@ const adaptStyle = (payload: BackendStyleSummary): StyleData => ({
   updateTime: payload.updatedAt ?? undefined,
 });
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 export const stylesApi = {
   async list(params: StyleListParams): Promise<PaginatedStyleData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendPageResponse<BackendStyleSummary>>('/api/v1/styles', {
       params: {
         tenantId,
         keyword: params.keyword,
-        page: params.page,
+        page: toBackendPage(params.page),
         size: params.pageSize,
       },
+      skipPageNormalization: true,
     });
     return {
       list: response.data.items.map(adaptStyle),
       total: response.data.total,
-      page: response.data.page + 1,
+      page: fromBackendPage(response.data.page),
       pageSize: response.data.size,
     };
   },
 
   async delete(styleId: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/styles/${styleId}/delete`, undefined, {
       params: { tenantId },
     });

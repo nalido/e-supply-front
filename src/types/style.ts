@@ -72,11 +72,18 @@ export interface StyleDetailData {
   designerId?: string;
   remarks?: string;
   coverImageUrl?: string;
+  detailImageUrls: string[];
   colors: string[];
   sizes: string[];
   colorImages: StyleColorImageMap;
   sizeChartImageUrl?: string;
   materials?: StyleMaterialData[];
+  variants?: Array<{
+    id: string;
+    color?: string;
+    size?: string;
+    attributes?: Record<string, unknown>;
+  }>;
 }
 
 export interface StyleDetailSavePayload {
@@ -87,6 +94,7 @@ export interface StyleDetailSavePayload {
   designerId?: string;
   remarks?: string;
   coverImageUrl?: string;
+  detailImageUrls: string[];
   sizeChartImageUrl?: string;
   colors: string[];
   sizes: string[];

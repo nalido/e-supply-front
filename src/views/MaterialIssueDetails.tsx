@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Button, Card, Input, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Button, Card, Form, Input, InputNumber, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons';
 import { materialIssueService } from '../api/material-inventory';
-import { useSearchParams } from 'react-router-dom';
+import { pieceworkService } from '../api/piecework';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ListImage from '../components/common/ListImage';
 import type {
   MaterialIssueListParams,
@@ -30,8 +31,14 @@ const formatCurrency = (value?: number): string => {
   return safeValue.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
+type ModifyFormValues = {
+  quantity: number;
+};
+
 const MaterialIssueDetails = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [form] = Form.useForm<ModifyFormValues>();
   const [meta, setMeta] = useState<MaterialIssueMeta | null>(null);
   const [materialType, setMaterialType] = useState<MaterialIssueType>('fabric');
   const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '');
@@ -42,6 +49,8 @@ const MaterialIssueDetails = () => {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState({ issueQtyTotal: 0, amountTotal: 0 });
+  const [modifyModalOpen, setModifyModalOpen] = useState(false);
+  const [modifySubmitting, setModifySubmitting] = useState(false);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -116,14 +125,57 @@ const MaterialIssueDetails = () => {
     if (!record) {
       return;
     }
-    message.info(`暂不支持编辑：${record.materialName}`);
+    form.setFieldsValue({ quantity: record.issueQty });
+    setModifyModalOpen(true);
+  };
+
+  const handleModifySubmit = async () => {
+    if (selectedRowKeys.length !== 1) {
+      return;
+    }
+    const lineId = String(selectedRowKeys[0]);
+    try {
+      const values = await form.validateFields();
+      setModifySubmitting(true);
+      await materialIssueService.updateLine(lineId, { quantity: Math.floor(values.quantity) });
+      message.success('领料出库明细已更新');
+      setModifyModalOpen(false);
+      form.resetFields();
+      setSelectedRowKeys([]);
+      void loadList();
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'errorFields' in error) {
+        return;
+      }
+      console.error('failed to update material issue line', error);
+      message.error('修改失败，请稍后重试');
+    } finally {
+      setModifySubmitting(false);
+    }
   };
 
   const handleDelete = () => {
     if (!selectedRowKeys.length) {
       return;
     }
-    message.warning('暂不支持删除已生成的出库明细');
+    Modal.confirm({
+      title: '确认删除所选领料出库明细？',
+      content: '删除后会回滚对应物料库存，请确认已完成校对。',
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await materialIssueService.deleteLines({ lineIds: selectedRowKeys.map(String) });
+          message.success('已删除所选领料出库明细');
+          setSelectedRowKeys([]);
+          void loadList();
+        } catch (error) {
+          console.error('failed to delete material issue lines', error);
+          message.error('删除失败，请稍后重试');
+        }
+      },
+    });
   };
 
   const handleStatusUpdate = async (status: MaterialIssueStatus) => {
@@ -146,6 +198,27 @@ const MaterialIssueDetails = () => {
     message.success('已生成导出任务，请在下载中心查看');
   };
 
+  const handleOpenCuttingSheet = useCallback(async (record: MaterialIssueRecord) => {
+    if (!record.workOrderId) {
+      message.warning('当前出库记录未关联裁床单');
+      return;
+    }
+    try {
+      const detail = await pieceworkService.getCuttingSheetDetail(Number(record.workOrderId));
+      const targetPath = detail.status === 'COMPLETED' ? '/piecework/cutting/done' : '/piecework/cutting/pending';
+      const params = new URLSearchParams();
+      if (detail.orderCode?.trim()) {
+        params.set('keyword', detail.orderCode.trim());
+      }
+      params.set('workOrderId', String(record.workOrderId));
+      params.set('openDetail', '1');
+      navigate(`${targetPath}?${params.toString()}`);
+    } catch (error) {
+      console.error('failed to open cutting sheet detail', error);
+      message.error('打开裁床单失败，请稍后重试');
+    }
+  }, [navigate]);
+
   const columns: ColumnsType<MaterialIssueRecord> = useMemo(
     () => [
       {
@@ -163,7 +236,6 @@ const MaterialIssueDetails = () => {
           <ListImage
             src={value}
             alt={record.materialName}
-            fallback={<Tag bordered={false}>无图</Tag>}
           />
         ),
       },
@@ -291,6 +363,16 @@ const MaterialIssueDetails = () => {
         render: (value?: string) => value || <Text type="secondary">-</Text>,
       },
       {
+        title: '裁床单',
+        dataIndex: 'workOrderId',
+        width: 140,
+        render: (_value: string | undefined, record) => record.workOrderId ? (
+          <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
+            查看裁床单
+          </Button>
+        ) : <Text type="secondary">-</Text>,
+      },
+      {
         title: '出库类型',
         dataIndex: 'issueType',
         width: 120,
@@ -308,11 +390,13 @@ const MaterialIssueDetails = () => {
       {
         title: '备注',
         dataIndex: 'remark',
+        width: 220,
+        fixed: 'right',
         ellipsis: true,
         render: (value?: string) => value || <Text type="secondary">无备注</Text>,
       },
     ],
-    [page, pageSize],
+    [handleOpenCuttingSheet, page, pageSize],
   );
 
   const tabs = useMemo(() => meta?.tabs ?? [{ value: 'fabric', label: '面料' }], [meta?.tabs]);
@@ -328,7 +412,7 @@ const MaterialIssueDetails = () => {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Space size={12} wrap>
             <Input
-              placeholder="请输入物料/来源订单号/发料订单号"
+              placeholder="请输入物料/来源订单号/发料订单号/备注"
               allowClear
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
@@ -414,6 +498,25 @@ const MaterialIssueDetails = () => {
           )}
         />
       </Card>
+
+      <Modal
+        title="修改领料出库明细"
+        open={modifyModalOpen}
+        onCancel={() => {
+          setModifyModalOpen(false);
+          form.resetFields();
+        }}
+        onOk={handleModifySubmit}
+        confirmLoading={modifySubmitting}
+        okText="保存"
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="领料数量" name="quantity" rules={[{ required: true, message: '请输入领料数量' }]}>
+            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Space>
   );
 };

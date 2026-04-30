@@ -11,6 +11,7 @@ import type {
   SampleMaterialItem,
   SampleOrderDetail,
 } from '../../types/sample-detail';
+import { toBackendPage } from '../request-context';
 import { sortColorValues, sortSizeValues } from '../../utils/spec';
 
 export type SampleStatusResponse = 'PENDING' | 'APPROVED' | 'IN_PRODUCTION' | 'CLOSED' | 'CANCELLED';
@@ -322,6 +323,7 @@ export const adaptSampleOrderDetail = (payload: SampleOrderDetailResponse): Samp
 
   return {
     id: String(payload.id),
+    styleId: payload.styleId ? String(payload.styleId) : undefined,
     styleNo: payload.styleNo || '--',
     sampleNo: payload.sampleNo,
     followTemplateId: payload.followTemplateId ? String(payload.followTemplateId) : undefined,
@@ -420,7 +422,7 @@ export const buildListQuery = (params: SampleQueryParams = {}): Record<string, u
     priority: mapPriorityToBackend(safePriority),
     startDeadline: params.startDate,
     endDeadline: params.endDate,
-    page: params.page,
+    page: toBackendPage(params.page),
     size: params.pageSize,
   };
 

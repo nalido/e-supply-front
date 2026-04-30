@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Spin } from 'antd';
 import ProtectedLayout from './layouts/ProtectedLayout';
+import ProtectedTenantOutlet from './layouts/ProtectedTenantOutlet';
 import { menuTree } from './menu.config';
 import type { MenuNode } from './menu.config';
 import type { ReactNode, ReactElement } from 'react';
@@ -71,6 +72,7 @@ const RolesSettings = lazy(() => import('./views/settings').then((module) => ({ 
 const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ default: module.ActionLogPage })));
 const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
 const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
+const SaleCenterWorkspace = lazy(() => import('./views/sale/SaleCenterWorkspace'));
 
 const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
 
@@ -259,6 +261,30 @@ const router = createBrowserRouter([
       { path: 'basic', element: createPlaceholderElement('基础资料') },
       { path: 'ai', element: React.createElement(Navigate, { to: '/ai/agent', replace: true }) },
       { path: 'settings', element: React.createElement(Navigate, { to: '/settings/profile', replace: true }) },
+    ],
+  },
+  {
+    path: '/sale',
+    element: React.createElement(ProtectedTenantOutlet),
+    children: [
+      { index: true, element: React.createElement(Navigate, { to: '/sale/workbench', replace: true }) },
+      { path: 'workbench', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'dashboard', element: React.createElement(Navigate, { to: '/sale/workbench', replace: true }) },
+      { path: 'products/sync', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'products/bindings', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'orders', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
+      { path: 'orders/overview', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
+      { path: 'orders/issues', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'sales-data', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'insights/risk', element: React.createElement(Navigate, { to: '/sale/sales-data', replace: true }) },
+      { path: 'shops', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'governance/sync', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'channels/accounts', element: React.createElement(Navigate, { to: '/sale/shops', replace: true }) },
+      { path: 'channels/mappings', element: React.createElement(Navigate, { to: '/sale/products/bindings', replace: true }) },
+      { path: 'channels/credentials', element: React.createElement(Navigate, { to: '/sale/shops', replace: true }) },
+      { path: 'sync-logs', element: React.createElement(Navigate, { to: '/sale/governance/sync', replace: true }) },
+      { path: 'fulfillments', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
+      { path: 'fulfillment-workbench/temu-full-managed', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
     ],
   },
 ]);

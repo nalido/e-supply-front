@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  Alert,
   Button,
   DatePicker,
   Drawer,
@@ -23,6 +24,7 @@ import type { MaterialStockType } from '../../types/material-stock';
 import type {
   ProcurementOrderSummary,
   StockingPurchaseCreatePayload,
+  StockingPurchaseOrderDetail,
 } from '../../types/stocking-purchase-inbound';
 import type { Partner, SavePartnerPayload } from '../../types/partners';
 import type { Warehouse } from '../../types/warehouse';
@@ -38,9 +40,16 @@ type SelectedMaterialRow = {
   material: MaterialItem;
 };
 
+type MaterialDrawerRow = {
+  rowId: string;
+  material: MaterialItem;
+  color?: string;
+};
+
 export type StockingPurchaseCreateModalProps = {
   open: boolean;
   materialType: MaterialStockType;
+  mode?: 'create' | 'edit';
   initialDraft?: {
     materialCode?: string;
     materialName?: string;
@@ -54,8 +63,10 @@ export type StockingPurchaseCreateModalProps = {
       supplierName?: string;
     }>;
   };
+  initialOrder?: StockingPurchaseOrderDetail;
   onClose: () => void;
-  onCreated: (summary: ProcurementOrderSummary) => void;
+  onCreated?: (summary: ProcurementOrderSummary) => void;
+  onUpdated?: (detail: StockingPurchaseOrderDetail) => void;
 };
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -73,12 +84,44 @@ const buildSelectedMaterialRow = (material: MaterialItem): SelectedMaterialRow =
   material,
 });
 
-const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose, onCreated }: StockingPurchaseCreateModalProps) => {
+const hasUnitPriceValue = (unitPrices: Record<string, number | null>, rowId: string) =>
+  Object.prototype.hasOwnProperty.call(unitPrices, rowId);
+
+const getDefaultUnitPrice = (referencePrice?: number) => referencePrice ?? null;
+
+const getDisplayedUnitPrice = (
+  unitPrices: Record<string, number | null>,
+  rowId: string,
+  referencePrice?: number,
+) => (hasUnitPriceValue(unitPrices, rowId) ? unitPrices[rowId] : getDefaultUnitPrice(referencePrice));
+
+const getSubmitUnitPrice = (
+  unitPrices: Record<string, number | null>,
+  rowId: string,
+  referencePrice?: number,
+) => {
+  if (!hasUnitPriceValue(unitPrices, rowId)) {
+    return referencePrice;
+  }
+  const value = unitPrices[rowId];
+  return value == null ? undefined : value;
+};
+
+const StockingPurchaseCreateModal = ({
+  open,
+  materialType,
+  mode = 'create',
+  initialDraft,
+  initialOrder,
+  onClose,
+  onCreated,
+  onUpdated,
+}: StockingPurchaseCreateModalProps) => {
   const [form] = Form.useForm<{ supplierId: string; warehouseId: string; orderDate: dayjs.Dayjs; expectedArrival?: dayjs.Dayjs; remark?: string }>();
   const [supplierForm] = Form.useForm<SavePartnerPayload>();
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterialRow[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [unitPrices, setUnitPrices] = useState<Record<string, number>>({});
+  const [unitPrices, setUnitPrices] = useState<Record<string, number | null>>({});
   const [selectedColors, setSelectedColors] = useState<Record<string, string | undefined>>({});
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -88,13 +131,16 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   const [supplierSubmitting, setSupplierSubmitting] = useState(false);
   const [supplierSearchText, setSupplierSearchText] = useState('');
   const [materialDrawerOpen, setMaterialDrawerOpen] = useState(false);
-  const [materialOptions, setMaterialOptions] = useState<MaterialItem[]>([]);
+  const [materialOptions, setMaterialOptions] = useState<MaterialDrawerRow[]>([]);
   const [materialOptionsPage, setMaterialOptionsPage] = useState(1);
   const [materialOptionsTotal, setMaterialOptionsTotal] = useState(0);
   const [materialDrawerKeyword, setMaterialDrawerKeyword] = useState('');
   const [materialDrawerInput, setMaterialDrawerInput] = useState('');
   const [materialDrawerLoading, setMaterialDrawerLoading] = useState(false);
   const [drawerSelectedRowKeys, setDrawerSelectedRowKeys] = useState<React.Key[]>([]);
+  const isEditMode = mode === 'edit';
+  const isRemarkOnly = initialOrder?.editableScope === 'remark_only';
+  const lockNonRemarkFields = isEditMode && isRemarkOnly;
   const loadSuppliers = useCallback(async () => {
     const supplierResult = await partnersApi.list({ page: 1, pageSize: 50, type: 'supplier' });
     setSuppliers(supplierResult.list);
@@ -144,7 +190,14 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         materialType,
         keyword: materialDrawerKeyword ? materialDrawerKeyword.trim() : undefined,
       });
-      setMaterialOptions(response.list);
+      setMaterialOptions(response.list.flatMap((material) => {
+        const colors = material.colors?.length ? material.colors : [undefined];
+        return colors.map((color, index) => ({
+          rowId: `${material.id}::${color ?? `no-color-${index}`}`,
+          material,
+          color,
+        }));
+      }));
       setMaterialOptionsTotal(response.total);
     } catch (error) {
       console.error('failed to load materials', error);
@@ -167,18 +220,59 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           loadSuppliers(),
           warehouseApi.list({ page: 1, pageSize: 50, type: 'material', status: 'active' }),
         ]);
-        setWarehouses(warehouseResult.list);
-        if (warehouseResult.list.length) {
-          form.setFieldValue('warehouseId', warehouseResult.list[0].id);
+        const nextSuppliers = [...supplierResult];
+        if (
+          initialOrder?.supplierId
+          && initialOrder.supplierName
+          && !nextSuppliers.some((item) => item.id === initialOrder.supplierId)
+        ) {
+          nextSuppliers.unshift({
+            id: initialOrder.supplierId,
+            name: initialOrder.supplierName,
+            type: 'supplier',
+            status: 'bound',
+            tags: [],
+            disabled: false,
+            updatedAt: '',
+            createdAt: '',
+          });
         }
-        if (initialDraft?.supplierName) {
-          const matchedSupplier = supplierResult.find((item) => item.name === initialDraft.supplierName);
-          if (matchedSupplier) {
-            form.setFieldValue('supplierId', matchedSupplier.id);
+        setSuppliers(nextSuppliers);
+        const nextWarehouses = [...warehouseResult.list];
+        if (
+          initialOrder?.warehouseId
+          && initialOrder.warehouseName
+          && !nextWarehouses.some((item) => item.id === initialOrder.warehouseId)
+        ) {
+          nextWarehouses.unshift({
+            id: initialOrder.warehouseId,
+            name: initialOrder.warehouseName,
+            type: 'material',
+            status: 'active',
+          });
+        }
+        setWarehouses(nextWarehouses);
+        if (nextWarehouses.length) {
+          form.setFieldValue('warehouseId', nextWarehouses[0].id);
+        }
+        if (initialOrder) {
+          form.setFieldsValue({
+            supplierId: initialOrder.supplierId,
+            warehouseId: initialOrder.warehouseId,
+            orderDate: initialOrder.orderDate ? dayjs(initialOrder.orderDate) : dayjs(),
+            expectedArrival: initialOrder.expectedArrival ? dayjs(initialOrder.expectedArrival) : undefined,
+            remark: initialOrder.remark,
+          });
+        } else {
+          if (initialDraft?.supplierName) {
+            const matchedSupplier = supplierResult.find((item) => item.name === initialDraft.supplierName);
+            if (matchedSupplier) {
+              form.setFieldValue('supplierId', matchedSupplier.id);
+            }
           }
-        }
-        if (initialDraft?.remark) {
-          form.setFieldValue('remark', initialDraft.remark);
+          if (initialDraft?.remark) {
+            form.setFieldValue('remark', initialDraft.remark);
+          }
         }
       } catch (error) {
         console.error('failed to load suppliers/warehouses', error);
@@ -188,7 +282,44 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       }
     };
     void loadMeta();
-  }, [form, initialDraft?.remark, initialDraft?.supplierName, loadSuppliers, open, resetState]);
+  }, [form, initialDraft?.remark, initialDraft?.supplierName, initialOrder, loadSuppliers, open, resetState]);
+
+  useEffect(() => {
+    if (!open || !initialOrder?.lines?.length) {
+      return;
+    }
+    const loadOrderLines = async () => {
+      try {
+        const matchedMaterials: SelectedMaterialRow[] = [];
+        const nextQuantities: Record<string, number> = {};
+        const nextColors: Record<string, string | undefined> = {};
+        const nextUnitPrices: Record<string, number | null> = {};
+        for (const line of initialOrder.lines) {
+          const materialKeyword = line.materialCode || line.materialName;
+          if (!materialKeyword) continue;
+          const response = await materialApi.list({ page: 1, pageSize: DEFAULT_PAGE_SIZE, materialType, keyword: materialKeyword });
+          const matchedMaterial = response.list.find((item) => item.id === line.materialId) ?? response.list.find((item) => item.sku === line.materialCode) ?? response.list.find((item) => item.name === line.materialName) ?? response.list[0];
+          if (!matchedMaterial) continue;
+          const row = buildSelectedMaterialRow(matchedMaterial);
+          matchedMaterials.push(row);
+          nextQuantities[row.rowId] = Number(line.quantity ?? 0);
+          nextColors[row.rowId] = line.color;
+          nextUnitPrices[row.rowId] = line.unitPrice == null
+            ? getDefaultUnitPrice(matchedMaterial.referencePrice)
+            : Number(line.unitPrice);
+        }
+        if (!matchedMaterials.length) return;
+        setSelectedMaterials(matchedMaterials);
+        setQuantities(nextQuantities);
+        setSelectedColors(nextColors);
+        setUnitPrices(nextUnitPrices);
+      } catch (error) {
+        console.error('failed to load initial order lines', error);
+        message.warning('编辑单据时未能自动回填物料，请手动检查');
+      }
+    };
+    void loadOrderLines();
+  }, [initialOrder, materialType, open]);
 
   useEffect(() => {
     const draft = initialDraft;
@@ -259,11 +390,38 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   }, []);
 
   const handleUnitPriceChange = useCallback((recordId: string, value: number | null) => {
-    setUnitPrices((prev) => ({ ...prev, [recordId]: value ?? 0 }));
+    setUnitPrices((prev) => ({ ...prev, [recordId]: value }));
   }, []);
 
   const handleColorChange = useCallback((recordId: string, value?: string) => {
     setSelectedColors((prev) => ({ ...prev, [recordId]: value }));
+  }, []);
+
+  const handleDuplicateMaterial = useCallback((record: SelectedMaterialRow) => {
+    const duplicatedRow = buildSelectedMaterialRow(record.material);
+    setSelectedMaterials((prev) => {
+      const currentIndex = prev.findIndex((item) => item.rowId === record.rowId);
+      if (currentIndex < 0) {
+        return [...prev, duplicatedRow];
+      }
+      const next = [...prev];
+      next.splice(currentIndex + 1, 0, duplicatedRow);
+      return next;
+    });
+    setQuantities((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: prev[record.rowId] ?? 0,
+    }));
+    setUnitPrices((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: hasUnitPriceValue(prev, record.rowId)
+        ? prev[record.rowId]
+        : getDefaultUnitPrice(record.material.referencePrice),
+    }));
+    setSelectedColors((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: prev[record.rowId] ?? (record.material.colors?.length === 1 ? record.material.colors[0] : undefined),
+    }));
   }, []);
 
   const handleRemoveMaterial = useCallback((recordId: string) => {
@@ -333,6 +491,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           <InputNumber
             min={0}
             precision={2}
+            disabled={lockNonRemarkFields}
             value={quantities[record.rowId] ?? 0}
             onChange={(val) => handleQuantityChange(record.rowId, val)}
             addonAfter={record.material.unit}
@@ -353,7 +512,8 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
             <InputNumber
               min={0}
               precision={2}
-              value={unitPrices[record.rowId] ?? record.material.referencePrice ?? 0}
+              disabled={lockNonRemarkFields}
+              value={getDisplayedUnitPrice(unitPrices, record.rowId, record.material.referencePrice)}
               onChange={(val) => handleUnitPriceChange(record.rowId, val)}
               style={{ width: '100%' }}
               placeholder="请输入采购单价"
@@ -365,15 +525,20 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         title: '操作',
         dataIndex: 'actions',
         key: 'actions',
-        width: 80,
+        width: 140,
         render: (_value, record) => (
-          <Button type="link" danger onClick={() => handleRemoveMaterial(record.rowId)}>
-            移除
-          </Button>
+          <Space size={0}>
+            <Button type="link" disabled={lockNonRemarkFields} onClick={() => handleDuplicateMaterial(record)}>
+              复制
+            </Button>
+            <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
+              移除
+            </Button>
+          </Space>
         ),
       },
     ],
-    [handleColorChange, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, quantities, selectedColors, unitPrices],
+    [handleColorChange, handleDuplicateMaterial, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, lockNonRemarkFields, quantities, selectedColors, unitPrices],
   );
 
   const handleDrawerSearch = (value: string) => {
@@ -396,31 +561,34 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
       message.warning('请勾选需要添加的物料');
       return;
     }
-    const selectedRecords = materialOptions.filter((item) => drawerSelectedRowKeys.includes(item.id));
+    const selectedRecords = materialOptions.filter((item) => drawerSelectedRowKeys.includes(item.rowId));
     if (!selectedRecords.length) {
       message.warning('未找到勾选的物料，请刷新后重试');
       return;
     }
-    const rowsToAdd = selectedRecords.map(buildSelectedMaterialRow);
-    setSelectedMaterials((prev) => [...prev, ...rowsToAdd]);
+    const rowsToAdd = selectedRecords.map((item) => ({
+      row: buildSelectedMaterialRow(item.material),
+      color: item.color,
+    }));
+    setSelectedMaterials((prev) => [...prev, ...rowsToAdd.map((item) => item.row)]);
     setQuantities((quantitiesState) => {
       const nextQuantities = { ...quantitiesState };
-      rowsToAdd.forEach((row) => {
+      rowsToAdd.forEach(({ row }) => {
         nextQuantities[row.rowId] = 0;
       });
       return nextQuantities;
     });
     setUnitPrices((unitPriceState) => {
       const nextUnitPrices = { ...unitPriceState };
-      rowsToAdd.forEach((row) => {
-        nextUnitPrices[row.rowId] = row.material.referencePrice ?? 0;
+      rowsToAdd.forEach(({ row }) => {
+        nextUnitPrices[row.rowId] = getDefaultUnitPrice(row.material.referencePrice);
       });
       return nextUnitPrices;
     });
     setSelectedColors((colorState) => {
       const nextColors = { ...colorState };
-      rowsToAdd.forEach((row) => {
-        nextColors[row.rowId] = row.material.colors?.length === 1 ? row.material.colors[0] : undefined;
+      rowsToAdd.forEach(({ row, color }) => {
+        nextColors[row.rowId] = color ?? (row.material.colors?.length === 1 ? row.material.colors[0] : undefined);
       });
       return nextColors;
     });
@@ -468,28 +636,34 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      if (!selectedMaterials.length) {
-        message.warning('请先添加需要采购的物料');
-        return;
-      }
-      const selectedLines = selectedMaterials
-        .map((item) => ({
-          materialId: item.material.id,
-          quantity: quantities[item.rowId] ?? 0,
-          unit: item.material.unit,
-          unitPrice: unitPrices[item.rowId] ?? item.material.referencePrice ?? 0,
-          color: selectedColors[item.rowId],
-          materialName: item.material.name,
-        }))
-        .filter((line) => line.quantity > 0);
-      if (!selectedLines.length) {
-        message.warning('请为勾选的物料填写采购数量');
-        return;
-      }
-      const missingUnitPriceLine = selectedLines.find((line) => line.unitPrice <= 0);
-      if (missingUnitPriceLine) {
-        message.warning(`请填写物料「${missingUnitPriceLine.materialName ?? missingUnitPriceLine.materialId}」的采购单价`);
-        return;
+      const selectedLines = isRemarkOnly && initialOrder
+        ? initialOrder.lines.map((line) => ({
+            materialId: line.materialId,
+            quantity: Number(line.quantity ?? 0),
+            unit: line.unit,
+            unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
+            color: line.color,
+            materialName: line.materialName,
+          }))
+        : selectedMaterials
+            .map((item) => ({
+              materialId: item.material.id,
+              quantity: quantities[item.rowId] ?? 0,
+              unit: item.material.unit,
+              unitPrice: getSubmitUnitPrice(unitPrices, item.rowId, item.material.referencePrice),
+              color: selectedColors[item.rowId],
+              materialName: item.material.name,
+            }))
+            .filter((line) => line.quantity > 0);
+      if (!isRemarkOnly) {
+        if (!selectedMaterials.length) {
+          message.warning('请先添加需要采购的物料');
+          return;
+        }
+        if (!selectedLines.length) {
+          message.warning('请为勾选的物料填写采购数量');
+          return;
+        }
       }
       const payload: StockingPurchaseCreatePayload = {
         supplierId: values.supplierId,
@@ -506,14 +680,19 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         })),
       };
       setSubmitting(true);
-      const summary = await stockingPurchaseInboundService.createOrder(payload);
-      onCreated(summary);
+      if (isEditMode && initialOrder) {
+        const detail = await stockingPurchaseInboundService.updateOrder(initialOrder.id, payload);
+        onUpdated?.(detail);
+      } else {
+        const summary = await stockingPurchaseInboundService.createOrder(payload);
+        onCreated?.(summary);
+      }
     } catch (error: unknown) {
       if (typeof error === 'object' && error !== null && 'errorFields' in error) {
         return;
       }
-      console.error('failed to create stocking order', error);
-      message.error('创建采购单失败，请稍后重试');
+      console.error(isEditMode ? 'failed to update stocking order' : 'failed to create stocking order', error);
+      message.error(isEditMode ? '更新采购单失败，请稍后重试' : '创建采购单失败，请稍后重试');
     } finally {
       setSubmitting(false);
     }
@@ -522,14 +701,22 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
   return (
     <Modal
       width={960}
-      title="创建备料采购单"
+      title={isEditMode ? '编辑备料采购单' : '创建备料采购单'}
       open={open}
       onCancel={onClose}
       confirmLoading={submitting}
-      okText="创建采购单"
+      okText={isEditMode ? '保存修改' : '创建采购单'}
       onOk={handleSubmit}
+      destroyOnHidden
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        {isRemarkOnly ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="该采购单已有收料记录，当前仅允许修改备注。"
+          />
+        ) : null}
         <Form
           form={form}
           layout="vertical"
@@ -552,11 +739,12 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
               >
                 <Select
                   loading={metaLoading}
+                  disabled={lockNonRemarkFields}
                   placeholder="请选择供应商"
                   searchValue={supplierSearchText}
                   onSearch={setSupplierSearchText}
                   onClear={() => setSupplierSearchText('')}
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
                       <div style={{ padding: '8px 12px', borderTop: '1px solid #f0f0f0' }}>
@@ -590,8 +778,9 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
               >
               <Select
                 loading={metaLoading}
+                disabled={lockNonRemarkFields}
                 placeholder="请选择仓库"
-                dropdownRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
+                popupRender={(menu) => renderSelectDropdownWithSetup(menu, warehouseSetup)}
                 options={warehouses.map((warehouse) => ({ label: warehouse.name, value: warehouse.id }))}
                 showSearch
                 optionFilterProp="label"
@@ -604,10 +793,10 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
               name="orderDate"
               rules={[{ required: true, message: '请选择采购日期' }]}
             >
-            <DatePicker allowClear={false} />
+            <DatePicker allowClear={false} disabled={lockNonRemarkFields} />
             </Form.Item>
             <Form.Item label="预计到货" name="expectedArrival">
-            <DatePicker />
+            <DatePicker disabled={lockNonRemarkFields} />
             </Form.Item>
             <Form.Item label="备注" name="remark">
             <Input.TextArea rows={1} placeholder="可输入订单备注" />
@@ -615,7 +804,10 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           </div>
         </Form>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Button type="primary" onClick={() => {
+          <Button
+            type="primary"
+            disabled={lockNonRemarkFields}
+            onClick={() => {
             setMaterialDrawerOpen(true);
             setMaterialOptionsPage(1);
             if (!materialDrawerInput) {
@@ -693,6 +885,13 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
         width={520}
         open={materialDrawerOpen}
         onClose={() => setMaterialDrawerOpen(false)}
+        styles={{
+          body: {
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          },
+        }}
         footer={
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Button onClick={() => setMaterialDrawerOpen(false)}>取消</Button>
@@ -702,7 +901,7 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
           </Space>
         }
       >
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space direction="vertical" size={16} style={{ width: '100%', flex: 1, minHeight: 0 }}>
           <SelectSetupHint config={materialSetup} />
           <SearchField
             allowClear
@@ -712,33 +911,34 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
             onSearch={handleDrawerSearch}
             enterButton="搜索"
           />
-          <Table<MaterialItem>
-            rowKey="id"
+          <div style={{ flex: 1, minHeight: 0 }}>
+          <Table<MaterialDrawerRow>
+            rowKey="rowId"
             dataSource={materialOptions}
             columns={[
               {
                 title: '物料',
-                dataIndex: 'name',
+                dataIndex: ['material', 'name'],
                 key: 'name',
                 render: (value: string, record) => (
                   <Space direction="vertical" size={2}>
                     <Text strong>{value}</Text>
-                    <Text type="secondary">{record.sku}</Text>
+                    <Text type="secondary">{record.material.sku}</Text>
                   </Space>
                 ),
               },
               {
                 title: '单位',
-                dataIndex: 'unit',
+                dataIndex: ['material', 'unit'],
                 key: 'unit',
                 width: 100,
               },
               {
                 title: '颜色',
-                dataIndex: 'colors',
+                dataIndex: 'color',
                 key: 'colors',
                 width: 160,
-                render: (value?: string[]) => (value && value.length ? value.join(' / ') : '-'),
+                render: (value?: string) => value || <Text type="secondary">未维护颜色</Text>,
               },
             ]}
             loading={materialDrawerLoading}
@@ -753,9 +953,10 @@ const StockingPurchaseCreateModal = ({ open, materialType, initialDraft, onClose
               selectedRowKeys: drawerSelectedRowKeys,
               onChange: (keys) => setDrawerSelectedRowKeys(keys),
             }}
-            scroll={{ y: 360 }}
+            scroll={{ y: 'calc(100vh - 340px)' }}
             locale={{ emptyText: '请输入关键词后搜索物料档案' }}
           />
+          </div>
         </Space>
       </Drawer>
     </Modal>

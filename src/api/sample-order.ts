@@ -2,7 +2,6 @@ import type { SampleFollowProgress, SampleOrder, SampleQueryParams, SampleStats 
 import type { SampleOrderDetail } from '../types/sample-detail';
 import type { SampleCreationMeta } from '../types/sample-create';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
 import {
   adaptSampleOrderSummary,
   adaptSampleOrderDetail,
@@ -15,6 +14,7 @@ import {
   adaptFollowProgress,
   type SampleFollowProgressResponse,
 } from './adapters/sample-order';
+import { requireTenantId } from './request-context';
 
 export type SampleOrderListResult = {
   list: SampleOrder[];
@@ -118,14 +118,6 @@ export type SampleOrderCreateInput = {
     sortOrder?: number;
     color?: string;
   }>;
-};
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('tenantId is not set');
-  }
-  return tenantId;
 };
 
 const adaptMetaResponse = (payload: SampleOrderMetaResponse): SampleCreationMeta => ({
@@ -305,13 +297,14 @@ const fetchBackendSampleDetail = async (
 
 export const sampleOrderApi = {
   async list(params: SampleQueryParams & { page?: number; pageSize?: number }): Promise<SampleOrderListResult> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const query = buildListQuery(params);
     const { data } = await http.get<SampleOrderListResponse>('/api/v1/sample-orders', {
       params: {
         tenantId,
         ...query,
       },
+      skipPageNormalization: true,
     });
 
     const pageZero = typeof data.page === 'number' ? data.page : 0;
@@ -326,7 +319,7 @@ export const sampleOrderApi = {
   },
 
   async getStats(params: SampleQueryParams = {}): Promise<SampleStats> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const query = buildListQuery({ ...params, status: undefined });
     const { data } = await http.get<SampleOrderStatsPayload>('/api/v1/sample-orders/stats', {
       params: { tenantId, ...query },
@@ -347,25 +340,25 @@ export const sampleOrderApi = {
   },
 
   async detail(id: string): Promise<SampleOrderDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const data = await fetchBackendSampleDetail(tenantId, id);
     return adaptSampleOrderDetail(data);
   },
 
   async detailRaw(id: string): Promise<SampleOrderDetailResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     return fetchBackendSampleDetail(tenantId, id);
   },
 
   async create(payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const body = buildCreateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>('/api/v1/sample-orders', body);
     return adaptSampleOrderDetail(data);
   },
 
   async update(id: string, payload: SampleOrderCreateInput): Promise<SampleOrderDetail> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const body = buildUpdateRequest(tenantId, payload);
     const { data } = await http.post<SampleOrderDetailResponse>(`/api/v1/sample-orders/${id}/update`, body);
     return adaptSampleOrderDetail(data);
@@ -376,7 +369,7 @@ export const sampleOrderApi = {
     nodeId: string,
     payload: { completed: boolean; statusValue?: string },
   ): Promise<SampleFollowProgress | undefined> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.post<SampleFollowProgressResponse>(
       `/api/v1/sample-orders/${orderId}/follow-progress/${nodeId}/update`,
       {
@@ -389,17 +382,17 @@ export const sampleOrderApi = {
   },
 
   async copy(id: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(`/api/v1/sample-orders/${id}/copy`, undefined, { params: { tenantId } });
   },
 
   async delete(id: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(`/api/v1/sample-orders/${id}/delete`, undefined, { params: { tenantId } });
   },
 
   async updateStatus(id: string, status: SampleOrder['status'], note?: string): Promise<void> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await http.post(
       `/api/v1/sample-orders/${id}/status/update`,
       {
@@ -411,7 +404,7 @@ export const sampleOrderApi = {
   },
 
   async getMeta(): Promise<SampleCreationMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const { data } = await http.get<SampleOrderMetaResponse>('/api/v1/sample-orders/meta', {
       params: { tenantId },
     });
@@ -419,7 +412,7 @@ export const sampleOrderApi = {
   },
 
   async exportList(params: SampleOrderExportParams): Promise<ExportResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<ExportResponse>(
       '/api/v1/sample-orders/export',
       {

@@ -32,12 +32,11 @@ import http from './http';
 import {
   adaptCompanyOverviewResponse,
   type CompanyOverviewResponse,
-  // New adapter functions
   adaptRoleResponse,
   adaptPermissionTree,
 } from './adapters/settings';
 import { preferenceGroupTemplates } from '../constants/preferences';
-import { tenantStore } from '../stores/tenant'; // Import tenantStore
+import { requireNumericTenantId, requireTenantId, toBackendPage } from './request-context';
 
 type ProfileFetchOptions = {
   userId?: string;
@@ -99,22 +98,6 @@ const adaptAuditLogFromBackend = (item: BackendAuditLogResponse): ActionLogEntry
 
 const PREFERENCE_OWNER_TYPE = 'TENANT';
 
-const getTenantIdOrThrow = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('Tenant ID is not available.');
-  }
-  return tenantId;
-};
-
-const getParsedTenantIdOrThrow = (): number => {
-  const tenantId = Number(getTenantIdOrThrow());
-  if (!Number.isFinite(tenantId)) {
-    throw new Error('Invalid tenant id');
-  }
-  return tenantId;
-};
-
 const clonePreferenceGroups = (): PreferenceGroup[] =>
   preferenceGroupTemplates.map((group) => ({
     ...group,
@@ -151,7 +134,7 @@ const applyPreferenceValues = (records: BackendPreferenceResponse[]): Preference
 export const settingsApi = {
   profile: {
     get: async (options: ProfileFetchOptions = {}): Promise<UserProfile> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       if (options.userId) {
         const response = await http.get<BackendUserAccountResponse>(
           `/api/v1/settings/users/${options.userId}`,
@@ -169,7 +152,7 @@ export const settingsApi = {
           params: {
             tenantId,
             keyword,
-            page: 1,
+            page: toBackendPage(1),
             size: 20,
           },
         },
@@ -187,7 +170,7 @@ export const settingsApi = {
       return adaptUserProfileFromBackend(matched);
     },
     updateAvatar: async (payload: AvatarUpdatePayload): Promise<UserProfile> => {
-      const parsedTenantId = getParsedTenantIdOrThrow();
+      const parsedTenantId = requireNumericTenantId();
       const formData = new FormData();
       formData.append('file', payload.file);
       const response = await http.post<BackendUserAccountResponse>(
@@ -204,7 +187,7 @@ export const settingsApi = {
       if (!context?.id) {
         throw new Error('User profile is required for updating phone number.');
       }
-      const parsedTenantId = getParsedTenantIdOrThrow();
+      const parsedTenantId = requireNumericTenantId();
       const requestBody: BackendUserAccountUpdateRequest = {
         tenantId: parsedTenantId,
         displayName: context.name,
@@ -237,7 +220,7 @@ export const settingsApi = {
   },
   organization: {
     list: async (query: OrgMemberQuery = {}): Promise<Paginated<OrgMember>> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       const page = query.page ?? 1;
       const pageSize = query.pageSize ?? 10;
       const response = await http.get<BackendPageResponse<BackendUserAccountResponse>>(
@@ -246,9 +229,10 @@ export const settingsApi = {
           params: {
             tenantId,
             keyword: query.keyword,
-            page,
+            page: toBackendPage(page),
             size: pageSize,
           },
+          skipPageNormalization: true,
         },
       );
       return {
@@ -257,7 +241,7 @@ export const settingsApi = {
       };
     },
     create: async (payload: CreateOrgMemberPayload): Promise<OrgMember> => {
-      const parsedTenantId = getParsedTenantIdOrThrow();
+      const parsedTenantId = requireNumericTenantId();
       const roleIds = (payload.roleIds ?? [])
         .map((roleId) => Number(roleId))
         .filter((roleId) => Number.isFinite(roleId) && roleId > 0);
@@ -276,7 +260,7 @@ export const settingsApi = {
       return adaptOrgMemberFromBackend(response.data);
     },
     update: async (memberId: string, payload: UpdateOrgMemberPayload): Promise<OrgMember> => {
-      const parsedTenantId = getParsedTenantIdOrThrow();
+      const parsedTenantId = requireNumericTenantId();
       const roleIds = (payload.roleIds ?? [])
         .map((roleId) => Number(roleId))
         .filter((roleId) => Number.isFinite(roleId) && roleId > 0);
@@ -296,21 +280,21 @@ export const settingsApi = {
       return adaptOrgMemberFromBackend(response.data);
     },
     remove: async (memberId: string): Promise<boolean> => {
-      const parsedTenantId = getParsedTenantIdOrThrow();
+      const parsedTenantId = requireNumericTenantId();
       await http.post(`/api/v1/settings/users/${memberId}/delete`, { tenantId: parsedTenantId });
       return true;
     },
   },
   roles: {
     list: async (): Promise<RoleItem[]> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       const response = await http.get<BackendRoleResponse[]>('/api/v1/settings/roles', {
         params: { tenantId },
       });
       return response.data.map(adaptRoleResponse);
     },
     create: async (payload: CreateRolePayload & { permissionIds?: string[] }): Promise<RoleItem> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       const requestBody: BackendRoleRequest = {
         tenantId,
         name: payload.name,
@@ -321,7 +305,7 @@ export const settingsApi = {
       return adaptRoleResponse(response.data);
     },
     update: async (id: string, payload: UpdateRolePayload & { permissionIds?: string[] }): Promise<RoleItem | undefined> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       const requestBody: BackendRoleRequest = {
         tenantId,
         name: payload.name,
@@ -332,7 +316,7 @@ export const settingsApi = {
       return adaptRoleResponse(response.data);
     },
     remove: async (id: string): Promise<boolean> => {
-      const tenantId = getTenantIdOrThrow();
+      const tenantId = requireTenantId();
       await http.post(`/api/v1/settings/roles/${id}/delete`, null, {
         params: { tenantId },
       });
@@ -345,8 +329,8 @@ export const settingsApi = {
   },
   audit: {
     list: async (query: ActionLogQuery = {}): Promise<Paginated<ActionLogEntry>> => {
-      const tenantId = getTenantIdOrThrow();
-      const pageIndex = Math.max(0, (query.page ?? 1) - 1);
+      const tenantId = requireTenantId();
+      const pageIndex = toBackendPage(query.page);
       const pageSize = query.pageSize ?? 10;
       const response = await http.get<BackendPageResponse<BackendAuditLogResponse>>(
         '/api/v1/settings/audit-logs',
@@ -362,6 +346,7 @@ export const settingsApi = {
             page: pageIndex,
             size: pageSize,
           },
+          skipPageNormalization: true,
         },
       );
       return {
@@ -372,7 +357,7 @@ export const settingsApi = {
   },
   preferences: {
     list: async (): Promise<PreferenceGroup[]> => {
-      const tenantId = getParsedTenantIdOrThrow();
+      const tenantId = requireNumericTenantId();
       const response = await http.get<BackendPreferenceResponse[]>(
         '/api/v1/settings/preferences',
         {
@@ -387,7 +372,7 @@ export const settingsApi = {
       return applyPreferenceValues(records);
     },
     update: async (payload: UpdatePreferencePayload): Promise<boolean> => {
-      const tenantId = getParsedTenantIdOrThrow();
+      const tenantId = requireNumericTenantId();
       const normalizedValue =
         typeof payload.value === 'boolean' ? (payload.value ? 'true' : 'false') : `${payload.value ?? ''}`;
       await http.post('/api/v1/settings/preferences', {

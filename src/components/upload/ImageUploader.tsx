@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { Upload, message } from 'antd';
+import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { Image, Upload, message } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import type { UploadRequestOption as RcCustomRequestOptions } from 'rc-upload/lib/interface';
-import { PlusOutlined } from '@ant-design/icons';
+import { CloseOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import storageApi from '../../api/storage';
+import './ImageUploader.css';
 
-export type ImageUploaderProps = {
-  value?: string;
-  onChange?: (value?: string) => void;
+type ImageUploaderBaseProps = {
   module?: string;
   maxSizeMB?: number;
   tips?: ReactNode;
@@ -16,20 +15,77 @@ export type ImageUploaderProps = {
   disabled?: boolean;
 };
 
-const MAX_SIZE_DEFAULT_MB = 5;
+type SingleImageUploaderProps = ImageUploaderBaseProps & {
+  multiple?: false;
+  maxCount?: 1;
+  value?: string;
+  onChange?: (value?: string) => void;
+};
 
-const buildPreviewFile = (value?: string): UploadFile[] => {
+type MultiImageUploaderProps = ImageUploaderBaseProps & {
+  multiple: true;
+  maxCount?: number;
+  value?: string[];
+  onChange?: (value?: string[]) => void;
+};
+
+export type ImageUploaderProps = SingleImageUploaderProps | MultiImageUploaderProps;
+
+const MAX_SIZE_DEFAULT_MB = 5;
+const MAX_MULTI_COUNT_DEFAULT = 10;
+
+const toUrlArray = (value?: string | string[]) => {
   if (!value) {
     return [];
   }
-  return [
-    {
-      uid: '-1',
-      name: 'image',
-      status: 'done',
-      url: value,
-    },
-  ];
+  return Array.isArray(value) ? value.filter(Boolean) : [value];
+};
+
+const buildPreviewFiles = (value?: string | string[]): UploadFile[] =>
+  toUrlArray(value).map((url, index) => ({
+    uid: `preview-${index}`,
+    name: `image-${index + 1}`,
+    status: 'done',
+    url,
+  }));
+
+const rewritePreviewAnchors = (
+  node: ReactNode,
+  file: UploadFile,
+  onPreview: (target: UploadFile) => void,
+): ReactNode => {
+  if (!isValidElement(node)) {
+    return node;
+  }
+
+  if (typeof node.type !== 'string') {
+    return node;
+  }
+
+  const props = node.props as {
+    children?: ReactNode;
+    onClick?: (event: React.MouseEvent<HTMLElement>) => void;
+  };
+
+  const nextChildren = props.children
+    ? Children.map(props.children, (child) => rewritePreviewAnchors(child, file, onPreview))
+    : props.children;
+
+  if (node.type === 'a') {
+    return cloneElement(node as ReactElement, {
+      href: undefined,
+      target: undefined,
+      rel: undefined,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        props.onClick?.(event);
+        onPreview(file);
+      },
+    }, nextChildren);
+  }
+
+  return cloneElement(node as ReactElement, undefined, nextChildren);
 };
 
 const ImageUploader = ({
@@ -40,13 +96,37 @@ const ImageUploader = ({
   tips,
   accept = 'image/*',
   disabled,
+  multiple = false,
+  maxCount,
 }: ImageUploaderProps) => {
-  const [fileList, setFileList] = useState<UploadFile[]>(() => buildPreviewFile(value));
+  const [fileList, setFileList] = useState<UploadFile[]>(() => buildPreviewFiles(value));
   const [uploading, setUploading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string>();
+  const [activeUid, setActiveUid] = useState<string>();
+  const resolvedMaxCount = multiple ? (maxCount ?? MAX_MULTI_COUNT_DEFAULT) : 1;
 
   useEffect(() => {
-    setFileList(buildPreviewFile(value));
+    setFileList(buildPreviewFiles(value));
   }, [value]);
+
+  const emitChange = (nextFileList: UploadFile[]) => {
+    const urls = nextFileList
+      .map((file) => file.url)
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    if (multiple) {
+      (onChange as MultiImageUploaderProps['onChange'])?.(urls);
+      return;
+    }
+    (onChange as SingleImageUploaderProps['onChange'])?.(urls[0]);
+  };
+
+  const normalizeNextFileList = (nextFileList: UploadFile[]) => {
+    if (multiple) {
+      return nextFileList.slice(-resolvedMaxCount);
+    }
+    return nextFileList.slice(-1);
+  };
 
   const handleUpload = async (options: RcCustomRequestOptions) => {
     const rcFile = options.file as RcFile;
@@ -59,60 +139,55 @@ const ImageUploader = ({
       return;
     }
     const uid = rcFile.uid || `${Date.now()}`;
+    const uploadingFile: UploadFile = {
+      uid,
+      name: rcFile.name,
+      status: 'uploading',
+    };
     setUploading(true);
-    setFileList([
-      {
-        uid,
-        name: rcFile.name,
-        status: 'uploading',
-      },
-    ]);
+    setFileList((prev) => normalizeNextFileList(multiple ? [...prev, uploadingFile] : [uploadingFile]));
 
     try {
       const result = await storageApi.upload(rcFile as File, { module });
-      setFileList([
-        {
-          uid,
-          name: rcFile.name,
-          status: 'done',
-          url: result.url,
-        },
-      ]);
-      onChange?.(result.url);
+      setFileList((prev) => {
+        const next = normalizeNextFileList(
+          prev.map((file) => file.uid === uid
+            ? {
+                ...file,
+                status: 'done',
+                url: result.url,
+              }
+            : file),
+        );
+        emitChange(next);
+        return next;
+      });
       options.onSuccess?.(result, new XMLHttpRequest());
     } catch (error) {
       console.error('上传图片失败', error);
       message.error('上传图片失败，请稍后再试');
-      setFileList([
-        {
-          uid,
-          name: rcFile.name,
-          status: 'error',
-        },
-      ]);
+      setFileList((prev) => prev.filter((file) => file.uid !== uid));
       options.onError?.(error as Error);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleRemove = () => {
-    setFileList([]);
-    onChange?.(undefined);
+  const handleRemove = (target: UploadFile) => {
+    const next = fileList.filter((file) => file.uid !== target.uid);
+    setFileList(next);
+    emitChange(next);
     return true;
   };
 
   const handlePreview = async (file: UploadFile) => {
-    const src = file.url ?? (file.originFileObj ? URL.createObjectURL(file.originFileObj) : '');
-    if (!src) {
+    const previewUrl = file.url ?? file.thumbUrl;
+    if (!previewUrl) {
+      message.warning('当前图片暂不可预览');
       return;
     }
-    const image = new Image();
-    image.src = src;
-    const newWindow = window.open(src);
-    if (newWindow) {
-      newWindow.document.write(image.outerHTML);
-    }
+    setPreviewImage(previewUrl);
+    setPreviewOpen(true);
   };
 
   const uploadButton = useMemo(
@@ -130,19 +205,81 @@ const ImageUploader = ({
       <Upload
         listType="picture-card"
         fileList={fileList}
-        maxCount={1}
+        maxCount={resolvedMaxCount}
+        multiple={multiple}
         customRequest={handleUpload}
-        onRemove={handleRemove}
         onPreview={handlePreview}
+        onRemove={handleRemove}
+        itemRender={(originNode, file) => {
+          const renderedNode = rewritePreviewAnchors(originNode, file, (target) => {
+            void handlePreview(target);
+          });
+
+          return (
+            <div
+              className="image-uploader__item"
+              onMouseEnter={() => setActiveUid(file.uid)}
+              onMouseLeave={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
+              onFocus={() => setActiveUid(file.uid)}
+              onBlur={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
+            >
+              {renderedNode}
+              {file.status === 'done' ? (
+                <>
+                  <button
+                    type="button"
+                    className={`image-uploader__preview-button${activeUid === file.uid ? ' is-visible' : ''}`}
+                    aria-label="查看大图"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void handlePreview(file);
+                    }}
+                  >
+                    <EyeOutlined />
+                  </button>
+                  {!disabled ? (
+                    <button
+                      type="button"
+                      className={`image-uploader__remove-button${activeUid === file.uid ? ' is-visible' : ''}`}
+                      aria-label="删除图片"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleRemove(file);
+                      }}
+                    >
+                      <CloseOutlined />
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          );
+        }}
         accept={accept}
         disabled={disabled || uploading}
-        showUploadList={{ showPreviewIcon: true }}
+        showUploadList={{ showPreviewIcon: false, showRemoveIcon: false }}
       >
-        {fileList.length >= 1 ? null : uploadButton}
+        {fileList.length >= resolvedMaxCount ? null : uploadButton}
       </Upload>
-      {tips && (
+      <Image
+        style={{ display: 'none' }}
+        src={previewImage}
+        preview={{
+          visible: previewOpen,
+          src: previewImage,
+          onVisibleChange: (visible) => {
+            setPreviewOpen(visible);
+            if (!visible) {
+              setPreviewImage(undefined);
+            }
+          },
+        }}
+      />
+      {tips ? (
         <div style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 12, marginTop: 8 }}>{tips}</div>
-      )}
+      ) : null}
     </div>
   );
 };

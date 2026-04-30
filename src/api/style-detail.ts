@@ -6,7 +6,7 @@ import type {
   StyleStatus,
 } from '../types/style';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId } from './request-context';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
@@ -70,18 +70,6 @@ const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
 const toBackendStatus = (status: StyleStatus): BackendStyleStatus =>
   status === 'inactive' ? 'INACTIVE' : 'ACTIVE';
 
-const ensureTenantId = (): number => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到租户信息，请重新选择企业');
-  }
-  const parsed = Number(tenantId);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('租户信息无效，请刷新后重试');
-  }
-  return parsed;
-};
-
 const adaptMetadata = (payload: BackendMetadataResponse): StyleFormMeta => ({
   units: Array.isArray(payload.units) ? payload.units : [],
   designers: Array.isArray(payload.designers)
@@ -94,6 +82,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
   const sizesSet = new Set<string>();
   const colorImages: Record<string, string | undefined> = {};
   let sizeChartImageUrl: string | undefined;
+  let detailImageUrls: string[] = [];
 
   payload.variants?.forEach((variant) => {
     const attrs = variant.attributes ?? {};
@@ -111,6 +100,11 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
       sizeChartImageUrl =
         typeof attrs.sizeChartImageUrl === 'string' ? attrs.sizeChartImageUrl : undefined;
     }
+    if (detailImageUrls.length === 0 && Array.isArray(attrs.detailImageUrls)) {
+      detailImageUrls = attrs.detailImageUrls
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim());
+    }
   });
 
   return {
@@ -122,17 +116,24 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     designerId: payload.designerId ? String(payload.designerId) : undefined,
     remarks: payload.remarks ?? undefined,
     coverImageUrl: payload.coverImageUrl ?? undefined,
+    detailImageUrls,
     colors: sortColorValues(Array.from(colorsSet)),
     sizes: sortSizeValues(Array.from(sizesSet)),
     colorImages,
     sizeChartImageUrl,
+    variants: (payload.variants ?? []).map((variant) => ({
+      id: String(variant.id),
+      color: variant.color ?? undefined,
+      size: variant.size ?? undefined,
+      attributes: (variant.attributes ?? undefined) as Record<string, unknown> | undefined,
+    })),
   };
 };
 
 const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequest[] => {
   const colors = sortColorValues(payload.colors);
   const sizes = sortSizeValues(payload.sizes);
-  const { colorImages, sizeChartImageUrl } = payload;
+  const { colorImages, sizeChartImageUrl, detailImageUrls } = payload;
   if (!colors.length || !sizes.length) {
     return [];
   }
@@ -146,6 +147,9 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
       }
       if (sizeChartImageUrl) {
         attributes.sizeChartImageUrl = sizeChartImageUrl;
+      }
+      if (detailImageUrls.length > 0) {
+        attributes.detailImageUrls = detailImageUrls;
       }
       variants.push({
         color,
@@ -171,21 +175,21 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
 
 export const styleDetailApi = {
   async fetchMeta(): Promise<StyleFormMeta> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendMetadataResponse>('/api/v1/styles/meta', {
       params: { tenantId },
     });
     return adaptMetadata(response.data);
   },
   async fetchDetail(styleId: string): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const detailResponse = await http.get<BackendStyleResponse>(`/api/v1/styles/${styleId}`, {
       params: { tenantId },
     });
     return adaptDetail(detailResponse.data);
   },
   async fetchMaterials(styleId: string): Promise<StyleMaterialData[]> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const response = await http.get<BackendStyleMaterialResponse[]>(`/api/v1/styles/${styleId}/materials`, {
       params: { tenantId },
     });
@@ -200,13 +204,13 @@ export const styleDetailApi = {
     }));
   },
   async create(payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     const response = await http.post<BackendStyleResponse>('/api/v1/styles', requestBody);
     return adaptDetail(response.data);
   },
   async update(styleId: string, payload: StyleDetailSavePayload): Promise<StyleDetailData> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireNumericTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
     await http.post<BackendStyleResponse>(`/api/v1/styles/${styleId}/update`, requestBody);
     return this.fetchDetail(styleId);

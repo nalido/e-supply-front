@@ -46,6 +46,7 @@ const StyleCard = ({ style, onSample, onProduction, onEdit, onDelete }: StyleCar
               borderRadius={0}
               background="transparent"
               imageStyle={{ objectFit: 'cover' }}
+              enablePreview={false}
               onImageError={(event) => {
                 const target = event.currentTarget;
                 if (target.dataset.fallbackApplied) return;

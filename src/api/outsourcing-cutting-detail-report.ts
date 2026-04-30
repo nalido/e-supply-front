@@ -1,19 +1,11 @@
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 import type {
   OutsourcingCuttingDetailGroupKey,
   OutsourcingCuttingDetailListParams,
   OutsourcingCuttingDetailListResponse,
   OutsourcingCuttingDetailRecord,
 } from '../types/order-outsourcing-cutting-detail-report';
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未获取到企业信息，请重新登录');
-  }
-  return tenantId;
-};
 
 type BackendRecord = OutsourcingCuttingDetailRecord;
 
@@ -29,16 +21,17 @@ export const outsourcingCuttingDetailReportService = {
   async getList(
     params: OutsourcingCuttingDetailListParams,
   ): Promise<OutsourcingCuttingDetailListResponse> {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendResponse>(
       '/api/v1/outsourcing/reports/cutting-details',
       {
         params: {
           tenantId,
           groupBy: serializeGroupBy(params.groupBy),
-          page: params.page - 1,
+          page: toBackendPage(params.page),
           size: params.pageSize,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -49,7 +42,7 @@ export const outsourcingCuttingDetailReportService = {
   },
 
   async export(params: OutsourcingCuttingDetailListParams) {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.post<{ fileUrl: string }>(
       '/api/v1/outsourcing/reports/cutting-details/export',
       {

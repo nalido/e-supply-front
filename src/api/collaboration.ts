@@ -11,7 +11,7 @@ import type {
 } from '../types';
 import type { Paginated } from '../types/pagination';
 import http from './http';
-import { tenantStore } from '../stores/tenant';
+import { requireTenantId, toBackendPage } from './request-context';
 
 type BackendIncomingOrder = {
   id: string;
@@ -63,14 +63,6 @@ type BackendOutsourceOrderListResponse = {
 
 type OperationResponse = {
   affected: number;
-};
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('未找到企业信息，请重新登录后再试');
-  }
-  return tenantId;
 };
 
 const incomingStatusToBackend: Record<IncomingOrderStatus, string> = {
@@ -246,7 +238,7 @@ const bulkIncomingStatusRequest = (
 
 export const collaborationApi = {
   listIncomingOrders: async (params: IncomingOrderListParams): Promise<Paginated<IncomingOrder>> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendIncomingOrderListResponse>(
       '/api/v1/collaboration/incoming-orders',
       {
@@ -255,9 +247,10 @@ export const collaborationApi = {
           status: toBackendIncomingStatus(params.status),
           clientName: params.clientName,
           keyword: params.keyword?.trim(),
-          page: params.page ?? 1,
+          page: toBackendPage(params.page),
           size: params.pageSize ?? 10,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -266,23 +259,23 @@ export const collaborationApi = {
     };
   },
   acceptIncomingOrder: async (orderId: string): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await acceptIncomingOrderRequest(tenantId, orderId);
   },
   rejectIncomingOrder: async (orderId: string, reason?: string): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await rejectIncomingOrderRequest(tenantId, orderId, reason);
   },
   bulkUpdateStatus: async (orderIds: string[], status: IncomingOrderStatus): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await bulkIncomingStatusRequest(tenantId, orderIds, toBackendIncomingStatus(status) as string);
   },
   shipOrder: async (orderId: string, payload: IncomingOrderShipmentPayload): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await shipIncomingOrderRequest(tenantId, orderId, payload);
   },
   listClients: async (): Promise<string[]> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<string[]>(
       '/api/v1/collaboration/incoming-orders/clients',
       { params: { tenantId } },
@@ -290,7 +283,7 @@ export const collaborationApi = {
     return response.data;
   },
   listOutsourceOrders: async (params: OutsourceOrderListParams): Promise<Paginated<OutsourceOrder>> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     const response = await http.get<BackendOutsourceOrderListResponse>(
       '/api/v1/collaboration/outsource-orders',
       {
@@ -298,9 +291,10 @@ export const collaborationApi = {
           tenantId,
           status: params.status && params.status !== '全部' ? toBackendOutsourceStatus(params.status) : undefined,
           keyword: params.keyword?.trim(),
-          page: params.page ?? 1,
+          page: toBackendPage(params.page),
           size: params.pageSize ?? 10,
         },
+        skipPageNormalization: true,
       },
     );
     return {
@@ -309,21 +303,21 @@ export const collaborationApi = {
     };
   },
   confirmOutsourceReceipt: async (orderIds: string[], payload: OutsourceReceiptPayload): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await confirmOutsourceReceiptRequest(tenantId, orderIds, payload);
   },
   requestOutsourceMaterial: async (
     orderId: string,
     payload: OutsourceMaterialRequestPayload,
   ): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await requestOutsourceMaterialRequest(tenantId, orderId, payload);
   },
   setOutsourceStatus: async (
     orderIds: string[],
     status: OutsourceOrderStatus,
   ): Promise<void> => {
-    const tenantId = ensureTenantId();
+    const tenantId = requireTenantId();
     await setOutsourceStatusRequest(tenantId, orderIds, toBackendOutsourceStatus(status) as string);
   },
 };

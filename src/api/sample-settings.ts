@@ -1,6 +1,6 @@
 import http from './http';
 import type { Paginated } from '../types/pagination';
-import { tenantStore } from '../stores/tenant';
+import { requireNumericTenantId, requireTenantId, toBackendPage } from './request-context';
 import type {
   FollowTemplateSummary,
   FollowTemplatePayload,
@@ -40,14 +40,6 @@ interface BackendSampleTypeResponse {
   name: string;
   description?: string;
 }
-
-const ensureTenantId = (): string => {
-  const tenantId = tenantStore.getTenantId();
-  if (!tenantId) {
-    throw new Error('tenantId is required for sample settings requests');
-  }
-  return tenantId;
-};
 
 const normalizeNodeOrder = (nodes?: TemplateNode[]): TemplateNode[] => {
   if (!nodes?.length) {
@@ -92,12 +84,12 @@ const adaptFollowTemplate = (item: BackendFollowTemplateResponse): FollowTemplat
 });
 
 const buildFollowTemplateRequestBody = (
-  tenantId: string,
+  tenantId: number,
   payload: FollowTemplatePayload,
 ) => {
   const normalizedNodes = normalizeNodeOrder(payload.nodes);
   return {
-    tenantId: Number(tenantId),
+    tenantId,
     name: payload.name,
     description: payload.description ?? '',
     isDefault: Boolean(payload.isDefault),
@@ -132,16 +124,17 @@ const paginateArray = <T>(items: T[], page: number, pageSize: number): Paginated
 export const sampleSettingsApi = {
   followTemplates: {
     async list(params: { page: number; pageSize: number; keyword?: string }): Promise<Paginated<FollowTemplateSummary>> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireTenantId();
       const { data } = await http.get<BackendPageResponse<BackendFollowTemplateResponse>>(
         '/api/v1/sample-follow-templates',
         {
           params: {
             tenantId,
-            page: params.page,
+            page: toBackendPage(params.page),
             size: params.pageSize,
             keyword: params.keyword,
           },
+          skipPageNormalization: true,
         },
       );
       const normalizedItems = (data?.items ?? []).map(adaptFollowTemplate);
@@ -151,17 +144,17 @@ export const sampleSettingsApi = {
       };
     },
     async create(payload: FollowTemplatePayload): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireNumericTenantId();
       const body = buildFollowTemplateRequestBody(tenantId, payload);
       await http.post('/api/v1/sample-follow-templates', body);
     },
     async update(id: number, payload: FollowTemplatePayload): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireNumericTenantId();
       const body = buildFollowTemplateRequestBody(tenantId, payload);
       await http.post(`/api/v1/sample-follow-templates/${id}/update`, body);
     },
     async delete(id: number): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireTenantId();
       await http.post(`/api/v1/sample-follow-templates/${id}/delete`, null, {
         params: { tenantId },
       });
@@ -169,7 +162,7 @@ export const sampleSettingsApi = {
   },
   sampleTypes: {
     async list(params: { page: number; pageSize: number }): Promise<Paginated<SampleTypeItem>> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireTenantId();
       const { data } = await http.get<BackendSampleTypeResponse[]>(
         '/api/v1/sample-types',
         {
@@ -180,23 +173,23 @@ export const sampleSettingsApi = {
       return paginateArray(normalized, params.page, params.pageSize);
     },
     async create(payload: { name: string }): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireNumericTenantId();
       await http.post('/api/v1/sample-types', {
-        tenantId: Number(tenantId),
+        tenantId,
         name: payload.name,
         description: '',
       });
     },
     async update(id: number, payload: { name: string }): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireNumericTenantId();
       await http.post(`/api/v1/sample-types/${id}/update`, {
-        tenantId: Number(tenantId),
+        tenantId,
         name: payload.name,
         description: '',
       });
     },
     async delete(id: number): Promise<void> {
-      const tenantId = ensureTenantId();
+      const tenantId = requireTenantId();
       await http.post(`/api/v1/sample-types/${id}/delete`, null, {
         params: { tenantId },
       });

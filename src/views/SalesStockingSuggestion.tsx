@@ -429,7 +429,7 @@ const SalesStockingSuggestion = () => {
         fixed: 'left',
         render: (_, record) => (
           <Space align="start" size={12}>
-            <ListImage src={record.imageUrl} alt={record.materialName} fallback={<Text type="secondary">暂无图片</Text>} />
+            <ListImage src={record.imageUrl} alt={record.materialName} />
             <Space direction="vertical" size={0}>
               <Text strong>{record.materialName}</Text>
               <Text type="secondary">{record.materialCode || '--'}</Text>
