@@ -40,6 +40,15 @@ type SelectedMaterialRow = {
   material: MaterialItem;
 };
 
+type BulkApplyRow = {
+  rowId: '__bulk_apply__';
+  kind: 'bulk';
+};
+
+type MaterialTableRow =
+  | (SelectedMaterialRow & { kind: 'item' })
+  | BulkApplyRow;
+
 type MaterialDrawerRow = {
   rowId: string;
   material: MaterialItem;
@@ -138,6 +147,8 @@ const StockingPurchaseCreateModal = ({
   const [materialDrawerInput, setMaterialDrawerInput] = useState('');
   const [materialDrawerLoading, setMaterialDrawerLoading] = useState(false);
   const [drawerSelectedRowKeys, setDrawerSelectedRowKeys] = useState<React.Key[]>([]);
+  const [bulkQuantityValue, setBulkQuantityValue] = useState<number | null>(null);
+  const [bulkUnitPriceValue, setBulkUnitPriceValue] = useState<number | null>(null);
   const isEditMode = mode === 'edit';
   const isRemarkOnly = initialOrder?.editableScope === 'remark_only';
   const lockNonRemarkFields = isEditMode && isRemarkOnly;
@@ -172,6 +183,8 @@ const StockingPurchaseCreateModal = ({
     setMaterialDrawerInput('');
     setMaterialDrawerLoading(false);
     setDrawerSelectedRowKeys([]);
+    setBulkQuantityValue(null);
+    setBulkUnitPriceValue(null);
     setSupplierModalOpen(false);
     setSupplierSubmitting(false);
     setSupplierSearchText('');
@@ -443,18 +456,73 @@ const StockingPurchaseCreateModal = ({
     });
   }, []);
 
-  const columns: ColumnsType<SelectedMaterialRow> = useMemo(
+  const handleApplyBulkValues = useCallback(() => {
+    if (!selectedMaterials.length) {
+      message.warning('请先添加需要批量设置的物料');
+      return;
+    }
+    if (bulkQuantityValue == null && bulkUnitPriceValue == null) {
+      message.warning('请至少填写一个批量应用值');
+      return;
+    }
+    if (bulkQuantityValue != null) {
+      setQuantities((prev) => {
+        const next = { ...prev };
+        selectedMaterials.forEach((item) => {
+          next[item.rowId] = bulkQuantityValue;
+        });
+        return next;
+      });
+    }
+    if (bulkUnitPriceValue != null) {
+      setUnitPrices((prev) => {
+        const next = { ...prev };
+        selectedMaterials.forEach((item) => {
+          next[item.rowId] = bulkUnitPriceValue;
+        });
+        return next;
+      });
+    }
+    message.success(`已将批量设置应用到 ${selectedMaterials.length} 条采购明细`);
+  }, [bulkQuantityValue, bulkUnitPriceValue, selectedMaterials]);
+
+  const handleClearBulkValues = useCallback(() => {
+    setBulkQuantityValue(null);
+    setBulkUnitPriceValue(null);
+  }, []);
+
+  const tableDataSource: MaterialTableRow[] = useMemo(() => {
+    if (!selectedMaterials.length) {
+      return [];
+    }
+    return [
+      { rowId: '__bulk_apply__', kind: 'bulk' },
+      ...selectedMaterials.map((item) => ({ ...item, kind: 'item' as const })),
+    ];
+  }, [selectedMaterials]);
+
+  const columns: ColumnsType<MaterialTableRow> = useMemo(
     () => [
       {
         title: '物料',
         dataIndex: ['material', 'name'],
         key: 'name',
-        render: (_value: string, record) => (
-          <Space direction="vertical" size={2}>
-            <Text strong>{record.material.name}</Text>
-            <Text type="secondary">{record.material.sku}</Text>
-          </Space>
-        ),
+        render: (_value: string, record) => {
+          if (record.kind === 'bulk') {
+            return (
+              <Space direction="vertical" size={2}>
+                <Text strong>批量设置</Text>
+                <Text type="secondary">在此统一设置采购数量与单价，并批量写入下方明细。</Text>
+              </Space>
+            );
+          }
+          return (
+            <Space direction="vertical" size={2}>
+              <Text strong>{record.material.name}</Text>
+              <Text type="secondary">{record.material.sku}</Text>
+            </Space>
+          );
+        },
       },
       {
         title: '颜色/备注',
@@ -462,6 +530,9 @@ const StockingPurchaseCreateModal = ({
         key: 'colors',
         width: 240,
         render: (_value: string[], record) => {
+          if (record.kind === 'bulk') {
+            return <Text type="secondary">颜色字段保留逐行维护，不参与统一批量设置。</Text>;
+          }
           const colorOptions = (record.material.colors ?? []).map((color) => ({ label: color, value: color }));
           return (
             <Space direction="vertical" size={6} style={{ width: '100%' }}>
@@ -487,58 +558,121 @@ const StockingPurchaseCreateModal = ({
         dataIndex: 'orderQty',
         key: 'orderQty',
         width: 180,
-        render: (_value, record) => (
-          <InputNumber
-            min={0}
-            precision={2}
-            disabled={lockNonRemarkFields}
-            value={quantities[record.rowId] ?? 0}
-            onChange={(val) => handleQuantityChange(record.rowId, val)}
-            addonAfter={record.material.unit}
-            style={{ width: '100%' }}
-          />
-        ),
+        render: (_value, record) => {
+          if (record.kind === 'bulk') {
+            return (
+              <InputNumber
+                min={0}
+                precision={2}
+                disabled={lockNonRemarkFields}
+                value={bulkQuantityValue}
+                onChange={setBulkQuantityValue}
+                placeholder="批量采购数量"
+                style={{ width: '100%' }}
+              />
+            );
+          }
+          return (
+            <InputNumber
+              min={0}
+              precision={2}
+              disabled={lockNonRemarkFields}
+              value={quantities[record.rowId] ?? 0}
+              onChange={(val) => handleQuantityChange(record.rowId, val)}
+              addonAfter={record.material.unit}
+              style={{ width: '100%' }}
+            />
+          );
+        },
       },
       {
         title: '采购单价',
         dataIndex: 'unitPrice',
         key: 'unitPrice',
         width: 180,
-        render: (_value, record) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Text type="secondary" style={{ minWidth: 12 }}>
-              ¥
-            </Text>
-            <InputNumber
-              min={0}
-              precision={2}
-              disabled={lockNonRemarkFields}
-              value={getDisplayedUnitPrice(unitPrices, record.rowId, record.material.referencePrice)}
-              onChange={(val) => handleUnitPriceChange(record.rowId, val)}
-              style={{ width: '100%' }}
-              placeholder="请输入采购单价"
-            />
-          </div>
-        ),
+        render: (_value, record) => {
+          if (record.kind === 'bulk') {
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Text type="secondary" style={{ minWidth: 12 }}>
+                  ¥
+                </Text>
+                <InputNumber
+                  min={0}
+                  precision={2}
+                  disabled={lockNonRemarkFields}
+                  value={bulkUnitPriceValue}
+                  onChange={setBulkUnitPriceValue}
+                  style={{ width: '100%' }}
+                  placeholder="批量采购单价"
+                />
+              </div>
+            );
+          }
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Text type="secondary" style={{ minWidth: 12 }}>
+                ¥
+              </Text>
+              <InputNumber
+                min={0}
+                precision={2}
+                disabled={lockNonRemarkFields}
+                value={getDisplayedUnitPrice(unitPrices, record.rowId, record.material.referencePrice)}
+                onChange={(val) => handleUnitPriceChange(record.rowId, val)}
+                style={{ width: '100%' }}
+                placeholder="请输入采购单价"
+              />
+            </div>
+          );
+        },
       },
       {
         title: '操作',
         dataIndex: 'actions',
         key: 'actions',
         width: 140,
-        render: (_value, record) => (
-          <Space size={0}>
-            <Button type="link" disabled={lockNonRemarkFields} onClick={() => handleDuplicateMaterial(record)}>
-              复制
-            </Button>
-            <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
-              移除
-            </Button>
-          </Space>
-        ),
+        render: (_value, record) => {
+          if (record.kind === 'bulk') {
+            return (
+              <Space size={0}>
+                <Button type="link" disabled={lockNonRemarkFields} onClick={handleApplyBulkValues}>
+                  批量应用
+                </Button>
+                <Button type="link" disabled={lockNonRemarkFields} onClick={handleClearBulkValues}>
+                  重置
+                </Button>
+              </Space>
+            );
+          }
+          return (
+            <Space size={0}>
+              <Button type="link" disabled={lockNonRemarkFields} onClick={() => handleDuplicateMaterial(record)}>
+                复制
+              </Button>
+              <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
+                移除
+              </Button>
+            </Space>
+          );
+        },
       },
     ],
-    [handleColorChange, handleDuplicateMaterial, handleQuantityChange, handleRemoveMaterial, handleUnitPriceChange, lockNonRemarkFields, quantities, selectedColors, unitPrices],
+    [
+      bulkQuantityValue,
+      bulkUnitPriceValue,
+      handleApplyBulkValues,
+      handleClearBulkValues,
+      handleColorChange,
+      handleDuplicateMaterial,
+      handleQuantityChange,
+      handleRemoveMaterial,
+      handleUnitPriceChange,
+      lockNonRemarkFields,
+      quantities,
+      selectedColors,
+      unitPrices,
+    ],
   );
 
   const handleDrawerSearch = (value: string) => {
@@ -808,12 +942,13 @@ const StockingPurchaseCreateModal = ({
             type="primary"
             disabled={lockNonRemarkFields}
             onClick={() => {
-            setMaterialDrawerOpen(true);
-            setMaterialOptionsPage(1);
-            if (!materialDrawerInput) {
-              setMaterialDrawerKeyword('');
-            }
-          }}>
+              setMaterialDrawerOpen(true);
+              setMaterialOptionsPage(1);
+              if (!materialDrawerInput) {
+                setMaterialDrawerKeyword('');
+              }
+            }}
+          >
             添加物料
           </Button>
           <SelectSetupHint config={materialSetup} compact />
@@ -821,9 +956,9 @@ const StockingPurchaseCreateModal = ({
             已添加的物料：<Text strong>{selectedMaterials.length}</Text> 项
           </Text>
         </Space>
-        <Table<SelectedMaterialRow>
+        <Table<MaterialTableRow>
           rowKey="rowId"
-          dataSource={selectedMaterials}
+          dataSource={tableDataSource}
           columns={columns}
           pagination={false}
           locale={{
