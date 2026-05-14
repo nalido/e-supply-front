@@ -642,7 +642,7 @@ const SaleCenterWorkspace = () => {
       setIdempotencyRecords(idempotencyList)
       setSyncStatus(syncState)
       setDrafts(draftList)
-    } catch {
+    } catch (error) {
       console.error(error)
       setWorkspaceError('销售中心数据加载失败，请刷新重试。')
       message.error('销售中心数据加载失败，请稍后重试。')
