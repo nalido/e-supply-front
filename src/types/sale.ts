@@ -8,9 +8,15 @@ export type SaleChannelAccount = {
   gatewayUrl?: string | null;
   sellerType?: string | null;
   orderSyncMode?: string | null;
+  orderAutoSyncEnabled?: boolean | null;
+  orderAutoSyncIntervalMinutes?: number | null;
+  orderAutoSyncPageSize?: number | null;
+  orderAutoSyncNextRunAt?: string | null;
+  orderAutoSyncLastTriggeredAt?: string | null;
   authorizationType?: string | null;
   status?: string | null;
   remarks?: string | null;
+  lastSyncAt?: string | null;
   updatedAt?: string | null;
 };
 
@@ -22,6 +28,31 @@ export const getSaleSellerTypeLabel = (sellerType?: string | null): string => {
     return '半托管';
   }
   return sellerType || '--';
+};
+
+export const getSaleOrderSyncModeLabel = (orderSyncMode?: string | null): string => {
+  if (orderSyncMode === 'PURCHASE_ORDER') {
+    return '备货单模式';
+  }
+  if (orderSyncMode === 'ORDER') {
+    return '订单模式';
+  }
+  if (orderSyncMode === 'AUTO') {
+    return '自动识别';
+  }
+  return orderSyncMode || '--';
+};
+
+export type SaleOrderSyncResult = {
+  channelAccountId: string;
+  requestedPage: number;
+  requestedPageSize: number;
+  processedPages: number;
+  syncedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  requestId?: string | null;
+  sampleOrderNos?: string[] | null;
 };
 
 export type SaleChannelCredential = {

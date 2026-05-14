@@ -290,6 +290,11 @@ body.scw-body {
   cursor: pointer;
 }
 
+.scw-binding-card--active {
+  border-color: #ff5a1f;
+  box-shadow: 0 0 0 3px rgba(255, 90, 31, 0.12);
+}
+
 .scw-binding-card__content {
   flex: 1;
   min-width: 0;
@@ -384,6 +389,42 @@ body.scw-body {
 
 .scw-binding-candidate {
   margin-top: 12px;
+}
+
+.scw-binding-candidate--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.scw-binding-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 420px);
+  gap: 20px;
+  align-items: start;
+}
+
+.scw-binding-workbench__list,
+.scw-binding-detail-panel {
+  min-width: 0;
+}
+
+.scw-binding-detail-panel {
+  position: sticky;
+  top: 0;
+}
+
+.scw-binding-exception-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.scw-binding-exception-list .ant-list-item {
+  align-items: flex-start;
 }
 
 .scw-thumb {
@@ -549,13 +590,21 @@ body.scw-body {
   margin-bottom: 12px;
 }
 
+.scw-shop-reason,
+.scw-governance-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 @media (max-width: 1280px) {
   .scw-split-layout {
     grid-template-columns: 1fr;
   }
 
   .scw-task-grid,
-  .scw-health-stats {
+  .scw-health-stats,
+  .scw-binding-workbench {
     grid-template-columns: 1fr;
   }
 

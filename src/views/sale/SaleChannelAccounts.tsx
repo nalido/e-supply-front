@@ -162,7 +162,7 @@ const SaleChannelAccounts = () => {
       { title: '账号ID', dataIndex: 'id', width: 90 },
       { title: '平台', dataIndex: 'platformCode', width: 90 },
       { title: '账号名称', dataIndex: 'accountName', width: 160 },
-      { title: '店铺ID', dataIndex: 'shopId', width: 130 },
+      { title: '平台店铺ID', dataIndex: 'shopId', width: 130 },
       { title: '店铺名', dataIndex: 'shopName', width: 180 },
       {
         title: '店铺类型',
@@ -311,8 +311,8 @@ const SaleChannelAccounts = () => {
           <Form.Item label="绑定名称" name="accountName" rules={[{ required: true, message: '请输入绑定名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="店铺ID" name="shopId">
-            <Input />
+          <Form.Item label="平台店铺ID" name="shopId">
+            <Input placeholder="例如平台返回的 Shop ID" />
           </Form.Item>
           <Form.Item label="店铺名称" name="shopName">
             <Input />

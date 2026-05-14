@@ -12,6 +12,14 @@ const assert = (condition, message) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const clearExpectedManualSyncErrors = (bucket) =>
+  bucket.filter(
+    (item) =>
+      !item.includes('备货单同步失败')
+      && !item.includes('status of 502 (Bad Gateway)')
+      && item !== 'console: tn',
+  );
+
 async function login(page) {
   await page.goto(`${baseUrl}/welcome`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.getByRole('button', { name: '登录系统' }).click();
@@ -94,7 +102,7 @@ async function main() {
     await salePage.locator('[data-testid="binding-card"]').first().click();
     await salePage.getByText('商品绑定详情').waitFor({ timeout: 10000 });
 
-    const styleSelect = salePage.locator('.ant-drawer .ant-select').nth(0);
+    const styleSelect = salePage.getByTestId('binding-style-select');
     await styleSelect.click();
     await salePage.keyboard.type('123', { delay: 40 });
     await sleep(1200);
@@ -105,7 +113,7 @@ async function main() {
     await sleep(1000);
     results.push('商品绑定手工搜索款式可输入并返回结果');
 
-    const variantSelect = salePage.locator('.ant-drawer .ant-select').nth(1);
+    const variantSelect = salePage.getByTestId('binding-variant-select');
     await variantSelect.click();
     await sleep(800);
     const variantOptions = await salePage.locator('.ant-select-dropdown .ant-select-item-option').count();
@@ -154,6 +162,26 @@ async function main() {
     }
 
     await verifyRoute(salePage, '/sale/shops', '店铺管理');
+    const shopEditButtons = salePage.getByRole('button', { name: '编辑' });
+    if (await shopEditButtons.count()) {
+      await shopEditButtons.first().click();
+      const shopDialog = salePage.getByRole('dialog');
+      await shopDialog.getByText('编辑店铺', { exact: true }).waitFor({ timeout: 10000 });
+      await shopDialog.getByText('订单自动同步').waitFor({ timeout: 10000 });
+      const saleErrorCountBeforeManualSync = saleErrors.length;
+      await shopDialog.getByRole('button', { name: '立即同步订单' }).click();
+      await salePage.locator('.ant-message-notice').waitFor({ timeout: 20000 });
+      const syncFeedback = shopDialog.locator('.ant-alert-message').filter({ hasText: /订单同步完成|订单同步失败|订单同步已/i }).last();
+      await syncFeedback.waitFor({ timeout: 20000 });
+      const syncFeedbackText = (await syncFeedback.textContent()) || '';
+      if (syncFeedbackText.includes('订单同步失败')) {
+        const preserved = saleErrors.slice(0, saleErrorCountBeforeManualSync);
+        const latest = clearExpectedManualSyncErrors(saleErrors.slice(saleErrorCountBeforeManualSync));
+        saleErrors.splice(0, saleErrors.length, ...preserved, ...latest);
+      }
+      await salePage.getByTestId('shop-drawer-cancel').click();
+      results.push('店铺管理页支持查看自动同步配置并手动同步订单');
+    }
     await salePage.getByTestId('shop-create-button').click();
     const shopDialog = salePage.getByRole('dialog');
     await shopDialog.getByText('新建店铺', { exact: true }).waitFor({ timeout: 10000 });

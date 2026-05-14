@@ -11,6 +11,7 @@ import type {
   SaleFulfillmentWorkbenchResolveResult,
   SaleIdempotencyRecordItem,
   SaleOrderDetail,
+  SaleOrderSyncResult,
   SaleOrderItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
@@ -62,6 +63,9 @@ export const saleApi = {
     gatewayUrl?: string;
     sellerType?: string;
     orderSyncMode?: string;
+    orderAutoSyncEnabled?: boolean;
+    orderAutoSyncIntervalMinutes?: number;
+    orderAutoSyncPageSize?: number;
     authorizationType?: string;
     remarks?: string;
   }): Promise<SaleChannelAccount> {
@@ -82,6 +86,9 @@ export const saleApi = {
       gatewayUrl?: string;
       sellerType?: string;
       orderSyncMode?: string;
+      orderAutoSyncEnabled?: boolean;
+      orderAutoSyncIntervalMinutes?: number;
+      orderAutoSyncPageSize?: number;
       authorizationType?: string;
       status?: string;
       remarks?: string;
@@ -431,9 +438,9 @@ export const saleApi = {
     return response.data;
   },
 
-  async syncOrders(payload: { channelAccountId: number; page?: number; pageSize?: number }): Promise<unknown> {
+  async syncOrders(payload: { channelAccountId: number; page?: number; pageSize?: number; continuous?: boolean }): Promise<SaleOrderSyncResult> {
     const tenantId = getTenantIdOrThrow();
-    const response = await http.post<unknown>('/api/v1/sale/orders/sync', payload, {
+    const response = await http.post<SaleOrderSyncResult>('/api/v1/sale/orders/sync', payload, {
       params: { tenantId },
     });
     return response.data;

@@ -13,6 +13,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Layout,
   List,
   Menu,
@@ -25,6 +26,7 @@ import {
   Space,
   Spin,
   Statistic,
+  Switch,
   Table,
   Tag,
   Tabs,
@@ -60,7 +62,7 @@ import type {
   SaleSyncLogItem,
   SaleProductSyncStatus,
 } from '../../types/sale'
-import { getSaleSellerTypeLabel } from '../../types/sale'
+import { getSaleOrderSyncModeLabel, getSaleSellerTypeLabel } from '../../types/sale'
 import type { StyleData, StyleDetailData } from '../../types/style'
 import { deriveOrderIssue, getShopLabel, isMappedStatus } from './sale-center-helpers'
 import './sale-workspace.css'
@@ -84,6 +86,10 @@ type ShopFormValues = {
   shopId?: string | null
   shopName?: string | null
   sellerType?: string | null
+  orderSyncMode?: string | null
+  orderAutoSyncEnabled?: boolean
+  orderAutoSyncIntervalMinutes?: number
+  orderAutoSyncPageSize?: number
   platformCode?: string | null
   regionCode?: string | null
   status?: string | null
@@ -102,6 +108,87 @@ type StyleOption = {
   value: string
   style: StyleData
 }
+
+type BindingExceptionEntry = {
+  mappingId: string
+  type: string
+  reason: string
+  recommendedAction: string
+  tone: 'danger' | 'warning' | 'info'
+  confidence?: number
+  salesVolume: number
+  riskScore: number
+}
+
+type ShopOverviewRow = {
+  account: SaleChannelAccount
+  healthStatus: string
+  healthLabel: string
+  healthTone: 'danger' | 'warning' | 'success' | 'info' | 'default'
+  blockerReason: string
+  onboardingStep: string
+  nextActionLabel: string
+  nextActionRoute: SectionKey
+  missingProfileFields: string[]
+  pendingBindingCount: number
+  issueOrderCount: number
+  failedSyncCount: number
+  lastSuccessfulProductSyncAt?: string | null
+  lastSuccessfulOrderSyncAt?: string | null
+  lastSuccessfulSalesSyncAt?: string | null
+  lastSuccessfulSyncAt?: string | null
+  orderAutoSyncEnabled: boolean
+  orderAutoSyncIntervalMinutes: number
+  orderAutoSyncPageSize: number
+  orderAutoSyncNextRunAt?: string | null
+  orderAutoSyncLastTriggeredAt?: string | null
+  latestOrderSyncLabel: string
+  latestOrderSyncTone: 'danger' | 'warning' | 'success' | 'info' | 'default'
+  latestOrderSyncMessage: string
+}
+
+type GovernanceTaskRow = {
+  taskKey: string
+  sourceLogId: string
+  channelAccountId?: string | null
+  bizType?: string | null
+  requestId?: string | null
+  traceId?: string | null
+  status: 'FAILED' | 'RUNNING' | 'SUCCESS'
+  statusLabel: string
+  tone: 'danger' | 'warning' | 'success' | 'info' | 'default'
+  logCount: number
+  failedCount: number
+  startedAt?: string | null
+  latestAt?: string | null
+  failureCategory: string
+  failureStage: string
+  suggestedAction: string
+  latestLog: SaleSyncLogItem
+}
+
+const shopProfileFieldDefs = [
+  { key: 'shopName', label: '店铺显示名' },
+] as const
+
+type ShopProfileFieldKey = (typeof shopProfileFieldDefs)[number]['key']
+
+const getMissingShopProfileFields = (account?: Partial<SaleChannelAccount> | null) =>
+  shopProfileFieldDefs
+    .filter(({ key }) => {
+      const value = account?.[key]
+      return typeof value === 'string' ? !value.trim() : !value
+    })
+    .map(({ label }) => label)
+
+const getPrimaryMissingShopProfileField = (account?: Partial<SaleChannelAccount> | null): ShopProfileFieldKey | undefined =>
+  shopProfileFieldDefs.find(({ key }) => {
+    const value = account?.[key]
+    return typeof value === 'string' ? !value.trim() : !value
+  })?.key
+
+const buildMissingShopProfileMessage = (fields: string[]) =>
+  fields.length ? `当前缺少：${fields.join('、')}。请补齐后再保存。` : '请补齐店铺资料后再继续。'
 
 const sectionPathMap: Record<SectionKey, string> = {
   workbench: '/sale/workbench',
@@ -186,6 +273,17 @@ const syncBizTypeLabels: Record<string, string> = {
   INVENTORY_READ: '售卖数据同步',
 }
 
+const getSyncBizLabel = (value?: string | null) => {
+  const normalized = (value || '').toUpperCase()
+  if (syncBizTypeLabels[normalized]) {
+    return syncBizTypeLabels[normalized]
+  }
+  if (normalized.includes('PRODUCT')) return '商品同步'
+  if (normalized.includes('ORDER')) return '订单同步'
+  if (normalized.includes('INVENTORY') || normalized.includes('SALE')) return '售卖数据同步'
+  return value || '--'
+}
+
 const salesTrendColorMap: Record<string, string> = {
   总销量: '#FF6A3D',
   已映射销量: '#16B364',
@@ -261,6 +359,75 @@ const formatPercent = (value?: number | null) => {
     return '--'
   }
   return `${(value * 100).toFixed(value >= 0.1 ? 0 : 1)}%`
+}
+
+const formatOrderAutoSyncInterval = (value?: number | null) => {
+  if (!value) {
+    return '--'
+  }
+  if (value % 1440 === 0) {
+    const days = value / 1440
+    return days === 1 ? '每天一次' : `每 ${days} 天一次`
+  }
+  if (value % 60 === 0) {
+    const hours = value / 60
+    return hours === 1 ? '每小时一次' : `每 ${hours} 小时一次`
+  }
+  return `每 ${value} 分钟一次`
+}
+
+const parseConfidence = (value?: string | null) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const formatConfidence = (value?: number) => {
+  if (value === undefined || Number.isNaN(value)) {
+    return '--'
+  }
+  return `${Math.round(value * 100)}%`
+}
+
+const hasCriticalProductFieldsMissing = (mapping: ProductMappingRecord) =>
+  !mapping.platformMainImageUrl || !mapping.normalizedColor || !mapping.normalizedSize
+
+const getFailureInsight = (log?: Pick<SaleSyncLogItem, 'bizType' | 'errorCode' | 'errorMessage' | 'httpStatus' | 'success'>) => {
+  const errorCode = (log?.errorCode || '').toUpperCase()
+  const errorMessage = (log?.errorMessage || '').toLowerCase()
+  const bizLabel = getSyncBizLabel(log?.bizType)
+  const httpStatus = log?.httpStatus || 0
+
+  let failureCategory = '业务失败'
+  let failureStage = `${bizLabel}执行`
+  let suggestedAction = `进入治理中心查看 ${bizLabel} 请求与返回报文。`
+
+  if (errorCode.includes('TOKEN') || errorMessage.includes('token') || httpStatus === 401) {
+    failureCategory = '凭证失效'
+    failureStage = `${bizLabel}鉴权`
+    suggestedAction = '先校验 Access Token 是否过期，再重新检查凭证配置。'
+  } else if (errorMessage.includes('access') || errorMessage.includes('authorize') || httpStatus === 403) {
+    failureCategory = '能力受限'
+    failureStage = `${bizLabel}能力探测`
+    suggestedAction = '确认卖家是否重新授权了当前读能力，再重新探测能力矩阵。'
+  } else if (errorCode.includes('CONFLICT') || errorMessage.includes('duplicate')) {
+    failureCategory = '重复提交'
+    failureStage = `${bizLabel}幂等处理`
+    suggestedAction = '优先核对同一对象是否已成功同步，避免重复重试。'
+  } else if (httpStatus >= 500 || errorMessage.includes('timeout') || errorMessage.includes('network')) {
+    failureCategory = '链路异常'
+    failureStage = `${bizLabel}平台通信`
+    suggestedAction = '优先重试最近失败任务，并观察平台网关是否恢复。'
+  } else if (errorCode.includes('PARAM') || errorMessage.includes('invalid') || errorMessage.includes('missing')) {
+    failureCategory = '数据异常'
+    failureStage = `${bizLabel}参数组装`
+    suggestedAction = '先核对入参缺失字段和本地对象映射，再重新发起任务。'
+  }
+
+  return {
+    failureCategory,
+    failureStage,
+    suggestedAction,
+  }
 }
 
 const normalizeOptionalText = (value?: string | null) => value || undefined
@@ -389,6 +556,10 @@ const SaleCenterWorkspace = () => {
   const [credentialLoading, setCredentialLoading] = useState(false)
   const [credentialSubmitting, setCredentialSubmitting] = useState(false)
   const [credentialDetail, setCredentialDetail] = useState<SaleChannelCredential | null>(null)
+  const [tokenChecking, setTokenChecking] = useState(false)
+  const [capabilityChecking, setCapabilityChecking] = useState(false)
+  const [orderSyncSubmittingAccountId, setOrderSyncSubmittingAccountId] = useState<string>()
+  const [shopActionFeedback, setShopActionFeedback] = useState<{ type: 'success' | 'warning' | 'error' | 'info'; message: string } | null>(null)
   const [shopForm] = Form.useForm<ShopFormValues>()
   const [orderForm] = Form.useForm<{ processingStatus?: string; processingOwner?: string; processingNote?: string }>()
   const styleSearchRequestRef = useRef(0)
@@ -471,7 +642,7 @@ const SaleCenterWorkspace = () => {
       setIdempotencyRecords(idempotencyList)
       setSyncStatus(syncState)
       setDrafts(draftList)
-    } catch (error) {
+    } catch {
       console.error(error)
       setWorkspaceError('销售中心数据加载失败，请刷新重试。')
       message.error('销售中心数据加载失败，请稍后重试。')
@@ -600,6 +771,99 @@ const SaleCenterWorkspace = () => {
     draftCount: drafts.length,
   }), [drafts.length, selectedBindings])
 
+  const salesVolumeBySkuId = useMemo(() => {
+    const result = new Map<string, number>()
+    orders.forEach((order) => {
+      ;(order.linePreview || []).forEach((line) => {
+        const skuId = line.platformSkuId || line.platformSkuCode
+        if (!skuId) {
+          return
+        }
+        result.set(skuId, (result.get(skuId) || 0) + Number(line.quantity || 0))
+      })
+    })
+    return result
+  }, [orders])
+
+  const bindingExceptionQueue = useMemo<BindingExceptionEntry[]>(() => {
+    const queue: Array<BindingExceptionEntry | null> = selectedBindings
+      .map((item): BindingExceptionEntry | null => {
+        const relatedDrafts = drafts.filter((draft) => draft.productMappingId === item.id)
+        const bestDraft = [...relatedDrafts].sort((left, right) => (parseConfidence(right.confidence) || 0) - (parseConfidence(left.confidence) || 0))[0]
+        const confidence = parseConfidence(bestDraft?.confidence)
+        const salesVolume = salesVolumeBySkuId.get(item.platformSkuId) || salesVolumeBySkuId.get(item.platformSkuCode || '') || 0
+        const hasConflict = (item.mappingStatus || '').toUpperCase().includes('CONFLICT')
+        const unmapped = !isMappedStatus(item.mappingStatus)
+
+        if (hasConflict) {
+          return {
+            mappingId: item.id,
+            type: '冲突绑定',
+            reason: '当前平台 SKU 与已有本地规格映射冲突，无法直接确认。',
+            recommendedAction: '优先人工核对本地规格归属，再决定保留或改绑。',
+            tone: 'danger' as const,
+            confidence,
+            salesVolume,
+            riskScore: 120 + salesVolume,
+          }
+        }
+
+        if (unmapped && salesVolume > 0) {
+          return {
+            mappingId: item.id,
+            type: '有销量未绑定',
+            reason: `当前 SKU 已产生 ${salesVolume} 件销量，但仍未建立本地规格映射。`,
+            recommendedAction: '优先完成绑定，避免售卖数据和问题订单继续累计。',
+            tone: 'danger' as const,
+            confidence,
+            salesVolume,
+            riskScore: 100 + salesVolume,
+          }
+        }
+
+        if (confidence !== undefined && confidence < 0.65) {
+          return {
+            mappingId: item.id,
+            type: '低置信度草稿',
+            reason: `当前草稿命中置信度仅 ${formatConfidence(confidence)}，不适合直接自动确认。`,
+            recommendedAction: '优先核对平台图、颜色尺码和本地候选款，再人工确认。',
+            tone: 'warning' as const,
+            confidence,
+            salesVolume,
+            riskScore: 80 + salesVolume,
+          }
+        }
+
+        if (hasCriticalProductFieldsMissing(item)) {
+          return {
+            mappingId: item.id,
+            type: '关键信息缺失',
+            reason: '平台图片或规格字段不完整，当前草稿依据不足。',
+            recommendedAction: '先补齐图片或规格快照，再重新生成草稿候选。',
+            tone: 'warning' as const,
+            confidence,
+            salesVolume,
+            riskScore: 70 + salesVolume,
+          }
+        }
+
+        return null
+      })
+    return queue
+      .filter((item): item is BindingExceptionEntry => item !== null)
+      .sort((left, right) => right.riskScore - left.riskScore)
+  }, [drafts, salesVolumeBySkuId, selectedBindings])
+
+  const bindingExceptionMap = useMemo(
+    () => new Map(bindingExceptionQueue.map((item) => [item.mappingId, item])),
+    [bindingExceptionQueue],
+  )
+
+  const currentBindingException = useMemo(
+    () => (currentMapping ? bindingExceptionMap.get(currentMapping.id) : undefined),
+    [bindingExceptionMap, currentMapping],
+  )
+
   const issueOrders = useMemo(() => {
     return selectedOrders
       .map((item) => ({
@@ -614,6 +878,167 @@ const SaleCenterWorkspace = () => {
           : -toneScore
       })
   }, [selectedOrders])
+
+  const shopOverviewRows = useMemo<ShopOverviewRow[]>(() => {
+    const resolveLastSuccessAt = (accountId: string, keyword: string) => {
+      return syncLogs
+        .filter((log) => log.channelAccountId === accountId && log.success && (log.bizType || '').toUpperCase().includes(keyword))
+        .sort((left, right) => (right.occurredAt || '').localeCompare(left.occurredAt || ''))[0]?.occurredAt
+    }
+
+    const resolveLatestOrderLog = (accountId: string) => {
+      return syncLogs
+        .filter((log) => log.channelAccountId === accountId && (log.bizType || '').toUpperCase().includes('ORDER'))
+        .sort((left, right) => (right.occurredAt || '').localeCompare(left.occurredAt || ''))[0]
+    }
+
+    return accounts.map((account) => {
+      const pendingBindingCount = mappings.filter((item) => item.channelAccountId === account.id && !isMappedStatus(item.mappingStatus)).length
+      const issueOrderCount = orders.filter((order) => order.channelAccountId === account.id && deriveOrderIssue(order)).length
+      const failedLogs = syncLogs.filter((log) => log.channelAccountId === account.id && !log.success)
+      const missingProfileFields = getMissingShopProfileFields(account)
+      const lastSuccessfulProductSyncAt = resolveLastSuccessAt(account.id, 'PRODUCT')
+      const lastSuccessfulOrderSyncAt = resolveLastSuccessAt(account.id, 'ORDER')
+      const lastSuccessfulSalesSyncAt = resolveLastSuccessAt(account.id, 'INVENTORY') || resolveLastSuccessAt(account.id, 'SALE')
+      const lastSuccessfulSyncAt = [lastSuccessfulProductSyncAt, lastSuccessfulOrderSyncAt, lastSuccessfulSalesSyncAt]
+        .filter((value): value is string => Boolean(value))
+        .sort((left, right) => right.localeCompare(left))[0]
+      const latestOrderSyncLog = resolveLatestOrderLog(account.id)
+      const latestFailure = failedLogs.sort((left, right) => (right.occurredAt || '').localeCompare(left.occurredAt || ''))[0]
+      const failureInsight = latestFailure ? getFailureInsight(latestFailure) : null
+      const orderAutoSyncEnabled = Boolean(account.orderAutoSyncEnabled)
+      const orderAutoSyncIntervalMinutes = account.orderAutoSyncIntervalMinutes || 60
+      const orderAutoSyncPageSize = account.orderAutoSyncPageSize || 50
+      const latestOrderSyncLabel = latestOrderSyncLog
+        ? latestOrderSyncLog.success
+          ? '最近执行成功'
+          : '最近执行失败'
+        : orderAutoSyncEnabled
+          ? '等待首次执行'
+          : '仅手动同步'
+      const latestOrderSyncTone = latestOrderSyncLog
+        ? latestOrderSyncLog.success
+          ? 'success'
+          : 'danger'
+        : orderAutoSyncEnabled
+          ? 'info'
+          : 'default'
+      const latestOrderSyncMessage = latestOrderSyncLog
+        ? latestOrderSyncLog.success
+          ? `${getSyncBizLabel(latestOrderSyncLog.bizType)}已完成，最近执行时间 ${formatDateTime(latestOrderSyncLog.occurredAt)}`
+          : latestOrderSyncLog.errorMessage || '最近一次订单同步失败，请进入治理中心排查。'
+        : orderAutoSyncEnabled
+          ? `系统将按 ${formatOrderAutoSyncInterval(orderAutoSyncIntervalMinutes)} 自动拉取最近订单。`
+          : '当前店铺未开启自动拉单，仅支持人工触发。'
+
+      let healthStatus = 'ACTIVE'
+      let healthLabel = '正常'
+      let healthTone: ShopOverviewRow['healthTone'] = 'success'
+      let blockerReason = '商品、订单、售卖数据链路可继续使用。'
+      let onboardingStep = '可投入使用'
+      let nextActionLabel = '查看售卖数据'
+      let nextActionRoute: SectionKey = 'sales-data'
+
+      if (account.status === 'DISABLED') {
+        healthStatus = 'DISABLED'
+        healthLabel = '已停用'
+        healthTone = 'default'
+        blockerReason = '当前店铺已停用，不进入销售中心主工作流。'
+        onboardingStep = '已停用'
+        nextActionLabel = '查看店铺资料'
+        nextActionRoute = 'shop-management'
+      } else if (missingProfileFields.length) {
+        healthStatus = 'ONBOARDING_PENDING'
+        healthLabel = '待补店铺资料'
+        healthTone = 'warning'
+        blockerReason = `缺少${missingProfileFields.join('、')}，补齐后才能完成正式接入。`
+        onboardingStep = '已建档'
+        nextActionLabel = '补齐店铺资料'
+        nextActionRoute = 'shop-management'
+      } else if (account.status === 'TOKEN_INVALID') {
+        healthStatus = 'TOKEN_INVALID'
+        healthLabel = '待配置凭证'
+        healthTone = 'danger'
+        blockerReason = '当前凭证状态不可用，需要重新配置或校验 Access Token。'
+        onboardingStep = '已配置凭证'
+        nextActionLabel = '校验凭证'
+        nextActionRoute = 'shop-management'
+      } else if (failureInsight?.failureCategory === '能力受限') {
+        healthStatus = 'CAPABILITY_BLOCKED'
+        healthLabel = '能力受限'
+        healthTone = 'danger'
+        blockerReason = failureInsight.suggestedAction
+        onboardingStep = '能力探测通过前'
+        nextActionLabel = '去治理中心排障'
+        nextActionRoute = 'governance-sync'
+      } else if (!lastSuccessfulProductSyncAt || !lastSuccessfulOrderSyncAt) {
+        healthStatus = 'SYNC_PENDING'
+        healthLabel = '待完成首轮同步'
+        healthTone = 'warning'
+        blockerReason = '商品或订单首轮同步尚未成功，当前店铺还不能稳定投入使用。'
+        onboardingStep = !lastSuccessfulProductSyncAt ? '首次商品同步成功前' : '首次订单同步成功前'
+        nextActionLabel = !lastSuccessfulProductSyncAt ? '去商品同步' : '去问题订单'
+        nextActionRoute = !lastSuccessfulProductSyncAt ? 'product-sync' : 'order-issues'
+      } else if (failedLogs.length || pendingBindingCount || issueOrderCount) {
+        healthStatus = 'DEGRADED'
+        healthLabel = '部分异常'
+        healthTone = failedLogs.length ? 'danger' : 'warning'
+        blockerReason = failedLogs.length
+          ? `${failureInsight?.failureCategory || '同步失败'}：${failureInsight?.suggestedAction || '请进入治理中心排查。'}`
+          : pendingBindingCount
+            ? `仍有 ${pendingBindingCount} 个商品待绑定，可能影响售卖数据归属。`
+            : `仍有 ${issueOrderCount} 个问题订单待处理。`
+        onboardingStep = failedLogs.length ? failureInsight?.failureStage || '同步治理' : '可投入使用'
+        nextActionLabel = failedLogs.length ? '去治理中心排障' : pendingBindingCount ? '去商品绑定' : '去问题订单'
+        nextActionRoute = failedLogs.length ? 'governance-sync' : pendingBindingCount ? 'product-bindings' : 'order-issues'
+      }
+
+      return {
+        account,
+        healthStatus,
+        healthLabel,
+        healthTone,
+        blockerReason,
+        onboardingStep,
+        nextActionLabel,
+        nextActionRoute,
+        missingProfileFields,
+        pendingBindingCount,
+        issueOrderCount,
+        failedSyncCount: failedLogs.length,
+        lastSuccessfulProductSyncAt,
+        lastSuccessfulOrderSyncAt,
+        lastSuccessfulSalesSyncAt,
+        lastSuccessfulSyncAt,
+        orderAutoSyncEnabled,
+        orderAutoSyncIntervalMinutes,
+        orderAutoSyncPageSize,
+        orderAutoSyncNextRunAt: account.orderAutoSyncNextRunAt,
+        orderAutoSyncLastTriggeredAt: account.orderAutoSyncLastTriggeredAt,
+        latestOrderSyncLabel,
+        latestOrderSyncTone,
+        latestOrderSyncMessage,
+      }
+    })
+  }, [accounts, mappings, orders, syncLogs])
+
+  const shopOverviewMap = useMemo(
+    () => new Map(shopOverviewRows.map((item) => [item.account.id, item])),
+    [shopOverviewRows],
+  )
+
+  const shopSummary = useMemo(() => ({
+    enabledCount: shopOverviewRows.filter((item) => item.account.status === 'ACTIVE').length,
+    onboardingPendingCount: shopOverviewRows.filter((item) => item.healthStatus === 'ONBOARDING_PENDING' || item.healthStatus === 'SYNC_PENDING').length,
+    riskyCount: shopOverviewRows.filter((item) => ['TOKEN_INVALID', 'CAPABILITY_BLOCKED', 'DEGRADED'].includes(item.healthStatus)).length,
+    disabledCount: shopOverviewRows.filter((item) => item.healthStatus === 'DISABLED').length,
+    autoSyncEnabledCount: shopOverviewRows.filter((item) => item.orderAutoSyncEnabled).length,
+  }), [shopOverviewRows])
+
+  const currentShopOverview = useMemo(
+    () => (editingShop ? shopOverviewMap.get(editingShop.id) : undefined),
+    [editingShop, shopOverviewMap],
+  )
 
   const filteredBindings = useMemo(() => {
     const keyword = bindingKeyword.trim().toLowerCase()
@@ -654,10 +1079,25 @@ const SaleCenterWorkspace = () => {
     return filteredBindings.slice(start, start + bindingPageSize)
   }, [bindingPage, bindingPageSize, filteredBindings])
 
+  useEffect(() => {
+    if (activeSection !== 'product-bindings') {
+      return
+    }
+    if (currentMapping) {
+      return
+    }
+    if (pagedBindings[0]) {
+      setBindingDrawerId(pagedBindings[0].id)
+    }
+  }, [activeSection, currentMapping, pagedBindings])
+
   const filteredIssueOrders = useMemo(() => {
     const keyword = issueKeyword.trim().toLowerCase()
     return issueOrders
       .filter(({ order, issue }) => {
+        if (selectedAccountId && order.channelAccountId !== selectedAccountId) {
+          return false
+        }
         if (issueStatusFilter !== 'ALL' && (order.processingStatus || issue?.code) !== issueStatusFilter) {
           return false
         }
@@ -671,7 +1111,7 @@ const SaleCenterWorkspace = () => {
         const values = [order.platformOrderNo, order.receiverName, ...lineTexts]
         return values.some((value) => (value || '').toLowerCase().includes(keyword))
       })
-  }, [issueCodeFilter, issueKeyword, issueOrders, issueStatusFilter])
+  }, [issueCodeFilter, issueKeyword, issueOrders, issueStatusFilter, selectedAccountId])
 
   const pagedIssueOrders = useMemo(() => {
     const start = (issuePage - 1) * issuePageSize
@@ -1005,26 +1445,47 @@ const SaleCenterWorkspace = () => {
   const openCreateShop = useCallback(() => {
     setEditingShop(null)
     setCredentialDetail(null)
+    setShopActionFeedback(null)
     shopForm.resetFields()
     shopForm.setFieldsValue({
       platformCode: 'TEMU',
       status: 'ACTIVE',
       authorizationType: 'TOKEN',
       sellerType: 'FULLY_MANAGED',
+      orderSyncMode: 'AUTO',
+      orderAutoSyncEnabled: true,
+      orderAutoSyncIntervalMinutes: 60,
+      orderAutoSyncPageSize: 50,
       credentialStatus: 'ACTIVE',
     } as never)
     setShopDrawerOpen(true)
   }, [shopForm])
 
-  const openEditShop = useCallback((account: SaleChannelAccount) => {
+  const openEditShop = useCallback((account: SaleChannelAccount, options?: { noticeMessage?: string; focusField?: ShopProfileFieldKey }) => {
     setEditingShop(account)
     setCredentialDetail(null)
+    setShopActionFeedback(null)
     shopForm.resetFields()
     shopForm.setFieldsValue({
       ...account,
+      orderSyncMode: account.orderSyncMode || 'AUTO',
+      orderAutoSyncEnabled: account.orderAutoSyncEnabled ?? false,
+      orderAutoSyncIntervalMinutes: account.orderAutoSyncIntervalMinutes || 60,
+      orderAutoSyncPageSize: account.orderAutoSyncPageSize || 50,
       credentialStatus: 'ACTIVE',
     } as never)
     setShopDrawerOpen(true)
+    if (options?.noticeMessage) {
+      setShopActionFeedback({
+        type: 'warning',
+        message: options.noticeMessage,
+      })
+    }
+    if (options?.focusField) {
+      window.setTimeout(() => {
+        shopForm.scrollToField(options.focusField)
+      }, 80)
+    }
     setCredentialLoading(true)
     void saleApi.getChannelCredentialDetail(account.id)
       .then((detail) => {
@@ -1038,6 +1499,31 @@ const SaleCenterWorkspace = () => {
         setCredentialLoading(false)
       })
   }, [shopForm])
+
+  const handleShopNextAction = useCallback((record: ShopOverviewRow) => {
+    if (record.nextActionRoute !== 'shop-management') {
+      handleSectionNavigate(record.nextActionRoute)
+      return
+    }
+
+    const noticeMessage = buildMissingShopProfileMessage(record.missingProfileFields)
+    const focusField = getPrimaryMissingShopProfileField(record.account)
+
+    if (shopDrawerOpen && editingShop?.id === record.account.id) {
+      setShopActionFeedback({
+        type: 'warning',
+        message: noticeMessage,
+      })
+      if (focusField) {
+        window.setTimeout(() => {
+          shopForm.scrollToField(focusField)
+        }, 80)
+      }
+      return
+    }
+
+    openEditShop(record.account, { noticeMessage, focusField })
+  }, [editingShop?.id, handleSectionNavigate, openEditShop, shopDrawerOpen, shopForm])
 
   const handleSaveShop = useCallback(async () => {
     try {
@@ -1066,6 +1552,10 @@ const SaleCenterWorkspace = () => {
           regionCode: normalizeOptionalText(values.regionCode),
           gatewayUrl: normalizeOptionalText(values.gatewayUrl),
           sellerType: normalizeOptionalText(values.sellerType),
+          orderSyncMode: normalizeOptionalText(values.orderSyncMode),
+          orderAutoSyncEnabled: Boolean(values.orderAutoSyncEnabled),
+          orderAutoSyncIntervalMinutes: values.orderAutoSyncIntervalMinutes || 60,
+          orderAutoSyncPageSize: values.orderAutoSyncPageSize || 50,
           authorizationType: normalizeOptionalText(values.authorizationType),
           status: normalizeOptionalText(values.status),
           remarks: normalizeOptionalText(values.remarks),
@@ -1080,6 +1570,10 @@ const SaleCenterWorkspace = () => {
           regionCode: normalizeOptionalText(values.regionCode),
           gatewayUrl: normalizeOptionalText(values.gatewayUrl),
           sellerType: normalizeOptionalText(values.sellerType),
+          orderSyncMode: normalizeOptionalText(values.orderSyncMode),
+          orderAutoSyncEnabled: Boolean(values.orderAutoSyncEnabled),
+          orderAutoSyncIntervalMinutes: values.orderAutoSyncIntervalMinutes || 60,
+          orderAutoSyncPageSize: values.orderAutoSyncPageSize || 50,
           authorizationType: normalizeOptionalText(values.authorizationType),
           remarks: normalizeOptionalText(values.remarks),
         })
@@ -1100,6 +1594,7 @@ const SaleCenterWorkspace = () => {
       setShopDrawerOpen(false)
       setEditingShop(null)
       setCredentialDetail(null)
+      setShopActionFeedback(null)
       shopForm.resetFields()
       void loadWorkspaceData()
     } catch (error) {
@@ -1127,44 +1622,165 @@ const SaleCenterWorkspace = () => {
     }
   }, [editingShop?.id, loadWorkspaceData, message, selectedAccountId])
 
-  const shopColumns = useMemo<ColumnsType<SaleChannelAccount>>(() => [
+  const handleCheckShopToken = useCallback(async () => {
+    if (!editingShop) {
+      return
+    }
+    setTokenChecking(true)
+    setShopActionFeedback(null)
+    try {
+      const result = await saleApi.checkToken(editingShop.id)
+      setShopActionFeedback({
+        type: result.passed ? 'success' : 'warning',
+        message: result.passed
+          ? `Token 校验通过${result.requestId ? `，requestId：${result.requestId}` : ''}`
+          : result.message || result.errorCode || 'Token 校验未通过，请检查店铺凭证。',
+      })
+      if (result.passed) {
+        void loadWorkspaceData()
+      }
+    } catch (error) {
+      console.error(error)
+      setShopActionFeedback({
+        type: 'error',
+        message: 'Token 校验失败，请稍后重试。',
+      })
+    } finally {
+      setTokenChecking(false)
+    }
+  }, [editingShop, loadWorkspaceData])
+
+  const handleProbeShopCapabilities = useCallback(async () => {
+    if (!editingShop) {
+      return
+    }
+    setCapabilityChecking(true)
+    setShopActionFeedback(null)
+    try {
+      const result = await saleApi.probeCapabilities(editingShop.id)
+      setShopActionFeedback({
+        type: 'info',
+        message: `能力探测已完成：${JSON.stringify(result).slice(0, 180)}${JSON.stringify(result).length > 180 ? '...' : ''}`,
+      })
+      void loadWorkspaceData()
+    } catch (error) {
+      console.error(error)
+      setShopActionFeedback({
+        type: 'error',
+        message: '能力探测失败，请到治理中心查看报错详情。',
+      })
+    } finally {
+      setCapabilityChecking(false)
+    }
+  }, [editingShop, loadWorkspaceData])
+
+  const handleSyncOrders = useCallback(async (accountId?: string, useDrawerFeedback?: boolean) => {
+    const targetAccountId = accountId || selectedAccountId
+    if (!targetAccountId) {
+      message.warning('请先选择需要同步的店铺。')
+      return
+    }
+    const account = accountMap.get(targetAccountId)
+    const pageSize = account?.orderAutoSyncPageSize || 50
+
+    setOrderSyncSubmittingAccountId(targetAccountId)
+    if (useDrawerFeedback) {
+      setShopActionFeedback(null)
+    }
+    try {
+      const result = await saleApi.syncOrders({
+        channelAccountId: Number(targetAccountId),
+        page: 1,
+        pageSize,
+        continuous: true,
+      })
+      const successMessage = `订单同步完成，连续处理 ${formatNumber(result.processedPages)} 页，共拉取 ${formatNumber(result.syncedCount)} 单，新增 ${formatNumber(result.createdCount)} 单，更新 ${formatNumber(result.updatedCount)} 单。`
+      message.success(successMessage)
+      if (useDrawerFeedback) {
+        setShopActionFeedback({
+          type: 'success',
+          message: `${successMessage}${result.requestId ? ` requestId：${result.requestId}` : ''}`,
+        })
+      }
+      await loadWorkspaceData()
+    } catch {
+      message.error('订单同步失败，请到治理中心查看详情。')
+      if (useDrawerFeedback) {
+        setShopActionFeedback({
+          type: 'error',
+          message: '订单同步失败，请到治理中心查看失败日志和平台返回。',
+        })
+      }
+    } finally {
+      setOrderSyncSubmittingAccountId(undefined)
+    }
+  }, [accountMap, loadWorkspaceData, message, selectedAccountId])
+
+  const shopColumns = useMemo<ColumnsType<ShopOverviewRow>>(() => [
     {
       title: '店铺',
       key: 'shop',
       render: (_, record) => (
         <div className="scw-table-shop">
           <Avatar size={40} shape="square" className="scw-table-shop__avatar">
-            {getAvatarText(record.accountName)}
+            {getAvatarText(record.account.accountName)}
           </Avatar>
           <div>
-            <div className="scw-table-shop__title">{getShopLabel(record)}</div>
-            <div className="scw-table-shop__sub">{record.shopId || '--'}</div>
+            <div className="scw-table-shop__title">{getShopLabel(record.account)}</div>
+            <div className="scw-table-shop__sub">{record.account.shopId || '--'}</div>
           </div>
         </div>
       ),
     },
-    { title: '类型', dataIndex: 'sellerType', render: (value) => <StatusChip label={getSaleSellerTypeLabel(value)} tone="default" /> },
-    { title: '平台', dataIndex: 'platformCode' },
+    { title: '类型', key: 'sellerType', render: (_, record) => <StatusChip label={getSaleSellerTypeLabel(record.account.sellerType)} tone="default" /> },
+    { title: '平台', key: 'platformCode', render: (_, record) => record.account.platformCode || '--' },
+    {
+      title: '订单同步',
+      key: 'orderSyncConfig',
+      render: (_, record) => (
+        <div className="scw-shop-reason">
+          <Text>{getSaleOrderSyncModeLabel(record.account.orderSyncMode)} · {record.orderAutoSyncEnabled ? formatOrderAutoSyncInterval(record.orderAutoSyncIntervalMinutes) : '未开启自动同步'}</Text>
+          <Text type="secondary">下次执行：{record.orderAutoSyncEnabled ? formatDateTime(record.orderAutoSyncNextRunAt) : '--'}</Text>
+        </div>
+      ),
+    },
     {
       title: '健康状态',
-      dataIndex: 'status',
-      render: (value) => {
-        const label = value === 'ACTIVE' ? '正常' : value === 'DISABLED' ? '已停用' : value === 'TOKEN_INVALID' ? '待配置凭证' : '部分异常'
-        return <StatusChip label={label} tone={value === 'ACTIVE' ? 'success' : value === 'DISABLED' ? 'default' : 'warning'} />
-      },
+      key: 'healthStatus',
+      render: (_, record) => <StatusChip label={record.healthLabel} tone={record.healthTone} />,
+    },
+    {
+      title: '阻断原因 / 下一步',
+      key: 'blockerReason',
+      render: (_, record) => (
+        <div className="scw-shop-reason">
+          <Text>{record.blockerReason}</Text>
+          <Text type="secondary">{record.onboardingStep}</Text>
+        </div>
+      ),
     },
     {
       title: '最近成功同步',
-      dataIndex: 'updatedAt',
-      render: (value) => formatDateTime(value),
+      key: 'lastSuccessfulSyncAt',
+      render: (_, record) => formatDateTime(record.lastSuccessfulSyncAt),
     },
     {
       title: '操作',
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button type="link" onClick={() => openEditShop(record)}>
+          <Button type="link" onClick={() => openEditShop(record.account)}>
             编辑
+          </Button>
+          <Button
+            type="link"
+            loading={orderSyncSubmittingAccountId === record.account.id}
+            onClick={() => void handleSyncOrders(record.account.id)}
+          >
+            同步订单
+          </Button>
+          <Button type="link" onClick={() => handleShopNextAction(record)}>
+            {record.nextActionLabel}
           </Button>
           <Popconfirm
             title="确认删除这个店铺吗？"
@@ -1172,7 +1788,7 @@ const SaleCenterWorkspace = () => {
             okText="删除"
             cancelText="取消"
             okButtonProps={{ danger: true }}
-            onConfirm={() => void handleDeleteShop(record)}
+            onConfirm={() => void handleDeleteShop(record.account)}
           >
             <Button type="link" danger>
               删除
@@ -1181,19 +1797,60 @@ const SaleCenterWorkspace = () => {
         </Space>
       ),
     },
-  ], [handleDeleteShop, openEditShop])
+  ], [handleDeleteShop, handleShopNextAction, handleSyncOrders, openEditShop, orderSyncSubmittingAccountId])
 
-  const governanceTableData = useMemo(() => syncLogs.map((item) => ({
-    key: item.id,
-    ...item,
-  })), [syncLogs])
+  const governanceTaskRows = useMemo<GovernanceTaskRow[]>(() => {
+    const grouped = new Map<string, SaleSyncLogItem[]>()
+    syncLogs.forEach((log) => {
+      const key = log.taskId || log.requestId || log.id
+      const current = grouped.get(key) || []
+      current.push(log)
+      grouped.set(key, current)
+    })
 
-  const governanceColumns = useMemo<ColumnsType<SaleSyncLogItem>>(() => [
-    { title: '任务ID', dataIndex: 'taskId', width: 180, render: (value) => value || '--' },
+    return Array.from(grouped.entries())
+      .map(([taskKey, logs]) => {
+        const sortedLogs = [...logs].sort((left, right) => (right.occurredAt || '').localeCompare(left.occurredAt || ''))
+        const latestLog = sortedLogs[0]
+        const startedAt = [...logs].sort((left, right) => (left.occurredAt || '').localeCompare(right.occurredAt || ''))[0]?.occurredAt
+        const failedCount = logs.filter((log) => !log.success).length
+        const running = failedCount === 0 && logs.some((log) => log.success && !log.responsePayloadJson)
+        const status: GovernanceTaskRow['status'] = failedCount ? 'FAILED' : running ? 'RUNNING' : 'SUCCESS'
+        const failureInsight = getFailureInsight(latestLog)
+        return {
+          taskKey,
+          sourceLogId: latestLog.id,
+          channelAccountId: latestLog.channelAccountId,
+          bizType: latestLog.bizType,
+          requestId: latestLog.requestId,
+          traceId: latestLog.requestId,
+          status,
+          statusLabel: status === 'FAILED' ? '失败' : status === 'RUNNING' ? '运行中' : '成功',
+          tone: (status === 'FAILED' ? 'danger' : status === 'RUNNING' ? 'info' : 'success') as GovernanceTaskRow['tone'],
+          logCount: logs.length,
+          failedCount,
+          startedAt,
+          latestAt: latestLog.occurredAt,
+          failureCategory: failureInsight.failureCategory,
+          failureStage: failureInsight.failureStage,
+          suggestedAction: latestLog.success ? '该任务执行成功，无需额外排障。' : failureInsight.suggestedAction,
+          latestLog,
+        }
+      })
+      .sort((left, right) => (right.latestAt || '').localeCompare(left.latestAt || ''))
+  }, [syncLogs])
+
+  const governanceIncidentRows = useMemo(
+    () => governanceTaskRows.filter((item) => item.status !== 'SUCCESS').sort((left, right) => right.failedCount - left.failedCount),
+    [governanceTaskRows],
+  )
+
+  const governanceTaskColumns = useMemo<ColumnsType<GovernanceTaskRow>>(() => [
+    { title: '任务ID', dataIndex: 'taskKey', width: 180, render: (value) => value || '--' },
     {
       title: '任务类型',
       dataIndex: 'bizType',
-      render: (value) => syncBizTypeLabels[(value || '').toUpperCase()] || value || '--',
+      render: (value) => getSyncBizLabel(value),
     },
     {
       title: '店铺 / 平台',
@@ -1201,17 +1858,52 @@ const SaleCenterWorkspace = () => {
       render: (_, record) => getShopLabel(record.channelAccountId ? accountMap.get(record.channelAccountId) : undefined),
     },
     {
-      title: '状态 / 结果',
-      dataIndex: 'success',
-      render: (value) => <StatusChip label={value ? '成功' : '失败'} tone={value ? 'success' : 'danger'} />,
+      title: '状态',
+      key: 'status',
+      render: (_, record) => <StatusChip label={record.statusLabel} tone={record.tone} />,
     },
-    { title: '失败分类', dataIndex: 'errorCode', render: (value) => value || '--' },
+    { title: '失败分类', dataIndex: 'failureCategory', render: (value) => value || '--' },
+    { title: '建议动作', dataIndex: 'suggestedAction', ellipsis: true },
+    { title: '最近时间', dataIndex: 'latestAt', render: (value) => formatDateTime(value) },
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_, record) => (
+        <Button type="link" onClick={() => setGovernanceDrawerId(record.sourceLogId)} data-testid="governance-detail-button">
+          查看详情
+        </Button>
+      ),
+    },
+  ], [accountMap])
+
+  const governanceLogColumns = useMemo<ColumnsType<SaleSyncLogItem>>(() => [
+    {
+      title: '任务 / 请求',
+      key: 'task',
+      render: (_, record) => (
+        <div className="scw-governance-cell">
+          <Text strong>{record.taskId || record.requestId || record.id}</Text>
+          <Text type="secondary">{getSyncBizLabel(record.bizType)}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '店铺',
+      key: 'shop',
+      render: (_, record) => getShopLabel(record.channelAccountId ? accountMap.get(record.channelAccountId) : undefined),
+    },
+    {
+      title: '结果',
+      key: 'success',
+      render: (_, record) => <StatusChip label={record.success ? '成功' : '失败'} tone={record.success ? 'success' : 'danger'} />,
+    },
+    { title: '错误码', dataIndex: 'errorCode', render: (value) => value || '--' },
     { title: '发生时间', dataIndex: 'occurredAt', render: (value) => formatDateTime(value) },
     {
       title: '操作',
       key: 'actions',
       render: (_, record) => (
-        <Button type="link" onClick={() => setGovernanceDrawerId(record.id)} data-testid="governance-detail-button">
+        <Button type="link" onClick={() => setGovernanceDrawerId(record.id)}>
           查看详情
         </Button>
       ),
@@ -1486,141 +2178,199 @@ const SaleCenterWorkspace = () => {
             </Button>
             <Button onClick={handleGenerateDrafts}>重新生成草稿</Button>
           </div>
-        </Card>
-        <Card className="scw-panel-card scw-flex-fill">
-          <SectionHeading title="平台商品" description="优先处理待绑定、高销量和冲突商品。" extra={<Text type="secondary">共 {formatNumber(filteredBindings.length)} 条</Text>} />
-          <div className="scw-binding-list" data-testid="binding-list">
-            {pagedBindings.map((item) => {
-              const relatedDraft = drafts.find((draft) => draft.productMappingId === item.id)
-              return (
-                <button type="button" key={item.id} className="scw-binding-card" data-testid="binding-card" onClick={() => setBindingDrawerId(item.id)}>
-                  <ProductThumb src={item.platformMainImageUrl || item.styleImageUrl} name={item.platformProductName} size={72} />
-                  <div className="scw-binding-card__content">
-                    <div className="scw-binding-card__top">
-                      <div>
-                        <Title level={5}>{item.platformProductName || item.styleName || item.platformSkuCode || item.platformSkuId}</Title>
-                        <Text type="secondary">平台 SKU：{item.platformSkuCode || item.platformSkuId}</Text>
-                      </div>
-                      <StatusChip label={isMappedStatus(item.mappingStatus) ? '已绑定' : '待绑定'} tone={isMappedStatus(item.mappingStatus) ? 'success' : 'warning'} />
-                    </div>
-                    <div className="scw-binding-meta">
-                      <span>颜色：{item.normalizedColor || '--'}</span>
-                      <span>尺码：{item.normalizedSize || '--'}</span>
-                      <span>规格：{item.normalizedSpecSummary || '--'}</span>
-                    </div>
-                    <div className="scw-binding-candidate">
-                      <StatusChip label={relatedDraft ? '候选草稿' : '暂无草稿'} tone={relatedDraft ? 'info' : 'default'} />
-                      <Text>{relatedDraft?.candidateStyleName || item.styleName || '尚未匹配到本地款式'}</Text>
-                      <Text type="secondary">{relatedDraft?.matchReason || item.remark || '等待人工确认映射关系'}</Text>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-            {!pagedBindings.length ? <Empty description="当前筛选条件下没有待展示的商品绑定记录" /> : null}
-          </div>
-          <div className="scw-pagination-bar">
-            <Pagination
-              current={bindingPage}
-              pageSize={bindingPageSize}
-              total={filteredBindings.length}
-              showSizeChanger
-              onChange={(page, pageSize) => {
-                setBindingPage(page)
-                setBindingPageSize(pageSize)
+          <div className="scw-binding-exception-rail">
+            <Text className="scw-field-label">绑定异常队列</Text>
+            <Space wrap>
+              <StatusChip label={`有销量未绑定 ${bindingExceptionQueue.filter((item) => item.type === '有销量未绑定').length}`} tone="danger" />
+              <StatusChip label={`冲突绑定 ${bindingExceptionQueue.filter((item) => item.type === '冲突绑定').length}`} tone="danger" />
+              <StatusChip label={`低置信度 ${bindingExceptionQueue.filter((item) => item.type === '低置信度草稿').length}`} tone="warning" />
+            </Space>
+            <List
+              size="small"
+              className="scw-binding-exception-list"
+              locale={{ emptyText: '当前没有需要升级处理的绑定异常' }}
+              dataSource={bindingExceptionQueue.slice(0, 4)}
+              renderItem={(item) => {
+                const mapping = selectedBindings.find((entry) => entry.id === item.mappingId)
+                return (
+                  <List.Item
+                    actions={[
+                      <Button type="link" size="small" key="focus" onClick={() => setBindingDrawerId(item.mappingId)}>
+                        去处理
+                      </Button>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={<StatusChip label={item.type} tone={item.tone} />}
+                      title={mapping?.platformProductName || mapping?.platformSkuCode || mapping?.platformSkuId || '待处理商品'}
+                      description={`${item.reason} ${item.salesVolume ? `当前销量 ${formatNumber(item.salesVolume)} 件。` : ''}`}
+                    />
+                  </List.Item>
+                )
               }}
             />
           </div>
         </Card>
-      </div>
-      <Drawer
-        open={Boolean(currentMapping)}
-        onClose={() => setBindingDrawerId(undefined)}
-        width={440}
-        title="商品绑定详情"
-        className="scw-drawer"
-      >
-        {currentMapping ? (
-          <Space direction="vertical" size={20} style={{ width: '100%' }}>
-            <div className="scw-drawer-product">
-              <ProductThumb src={currentMapping.platformMainImageUrl || currentMapping.styleImageUrl} name={currentMapping.platformProductName} size={92} />
-              <div>
-                <Title level={4}>{currentMapping.platformProductName || '--'}</Title>
-                <Paragraph type="secondary">
-                  平台 SKU：{currentMapping.platformSkuCode || currentMapping.platformSkuId}
-                  <br />
-                  店铺：{getShopLabel(currentMapping.channelAccountId ? accountMap.get(currentMapping.channelAccountId) : undefined)}
-                </Paragraph>
+        <Card className="scw-panel-card scw-flex-fill">
+          <SectionHeading title="平台商品" description="优先处理待绑定、高销量和冲突商品。" extra={<Text type="secondary">共 {formatNumber(filteredBindings.length)} 条</Text>} />
+          <div className="scw-binding-workbench">
+            <div className="scw-binding-workbench__list">
+              <div className="scw-binding-list" data-testid="binding-list">
+                {pagedBindings.map((item) => {
+                  const relatedDraft = drafts.find((draft) => draft.productMappingId === item.id)
+                  const exception = bindingExceptionMap.get(item.id)
+                  return (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`scw-binding-card${currentMapping?.id === item.id ? ' scw-binding-card--active' : ''}`}
+                      data-testid="binding-card"
+                      onClick={() => setBindingDrawerId(item.id)}
+                    >
+                      <ProductThumb src={item.platformMainImageUrl || item.styleImageUrl} name={item.platformProductName} size={72} />
+                      <div className="scw-binding-card__content">
+                        <div className="scw-binding-card__top">
+                          <div>
+                            <Title level={5}>{item.platformProductName || item.styleName || item.platformSkuCode || item.platformSkuId}</Title>
+                            <Text type="secondary">平台 SKU：{item.platformSkuCode || item.platformSkuId}</Text>
+                          </div>
+                          <StatusChip label={isMappedStatus(item.mappingStatus) ? '已绑定' : '待绑定'} tone={isMappedStatus(item.mappingStatus) ? 'success' : 'warning'} />
+                        </div>
+                        <div className="scw-binding-meta">
+                          <span>颜色：{item.normalizedColor || '--'}</span>
+                          <span>尺码：{item.normalizedSize || '--'}</span>
+                          <span>规格：{item.normalizedSpecSummary || '--'}</span>
+                        </div>
+                        <div className="scw-binding-candidate">
+                          <StatusChip label={relatedDraft ? '候选草稿' : '暂无草稿'} tone={relatedDraft ? 'info' : 'default'} />
+                          {exception ? <StatusChip label={exception.type} tone={exception.tone} /> : null}
+                          {relatedDraft?.confidence ? <StatusChip label={`置信度 ${formatConfidence(parseConfidence(relatedDraft.confidence))}`} tone={exception?.tone || 'info'} /> : null}
+                        </div>
+                        <div className="scw-binding-candidate scw-binding-candidate--stack">
+                          <Text>{relatedDraft?.candidateStyleName || item.styleName || '尚未匹配到本地款式'}</Text>
+                          <Text type="secondary">{exception?.reason || relatedDraft?.matchReason || item.remark || '等待人工确认映射关系'}</Text>
+                          <Text type="secondary">{exception?.recommendedAction || '优先确认候选是否可信，再执行人工绑定。'}</Text>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+                {!pagedBindings.length ? <Empty description="当前筛选条件下没有待展示的商品绑定记录" /> : null}
+              </div>
+              <div className="scw-pagination-bar">
+                <Pagination
+                  current={bindingPage}
+                  pageSize={bindingPageSize}
+                  total={filteredBindings.length}
+                  showSizeChanger
+                  onChange={(page, pageSize) => {
+                    setBindingPage(page)
+                    setBindingPageSize(pageSize)
+                  }}
+                />
               </div>
             </div>
-            <Card size="small">
-              <Title level={5}>平台商品属性</Title>
-              <Paragraph>颜色：{currentMapping.normalizedColor || '--'}</Paragraph>
-              <Paragraph>尺码：{currentMapping.normalizedSize || '--'}</Paragraph>
-              <Paragraph>规格：{currentMapping.normalizedSpecSummary || '--'}</Paragraph>
-            </Card>
-            <Card size="small">
-              <Title level={5}>候选草稿</Title>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                {drafts.filter((draft) => draft.productMappingId === currentMapping.id).slice(0, 3).map((draft) => (
-                  <div key={draft.id} className="scw-draft-card">
+            <div className="scw-binding-detail-panel">
+              {currentMapping ? (
+                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  <SectionHeading title="商品绑定详情" description="先判断候选是否可信，再决定确认草稿或手工绑定。" />
+                  <div className="scw-drawer-product">
+                    <ProductThumb src={currentMapping.platformMainImageUrl || currentMapping.styleImageUrl} name={currentMapping.platformProductName} size={92} />
                     <div>
-                      <Text strong>{draft.candidateStyleName || draft.candidateStyleNo || '候选款式'}</Text>
-                      <br />
-                      <Text type="secondary">{draft.matchReason || '标题相似、属性匹配'}</Text>
+                      <Title level={4}>{currentMapping.platformProductName || '--'}</Title>
+                      <Paragraph type="secondary">
+                        平台 SKU：{currentMapping.platformSkuCode || currentMapping.platformSkuId}
+                        <br />
+                        店铺：{getShopLabel(currentMapping.channelAccountId ? accountMap.get(currentMapping.channelAccountId) : undefined)}
+                      </Paragraph>
                     </div>
-                    <Space>
-                      <Button size="small" type="primary" onClick={() => void handleApproveDraft(draft.id)}>
-                        确认草稿
-                      </Button>
-                      <Button size="small" onClick={() => void handleRejectDraft(draft.id)}>
-                        驳回草稿
+                  </div>
+                  {currentBindingException ? (
+                    <Alert
+                      type={currentBindingException.tone === 'danger' ? 'error' : 'warning'}
+                      showIcon
+                      message={currentBindingException.type}
+                      description={`${currentBindingException.reason} ${currentBindingException.recommendedAction}`}
+                    />
+                  ) : null}
+                  <Card size="small">
+                    <Title level={5}>平台商品属性</Title>
+                    <Paragraph>颜色：{currentMapping.normalizedColor || '--'}</Paragraph>
+                    <Paragraph>尺码：{currentMapping.normalizedSize || '--'}</Paragraph>
+                    <Paragraph>规格：{currentMapping.normalizedSpecSummary || '--'}</Paragraph>
+                  </Card>
+                  <Card size="small">
+                    <Title level={5}>候选草稿</Title>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      {drafts.filter((draft) => draft.productMappingId === currentMapping.id).slice(0, 3).map((draft) => (
+                        <div key={draft.id} className="scw-draft-card">
+                          <div>
+                            <Text strong>{draft.candidateStyleName || draft.candidateStyleNo || '候选款式'}</Text>
+                            <br />
+                            <Text type="secondary">{draft.matchReason || '标题相似、属性匹配'}</Text>
+                            <br />
+                            <Text type="secondary">置信度：{formatConfidence(parseConfidence(draft.confidence))}</Text>
+                          </div>
+                          <Space>
+                            <Button size="small" type="primary" onClick={() => void handleApproveDraft(draft.id)}>
+                              确认草稿
+                            </Button>
+                            <Button size="small" onClick={() => void handleRejectDraft(draft.id)}>
+                              驳回草稿
+                            </Button>
+                          </Space>
+                        </div>
+                      ))}
+                      {!drafts.some((draft) => draft.productMappingId === currentMapping.id) ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前没有可确认的草稿候选" /> : null}
+                    </Space>
+                  </Card>
+                  <Card size="small">
+                    <Title level={5}>已确认映射</Title>
+                    <Paragraph>{currentMapping.styleName || '暂无正式映射'}</Paragraph>
+                    <Paragraph type="secondary">{currentMapping.styleNo || '--'}</Paragraph>
+                  </Card>
+                  <Card size="small">
+                    <Title level={5}>手工绑定</Title>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Select
+                        showSearch
+                        filterOption={false}
+                        data-testid="binding-style-select"
+                        placeholder="搜索本地款号或款式名称"
+                        value={selectedStyleId}
+                        onSearch={(value) => void handleBindingStyleSearch(value)}
+                        onChange={(value) => void handleBindingStyleChange(value)}
+                        notFoundContent={styleSearchLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无款式" />}
+                        options={styleOptions}
+                        style={{ width: '100%' }}
+                      />
+                      <Select
+                        data-testid="binding-variant-select"
+                        placeholder={selectedStyleId ? '请选择本地规格' : '请先选择本地款式'}
+                        value={selectedVariantId}
+                        onChange={setSelectedVariantId}
+                        disabled={!selectedStyleId || styleDetailLoading}
+                        notFoundContent={styleDetailLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无规格" />}
+                        options={variantOptions}
+                      />
+                      {selectedStyleDetail ? (
+                        <Text type="secondary">
+                          已选款式：{selectedStyleDetail.styleNo} / {selectedStyleDetail.styleName}
+                        </Text>
+                      ) : null}
+                      <Button type="primary" block loading={bindingSaving} onClick={() => void handleSaveManualBinding()} data-testid="binding-submit">
+                        提交绑定
                       </Button>
                     </Space>
-                  </div>
-                ))}
-              </Space>
-            </Card>
-            <Card size="small">
-              <Title level={5}>已确认映射</Title>
-              <Paragraph>{currentMapping.styleName || '暂无正式映射'}</Paragraph>
-              <Paragraph type="secondary">{currentMapping.styleNo || '--'}</Paragraph>
-            </Card>
-            <Card size="small">
-              <Title level={5}>手工绑定</Title>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Select
-                  showSearch
-                  filterOption={false}
-                  placeholder="搜索本地款号或款式名称"
-                  value={selectedStyleId}
-                  onSearch={(value) => void handleBindingStyleSearch(value)}
-                  onChange={(value) => void handleBindingStyleChange(value)}
-                  notFoundContent={styleSearchLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无款式" />}
-                  options={styleOptions}
-                  style={{ width: '100%' }}
-                />
-                <Select
-                  placeholder={selectedStyleId ? '请选择本地规格' : '请先选择本地款式'}
-                  value={selectedVariantId}
-                  onChange={setSelectedVariantId}
-                  disabled={!selectedStyleId || styleDetailLoading}
-                  notFoundContent={styleDetailLoading ? <Spin size="small" /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无规格" />}
-                  options={variantOptions}
-                />
-                {selectedStyleDetail ? (
-                  <Text type="secondary">
-                    已选款式：{selectedStyleDetail.styleNo} / {selectedStyleDetail.styleName}
-                  </Text>
-                ) : null}
-                <Button type="primary" block loading={bindingSaving} onClick={() => void handleSaveManualBinding()} data-testid="binding-submit">
-                  提交绑定
-                </Button>
-              </Space>
-            </Card>
-          </Space>
-        ) : null}
-      </Drawer>
+                  </Card>
+                </Space>
+              ) : (
+                <Empty description="请先从左侧选择一个平台商品，查看候选草稿与绑定详情" />
+              )}
+            </div>
+          </div>
+        </Card>
+      </div>
     </Space>
   )
 
@@ -1634,8 +2384,28 @@ const SaleCenterWorkspace = () => {
         <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="已升级" value={issueOrders.filter((item) => item.order.processingStatus === 'ESCALATED').length} /></Card></Col>
       </Row>
       <Card className="scw-panel-card">
-        <SectionHeading title="问题订单" description="先识别问题商品，再决定处理动作。" />
+        <SectionHeading
+          title="问题订单"
+          description="先识别问题商品，再决定处理动作。"
+          extra={(
+            <Button
+              type="primary"
+              loading={orderSyncSubmittingAccountId === selectedAccountId}
+              onClick={() => void handleSyncOrders()}
+            >
+              手动同步订单
+            </Button>
+          )}
+        />
         <div className="scw-filter-inline scw-filter-inline--issue">
+          <Select
+            className="scw-filter-inline__select"
+            allowClear
+            placeholder="全部店铺"
+            value={selectedAccountId}
+            onChange={setSelectedAccountId}
+            options={accounts.map((account) => ({ label: getShopLabel(account), value: account.id }))}
+          />
           <Select
             className="scw-filter-inline__select"
             value={issueStatusFilter}
@@ -2121,15 +2891,60 @@ const SaleCenterWorkspace = () => {
   const renderShopManagement = () => (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="已启用" value={accounts.filter((item) => item.status === 'ACTIVE').length} /></Card></Col>
-        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="待接入" value={accounts.filter((item) => !item.shopId).length} /></Card></Col>
-        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="风险店铺" value={shopRiskRows.length} /></Card></Col>
-        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="停用" value={accounts.filter((item) => item.status === 'DISABLED').length} /></Card></Col>
-        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="店铺总数" value={accounts.length} /></Card></Col>
+        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="已启用" value={shopSummary.enabledCount} /></Card></Col>
+        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="待接入" value={shopSummary.onboardingPendingCount} /></Card></Col>
+        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="风险店铺" value={shopSummary.riskyCount} /></Card></Col>
+        <Col xs={24} md={12} xl={5}><Card className="scw-metric-card"><Statistic title="自动同步" value={shopSummary.autoSyncEnabledCount} /></Card></Col>
+        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="停用" value={shopSummary.disabledCount} /></Card></Col>
+      </Row>
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={12}>
+          <Card className="scw-panel-card">
+            <SectionHeading title="店铺接入状态机" description="新店铺必须先完成准入，再进入商品、订单和售卖数据链路。" />
+            <List
+              dataSource={[
+                '已建档',
+                '已配置凭证',
+                'Token 校验通过',
+                '能力探测通过',
+                '首次商品同步成功',
+                '首次订单同步成功',
+                '可投入使用',
+              ]}
+              renderItem={(item, index) => (
+                <List.Item>
+                  <List.Item.Meta
+                    avatar={<Avatar size={32}>{index + 1}</Avatar>}
+                    title={item}
+                    description={index === 0 ? '先完成店铺资料和平台归属建档。' : index === 1 ? '录入脱敏凭证并保存。' : index === 2 ? '确保当前 Token 可读。' : index === 3 ? '确认商品、订单、售卖数据能力矩阵。' : index === 4 ? '完成首轮商品快照读取。' : index === 5 ? '完成首轮订单同步。' : '此时才进入稳定使用。'}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card className="scw-panel-card">
+            <SectionHeading title="异常店铺" description="优先处理健康态不是“正常”的店铺。" />
+            <List
+              dataSource={shopOverviewRows.filter((item) => item.healthStatus !== 'ACTIVE').slice(0, 5)}
+              locale={{ emptyText: '当前没有需要优先排障的店铺' }}
+              renderItem={(item) => (
+                <List.Item actions={[<Button type="link" key="go" onClick={() => handleShopNextAction(item)}>{item.nextActionLabel}</Button>]}>
+                  <List.Item.Meta
+                    avatar={<StatusChip label={item.healthLabel} tone={item.healthTone} />}
+                    title={getShopLabel(item.account)}
+                    description={`${item.blockerReason} 最近成功同步：${formatDateTime(item.lastSuccessfulSyncAt)}`}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
       </Row>
       <Card className="scw-panel-card">
         <SectionHeading title="店铺管理" description="该页面用于店铺名册、接入资料和健康状态管理。" extra={<Button type="primary" onClick={openCreateShop} data-testid="shop-create-button">新建店铺</Button>} />
-        <Table rowKey="id" dataSource={accounts} columns={shopColumns} pagination={{ pageSize: 8 }} />
+        <Table rowKey={(row) => row.account.id} dataSource={shopOverviewRows} columns={shopColumns} pagination={{ pageSize: 8 }} />
       </Card>
       <Drawer
         open={shopDrawerOpen}
@@ -2137,24 +2952,96 @@ const SaleCenterWorkspace = () => {
           setShopDrawerOpen(false)
           setEditingShop(null)
           setCredentialDetail(null)
+          setShopActionFeedback(null)
           shopForm.resetFields()
         }}
         width={520}
         title={editingShop ? '编辑店铺' : '新建店铺'}
         className="scw-drawer"
       >
+        {currentShopOverview ? (
+          <Space direction="vertical" size={16} style={{ width: '100%', marginBottom: 20 }}>
+            <Alert
+              type={currentShopOverview.healthTone === 'danger' ? 'error' : currentShopOverview.healthTone === 'warning' ? 'warning' : currentShopOverview.healthTone === 'info' ? 'info' : 'success'}
+              showIcon
+              message={`${currentShopOverview.healthLabel} · ${currentShopOverview.onboardingStep}`}
+              description={currentShopOverview.blockerReason}
+            />
+            <Card size="small">
+              <Descriptions column={2} size="small" bordered>
+                <Descriptions.Item label="商品同步">{formatDateTime(currentShopOverview.lastSuccessfulProductSyncAt)}</Descriptions.Item>
+                <Descriptions.Item label="订单同步">{formatDateTime(currentShopOverview.lastSuccessfulOrderSyncAt)}</Descriptions.Item>
+                <Descriptions.Item label="售卖数据">{formatDateTime(currentShopOverview.lastSuccessfulSalesSyncAt)}</Descriptions.Item>
+                <Descriptions.Item label="自动拉单">{currentShopOverview.orderAutoSyncEnabled ? formatOrderAutoSyncInterval(currentShopOverview.orderAutoSyncIntervalMinutes) : '未开启'}</Descriptions.Item>
+                <Descriptions.Item label="下次执行">{formatDateTime(currentShopOverview.orderAutoSyncNextRunAt)}</Descriptions.Item>
+                <Descriptions.Item label="最近触发">{formatDateTime(currentShopOverview.orderAutoSyncLastTriggeredAt)}</Descriptions.Item>
+                <Descriptions.Item label="最近结果">
+                  <StatusChip label={currentShopOverview.latestOrderSyncLabel} tone={currentShopOverview.latestOrderSyncTone} />
+                </Descriptions.Item>
+                <Descriptions.Item label="待绑定商品">{formatNumber(currentShopOverview.pendingBindingCount)}</Descriptions.Item>
+                <Descriptions.Item label="问题订单">{formatNumber(currentShopOverview.issueOrderCount)}</Descriptions.Item>
+                <Descriptions.Item label="失败日志">{formatNumber(currentShopOverview.failedSyncCount)}</Descriptions.Item>
+              </Descriptions>
+            </Card>
+            <Alert
+              type={
+                currentShopOverview.latestOrderSyncTone === 'danger'
+                  ? 'error'
+                  : currentShopOverview.latestOrderSyncTone === 'warning'
+                    ? 'warning'
+                    : 'info'
+              }
+              showIcon
+              message={currentShopOverview.latestOrderSyncMessage}
+            />
+            {currentShopOverview.missingProfileFields.length ? (
+              <Alert
+                type="warning"
+                showIcon
+                message="当前店铺资料还不完整"
+                description={`缺少：${currentShopOverview.missingProfileFields.join('、')}。请先补齐这些字段，再继续接入和同步。`}
+              />
+            ) : null}
+            {editingShop ? (
+              <Space wrap>
+                <Button loading={tokenChecking} onClick={() => void handleCheckShopToken()}>
+                  检查 Token
+                </Button>
+                <Button loading={capabilityChecking} onClick={() => void handleProbeShopCapabilities()}>
+                  探测能力
+                </Button>
+                <Button loading={orderSyncSubmittingAccountId === editingShop.id} onClick={() => void handleSyncOrders(editingShop.id, true)}>
+                  立即同步订单
+                </Button>
+                <Button onClick={() => handleShopNextAction(currentShopOverview)}>
+                  {currentShopOverview.nextActionLabel}
+                </Button>
+              </Space>
+            ) : null}
+            {shopActionFeedback ? <Alert type={shopActionFeedback.type} showIcon message={shopActionFeedback.message} /> : null}
+          </Space>
+        ) : null}
         <Form form={shopForm} layout="vertical">
           <Form.Item name="accountName" label="店铺名称" rules={[{ required: true, message: '请输入店铺名称' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="shopId" label="店铺编码">
-            <Input />
+          <Form.Item name="shopId" label="平台店铺ID" extra="可选。当前系统不会依赖这个字段执行商品、订单同步。">
+            <Input placeholder="例如平台返回的 Shop ID" />
           </Form.Item>
           <Form.Item name="shopName" label="店铺显示名">
             <Input />
           </Form.Item>
           <Form.Item name="sellerType" label="店铺类型">
             <Select options={[{ label: '全托管', value: 'FULLY_MANAGED' }, { label: '半托管', value: 'SEMI_MANAGED' }]} />
+          </Form.Item>
+          <Form.Item name="orderSyncMode" label="订单同步模式">
+            <Select
+              options={[
+                { label: '自动识别', value: 'AUTO' },
+                { label: '订单模式', value: 'ORDER' },
+                { label: '备货单模式', value: 'PURCHASE_ORDER' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="platformCode" label="所属平台">
             <Select options={[{ label: 'Temu', value: 'TEMU' }, { label: 'Shopee', value: 'SHOPEE' }, { label: 'TikTok Shop', value: 'TIKTOK' }]} />
@@ -2168,6 +3055,41 @@ const SaleCenterWorkspace = () => {
           <Form.Item name="remarks" label="负责人 / 备注">
             <Input.TextArea rows={4} />
           </Form.Item>
+          <Card size="small" style={{ marginBottom: 16 }}>
+            <SectionHeading title="订单自动同步" description="配置后，系统会按设定节奏自动拉取最近订单并回写本地。" />
+            <Row gutter={12}>
+              <Col span={24}>
+                <Form.Item name="orderAutoSyncEnabled" label="开启自动同步" valuePropName="checked" style={{ marginBottom: 16 }}>
+                  <Switch checkedChildren="已开启" unCheckedChildren="已关闭" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="orderAutoSyncIntervalMinutes" label="同步频率" style={{ marginBottom: 0 }}>
+                  <Select
+                    options={[
+                      { label: '每 30 分钟', value: 30 },
+                      { label: '每 1 小时', value: 60 },
+                      { label: '每 3 小时', value: 180 },
+                      { label: '每 6 小时', value: 360 },
+                      { label: '每 12 小时', value: 720 },
+                      { label: '每天 1 次', value: 1440 },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="orderAutoSyncPageSize" label="每页拉取上限" style={{ marginBottom: 0 }}>
+                  <InputNumber min={20} max={200} step={10} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Alert
+              style={{ marginTop: 16 }}
+              type="info"
+              showIcon
+              message="自动同步会从第 1 页开始连续翻页补扫，直到当前没有更多订单；这里控制的是单页大小，不是整轮只拉这一点数据。"
+            />
+          </Card>
           <Collapse
             ghost
             size="small"
@@ -2261,73 +3183,97 @@ const SaleCenterWorkspace = () => {
   )
 
   const renderGovernance = () => (
-    <Card className="scw-panel-card">
-      <SectionHeading title="同步任务与日志" description="优先排查商品同步、订单同步、售卖数据同步三类任务。" />
+    <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Row gutter={[16, 16]} className="scw-governance-metrics">
-        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="运行中" value={syncLogs.filter((item) => item.success && !item.responsePayloadJson).length} /></Card></Col>
-        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="今日失败" value={syncLogs.filter((item) => !item.success).length} /></Card></Col>
-        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="不可重试" value={retryCandidates.filter((item) => !item.retryable).length} /></Card></Col>
-        <Col xs={24} md={12} xl={4}><Card className="scw-metric-card"><Statistic title="高优先排障" value={syncLogs.filter((item) => !item.success && item.errorCode).length} /></Card></Col>
+        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="运行中任务" value={governanceTaskRows.filter((item) => item.status === 'RUNNING').length} /></Card></Col>
+        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="今日失败任务" value={governanceTaskRows.filter((item) => item.status === 'FAILED').length} /></Card></Col>
+        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="不可重试" value={retryCandidates.filter((item) => !item.retryable).length} /></Card></Col>
+        <Col xs={24} md={12} xl={6}><Card className="scw-metric-card"><Statistic title="高优先排障" value={governanceIncidentRows.length} /></Card></Col>
       </Row>
-      <Tabs
-        defaultActiveKey="tasks"
-        items={[
-          {
-            key: 'tasks',
-            label: '任务',
-            children: <Table rowKey="id" dataSource={governanceTableData} columns={governanceColumns} pagination={{ pageSize: 8 }} />,
-          },
-          {
-            key: 'logs',
-            label: '日志',
-            children: <Table rowKey="id" dataSource={governanceTableData} columns={governanceColumns} pagination={{ pageSize: 8 }} />,
-          },
-          {
-            key: 'retry',
-            label: `重试候选 (${retryCandidates.length})`,
-            children: (
-              <List
-                dataSource={retryCandidates}
-                renderItem={(item) => (
-                  <List.Item actions={[<Button type="primary" key="retry" data-testid="governance-retry-button">重试任务</Button>]}>
-                    <List.Item.Meta
-                      title={`${syncBizTypeLabels[(item.bizType || '').toUpperCase()] || item.bizType || '同步任务'} / ${item.requestId || '--'}`}
-                      description={`${item.errorCode || '--'} · ${item.errorMessage || '无错误说明'} · ${item.retryable ? '可重试' : '不可重试'}`}
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={9}>
+          <Card className="scw-panel-card">
+            <SectionHeading title="故障队列" description="优先看失败次数高、直接阻断业务链路的任务。" />
+            <List
+              dataSource={governanceIncidentRows.slice(0, 6)}
+              locale={{ emptyText: '当前没有需要升级处理的治理故障' }}
+              renderItem={(item) => (
+                <List.Item actions={[<Button type="link" key="detail" onClick={() => setGovernanceDrawerId(item.sourceLogId)}>查看详情</Button>]}>
+                  <List.Item.Meta
+                    avatar={<StatusChip label={item.failureCategory} tone={item.tone} />}
+                    title={`${getSyncBizLabel(item.bizType)} / ${getShopLabel(item.channelAccountId ? accountMap.get(item.channelAccountId) : undefined)}`}
+                    description={`${item.failureStage} · ${item.suggestedAction}`}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={15}>
+          <Card className="scw-panel-card">
+            <SectionHeading title="同步任务与日志" description="优先排查商品同步、订单同步、售卖数据同步三类任务。" />
+            <Tabs
+              defaultActiveKey="tasks"
+              items={[
+                {
+                  key: 'tasks',
+                  label: `任务 (${governanceTaskRows.length})`,
+                  children: <Table rowKey="taskKey" dataSource={governanceTaskRows} columns={governanceTaskColumns} pagination={{ pageSize: 8 }} />,
+                },
+                {
+                  key: 'logs',
+                  label: `日志 (${syncLogs.length})`,
+                  children: <Table rowKey="id" dataSource={syncLogs} columns={governanceLogColumns} pagination={{ pageSize: 8 }} />,
+                },
+                {
+                  key: 'retry',
+                  label: `重试候选 (${retryCandidates.length})`,
+                  children: (
+                    <List
+                      dataSource={retryCandidates}
+                      renderItem={(item) => (
+                        <List.Item actions={[<Button type="primary" key="retry" disabled={!item.retryable} data-testid="governance-retry-button">{item.retryable ? '建议重试' : '不可重试'}</Button>]}>
+                          <List.Item.Meta
+                            title={`${getSyncBizLabel(item.bizType)} / ${item.requestId || '--'}`}
+                            description={`${item.errorCode || '--'} · ${item.errorMessage || '无错误说明'} · ${item.retryAction || '请先查看治理详情'}`}
+                          />
+                        </List.Item>
+                      )}
                     />
-                  </List.Item>
-                )}
-              />
-            ),
-          },
-          {
-            key: 'idempotency',
-            label: '幂等',
-            children: (
-              <Table
-                rowKey="id"
-                dataSource={idempotencyRecords}
-                columns={[
-                  { title: '幂等键', dataIndex: 'idempotencyKey', render: (value) => value || '--' },
-                  { title: '业务类型', dataIndex: 'bizType', render: (value) => syncBizTypeLabels[(value || '').toUpperCase()] || value || '--' },
-                  { title: '状态', dataIndex: 'status', render: (value) => <StatusChip label={value || '--'} tone={getStatusTone(value)} /> },
-                  { title: '更新时间', dataIndex: 'updatedAt', render: (value) => formatDateTime(value) },
-                ]}
-                pagination={{ pageSize: 8 }}
-              />
-            ),
-          },
-        ]}
-      />
+                  ),
+                },
+                {
+                  key: 'idempotency',
+                  label: `幂等 (${idempotencyRecords.length})`,
+                  children: (
+                    <Table
+                      rowKey="id"
+                      dataSource={idempotencyRecords}
+                      columns={[
+                        { title: '幂等键', dataIndex: 'idempotencyKey', render: (value) => value || '--' },
+                        { title: '业务类型', dataIndex: 'bizType', render: (value) => getSyncBizLabel(value) },
+                        { title: '状态', dataIndex: 'status', render: (value) => <StatusChip label={value || '--'} tone={getStatusTone(value)} /> },
+                        { title: '更新时间', dataIndex: 'updatedAt', render: (value) => formatDateTime(value) },
+                      ]}
+                      pagination={{ pageSize: 8 }}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
       <Drawer open={Boolean(currentLog)} onClose={() => setGovernanceDrawerId(undefined)} width={440} title="任务详情" className="scw-drawer">
         {currentLog && (
           <Space direction="vertical" size={20} style={{ width: '100%' }}>
             <Card size="small">
               <Title level={5}>基础信息</Title>
               <Paragraph>任务 ID：{currentLog.taskId || '--'}</Paragraph>
-              <Paragraph>任务类型：{syncBizTypeLabels[(currentLog.bizType || '').toUpperCase()] || currentLog.bizType || '--'}</Paragraph>
+              <Paragraph>任务类型：{getSyncBizLabel(currentLog.bizType)}</Paragraph>
               <Paragraph>店铺 / 平台：{getShopLabel(currentLog.channelAccountId ? accountMap.get(currentLog.channelAccountId) : undefined)}</Paragraph>
               <Paragraph>结果：{currentLog.success ? '成功' : '失败'}</Paragraph>
-              <Paragraph>traceId：{currentLog.requestId || '--'}</Paragraph>
+              <Paragraph>traceId / requestId：{currentLog.requestId || '--'}</Paragraph>
             </Card>
             <Card size="small">
               <Title level={5}>请求</Title>
@@ -2342,7 +3288,8 @@ const SaleCenterWorkspace = () => {
               <Alert
                 type={currentLog.success ? 'success' : 'warning'}
                 showIcon
-                message={currentLog.success ? '该任务执行成功，无需额外处理。' : `错误码 ${currentLog.errorCode || '--'}：${currentLog.errorMessage || '请进入治理中心排查'}`}
+                message={currentLog.success ? '该任务执行成功，无需额外处理。' : `${getFailureInsight(currentLog).failureCategory} · ${getFailureInsight(currentLog).failureStage}`}
+                description={currentLog.success ? '该任务执行成功，无需额外处理。' : getFailureInsight(currentLog).suggestedAction}
               />
               <Space style={{ marginTop: 16 }}>
                 <Button disabled={currentLog.success}>标记已处理</Button>
@@ -2352,7 +3299,7 @@ const SaleCenterWorkspace = () => {
           </Space>
         )}
       </Drawer>
-    </Card>
+    </Space>
   )
 
   const renderContent = () => {
