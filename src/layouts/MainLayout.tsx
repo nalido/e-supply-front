@@ -108,13 +108,17 @@ const MainLayout = () => {
     )
   }, [location.pathname, location.search])
   const requiresUpgrade = overview.billing.upgradeRequired
-  const showTrialBanner = overview.billing.status === 'trial' || overview.billing.status === 'expired'
+  const showTrialBanner =
+    (overview.billing.status === 'trial' || overview.billing.status === 'expired') &&
+    location.pathname !== '/settings/company'
   const billingBanner = useMemo(() => {
     if (overview.billing.status === 'expired') {
       return {
         type: 'error' as const,
         message: '试用已到期，当前仅保留授权与企业查看能力',
-        description: `请前往“我的企业”页面输入授权码完成转正式。联系微信：${overview.billing.upgradeContactWechat || '未配置'}`,
+        description: overview.billing.upgradeContactWechat
+          ? '请前往“我的企业”页面扫码联系管理员，获取授权码后完成转正式。'
+          : '请前往“我的企业”页面获取联系方式与授权指引，完成转正式。',
       }
     }
     return {

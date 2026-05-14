@@ -8,7 +8,9 @@ import {
   Button,
   Card,
   Col,
+  Image,
   Input,
+  Modal,
   Row,
   Space,
   Statistic,
@@ -23,6 +25,7 @@ import type { CompanyBilling, CompanyModule, CompanyModuleStatus, TenantSummary 
 import { useTenant } from '../../contexts/tenant';
 
 const { Text } = Typography;
+const WECHAT_QR_IMAGE_SRC = '/assets/images/wechat.jpg';
 
 const moduleStatusMap: Record<CompanyModuleStatus, { text: string; color: string }> = {
   active: { text: '已开通', color: 'success' },
@@ -88,6 +91,7 @@ const buildBillingAlert = (billing: CompanyBilling) => {
 const CompanySettings = () => {
   const { overview, refresh } = useTenant();
   const [authorizationCode, setAuthorizationCode] = useState('');
+  const [wechatModalOpen, setWechatModalOpen] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   const billingAlert = useMemo(() => buildBillingAlert(overview.billing), [overview.billing]);
@@ -238,13 +242,25 @@ const CompanySettings = () => {
                 <WechatOutlined style={{ color: '#07c160' }} />
                 <Text>付款后请联系管理员获取授权码</Text>
               </Space>
-              <Text copyable={overview.billing.upgradeContactWechat ? { text: overview.billing.upgradeContactWechat } : false}>
-                微信：{overview.billing.upgradeContactWechat || '暂未配置，请联系管理员'}
-              </Text>
+              {overview.billing.upgradeContactWechat ? (
+                <Button type="default" onClick={() => setWechatModalOpen(true)}>
+                  查看微信二维码
+                </Button>
+              ) : (
+                <Text type="secondary">管理员微信暂未配置，请联系管理员补充联系方式。</Text>
+              )}
               <Text type="secondary">
                 同一授权码首次验证后会绑定到当前企业，后续只能由该企业重复使用，不能跨企业白嫖。
               </Text>
-              <Space.Compact style={{ width: '100%' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  gap: 12,
+                  alignItems: 'stretch',
+                  flexWrap: 'wrap',
+                }}
+              >
                 <Input
                   value={authorizationCode}
                   onChange={(event) => setAuthorizationCode(event.target.value.toUpperCase())}
@@ -252,19 +268,39 @@ const CompanySettings = () => {
                   placeholder="请输入线下付款后收到的授权码"
                   maxLength={64}
                   onPressEnter={() => void handleVerifyAuthorizationCode()}
+                  style={{ flex: '1 1 320px', minWidth: 0 }}
                 />
                 <Button
                   type="primary"
                   loading={verifying}
                   onClick={() => void handleVerifyAuthorizationCode()}
+                  style={{ flex: '0 0 auto' }}
                 >
                   验证并转正式
                 </Button>
-              </Space.Compact>
+              </div>
             </Space>
           </Card>
         </Space>
       </Card>
+      <Modal
+        open={wechatModalOpen}
+        title="添加管理员微信"
+        footer={null}
+        onCancel={() => setWechatModalOpen(false)}
+        centered
+      >
+        <Space direction="vertical" size={16} style={{ width: '100%', alignItems: 'center' }}>
+          <Image
+            src={WECHAT_QR_IMAGE_SRC}
+            alt="管理员微信二维码"
+            preview={false}
+            width={280}
+            style={{ maxWidth: '100%' }}
+          />
+          <Text type="secondary">请扫码添加管理员微信，付款后获取授权码。</Text>
+        </Space>
+      </Modal>
 
       <Card title="功能模块" variant="borderless">
         <Row gutter={[16, 16]}>
