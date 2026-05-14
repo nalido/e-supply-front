@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Layout, Menu, Breadcrumb, Space, Button, Badge, Tooltip, message, notification } from 'antd'
+import { Layout, Menu, Breadcrumb, Space, Button, Badge, Tooltip, message, notification, Alert } from 'antd'
 import type { ArgsProps } from 'antd/es/message'
 import type { MenuProps } from 'antd'
-import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
+import { Outlet, useLocation, Link, useNavigate, Navigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { FolderOpenFilled, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { pieceworkService } from '../api/piecework'
 import settingsApi from '../api/settings'
+import { useTenant } from '../contexts/tenant'
 import { REPORT_DOWNLOAD_LABELS } from '../constants/report-downloads'
 import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils/download-center-hint'
@@ -77,6 +79,7 @@ const asBooleanPreference = (value: unknown, fallback = true): boolean => {
 }
 
 const MainLayout = () => {
+  const { overview } = useTenant()
   const location = useLocation()
   const navigate = useNavigate()
   const [openKeys, setOpenKeys] = useState<string[]>(() => deriveOpenKeys(location.pathname))
@@ -104,6 +107,24 @@ const MainLayout = () => {
       (location.pathname === '/piecework/report' && searchParams.get('view') === 'download-records')
     )
   }, [location.pathname, location.search])
+  const requiresUpgrade = overview.billing.upgradeRequired
+  const showTrialBanner = overview.billing.status === 'trial' || overview.billing.status === 'expired'
+  const billingBanner = useMemo(() => {
+    if (overview.billing.status === 'expired') {
+      return {
+        type: 'error' as const,
+        message: '试用已到期，当前仅保留授权与企业查看能力',
+        description: `请前往“我的企业”页面输入授权码完成转正式。联系微信：${overview.billing.upgradeContactWechat || '未配置'}`,
+      }
+    }
+    return {
+      type: 'info' as const,
+      message: `当前企业处于试用期，还剩 ${overview.billing.trialDaysRemaining} 天`,
+      description: overview.billing.trialEndsAt
+        ? `截止时间：${dayjs(overview.billing.trialEndsAt).format('YYYY-MM-DD HH:mm')}。线下付款后可在“我的企业”页面输入授权码转正式。`
+        : '线下付款后可在“我的企业”页面输入授权码转正式。',
+    }
+  }, [overview.billing])
 
   const selectedKey = useMemo(() => {
     if (location.pathname === '/sample') return '/sample/list'
@@ -136,6 +157,11 @@ const MainLayout = () => {
   useEffect(() => {
     let cancelled = false
     const loadAiSwitch = async () => {
+      if (requiresUpgrade) {
+        setAiEnabled(false)
+        setAiPanelOpen(false)
+        return
+      }
       try {
         const groups = await settingsApi.preferences.list()
         if (cancelled) {
@@ -157,7 +183,7 @@ const MainLayout = () => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [requiresUpgrade])
 
   useEffect(() => {
     if (isDownloadCenterOpen) {
@@ -211,6 +237,9 @@ const MainLayout = () => {
   }, [navigate])
 
   useEffect(() => {
+    if (requiresUpgrade) {
+      return
+    }
     let cancelled = false
 
     const pollDownloadUpdates = async () => {
@@ -281,7 +310,7 @@ const MainLayout = () => {
       cancelled = true
       window.clearInterval(timerId)
     }
-  }, [isDownloadCenterOpen, notificationApi, openDownloadCenter])
+  }, [isDownloadCenterOpen, notificationApi, openDownloadCenter, requiresUpgrade])
 
   const breadcrumbItems = useMemo(() => {
     const pathSnippets = location.pathname.split('/').filter(Boolean)
@@ -304,6 +333,10 @@ const MainLayout = () => {
 
   const handleOpenChange: MenuProps['onOpenChange'] = (keys) => {
     setOpenKeys(keys as string[])
+  }
+
+  if (requiresUpgrade && location.pathname !== '/settings/company') {
+    return <Navigate to="/settings/company" replace />
   }
 
   return (
@@ -374,12 +407,28 @@ const MainLayout = () => {
           </Header>
           <Content className="oc-content">
             <div className="oc-content__inner">
+              {showTrialBanner ? (
+                <Alert
+                  showIcon
+                  type={billingBanner.type}
+                  message={billingBanner.message}
+                  description={billingBanner.description}
+                  style={{ marginBottom: 16 }}
+                  action={
+                    location.pathname !== '/settings/company' ? (
+                      <Button type="link" onClick={() => navigate('/settings/company')}>
+                        去转正式
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : null}
               <Outlet />
             </div>
           </Content>
         </div>
         <SignedIn>
-          {aiEnabled ? (
+          {aiEnabled && !requiresUpgrade ? (
             <AiAgentFloatingWidget
               open={aiPanelOpen}
               onOpen={() => setAiPanelOpen(true)}

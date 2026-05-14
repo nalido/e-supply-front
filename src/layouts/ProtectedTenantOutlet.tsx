@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Spin } from 'antd'
 import TenantProvider from '../providers/TenantProvider'
 import { onboardingApi } from '../api/onboarding'
+import type { OnboardingStatus } from '../api/onboarding'
 import { useBindAuthTokenResolver } from '../hooks/useBindAuthTokenResolver'
 import OnboardingStatusError from '../views/auth/OnboardingStatusError'
 import { buildFriendlyErrorFromUnknown } from '../utils/http-error'
@@ -14,7 +15,7 @@ const WELCOME_PATH = '/welcome'
 const SignedInTenantGate = () => {
   const { isLoaded, isSignedIn } = useAuth()
   const location = useLocation()
-  const [linked, setLinked] = useState<boolean | null>(null)
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
   const [statusCheckError, setStatusCheckError] = useState<string | null>(null)
 
   useBindAuthTokenResolver()
@@ -26,13 +27,13 @@ const SignedInTenantGate = () => {
       }
       try {
         const status = await onboardingApi.status()
-        setLinked(status.linked)
+        setOnboardingStatus(status)
         setStatusCheckError(null)
       } catch (error) {
         setStatusCheckError(
           buildFriendlyErrorFromUnknown(error).description ?? '状态检查接口调用失败，请稍后重试。',
         )
-        setLinked(null)
+        setOnboardingStatus(null)
       }
     }
     void run()
@@ -42,11 +43,11 @@ const SignedInTenantGate = () => {
     return <OnboardingStatusError description={statusCheckError} />
   }
 
-  if (linked === null) {
+  if (onboardingStatus === null) {
     return <Spin size="large" tip="加载中..." fullscreen />
   }
 
-  if (!linked) {
+  if (!onboardingStatus.linked) {
     const allowSignedInLanding =
       location.pathname === ONBOARDING_PATH ||
       location.pathname === WELCOME_PATH
@@ -58,7 +59,9 @@ const SignedInTenantGate = () => {
   }
 
   if (location.pathname === ONBOARDING_PATH || location.pathname === WELCOME_PATH) {
-    return <Navigate to="/dashboard/workplace" replace />
+    const redirectTarget =
+      onboardingStatus.billing?.status === 'active' ? '/dashboard/workplace' : '/settings/company'
+    return <Navigate to={redirectTarget} replace />
   }
 
   return (

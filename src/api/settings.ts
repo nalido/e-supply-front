@@ -3,6 +3,7 @@ import type {
   ActionLogQuery,
   AvatarUpdatePayload,
   CompanyOverview,
+  AuthorizationCodeVerifyResult,
   CreateOrgMemberPayload,
   UpdateOrgMemberPayload,
   CreateRolePayload,
@@ -32,6 +33,8 @@ import http from './http';
 import {
   adaptCompanyOverviewResponse,
   type CompanyOverviewResponse,
+  type AuthorizationCodeVerifyResponse,
+  adaptAuthorizationCodeVerifyResponse,
   adaptRoleResponse,
   adaptPermissionTree,
 } from './adapters/settings';
@@ -216,6 +219,13 @@ export const settingsApi = {
         `/api/v1/settings/company/tenants/${tenantId}:switch`,
       );
       return adaptCompanyOverviewResponse(response.data);
+    },
+    verifyAuthorizationCode: async (code: string): Promise<AuthorizationCodeVerifyResult> => {
+      const response = await http.post<AuthorizationCodeVerifyResponse>(
+        '/api/v1/settings/company/authorization-codes/verify',
+        { code },
+      );
+      return adaptAuthorizationCodeVerifyResponse(response.data);
     },
   },
   organization: {

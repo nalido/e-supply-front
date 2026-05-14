@@ -31,6 +31,20 @@ export type CompanyUsageStat = {
 
 export type CompanyModuleStatus = 'active' | 'trial' | 'expired' | 'pending' | 'requested' | 'unsubscribed';
 
+export type CompanyBillingStatus = 'active' | 'trial' | 'expired';
+
+export type CompanyBilling = {
+  status: CompanyBillingStatus;
+  plan?: string;
+  trialStartedAt?: string;
+  trialEndsAt?: string;
+  activatedAt?: string;
+  trialDaysRemaining: number;
+  upgradeRequired: boolean;
+  activationCodeBound: boolean;
+  upgradeContactWechat?: string;
+};
+
 export type CompanyModule = {
   id: string;
   name: string;
@@ -56,6 +70,14 @@ export type CompanyOverview = {
   };
   modules: CompanyModule[];
   tenants: TenantSummary[];
+  billing: CompanyBilling;
+};
+
+export type AuthorizationCodeVerifyResult = {
+  success: boolean;
+  tenantStatus: CompanyBillingStatus;
+  message: string;
+  billing: CompanyBilling;
 };
 
 export type OrgMember = {

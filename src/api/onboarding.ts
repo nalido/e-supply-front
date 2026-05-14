@@ -1,3 +1,5 @@
+import type { CompanyBilling } from '../types/settings';
+import { adaptCompanyBillingResponse, type CompanyBillingResponse } from './adapters/settings';
 import http from './http';
 
 export type OnboardingStatus = {
@@ -6,6 +8,16 @@ export type OnboardingStatus = {
   userId?: number;
   tenantName?: string;
   username?: string;
+  billing?: CompanyBilling;
+};
+
+type OnboardingStatusResponse = {
+  linked: boolean;
+  tenantId?: number;
+  userId?: number;
+  tenantName?: string;
+  username?: string;
+  billing?: CompanyBillingResponse;
 };
 
 export type RegisterEnterprisePayload = {
@@ -20,8 +32,15 @@ export type RegisterEnterprisePayload = {
 
 export const onboardingApi = {
   status: async () => {
-    const { data } = await http.get<OnboardingStatus>('/api/v1/auth/onboarding/status');
-    return data;
+    const { data } = await http.get<OnboardingStatusResponse>('/api/v1/auth/onboarding/status');
+    return {
+      linked: data.linked,
+      tenantId: data.tenantId,
+      userId: data.userId,
+      tenantName: data.tenantName,
+      username: data.username,
+      billing: adaptCompanyBillingResponse(data.billing),
+    } satisfies OnboardingStatus;
   },
   registerEnterprise: async (payload: RegisterEnterprisePayload) => {
     const endpoint =

@@ -28,7 +28,7 @@ const RegisterEnterprise = () => {
       try {
         const status = await onboardingApi.status();
         if (status.linked) {
-          navigate('/dashboard/workplace', { replace: true });
+          navigate(status.billing?.status === 'active' ? '/dashboard/workplace' : '/settings/company', { replace: true });
         }
         setStatusCheckError(null);
       } catch (err) {
@@ -51,7 +51,7 @@ const RegisterEnterprise = () => {
     setLoading(true);
     try {
       await onboardingApi.registerEnterprise(values);
-      navigate('/dashboard/workplace', { replace: true });
+      navigate('/settings/company', { replace: true });
     } catch (err) {
       const status =
         typeof err === 'object' && err !== null && 'response' in err

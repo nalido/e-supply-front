@@ -21,7 +21,9 @@ const Welcome = () => {
       try {
         const status = await onboardingApi.status();
         if (status.linked) {
-          navigate('/dashboard/workplace', { replace: true });
+          navigate(status.billing?.status === 'active' ? '/dashboard/workplace' : '/settings/company', {
+            replace: true,
+          });
         }
       } catch {
         // keep user on welcome page when onboarding context is incomplete or unauthenticated

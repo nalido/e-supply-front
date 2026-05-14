@@ -1,4 +1,15 @@
-import type { CompanyModuleStatus, CompanyOverview, TenantSummary, RoleItem, PermissionTreeNode, BackendRoleResponse, BackendPermissionModuleDto } from '../../types/settings';
+import type {
+  AuthorizationCodeVerifyResult,
+  CompanyBilling,
+  CompanyBillingStatus,
+  CompanyModuleStatus,
+  CompanyOverview,
+  TenantSummary,
+  RoleItem,
+  PermissionTreeNode,
+  BackendRoleResponse,
+  BackendPermissionModuleDto,
+} from '../../types/settings';
 
 const moduleStatusOrder: CompanyModuleStatus[] = [
   'active',
@@ -38,6 +49,28 @@ export type CompanyOverviewResponse = {
     isCurrent?: boolean;
     current?: boolean;
   }>;
+  billing: CompanyBillingResponse;
+};
+
+export type CompanyBillingStatusResponse = 'ACTIVE' | 'TRIAL' | 'EXPIRED' | CompanyBillingStatus;
+
+export type CompanyBillingResponse = {
+  status: CompanyBillingStatusResponse;
+  plan?: string;
+  trialStartedAt?: string;
+  trialEndsAt?: string;
+  activatedAt?: string;
+  trialDaysRemaining?: number;
+  upgradeRequired?: boolean;
+  activationCodeBound?: boolean;
+  upgradeContactWechat?: string;
+};
+
+export type AuthorizationCodeVerifyResponse = {
+  success: boolean;
+  tenantStatus: CompanyBillingStatusResponse;
+  message: string;
+  billing: CompanyBillingResponse;
 };
 
 const normalizeModuleStatus = (status: CompanyModuleStatusResponse): CompanyModuleStatus => {
@@ -47,6 +80,30 @@ const normalizeModuleStatus = (status: CompanyModuleStatusResponse): CompanyModu
   const mapped = status?.toLowerCase() as CompanyModuleStatus;
   return moduleStatusOrder.includes(mapped) ? mapped : 'pending';
 };
+
+export const normalizeCompanyBillingStatus = (
+  status: CompanyBillingStatusResponse | undefined,
+): CompanyBillingStatus => {
+  if (!status) {
+    return 'trial';
+  }
+  const normalized = status.toLowerCase() as CompanyBillingStatus;
+  return normalized === 'active' || normalized === 'trial' || normalized === 'expired'
+    ? normalized
+    : 'trial';
+};
+
+export const adaptCompanyBillingResponse = (payload?: CompanyBillingResponse): CompanyBilling => ({
+  status: normalizeCompanyBillingStatus(payload?.status),
+  plan: payload?.plan,
+  trialStartedAt: payload?.trialStartedAt,
+  trialEndsAt: payload?.trialEndsAt,
+  activatedAt: payload?.activatedAt,
+  trialDaysRemaining: payload?.trialDaysRemaining ?? 0,
+  upgradeRequired: Boolean(payload?.upgradeRequired),
+  activationCodeBound: Boolean(payload?.activationCodeBound),
+  upgradeContactWechat: payload?.upgradeContactWechat,
+});
 
 const adaptTenant = (tenant: CompanyOverviewResponse['tenants'][number]): TenantSummary => ({
   id: tenant.id,
@@ -68,6 +125,16 @@ export const adaptCompanyOverviewResponse = (payload: CompanyOverviewResponse): 
     highlight: module.highlight,
   })),
   tenants: (payload.tenants ?? []).map(adaptTenant),
+  billing: adaptCompanyBillingResponse(payload.billing),
+});
+
+export const adaptAuthorizationCodeVerifyResponse = (
+  payload: AuthorizationCodeVerifyResponse,
+): AuthorizationCodeVerifyResult => ({
+  success: payload.success,
+  tenantStatus: normalizeCompanyBillingStatus(payload.tenantStatus),
+  message: payload.message,
+  billing: adaptCompanyBillingResponse(payload.billing),
 });
 
 export const adaptRoleResponse = (response: BackendRoleResponse): RoleItem => {
