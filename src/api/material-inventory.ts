@@ -162,6 +162,8 @@ export const materialIssueService = {
           materialId: Number(line.materialId),
           quantity: line.quantity,
           unit: line.unit,
+          color: line.color,
+          unitPrice: line.unitPrice,
         })),
       },
       { params: { tenantId } },

@@ -68,6 +68,8 @@ export type MaterialIssueCreateLine = {
   materialId: string;
   quantity: number;
   unit?: string;
+  color?: string;
+  unitPrice?: number;
 };
 
 export type MaterialIssueCreatePayload = {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, Input, Modal, Space, Table, Typography, InputNumber, message } from 'antd';
+import { Alert, Button, Input, Modal, Space, Table, Typography, InputNumber, message } from 'antd';
 import type { MaterialStockListItem, MaterialStockType } from '../../types/material-stock';
 import { materialIssueService } from '../../api/material-inventory';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
@@ -17,12 +17,14 @@ export type MaterialIssueModalProps = {
 
 const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }: MaterialIssueModalProps) => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [bulkQuantity, setBulkQuantity] = useState<number | null>(null);
   const [remark, setRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setQuantities({});
+      setBulkQuantity(null);
       setRemark('');
     }
   }, [open, materials]);
@@ -35,6 +37,35 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
   };
 
   const tableData = useMemo(() => materials, [materials]);
+
+  const handleApplyBulkQuantity = () => {
+    if (!tableData.length) {
+      message.warning('请先选择需要出库的物料');
+      return;
+    }
+    if (!bulkQuantity || bulkQuantity <= 0) {
+      message.warning('请填写大于 0 的批量出库数量');
+      return;
+    }
+    const exceeded = tableData.find((item) => bulkQuantity > item.availableQty);
+    if (exceeded) {
+      message.error(`${exceeded.materialName}${exceeded.color ? `（${exceeded.color}）` : ''} 可用库存不足`);
+      return;
+    }
+    setQuantities((prev) => {
+      const next = { ...prev };
+      tableData.forEach((item) => {
+        next[item.id] = bulkQuantity;
+      });
+      return next;
+    });
+    message.success(`已批量填写 ${tableData.length} 条出库数量`);
+  };
+
+  const handleClearBulkQuantity = () => {
+    setBulkQuantity(null);
+    setQuantities({});
+  };
 
   const rowsWithQuantity = useMemo(() => {
     return tableData.filter((item) => {
@@ -52,32 +83,42 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         title: '物料名称',
         dataIndex: 'materialName',
         key: 'materialName',
+        width: 240,
         render: (value: string, record) => (
-          <Space direction="vertical" size={2}>
-            <Text strong>{value}</Text>
+          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+            <Text strong ellipsis={{ tooltip: value }}>
+              {value}
+            </Text>
             <Text type="secondary">{record.materialCode}</Text>
           </Space>
         ),
       },
       {
+        title: '颜色',
+        dataIndex: 'color',
+        key: 'color',
+        width: 100,
+        render: (value?: string) => value || '-',
+      },
+      {
         title: '规格',
         dataIndex: 'specification',
         key: 'specification',
-        width: 160,
+        width: 130,
         render: (value?: string) => value || '-',
       },
       {
         title: '可用库存',
         dataIndex: 'availableQty',
         key: 'availableQty',
-        width: 140,
+        width: 120,
         render: (value: number, record) => `${value.toLocaleString('zh-CN')} ${record.unit}`,
       },
       {
         title: '出库数量',
         dataIndex: 'issueQty',
         key: 'issueQty',
-        width: 180,
+        width: 170,
         render: (_value, record) => (
           <InputNumber
             min={0}
@@ -120,6 +161,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         materialId: item.materialId,
         quantity: quantities[item.id],
         unit: item.unit,
+        color: item.color,
       })),
     };
     setSubmitting(true);
@@ -137,12 +179,13 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
 
   return (
     <Modal
-      width={720}
+      width={860}
       title="领料出库"
       open={open}
       onCancel={onClose}
       confirmLoading={submitting}
       okButtonProps={{ disabled }}
+      cancelText="取消"
       okText="出库"
       onOk={handleSubmit}
     >
@@ -158,6 +201,19 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
             </Space>
           }
         />
+        <Space size={8} wrap>
+          <Text type="secondary">批量出库数量</Text>
+          <InputNumber
+            min={0}
+            precision={0}
+            value={bulkQuantity}
+            onChange={setBulkQuantity}
+            placeholder="填写后应用到全部明细"
+            style={{ width: 200 }}
+          />
+          <Button onClick={handleApplyBulkQuantity}>批量应用</Button>
+          <Button onClick={handleClearBulkQuantity}>清空数量</Button>
+        </Space>
         <Table<MaterialStockListItem>
           rowKey="id"
           dataSource={tableData}
