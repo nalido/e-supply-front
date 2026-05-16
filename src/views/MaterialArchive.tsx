@@ -154,7 +154,6 @@ const MaterialArchive = () => {
       }
     } catch (error) {
       console.error('Failed to remove material', error);
-      message.error('删除失败，请稍后重试');
     } finally {
       setLoading(false);
     }

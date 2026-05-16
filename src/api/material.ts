@@ -253,7 +253,7 @@ export const materialApi = {
   },
   remove: async (id: string): Promise<boolean> => {
     const tenantId = requireNumericTenantId();
-    await http.delete(`/api/v1/materials/${id}`, {
+    await http.post(`/api/v1/materials/${id}/delete`, undefined, {
       params: { tenantId },
     });
     return true;
