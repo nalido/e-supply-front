@@ -34,6 +34,7 @@ export type MaterialDataset = {
 };
 
 export type CreateMaterialPayload = {
+  rowNumber?: number;
   name: string;
   sku?: string;
   materialType: MaterialBasicType;

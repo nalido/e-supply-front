@@ -12,11 +12,13 @@ import {
   message,
 } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import * as XLSX from 'xlsx';
 import MaterialActionBar from '../components/material/MaterialActionBar';
 import ListImage from '../components/common/ListImage';
 import MaterialFormModal from '../components/material/MaterialFormModal';
 import MaterialImportModal from '../components/material/MaterialImportModal';
 import materialApi from '../api/material';
+import type { MaterialImportRowResult } from '../api/material';
 import type {
   CreateMaterialPayload,
   MaterialBasicType,
@@ -25,6 +27,9 @@ import type {
   MaterialUnit,
 } from '../types';
 import '../styles/material-archive.css';
+
+const MATERIAL_IMPORT_MAX_ROWS = 500;
+const MATERIAL_IMPORT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const tabItems = [
   { key: 'fabric', label: '面料' },
@@ -41,6 +46,8 @@ type ImportModalState = {
   open: boolean;
   loading: boolean;
   fileList: UploadFile[];
+  parsed: CreateMaterialPayload[];
+  resultRows: MaterialImportRowResult[];
 };
 
 const formatCurrency = (value?: number) => {
@@ -58,7 +65,13 @@ const MaterialArchive = () => {
   const [dataset, setDataset] = useState<MaterialDataset>({ list: [], total: 0 });
   const [loading, setLoading] = useState(false);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false });
-  const [importModal, setImportModal] = useState<ImportModalState>({ open: false, loading: false, fileList: [] });
+  const [importModal, setImportModal] = useState<ImportModalState>({
+    open: false,
+    loading: false,
+    fileList: [],
+    parsed: [],
+    resultRows: [],
+  });
   const pageSizeRef = useRef(pageSize);
 
   useEffect(() => {
@@ -160,31 +173,46 @@ const MaterialArchive = () => {
   }, [dataset.list.length, fetchList, keyword, page, pageSize]);
 
   const handleOpenImport = () => {
-    setImportModal({ open: true, loading: false, fileList: [] });
+    setImportModal({ open: true, loading: false, fileList: [], parsed: [], resultRows: [] });
   };
 
-  const parseMaterialCsv = (content: string, materialType: MaterialBasicType): CreateMaterialPayload[] => {
-    const lines = content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    if (lines.length <= 1) {
+  const parseMaterialFile = async (file: File, materialType: MaterialBasicType): Promise<CreateMaterialPayload[]> => {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', raw: false });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
       return [];
     }
-    const header = splitCsvLine(lines[0]);
+    const rows = XLSX.utils.sheet_to_json<Array<string | number | null>>(workbook.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+      defval: '',
+    });
+    return parseMaterialRows(rows, materialType);
+  };
+
+  const parseMaterialRows = (
+    rows: Array<Array<string | number | null>>,
+    materialType: MaterialBasicType,
+  ): CreateMaterialPayload[] => {
+    if (rows.length <= 1) {
+      return [];
+    }
+    const header = rows[0].map((value) => String(value ?? '').trim());
     const headerMap = new Map<string, number>();
     header.forEach((label, index) => headerMap.set(label, index));
-    const getValue = (row: string[], label: string) => {
+    const getValue = (row: Array<string | number | null>, label: string) => {
       const idx = headerMap.get(label);
-      return idx !== undefined ? row[idx]?.trim() ?? '' : '';
+      return idx !== undefined ? String(row[idx] ?? '').trim() : '';
     };
-    const defaultUnit = materialType === 'fabric' ? '米' : '个';
-    return lines
+    return rows
       .slice(1)
-      .map(splitCsvLine)
-      .map((row) => {
+      .map((row, index) => {
+        const rowNumber = index + 2;
+        const sku = getValue(row, '物料编号') || getValue(row, 'SKU') || getValue(row, '编号');
         const name = getValue(row, '名称');
-        if (!name) {
+        const unit = getValue(row, '用量单位') || getValue(row, '单位');
+        if (!sku && !name && !unit) {
           return null;
         }
         const priceValue = Number(getValue(row, '参考单价') || getValue(row, '单价'));
@@ -193,39 +221,47 @@ const MaterialArchive = () => {
           ? colorsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
           : undefined;
         return {
+          rowNumber,
+          sku,
           name,
           materialType,
-          unit: (getValue(row, '用量单位') || defaultUnit) as MaterialUnit,
+          unit: unit as MaterialUnit,
           referencePrice: Number.isFinite(priceValue) ? priceValue : undefined,
           width: getValue(row, '幅宽') || undefined,
           grammage: getValue(row, '克重') || undefined,
           tolerance: getValue(row, '空差') || undefined,
           colors,
+          imageUrl: getValue(row, '图片URL') || undefined,
           remarks: getValue(row, '备注') || undefined,
         } as CreateMaterialPayload;
       })
       .filter((item): item is CreateMaterialPayload => item !== null);
   };
 
-  const splitCsvLine = (line: string) => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i += 1) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-        continue;
+  const validateImportRows = (rows: CreateMaterialPayload[]) => {
+    const errors: MaterialImportRowResult[] = [];
+    const seenSku = new Map<string, number>();
+    rows.forEach((row) => {
+      const rowNumber = row.rowNumber ?? 0;
+      const sku = row.sku?.trim();
+      if (!sku) {
+        errors.push({ rowNumber, sku: row.sku, name: row.name, action: 'VALIDATE', success: false, message: '物料编号不能为空' });
+        return;
       }
-      if (char === ',' && !inQuotes) {
-        result.push(current);
-        current = '';
+      const firstRow = seenSku.get(sku);
+      if (firstRow) {
+        errors.push({ rowNumber, sku, name: row.name, action: 'VALIDATE', success: false, message: `物料编号与第 ${firstRow} 行重复` });
       } else {
-        current += char;
+        seenSku.set(sku, rowNumber);
       }
-    }
-    result.push(current);
-    return result.map((value) => value.trim());
+      if (!row.name?.trim()) {
+        errors.push({ rowNumber, sku, name: row.name, action: 'VALIDATE', success: false, message: '名称不能为空' });
+      }
+      if (!row.unit?.trim()) {
+        errors.push({ rowNumber, sku, name: row.name, action: 'VALIDATE', success: false, message: '单位不能为空' });
+      }
+    });
+    return errors;
   };
 
   const handleStartImport = async () => {
@@ -236,25 +272,50 @@ const MaterialArchive = () => {
         message.warning('请先选择导入文件');
         return;
       }
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        message.error('目前仅支持 CSV 模板导入');
+      if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+        message.error('仅支持 .xlsx / .xls / .csv 文件');
         return;
       }
-      const text = await file.text();
-      const payloads = parseMaterialCsv(text, activeTab);
+      if (file.size > MATERIAL_IMPORT_MAX_FILE_SIZE) {
+        message.error('导入文件不能超过 5MB');
+        return;
+      }
+      const payloads = importModal.parsed.length > 0 ? importModal.parsed : await parseMaterialFile(file, activeTab);
       if (payloads.length === 0) {
         message.error('未解析到有效的导入数据');
         return;
       }
-      const count = await materialApi.import(payloads, activeTab);
+      if (payloads.length > MATERIAL_IMPORT_MAX_ROWS) {
+        setImportModal((prev) => ({
+          ...prev,
+          loading: false,
+          resultRows: [
+            { rowNumber: 0, action: 'VALIDATE', success: false, message: `单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行` },
+          ],
+        }));
+        message.error(`单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行`);
+        return;
+      }
+      const validationErrors = validateImportRows(payloads);
+      if (validationErrors.length > 0) {
+        setImportModal((prev) => ({ ...prev, loading: false, resultRows: validationErrors }));
+        message.error('导入数据存在错误，请先修正模板');
+        return;
+      }
+      const result = await materialApi.import(payloads, activeTab, 'UPSERT');
+      if (!result.success) {
+        setImportModal((prev) => ({ ...prev, loading: false, resultRows: result.rows }));
+        message.error('导入数据存在错误，请根据明细修正后重试');
+        return;
+      }
       fetchList({ page: 1, pageSize, keyword });
-      setImportModal({ open: false, loading: false, fileList: [] });
+      setImportModal({ open: false, loading: false, fileList: [], parsed: [], resultRows: [] });
       Modal.success({
         title: '导入完成',
         content: (
           <div>
-            <p>成功导入 {count} 条记录。</p>
-            <p>失败 0 条。</p>
+            <p>成功导入 {result.imported} 条记录。</p>
+            <p>新增 {result.created} 条，更新 {result.updated} 条，失败 {result.failed} 条。</p>
           </div>
         ),
       });
@@ -282,8 +343,8 @@ const MaterialArchive = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const csvHeader = '名称,用量单位,参考单价,幅宽,克重,空差,颜色,备注\n';
-    const blob = new Blob([csvHeader], { type: 'text/csv;charset=utf-8;' });
+    const csvHeader = '物料编号,名称,用量单位,参考单价,幅宽,克重,空差,颜色,图片URL,备注\n';
+    const blob = new Blob([`\ufeff${csvHeader}`], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -413,9 +474,47 @@ const MaterialArchive = () => {
         open={importModal.open}
         loading={importModal.loading}
         fileList={importModal.fileList}
-        onCancel={() => setImportModal({ open: false, loading: false, fileList: [] })}
+        previewRows={importModal.parsed}
+        resultRows={importModal.resultRows}
+        onCancel={() => setImportModal({ open: false, loading: false, fileList: [], parsed: [], resultRows: [] })}
         onDownloadTemplate={handleDownloadTemplate}
-        onFileChange={(fileList) => setImportModal((prev) => ({ ...prev, fileList }))}
+        onFileChange={(fileList) => {
+          setImportModal((prev) => ({ ...prev, fileList, parsed: [], resultRows: [] }));
+          const file = fileList[0]?.originFileObj as File | undefined;
+          if (file) {
+            if (file.size > MATERIAL_IMPORT_MAX_FILE_SIZE) {
+              setImportModal((prev) => ({
+                ...prev,
+                fileList: [],
+                resultRows: [{ rowNumber: 0, action: 'VALIDATE', success: false, message: '导入文件不能超过 5MB' }],
+              }));
+              message.error('导入文件不能超过 5MB');
+              return;
+            }
+            parseMaterialFile(file, activeTab)
+              .then((parsed) => {
+                if (parsed.length > MATERIAL_IMPORT_MAX_ROWS) {
+                  setImportModal((prev) => ({
+                    ...prev,
+                    parsed,
+                    resultRows: [
+                      { rowNumber: 0, action: 'VALIDATE', success: false, message: `单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行` },
+                    ],
+                  }));
+                  message.error(`单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行`);
+                  return;
+                }
+                setImportModal((prev) => ({ ...prev, parsed, resultRows: validateImportRows(parsed) }));
+              })
+              .catch((error) => {
+                console.error('Failed to parse material import file', error);
+                setImportModal((prev) => ({
+                  ...prev,
+                  resultRows: [{ rowNumber: 0, action: 'PARSE', success: false, message: '文件解析失败，请检查模板格式' }],
+                }));
+              });
+          }
+        }}
         onStartImport={handleStartImport}
       />
     </div>

@@ -34,6 +34,7 @@ type BackendPageResponse<T> = {
 };
 
 type MaterialImportItem = {
+  rowNumber: number;
   name: string;
   sku: string;
   unit: string;
@@ -44,11 +45,28 @@ type MaterialImportItem = {
 type MaterialImportRequest = {
   tenantId: number;
   materialType: BackendMaterialType;
+  importMode: 'UPSERT' | 'CREATE_ONLY';
   items: MaterialImportItem[];
 };
 
-type MaterialImportResponse = {
+export type MaterialImportRowResult = {
+  rowNumber: number;
+  sku?: string;
+  name?: string;
+  action: string;
+  success: boolean;
+  message?: string;
+  materialId?: number;
+};
+
+export type MaterialImportResponse = {
   imported: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  success: boolean;
+  rows: MaterialImportRowResult[];
 };
 
 type MaterialExportResponse = {
@@ -200,17 +218,19 @@ const buildImportPayload = (
   tenantId: number,
   materialType: MaterialBasicType,
   items: CreateMaterialPayload[],
+  importMode: 'UPSERT' | 'CREATE_ONLY',
 ): MaterialImportRequest => ({
   tenantId,
   materialType: normalizeMaterialType(materialType) ?? 'FABRIC',
+  importMode,
   items: items.map((item) => {
-    const normalized = applyDefaults(item);
     return {
-      name: normalized.name,
-      sku: normalized.sku!,
-      unit: normalized.unit,
-      imageUrl: normalized.imageUrl,
-      attributes: buildAttributesPayload(normalized),
+      rowNumber: item.rowNumber ?? 0,
+      name: item.name,
+      sku: item.sku ?? '',
+      unit: item.unit,
+      imageUrl: item.imageUrl,
+      attributes: buildAttributesPayload(item),
     } satisfies MaterialImportItem;
   }),
 });
@@ -258,12 +278,16 @@ export const materialApi = {
     });
     return true;
   },
-  import: async (payload: CreateMaterialPayload[], materialType: MaterialBasicType): Promise<number> => {
+  import: async (
+    payload: CreateMaterialPayload[],
+    materialType: MaterialBasicType,
+    importMode: 'UPSERT' | 'CREATE_ONLY' = 'UPSERT',
+  ): Promise<MaterialImportResponse> => {
     const tenantId = requireNumericTenantId();
     const response = await http.post<MaterialImportResponse>('/api/v1/materials/import', {
-      ...buildImportPayload(tenantId, materialType, payload),
+      ...buildImportPayload(tenantId, materialType, payload, importMode),
     });
-    return response.data.imported;
+    return response.data;
   },
   export: async (params: { materialType: MaterialBasicType; keyword?: string }): Promise<Blob> => {
     const tenantId = requireNumericTenantId();
