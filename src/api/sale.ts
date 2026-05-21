@@ -15,6 +15,11 @@ import type {
   SaleOrderItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
+  SaleProductPublishDraftPreview,
+  SaleProductPublishBatch,
+  SaleProductPublishBatchList,
+  SaleProductPublishResponse,
+  SaleProductPublishSourceList,
   SaleRetryCandidateItem,
   SaleSalesOverview,
   SaleSalesProductDetail,
@@ -235,6 +240,176 @@ export const saleApi = {
     const response = await http.post(`/api/v1/sale/products/sync/${taskId}/cancel`, {}, {
       params: { tenantId },
     });
+    return response.data;
+  },
+
+  async listProductPublishSources(payload: {
+    channelAccountId: number;
+    limit?: number;
+    keyword?: string;
+  }): Promise<SaleProductPublishSourceList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishSourceList>('/api/v1/sale/products/publish-source/list', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async buildProductPublishDraftFromSource(payload: {
+    channelAccountId: number;
+    sourceOfferId?: string;
+    sourceProductId?: number;
+    targetOfferId?: string;
+    namePrefix?: string;
+  }): Promise<SaleProductPublishDraftPreview> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishDraftPreview>('/api/v1/sale/products/publish-draft/from-source', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async publishProducts(payload: {
+    channelAccountId: number;
+    items: Record<string, unknown>[];
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async queryProductPublishTask(payload: {
+    channelAccountId: number;
+    taskId: number;
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish-task/query', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async deletePublishedProducts(payload: {
+    channelAccountId: number;
+    offerIds: string[];
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish/delete', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async createProductPublishBatchFromSources(payload: {
+    channelAccountId: number;
+    batchName?: string;
+    offerPrefix?: string;
+    namePrefix?: string;
+    sources: Array<{ sourceProductId?: number; sourceOfferId?: string }>;
+  }): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      '/api/v1/sale/product-listings/batches/create-from-sources',
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async createProductPublishBatchFromReference(payload: {
+    channelAccountId: number;
+    batchName?: string;
+    offerPrefix?: string;
+    referenceOfferId?: string;
+    referenceProductId?: number;
+    products: Array<{
+      localStyleId: number;
+      targetOfferId?: string;
+      name?: string;
+      price?: string;
+      currencyCode?: string;
+      primaryImageUrl?: string;
+      images?: string[];
+    }>;
+  }): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      '/api/v1/sale/product-listings/batches/create-from-reference',
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async listProductPublishBatches(channelAccountId: number): Promise<SaleProductPublishBatchList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductPublishBatchList>('/api/v1/sale/product-listings/batches', {
+      params: { tenantId, channelAccountId },
+    });
+    return response.data;
+  },
+
+  async getProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductPublishBatch>(`/api/v1/sale/product-listings/batches/${batchId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async validateProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/validate`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async updateProductPublishDraft(
+    batchId: string | number,
+    itemId: string | number,
+    payload: { item: Record<string, unknown> },
+  ): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/items/${itemId}/draft/update`,
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async submitProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/submit`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async queryProductPublishBatchTask(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/task/query`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async deleteProductPublishBatchProducts(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/products/delete`,
+      {},
+      { params: { tenantId } },
+    );
     return response.data;
   },
 

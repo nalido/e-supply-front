@@ -25,8 +25,14 @@ const SELLER_TYPE_OPTIONS = [
   { label: '半托管', value: 'SEMI_MANAGED' },
 ];
 
+const PLATFORM_OPTIONS = [
+  { label: 'Temu', value: 'TEMU' },
+  { label: 'Ozon', value: 'OZON' },
+];
+
 type ChannelAccountFormValues = {
   accountName: string;
+  platformCode?: string;
   shopId?: string;
   shopName?: string;
   sellerType: string;
@@ -65,6 +71,8 @@ const SaleChannelAccounts = () => {
   const [credentialLoading, setCredentialLoading] = useState(false);
   const [credentialDetail, setCredentialDetail] = useState<SaleChannelCredential | null>(null);
   const [form] = Form.useForm<ChannelAccountFormValues>();
+  const selectedPlatformCode = Form.useWatch('platformCode', form) ?? 'TEMU';
+  const isOzon = selectedPlatformCode === 'OZON';
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -119,6 +127,7 @@ const SaleChannelAccounts = () => {
     setCredentialDetail(null);
     form.resetFields();
     form.setFieldsValue({
+      platformCode: 'TEMU',
       sellerType: 'FULLY_MANAGED',
       authorizationType: 'TOKEN',
       credentialStatus: 'ACTIVE',
@@ -132,6 +141,7 @@ const SaleChannelAccounts = () => {
     form.resetFields();
     form.setFieldsValue({
       accountName: record.accountName,
+      platformCode: record.platformCode ?? 'TEMU',
       shopId: record.shopId ?? undefined,
       shopName: record.shopName ?? undefined,
       regionCode: record.regionCode ?? undefined,
@@ -207,13 +217,23 @@ const SaleChannelAccounts = () => {
     const appKey = trimToUndefined(values.appKey);
     const appSecret = trimToUndefined(values.appSecret);
     const accessToken = trimToUndefined(values.accessToken);
+    const platformCode = values.platformCode || editing?.platformCode || 'TEMU';
+    const accessTokenRequired = platformCode !== 'OZON';
 
-    if (!editing && (!appKey || !appSecret || !accessToken)) {
-      message.warning('绑定店铺时必须同时填写 API Key、API Secret、Access Token');
+    if (!editing && (!appKey || !appSecret || (accessTokenRequired && !accessToken))) {
+      message.warning(
+        platformCode === 'OZON'
+          ? '绑定 Ozon 店铺时必须同时填写 Client-Id 和 Api-Key'
+          : '绑定店铺时必须同时填写 API Key、API Secret、Access Token',
+      );
       return;
     }
-    if (editing && credentialInputProvided && (!appKey || !appSecret || !accessToken)) {
-      message.warning('如需更新凭证，请同时填写 API Key、API Secret、Access Token');
+    if (editing && credentialInputProvided && (!appKey || !appSecret || (accessTokenRequired && !accessToken))) {
+      message.warning(
+        platformCode === 'OZON'
+          ? '如需更新 Ozon 凭证，请同时填写 Client-Id 和 Api-Key'
+          : '如需更新凭证，请同时填写 API Key、API Secret、Access Token',
+      );
       return;
     }
 
@@ -235,7 +255,7 @@ const SaleChannelAccounts = () => {
         savedAccount = await saleApi.updateChannelAccount(editing.id, accountPayload);
       } else {
         savedAccount = await saleApi.createChannelAccount({
-          platformCode: 'TEMU',
+          platformCode,
           ...accountPayload,
         });
       }
@@ -273,7 +293,7 @@ const SaleChannelAccounts = () => {
       <Card>
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            Temu 店铺绑定
+            平台店铺绑定
           </Typography.Title>
           <Space>
             <Button onClick={() => void loadData()}>刷新</Button>
@@ -317,6 +337,9 @@ const SaleChannelAccounts = () => {
           <Form.Item label="店铺名称" name="shopName">
             <Input />
           </Form.Item>
+          <Form.Item label="所属平台" name="platformCode" rules={[{ required: true, message: '请选择所属平台' }]}>
+            <Select options={PLATFORM_OPTIONS} />
+          </Form.Item>
           <Form.Item label="店铺类型" name="sellerType" rules={[{ required: true, message: '请选择店铺类型' }]}>
             <Select options={SELLER_TYPE_OPTIONS} />
           </Form.Item>
@@ -356,8 +379,12 @@ const SaleChannelAccounts = () => {
             showIcon
             message={
               editing
-                ? '若要覆盖原有凭证，请重新填写 API Key、API Secret、Access Token；留空则保持当前凭证不变。'
-                : '首次绑定必须填写 API Key、API Secret、Access Token。'
+                ? isOzon
+                  ? '若要覆盖 Ozon 凭证，请重新填写 Client-Id 和 Api-Key；留空则保持当前凭证不变。'
+                  : '若要覆盖原有凭证，请重新填写 API Key、API Secret、Access Token；留空则保持当前凭证不变。'
+                : isOzon
+                  ? '首次绑定 Ozon 必须填写 Client-Id 和 Api-Key。'
+                  : '首次绑定必须填写 API Key、API Secret、Access Token。'
             }
           />
 
@@ -366,26 +393,30 @@ const SaleChannelAccounts = () => {
               <Descriptions column={2} size="small" bordered>
                 <Descriptions.Item label="当前状态">{credentialDetail?.status ?? '--'}</Descriptions.Item>
                 <Descriptions.Item label="最近校验">{credentialDetail?.lastValidatedAt ?? '--'}</Descriptions.Item>
-                <Descriptions.Item label="API Key">{credentialDetail?.appKeyMasked ?? '--'}</Descriptions.Item>
-                <Descriptions.Item label="API Secret">{credentialDetail?.appSecretMasked ?? '--'}</Descriptions.Item>
-                <Descriptions.Item label="Access Token">{credentialDetail?.accessTokenMasked ?? '--'}</Descriptions.Item>
-                <Descriptions.Item label="Refresh Token">{credentialDetail?.refreshTokenMasked ?? '--'}</Descriptions.Item>
+                <Descriptions.Item label={isOzon ? 'Client-Id' : 'API Key'}>{credentialDetail?.appKeyMasked ?? '--'}</Descriptions.Item>
+                <Descriptions.Item label={isOzon ? 'Api-Key' : 'API Secret'}>{credentialDetail?.appSecretMasked ?? '--'}</Descriptions.Item>
+                {!isOzon ? <Descriptions.Item label="Access Token">{credentialDetail?.accessTokenMasked ?? '--'}</Descriptions.Item> : null}
+                {!isOzon ? <Descriptions.Item label="Refresh Token">{credentialDetail?.refreshTokenMasked ?? '--'}</Descriptions.Item> : null}
               </Descriptions>
             </Card>
           ) : null}
 
-          <Form.Item label="API Key" name="appKey">
-            <Input placeholder={editing ? '留空则保持当前值' : '请输入 API Key'} />
+          <Form.Item label={isOzon ? 'Client-Id' : 'API Key'} name="appKey">
+            <Input placeholder={editing ? '留空则保持当前值' : isOzon ? '请输入 Ozon Client-Id' : '请输入 API Key'} />
           </Form.Item>
-          <Form.Item label="API Secret" name="appSecret">
-            <Input.Password placeholder={editing ? '留空则保持当前值' : '请输入 API Secret'} />
+          <Form.Item label={isOzon ? 'Api-Key' : 'API Secret'} name="appSecret">
+            <Input.Password placeholder={editing ? '留空则保持当前值' : isOzon ? '请输入 Ozon Api-Key' : '请输入 API Secret'} />
           </Form.Item>
-          <Form.Item label="Access Token" name="accessToken">
-            <Input.Password placeholder={editing ? '留空则保持当前值' : '请输入 Access Token'} />
-          </Form.Item>
-          <Form.Item label="Refresh Token" name="refreshToken">
-            <Input.Password placeholder="可选" />
-          </Form.Item>
+          {!isOzon ? (
+            <>
+              <Form.Item label="Access Token" name="accessToken">
+                <Input.Password placeholder={editing ? '留空则保持当前值' : '请输入 Access Token'} />
+              </Form.Item>
+              <Form.Item label="Refresh Token" name="refreshToken">
+                <Input.Password placeholder="可选" />
+              </Form.Item>
+            </>
+          ) : null}
           <Collapse
             ghost
             size="small"

@@ -73,6 +73,7 @@ const { Title, Text, Paragraph } = Typography
 type SectionKey =
   | 'workbench'
   | 'product-sync'
+  | 'product-publish'
   | 'product-bindings'
   | 'order-issues'
   | 'sales-data'
@@ -103,6 +104,14 @@ type ShopFormValues = {
   credentialStatus?: string
   extraPayload?: string
 }
+
+const SALE_PLATFORM_OPTIONS = [
+  { label: 'Temu', value: 'TEMU' },
+  { label: 'Ozon', value: 'OZON' },
+  { label: 'Shopee', value: 'SHOPEE' },
+  { label: 'TikTok Shop', value: 'TIKTOK' },
+]
+
 type StyleOption = {
   label: string
   value: string
@@ -193,6 +202,7 @@ const buildMissingShopProfileMessage = (fields: string[]) =>
 const sectionPathMap: Record<SectionKey, string> = {
   workbench: '/sale/workbench',
   'product-sync': '/sale/products/sync',
+  'product-publish': '/sale/ozon/listing',
   'product-bindings': '/sale/products/bindings',
   'order-issues': '/sale/orders/issues',
   'sales-data': '/sale/sales-data',
@@ -204,6 +214,8 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/workbench': 'workbench',
   '/sale/dashboard': 'workbench',
   '/sale/products/sync': 'product-sync',
+  '/sale/ozon/listing': 'product-publish',
+  '/sale/products/publish': 'product-publish',
   '/sale/products/bindings': 'product-bindings',
   '/sale/orders/issues': 'order-issues',
   '/sale/orders/overview': 'order-issues',
@@ -213,7 +225,7 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/governance/sync': 'governance-sync',
 }
 
-const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-bindings'
+const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-publish' || section === 'product-bindings'
 
 const navItems = [
   {
@@ -227,6 +239,7 @@ const navItems = [
     label: '商品中心',
     children: [
       { key: 'product-sync', label: '商品同步' },
+      { key: 'product-publish', label: 'Ozon 铺货' },
       { key: 'product-bindings', label: '商品绑定' },
     ],
   },
@@ -562,6 +575,8 @@ const SaleCenterWorkspace = () => {
   const [shopActionFeedback, setShopActionFeedback] = useState<{ type: 'success' | 'warning' | 'error' | 'info'; message: string } | null>(null)
   const [shopForm] = Form.useForm<ShopFormValues>()
   const [orderForm] = Form.useForm<{ processingStatus?: string; processingOwner?: string; processingNote?: string }>()
+  const selectedShopPlatformCode = Form.useWatch('platformCode', shopForm) ?? 'TEMU'
+  const selectedShopIsOzon = selectedShopPlatformCode === 'OZON'
   const styleSearchRequestRef = useRef(0)
 
   useEffect(() => {
@@ -1532,13 +1547,23 @@ const SaleCenterWorkspace = () => {
       const appKey = trimToUndefined(values.appKey)
       const appSecret = trimToUndefined(values.appSecret)
       const accessToken = trimToUndefined(values.accessToken)
+      const platformCode = values.platformCode || editingShop?.platformCode || 'TEMU'
+      const accessTokenRequired = platformCode !== 'OZON'
 
-      if (!editingShop && (!appKey || !appSecret || !accessToken)) {
-        message.warning('新建店铺时必须同时填写 API Key、API Secret、Access Token。')
+      if (!editingShop && (!appKey || !appSecret || (accessTokenRequired && !accessToken))) {
+        message.warning(
+          platformCode === 'OZON'
+            ? '新建 Ozon 店铺时必须同时填写 Client-Id 和 Api-Key。'
+            : '新建店铺时必须同时填写 API Key、API Secret、Access Token。',
+        )
         return
       }
-      if (editingShop && credentialInputProvided && (!appKey || !appSecret || !accessToken)) {
-        message.warning('如需更新凭证，请同时填写 API Key、API Secret、Access Token。')
+      if (editingShop && credentialInputProvided && (!appKey || !appSecret || (accessTokenRequired && !accessToken))) {
+        message.warning(
+          platformCode === 'OZON'
+            ? '如需更新 Ozon 凭证，请同时填写 Client-Id 和 Api-Key。'
+            : '如需更新凭证，请同时填写 API Key、API Secret、Access Token。',
+        )
         return
       }
 
@@ -1563,7 +1588,7 @@ const SaleCenterWorkspace = () => {
         message.success('店铺资料已更新。')
       } else {
         savedAccount = await saleApi.createChannelAccount({
-          platformCode: values.platformCode || 'TEMU',
+          platformCode,
           accountName: values.accountName,
           shopId: normalizeOptionalText(values.shopId),
           shopName: normalizeOptionalText(values.shopName),
@@ -3005,7 +3030,7 @@ const SaleCenterWorkspace = () => {
             {editingShop ? (
               <Space wrap>
                 <Button loading={tokenChecking} onClick={() => void handleCheckShopToken()}>
-                  检查 Token
+                  {selectedShopIsOzon ? '检查凭证' : '检查 Token'}
                 </Button>
                 <Button loading={capabilityChecking} onClick={() => void handleProbeShopCapabilities()}>
                   探测能力
@@ -3044,7 +3069,7 @@ const SaleCenterWorkspace = () => {
             />
           </Form.Item>
           <Form.Item name="platformCode" label="所属平台">
-            <Select options={[{ label: 'Temu', value: 'TEMU' }, { label: 'Shopee', value: 'SHOPEE' }, { label: 'TikTok Shop', value: 'TIKTOK' }]} />
+            <Select options={SALE_PLATFORM_OPTIONS} />
           </Form.Item>
           <Form.Item name="regionCode" label="站点 / 区域">
             <Input />
@@ -3104,8 +3129,12 @@ const SaleCenterWorkspace = () => {
                       showIcon
                       message={
                         editingShop
-                          ? '当前会展示脱敏凭证；如需更新，请重新填写 API Key、API Secret、Access Token。留空则保持原凭证不变。'
-                          : '新建店铺必须同时录入 API Key、API Secret、Access Token，完成建档与凭证配置。'
+                          ? selectedShopIsOzon
+                            ? '当前会展示脱敏凭证；如需更新 Ozon 凭证，请重新填写 Client-Id 和 Api-Key。留空则保持原凭证不变。'
+                            : '当前会展示脱敏凭证；如需更新，请重新填写 API Key、API Secret、Access Token。留空则保持原凭证不变。'
+                          : selectedShopIsOzon
+                            ? '新建 Ozon 店铺必须同时录入 Client-Id 和 Api-Key，完成建档与凭证配置。'
+                            : '新建店铺必须同时录入 API Key、API Secret、Access Token，完成建档与凭证配置。'
                       }
                     />
                     {editingShop ? (
@@ -3113,25 +3142,29 @@ const SaleCenterWorkspace = () => {
                         <Descriptions column={2} size="small" bordered>
                           <Descriptions.Item label="凭证状态">{credentialDetail?.status ?? '--'}</Descriptions.Item>
                           <Descriptions.Item label="最近校验">{formatDateTime(credentialDetail?.lastValidatedAt) ?? '--'}</Descriptions.Item>
-                          <Descriptions.Item label="API Key">{credentialDetail?.appKeyMasked ?? '--'}</Descriptions.Item>
-                          <Descriptions.Item label="API Secret">{credentialDetail?.appSecretMasked ?? '--'}</Descriptions.Item>
-                          <Descriptions.Item label="Access Token">{credentialDetail?.accessTokenMasked ?? '--'}</Descriptions.Item>
-                          <Descriptions.Item label="Refresh Token">{credentialDetail?.refreshTokenMasked ?? '--'}</Descriptions.Item>
+                          <Descriptions.Item label={selectedShopIsOzon ? 'Client-Id' : 'API Key'}>{credentialDetail?.appKeyMasked ?? '--'}</Descriptions.Item>
+                          <Descriptions.Item label={selectedShopIsOzon ? 'Api-Key' : 'API Secret'}>{credentialDetail?.appSecretMasked ?? '--'}</Descriptions.Item>
+                          {!selectedShopIsOzon ? <Descriptions.Item label="Access Token">{credentialDetail?.accessTokenMasked ?? '--'}</Descriptions.Item> : null}
+                          {!selectedShopIsOzon ? <Descriptions.Item label="Refresh Token">{credentialDetail?.refreshTokenMasked ?? '--'}</Descriptions.Item> : null}
                         </Descriptions>
                       </Card>
                     ) : null}
-                    <Form.Item label="API Key" name="appKey">
-                      <Input placeholder={editingShop ? '留空则保持当前值' : '请输入 API Key'} />
+                    <Form.Item label={selectedShopIsOzon ? 'Client-Id' : 'API Key'} name="appKey">
+                      <Input placeholder={editingShop ? '留空则保持当前值' : selectedShopIsOzon ? '请输入 Ozon Client-Id' : '请输入 API Key'} />
                     </Form.Item>
-                    <Form.Item label="API Secret" name="appSecret">
-                      <Input.Password placeholder={editingShop ? '留空则保持当前值' : '请输入 API Secret'} />
+                    <Form.Item label={selectedShopIsOzon ? 'Api-Key' : 'API Secret'} name="appSecret">
+                      <Input.Password placeholder={editingShop ? '留空则保持当前值' : selectedShopIsOzon ? '请输入 Ozon Api-Key' : '请输入 API Secret'} />
                     </Form.Item>
-                    <Form.Item label="Access Token" name="accessToken">
-                      <Input.Password placeholder={editingShop ? '留空则保持当前值' : '请输入 Access Token'} />
-                    </Form.Item>
-                    <Form.Item label="Refresh Token" name="refreshToken">
-                      <Input.Password placeholder="可选" />
-                    </Form.Item>
+                    {!selectedShopIsOzon ? (
+                      <>
+                        <Form.Item label="Access Token" name="accessToken">
+                          <Input.Password placeholder={editingShop ? '留空则保持当前值' : '请输入 Access Token'} />
+                        </Form.Item>
+                        <Form.Item label="Refresh Token" name="refreshToken">
+                          <Input.Password placeholder="可选" />
+                        </Form.Item>
+                      </>
+                    ) : null}
                     <Collapse
                       ghost
                       size="small"
