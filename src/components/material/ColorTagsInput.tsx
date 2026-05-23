@@ -5,9 +5,10 @@ import type { InputRef } from 'antd';
 type ColorTagsInputProps = {
   value?: string[];
   onChange?: (next: string[]) => void;
+  placeholder?: string;
 };
 
-const ColorTagsInput = ({ value = [], onChange }: ColorTagsInputProps) => {
+const ColorTagsInput = ({ value = [], onChange, placeholder = '输入颜色后回车' }: ColorTagsInputProps) => {
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<InputRef>(null);
 
@@ -53,7 +54,7 @@ const ColorTagsInput = ({ value = [], onChange }: ColorTagsInputProps) => {
       <Input
         ref={inputRef}
         size="small"
-        placeholder="输入颜色后回车"
+        placeholder={placeholder}
         value={inputValue}
         onChange={(event) => setInputValue(event.target.value)}
         onPressEnter={(event) => {

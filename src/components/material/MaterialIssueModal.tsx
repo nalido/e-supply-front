@@ -4,6 +4,7 @@ import { Alert, Button, Input, Modal, Space, Table, Typography, InputNumber, mes
 import type { MaterialStockListItem, MaterialStockType } from '../../types/material-stock';
 import { materialIssueService } from '../../api/material-inventory';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
+import '../../styles/matrix-table.css';
 
 const { Text } = Typography;
 
@@ -85,7 +86,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         key: 'materialName',
         width: 240,
         render: (value: string, record) => (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <Space className="oc-excel-cell-readonly" direction="vertical" size={2}>
             <Text strong ellipsis={{ tooltip: value }}>
               {value}
             </Text>
@@ -98,21 +99,23 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         dataIndex: 'color',
         key: 'color',
         width: 100,
-        render: (value?: string) => value || '-',
+        render: (value?: string) => <span className="oc-excel-cell-readonly">{value || '-'}</span>,
       },
       {
         title: '规格',
         dataIndex: 'specification',
         key: 'specification',
         width: 130,
-        render: (value?: string) => value || '-',
+        render: (value?: string) => <span className="oc-excel-cell-readonly">{value || '-'}</span>,
       },
       {
         title: '可用库存',
         dataIndex: 'availableQty',
         key: 'availableQty',
         width: 120,
-        render: (value: number, record) => `${value.toLocaleString('zh-CN')} ${record.unit}`,
+        render: (value: number, record) => (
+          <span className="oc-excel-cell-readonly">{value.toLocaleString('zh-CN')} {record.unit}</span>
+        ),
       },
       {
         title: '出库数量',
@@ -121,13 +124,14 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         width: 170,
         render: (_value, record) => (
           <InputNumber
+            className="oc-excel-cell-input"
             min={0}
             max={record.availableQty}
             precision={0}
+            controls={false}
             value={quantities[record.id] ?? 0}
             onChange={(val) => handleQuantityChange(record.id, val)}
             addonAfter={record.unit}
-            style={{ width: '100%' }}
           />
         ),
       },
@@ -215,6 +219,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
           <Button onClick={handleClearBulkQuantity}>清空数量</Button>
         </Space>
         <Table<MaterialStockListItem>
+          className="oc-excel-entry-table material-issue-entry-table"
           rowKey="id"
           dataSource={tableData}
           columns={columns}

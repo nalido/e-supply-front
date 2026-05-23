@@ -220,6 +220,10 @@ const MaterialArchive = () => {
         const colors = colorsValue
           ? colorsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
           : undefined;
+        const specificationsValue = getValue(row, '规格');
+        const specifications = specificationsValue
+          ? specificationsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
+          : undefined;
         return {
           rowNumber,
           sku,
@@ -227,10 +231,11 @@ const MaterialArchive = () => {
           materialType,
           unit: unit as MaterialUnit,
           referencePrice: Number.isFinite(priceValue) ? priceValue : undefined,
-          width: getValue(row, '幅宽') || undefined,
-          grammage: getValue(row, '克重') || undefined,
-          tolerance: getValue(row, '空差') || undefined,
+          width: materialType === 'fabric' ? getValue(row, '幅宽') || undefined : undefined,
+          grammage: materialType === 'fabric' ? getValue(row, '克重') || undefined : undefined,
+          tolerance: materialType === 'fabric' ? getValue(row, '空差') || undefined : undefined,
           colors,
+          specifications: materialType === 'accessory' ? specifications : undefined,
           imageUrl: getValue(row, '图片URL') || undefined,
           remarks: getValue(row, '备注') || undefined,
         } as CreateMaterialPayload;
@@ -343,7 +348,9 @@ const MaterialArchive = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const csvHeader = '物料编号,名称,用量单位,参考单价,幅宽,克重,空差,颜色,图片URL,备注\n';
+    const csvHeader = activeTab === 'fabric'
+      ? '物料编号,名称,用量单位,参考单价,幅宽,克重,空差,颜色,图片URL,备注\n'
+      : '物料编号,名称,用量单位,参考单价,颜色,规格,图片URL,备注\n';
     const blob = new Blob([`\ufeff${csvHeader}`], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -379,9 +386,13 @@ const MaterialArchive = () => {
           </div>
         ),
       },
-      { title: '幅宽', dataIndex: 'width' },
-      { title: '克重', dataIndex: 'grammage' },
-      { title: '空差', dataIndex: 'tolerance' },
+      ...(activeTab === 'fabric'
+        ? [
+            { title: '幅宽', dataIndex: 'width' },
+            { title: '克重', dataIndex: 'grammage' },
+            { title: '空差', dataIndex: 'tolerance' },
+          ]
+        : []),
       {
         title: '用量单位',
         dataIndex: 'unit',
@@ -401,6 +412,19 @@ const MaterialArchive = () => {
           </Space>
         ),
       },
+      ...(activeTab === 'accessory'
+        ? [
+            {
+              title: '规格',
+              dataIndex: 'specifications',
+              render: (specifications: string[]) => (
+                <Space size={[4, 4]} wrap>
+                  {specifications && specifications.length > 0 ? specifications.map((spec) => <Tag key={spec}>{spec}</Tag>) : <span>-</span>}
+                </Space>
+              ),
+            },
+          ]
+        : []),
       {
         title: '操作',
         dataIndex: 'actions',
@@ -424,7 +448,7 @@ const MaterialArchive = () => {
         ),
       },
     ];
-  }, [handleRemove, openEditModal, page, pageSize]);
+  }, [activeTab, handleRemove, openEditModal, page, pageSize]);
 
   return (
     <div className="material-archive-page">

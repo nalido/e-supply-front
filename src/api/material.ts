@@ -137,6 +137,7 @@ const toStringArray = (value: unknown): string[] | undefined => {
 const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
   const attributes = item.attributes ?? {};
   const colors = toStringArray(attributes.colors) ?? toStringArray(attributes.color) ?? [];
+  const specifications = toStringArray(attributes.specifications) ?? toStringArray(attributes.specification) ?? [];
   return {
     id: String(item.id),
     tenantId: item.tenantId ? String(item.tenantId) : undefined,
@@ -150,6 +151,7 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
     grammage: toStringValue(attributes.grammage ?? attributes.weight),
     tolerance: toStringValue(attributes.tolerance),
     colors,
+    specifications,
     remarks: toStringValue(attributes.remarks),
     status: adaptStatus(item.status),
     createdAt: item.createdAt,
@@ -164,13 +166,14 @@ const generateSku = (type: MaterialBasicType): string => {
 
 const buildAttributesPayload = (payload: CreateMaterialPayload): Record<string, unknown> => {
   const attributes: Record<string, unknown> = {};
-  if (payload.width) {
+  const includeFabricSpecs = payload.materialType === 'fabric';
+  if (includeFabricSpecs && payload.width) {
     attributes.width = payload.width;
   }
-  if (payload.grammage) {
+  if (includeFabricSpecs && payload.grammage) {
     attributes.grammage = payload.grammage;
   }
-  if (payload.tolerance) {
+  if (includeFabricSpecs && payload.tolerance) {
     attributes.tolerance = payload.tolerance;
   }
   if (payload.referencePrice !== undefined) {
@@ -178,6 +181,9 @@ const buildAttributesPayload = (payload: CreateMaterialPayload): Record<string, 
   }
   if (payload.colors && payload.colors.length > 0) {
     attributes.colors = payload.colors;
+  }
+  if (payload.materialType === 'accessory' && payload.specifications && payload.specifications.length > 0) {
+    attributes.specifications = payload.specifications;
   }
   if (payload.remarks) {
     attributes.remarks = payload.remarks;

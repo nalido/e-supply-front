@@ -13,6 +13,7 @@ type MaterialFormValues = {
   grammage?: string;
   tolerance?: string;
   colors?: string[];
+  specifications?: string[];
   remarks?: string;
   imageUrl?: string;
 };
@@ -27,7 +28,7 @@ type MaterialFormModalProps = {
   onCancel: () => void;
 };
 
-const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套'];
+const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套', '条'];
 
 const formatToleranceValue = (value?: string) => {
   if (value === undefined || value === null) {
@@ -54,6 +55,7 @@ const MaterialFormModal = ({
   onCancel,
 }: MaterialFormModalProps) => {
   const [form] = Form.useForm<MaterialFormValues>();
+  const isAccessory = materialType === 'accessory';
 
   useEffect(() => {
     if (open) {
@@ -67,6 +69,7 @@ const MaterialFormModal = ({
         grammage: initialValues?.grammage,
         tolerance: initialValues?.tolerance,
         colors: initialValues?.colors ?? [],
+        specifications: initialValues?.specifications ?? [],
         remarks: initialValues?.remarks,
         imageUrl: initialValues?.imageUrl,
       });
@@ -77,7 +80,11 @@ const MaterialFormModal = ({
     const values = await form.validateFields();
     onSubmit({
       ...values,
+      width: isAccessory ? undefined : values.width,
+      grammage: isAccessory ? undefined : values.grammage,
+      tolerance: isAccessory ? undefined : values.tolerance,
       colors: values.colors ?? [],
+      specifications: isAccessory ? values.specifications ?? [] : [],
       materialType,
     });
   };
@@ -135,27 +142,36 @@ const MaterialFormModal = ({
               </div>
             </Form.Item>
           </Col>
-          <Col xs={24} md={12}>
-            <Form.Item label="幅宽" name="width">
-              <Input placeholder="如 150cm" />
-            </Form.Item>
-          </Col>
+          {!isAccessory ? (
+            <Col xs={24} md={12}>
+              <Form.Item label="幅宽" name="width">
+                <Input placeholder="如 150cm" />
+              </Form.Item>
+            </Col>
+          ) : null}
         </Row>
-        <Row gutter={16}>
-          <Col xs={24} md={12}>
-            <Form.Item label="克重" name="grammage">
-              <Input placeholder="如 180g/m²" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12}>
-            <Form.Item label="空差" name="tolerance" normalize={formatToleranceValue}>
-              <Input placeholder="如 ±2cm" />
-            </Form.Item>
-          </Col>
-        </Row>
+        {!isAccessory ? (
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item label="克重" name="grammage">
+                <Input placeholder="如 180g/m²" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="空差" name="tolerance" normalize={formatToleranceValue}>
+                <Input placeholder="如 ±2cm" />
+              </Form.Item>
+            </Col>
+          </Row>
+        ) : null}
         <Form.Item label="颜色" name="colors">
           <ColorTagsInput />
         </Form.Item>
+        {isAccessory ? (
+          <Form.Item label="规格" name="specifications">
+            <ColorTagsInput placeholder="输入规格后回车" />
+          </Form.Item>
+        ) : null}
         <Form.Item label="备注" name="remarks">
           <Input.TextArea rows={4} placeholder="请输入备注信息" />
         </Form.Item>
