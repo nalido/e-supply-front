@@ -13,6 +13,7 @@ const UNIT_ALIAS: Record<string, MaterialUnit> = {
   码: '码',
   张: '张',
   套: '套',
+  条: '条',
 };
 
 const normalizeMaterialType = (raw: string | undefined): MaterialBasicType | undefined => {
@@ -67,13 +68,14 @@ export const buildCreateMaterialAction = (
   const tolerance = pickFromAliases(pairs, ['tolerance', '损耗']);
   const imageUrl = pickFromAliases(pairs, ['image', 'imageurl', '图片']);
   const colorsRaw = pickFromAliases(pairs, ['colors', '颜色']);
+  const specificationsRaw = pickFromAliases(pairs, ['specifications', 'specification', '规格']);
   const priceRaw = pickFromAliases(pairs, ['price', '单价', '价格']);
 
   if (!name) {
     return { error: '缺少名称，请按 `名称: xx` 传入。' };
   }
   if (!unit) {
-    return { error: '单位不支持，请使用 kg/米/件/个/码/张/套。' };
+    return { error: '单位不支持，请使用 kg/米/件/个/码/张/套/条。' };
   }
 
   const referencePrice =
@@ -88,12 +90,15 @@ export const buildCreateMaterialAction = (
     unit,
     sku,
     remarks,
-    width,
-    grammage,
-    tolerance,
+    width: materialType === 'fabric' ? width : undefined,
+    grammage: materialType === 'fabric' ? grammage : undefined,
+    tolerance: materialType === 'fabric' ? tolerance : undefined,
     imageUrl,
     referencePrice,
     colors: colorsRaw ? colorsRaw.split(/[、,，/]/).map((item) => item.trim()).filter(Boolean) : undefined,
+    specifications: materialType === 'accessory' && specificationsRaw
+      ? specificationsRaw.split(/[、,，/]/).map((item) => item.trim()).filter(Boolean)
+      : undefined,
   };
 
   const typeText = payload.materialType === 'fabric' ? '布料' : '辅料';

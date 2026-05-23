@@ -597,7 +597,9 @@ const StockingPurchaseInbound = () => {
         width: 260,
         fixed: 'left',
         render: (value: string, record) => {
-          const specParts = [record.color, record.width, record.weight].filter(Boolean);
+          const specParts = materialType === 'fabric'
+            ? [record.color, record.width, record.weight].filter(Boolean)
+            : [record.color, record.specification].filter(Boolean);
           return (
             <Space direction="vertical" size={2}>
               <Text strong>{value}</Text>
@@ -710,20 +712,35 @@ const StockingPurchaseInbound = () => {
         width: 120,
         render: (value?: string) => value ?? '-',
       },
-      {
-        title: '幅宽',
-        dataIndex: 'width',
-        key: 'width',
-        width: 110,
-        render: (value?: string) => value ?? '-',
-      },
-      {
-        title: '克重',
-        dataIndex: 'weight',
-        key: 'weight',
-        width: 110,
-        render: (value?: string) => value ?? '-',
-      },
+      ...(materialType === 'accessory'
+        ? [
+            {
+              title: '规格',
+              dataIndex: 'specification',
+              key: 'specification',
+              width: 120,
+              render: (value?: string) => value ?? '-',
+            },
+          ]
+        : []),
+      ...(materialType === 'fabric'
+        ? [
+            {
+              title: '幅宽',
+              dataIndex: 'width',
+              key: 'width',
+              width: 110,
+              render: (value?: string) => value ?? '-',
+            },
+            {
+              title: '克重',
+              dataIndex: 'weight',
+              key: 'weight',
+              width: 110,
+              render: (value?: string) => value ?? '-',
+            },
+          ]
+        : []),
       {
         title: '供应商型号',
         dataIndex: 'supplierModel',
@@ -738,13 +755,17 @@ const StockingPurchaseInbound = () => {
         width: 150,
         render: (value?: string) => value ?? '-',
       },
-      {
-        title: '空差',
-        dataIndex: 'tolerance',
-        key: 'tolerance',
-        width: 110,
-        render: (value?: string) => value ?? '-',
-      },
+      ...(materialType === 'fabric'
+        ? [
+            {
+              title: '空差',
+              dataIndex: 'tolerance',
+              key: 'tolerance',
+              width: 110,
+              render: (value?: string) => value ?? '-',
+            },
+          ]
+        : []),
       {
         title: '备注',
         dataIndex: 'remark',
@@ -776,7 +797,7 @@ const StockingPurchaseInbound = () => {
         },
       },
     ],
-    [editLoading, editingOrder?.id, openEditModal, openReceiptDrawer, openReceiveModal],
+    [editLoading, editingOrder?.id, materialType, openEditModal, openReceiptDrawer, openReceiveModal],
   );
 
   const receiptItemColumns: ColumnsType<StockingReceiptRecord> = useMemo(

@@ -25,6 +25,7 @@ export type StockingPurchaseRecord = {
   materialName: string;
   materialCategory?: string;
   color?: string;
+  specification?: string;
   width?: string;
   weight?: string;
   purchaseDate: string;
@@ -82,6 +83,8 @@ export type StockingPurchaseCreateLine = {
   unit: string;
   unitPrice?: number;
   color?: string;
+  specification?: string;
+  remark?: string;
 };
 
 export type StockingPurchaseCreatePayload = {
@@ -110,6 +113,7 @@ export type StockingPurchaseOrderLineDetail = {
   quantity: number;
   unitPrice?: number;
   color?: string;
+  specification?: string;
   remark?: string;
 };
 
