@@ -13,8 +13,16 @@ import type {
   SaleOrderDetail,
   SaleOrderSyncResult,
   SaleOrderItem,
+  SaleAsyncTask,
+  SaleAsyncTaskItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
+  SaleProductPublishDraftPreview,
+  SaleProductPublishBatch,
+  SaleProductPublishBatchList,
+  SaleProductPublishResponse,
+  SaleProductPublishSourceList,
+  SaleShopTag,
   SaleRetryCandidateItem,
   SaleSalesOverview,
   SaleSalesProductDetail,
@@ -166,6 +174,204 @@ export const saleApi = {
     return response.data;
   },
 
+  async listSaleShopTags(): Promise<SaleShopTag[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleShopTag>>('/api/v1/sale/async/shop-tags', {
+      params: { tenantId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async deleteSaleShopTag(tagId: string): Promise<{ tagId: string; deleted: boolean }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{ tagId: string; deleted: boolean }>(`/api/v1/sale/async/shop-tags/${tagId}/delete`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async importOzonShopCredentials(payload: {
+    taskName?: string;
+    importBatchNo?: string;
+    defaultTags?: string[];
+    shops: Array<{
+      accountName: string;
+      shopId?: string;
+      shopName?: string;
+      regionCode?: string;
+      gatewayUrl?: string;
+      sellerType?: string;
+      clientId: string;
+      apiKey: string;
+      tags?: string[];
+    }>;
+  }): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>('/api/v1/sale/async/shops/credentials/bulk-import', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async deleteShopsBulk(payload: {
+    taskName?: string;
+    accountIds?: number[];
+    tagIds?: number[];
+    tagNames?: string[];
+    importBatchNo?: string;
+  }): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>('/api/v1/sale/async/shops/bulk-delete', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async submitProductListingsBulk(payload: {
+    sourceBatchId: number;
+    taskName?: string;
+    targetChannelAccountIds?: number[];
+    targetTagIds?: number[];
+    targetTagNames?: string[];
+  }): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>('/api/v1/sale/async/product-listings/bulk-submit', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listSaleAsyncTasks(params?: { taskType?: string; limit?: number; page?: number; pageSize?: number }): Promise<SaleAsyncTask[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleAsyncTask>>('/api/v1/sale/async/tasks', {
+      params: { tenantId, taskType: params?.taskType, limit: params?.limit, page: params?.page, pageSize: params?.pageSize },
+    });
+    return response.data.list ?? [];
+  },
+
+  async listSaleAsyncTasksPage(params?: { taskType?: string; limit?: number; page?: number; pageSize?: number }): Promise<{ list: SaleAsyncTask[]; total?: number }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleAsyncTask>>('/api/v1/sale/async/tasks', {
+      params: { tenantId, taskType: params?.taskType, limit: params?.limit, page: params?.page, pageSize: params?.pageSize },
+    });
+    return { list: response.data.list ?? [], total: response.data.total };
+  },
+
+  async getSaleAsyncTask(taskId: string | number): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleAsyncTask>(`/api/v1/sale/async/tasks/${taskId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async listSaleAsyncTaskItems(
+    taskId: string | number,
+    params?: { status?: string; limit?: number; page?: number; pageSize?: number; shopKeyword?: string; productKeyword?: string },
+  ): Promise<{ list: SaleAsyncTaskItem[]; total?: number }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleAsyncTaskItem>>(`/api/v1/sale/async/tasks/${taskId}/items`, {
+      params: {
+        tenantId,
+        status: params?.status,
+        limit: params?.limit,
+        page: params?.page,
+        pageSize: params?.pageSize,
+        shopKeyword: params?.shopKeyword,
+        productKeyword: params?.productKeyword,
+      },
+    });
+    return { list: response.data.list ?? [], total: response.data.total };
+  },
+
+  async deleteSaleAsyncTaskItemProducts(taskId: string | number, itemId: string | number): Promise<{
+    taskId: string;
+    itemId: string;
+    channelAccountId: string;
+    offerIds: string[];
+    requestId?: string | null;
+  }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{
+      taskId: string;
+      itemId: string;
+      channelAccountId: string;
+      offerIds: string[];
+      requestId?: string | null;
+    }>(`/api/v1/sale/async/tasks/${taskId}/items/${itemId}/products/delete`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async archiveSaleAsyncTaskItemProducts(taskId: string | number, itemId: string | number): Promise<{
+    taskId: string;
+    itemId: string;
+    channelAccountId: string;
+    offerIds: string[];
+    requestId?: string | null;
+  }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{
+      taskId: string;
+      itemId: string;
+      channelAccountId: string;
+      offerIds: string[];
+      requestId?: string | null;
+    }>(`/api/v1/sale/async/tasks/${taskId}/items/${itemId}/products/archive`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async cleanupSaleAsyncTaskItemsProducts(taskId: string | number, action: 'archive' | 'delete', itemIds: Array<string | number>): Promise<{
+    taskId: string;
+    action: string;
+    successCount: number;
+    failedCount: number;
+    results: Array<{ itemId: string; requestId?: string | null }>;
+    errors: string[];
+  }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{
+      taskId: string;
+      action: string;
+      successCount: number;
+      failedCount: number;
+      results: Array<{ itemId: string; requestId?: string | null }>;
+      errors: string[];
+    }>(`/api/v1/sale/async/tasks/${taskId}/items/products/${action}`, {
+      itemIds: itemIds.map((itemId) => Number(itemId)),
+    }, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async retrySaleAsyncTaskFailedItems(taskId: string | number): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>(`/api/v1/sale/async/tasks/${taskId}/retry-failed`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async cancelSaleAsyncTask(taskId: string | number): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>(`/api/v1/sale/async/tasks/${taskId}/cancel`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async runSaleAsyncTask(taskId: string | number): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>(`/api/v1/sale/async/tasks/${taskId}/run`, {}, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async listOrders(channelAccountId?: string): Promise<SaleOrderItem[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
@@ -235,6 +441,211 @@ export const saleApi = {
     const response = await http.post(`/api/v1/sale/products/sync/${taskId}/cancel`, {}, {
       params: { tenantId },
     });
+    return response.data;
+  },
+
+  async listProductPublishSources(payload: {
+    channelAccountId: number;
+    limit?: number;
+    keyword?: string;
+    lastId?: string;
+  }): Promise<SaleProductPublishSourceList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishSourceList>('/api/v1/sale/products/publish-source/list', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async buildProductPublishDraftFromSource(payload: {
+    channelAccountId: number;
+    sourceOfferId?: string;
+    sourceProductId?: number;
+    targetOfferId?: string;
+    namePrefix?: string;
+  }): Promise<SaleProductPublishDraftPreview> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishDraftPreview>('/api/v1/sale/products/publish-draft/from-source', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async publishProducts(payload: {
+    channelAccountId: number;
+    items: Record<string, unknown>[];
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async queryProductPublishTask(payload: {
+    channelAccountId: number;
+    taskId: number;
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish-task/query', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async deletePublishedProducts(payload: {
+    channelAccountId: number;
+    offerIds: string[];
+  }): Promise<SaleProductPublishResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishResponse>('/api/v1/sale/products/publish/delete', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async createProductPublishBatchFromSources(payload: {
+    channelAccountId: number;
+    targetChannelAccountIds?: number[];
+    targetTagIds?: number[];
+    targetTagNames?: string[];
+    batchName?: string;
+    offerPrefix?: string;
+    namePrefix?: string;
+    sources: Array<{ sourceProductId?: number; sourceOfferId?: string }>;
+  }): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      '/api/v1/sale/product-listings/batches/create-from-sources',
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async createProductPublishBatchFromReference(payload: {
+    channelAccountId: number;
+    targetChannelAccountIds?: number[];
+    targetTagIds?: number[];
+    targetTagNames?: string[];
+    batchName?: string;
+    offerPrefix?: string;
+    referenceOfferId?: string;
+    referenceProductId?: number;
+    products: Array<{
+      localStyleId: number;
+      targetOfferId?: string;
+      name?: string;
+      price?: string;
+      currencyCode?: string;
+      primaryImageUrl?: string;
+      images?: string[];
+    }>;
+  }): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      '/api/v1/sale/product-listings/batches/create-from-reference',
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async listProductPublishBatches(channelAccountId: number): Promise<SaleProductPublishBatchList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductPublishBatchList>('/api/v1/sale/product-listings/batches', {
+      params: { tenantId, channelAccountId },
+    });
+    return response.data;
+  },
+
+  async listAllProductPublishBatches(): Promise<SaleProductPublishBatchList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductPublishBatchList>('/api/v1/sale/product-listings/batches', {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async getProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<SaleProductPublishBatch>(`/api/v1/sale/product-listings/batches/${batchId}`, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async validateProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/validate`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async updateProductPublishDraft(
+    batchId: string | number,
+    itemId: string | number,
+    payload: { item: Record<string, unknown> },
+  ): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/items/${itemId}/draft/update`,
+      payload,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async submitProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/submit`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async queryProductPublishBatchTask(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/task/query`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async deleteProductPublishBatchProducts(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/products/delete`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async deleteProductPublishBatch(batchId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/delete`,
+      {},
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async deleteProductPublishItem(batchId: string | number, itemId: string | number): Promise<SaleProductPublishBatch> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductPublishBatch>(
+      `/api/v1/sale/product-listings/batches/${batchId}/items/${itemId}/delete`,
+      {},
+      { params: { tenantId } },
+    );
     return response.data;
   },
 

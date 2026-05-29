@@ -16,7 +16,55 @@ export type SaleChannelAccount = {
   authorizationType?: string | null;
   status?: string | null;
   remarks?: string | null;
+  importBatchNo?: string | null;
   lastSyncAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleShopTag = {
+  tagId: string;
+  tagName: string;
+  color?: string | null;
+  accountCount?: number | null;
+};
+
+export type SaleAsyncTask = {
+  taskId: string;
+  taskType: string;
+  taskName?: string | null;
+  status?: string | null;
+  totalCount?: number | null;
+  pendingCount?: number | null;
+  runningCount?: number | null;
+  successCount?: number | null;
+  failedCount?: number | null;
+  skippedCount?: number | null;
+  productCount?: number | null;
+  targetShopCount?: number | null;
+  cleanupCount?: number | null;
+  progressPercent?: number | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleAsyncTaskItem = {
+  itemId: string;
+  taskId: string;
+  bizKey?: string | null;
+  channelAccountId?: string | null;
+  itemName?: string | null;
+  status?: string | null;
+  attemptCount?: number | null;
+  maxAttemptCount?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  requestPayloadJson?: string | null;
+  responsePayloadJson?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   updatedAt?: string | null;
 };
 
@@ -528,4 +576,113 @@ export type SaleProductSyncStatus = {
   channelAccountId: string;
   currentTask?: SaleSyncTaskSummary | null;
   latestFinishedTask?: SaleSyncTaskSummary | null;
+};
+
+export type SaleProductPublishSourceProduct = {
+  productId?: string | number | null;
+  offerId?: string | null;
+  name?: string | null;
+  imageUrl?: string | null;
+  visibility?: string | null;
+  raw?: Record<string, unknown> | null;
+};
+
+export type SaleProductPublishSourceList = {
+  list: SaleProductPublishSourceProduct[];
+  total?: number | null;
+  requestId?: string | null;
+  nextLastId?: string | null;
+  hasMore?: boolean | null;
+};
+
+export type SaleProductPublishDraftPreview = {
+  sourceProductId?: string | number | null;
+  sourceOfferId?: string | null;
+  targetOfferId?: string | null;
+  name?: string | null;
+  imageUrl?: string | null;
+  attributeCount?: number | null;
+  imageCount?: number | null;
+  item: Record<string, unknown>;
+};
+
+export type SaleProductPublishResponse = {
+  success: boolean;
+  requestId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  raw?: Record<string, unknown> | null;
+};
+
+export type SaleProductPublishValidationIssue = {
+  field?: string | null;
+  severity?: string | null;
+  message?: string | null;
+};
+
+export type SaleProductPublishItem = {
+  itemId: string | number;
+  localStyleId?: string | number | null;
+  localStyleNo?: string | null;
+  referenceProductId?: string | number | null;
+  referenceOfferId?: string | null;
+  sourceProductId?: string | number | null;
+  sourceOfferId?: string | null;
+  targetProductId?: string | number | null;
+  targetOfferId?: string | null;
+  productName?: string | null;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  attributeCount?: number | null;
+  imageCount?: number | null;
+  price?: string | null;
+  currencyCode?: string | null;
+  validationStatus?: string | null;
+  validationIssueCount?: number | null;
+  validationIssues?: SaleProductPublishValidationIssue[] | null;
+  publishStatus?: string | null;
+  platformStatus?: string | null;
+  platformErrors?: Array<Record<string, unknown>> | null;
+  cleanupStatus?: string | null;
+  cleanupMessage?: string | null;
+  item?: Record<string, unknown> | null;
+};
+
+export type SaleProductPublishBatch = {
+  batchId: string | number;
+  channelAccountId: string | number;
+  channelAccountName?: string | null;
+  platformCode?: string | null;
+  batchNo?: string | null;
+  batchName?: string | null;
+  mode?: string | null;
+  sourceType?: string | null;
+  sourceChannelAccountId?: string | number | null;
+  targetChannelAccountIds?: Array<string | number> | null;
+  targetTagIds?: Array<string | number> | null;
+  targetTagNames?: string[] | null;
+  offerPrefix?: string | null;
+  publishMode?: string | null;
+  status?: string | null;
+  totalCount?: number | null;
+  readyCount?: number | null;
+  blockedCount?: number | null;
+  submittedCount?: number | null;
+  successCount?: number | null;
+  failedCount?: number | null;
+  cleanedCount?: number | null;
+  taskId?: string | number | null;
+  requestId?: string | null;
+  lastError?: string | null;
+  submittedAt?: string | null;
+  lastPolledAt?: string | null;
+  cleanedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  items?: SaleProductPublishItem[] | null;
+};
+
+export type SaleProductPublishBatchList = {
+  list: SaleProductPublishBatch[];
+  total?: number | null;
 };

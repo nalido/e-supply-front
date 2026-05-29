@@ -837,25 +837,25 @@ a:hover { color: var(--oc-color-primary); }
 
 input.ant-input { text-indent: 4px; }
 
-.ant-input-search .ant-input-group,
-.ant-input-group,
-.ant-input-number-group-wrapper {
+.oc-input-action-group.ant-input-search .ant-input-group,
+.oc-input-action-group .ant-input-group,
+.oc-input-action-group.ant-input-number-group-wrapper {
   display: inline-flex;
   width: 100%;
 }
 
-.ant-input-search .ant-input-group > .ant-input,
-.ant-input-search .ant-input-group > .ant-input-affix-wrapper,
-.ant-input-group > .ant-input,
-.ant-input-group > .ant-input-affix-wrapper,
-.ant-input-number-group .ant-input-number {
+.oc-input-action-group.ant-input-search .ant-input-group > .ant-input,
+.oc-input-action-group.ant-input-search .ant-input-group > .ant-input-affix-wrapper,
+.oc-input-action-group .ant-input-group > .ant-input,
+.oc-input-action-group .ant-input-group > .ant-input-affix-wrapper,
+.oc-input-action-group .ant-input-number-group .ant-input-number {
   border-top-right-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
 }
 
-.ant-input-search .ant-input-group > .ant-input-group-addon,
-.ant-input-group > .ant-input-group-addon,
-.ant-input-number-group .ant-input-number-group-addon {
+.oc-input-action-group.ant-input-search .ant-input-group > .ant-input-group-addon,
+.oc-input-action-group .ant-input-group > .ant-input-group-addon,
+.oc-input-action-group .ant-input-number-group .ant-input-number-group-addon {
   border: 1px solid var(--oc-color-border) !important;
   border-left: 0 !important;
   background: #fff !important;
@@ -867,31 +867,31 @@ input.ant-input { text-indent: 4px; }
   overflow: hidden;
 }
 
-.ant-input-search .ant-input-group > .ant-input-group-addon .ant-btn,
-.ant-input-group > .ant-input-group-addon .ant-btn {
+.oc-input-action-group.ant-input-search .ant-input-group > .ant-input-group-addon .ant-btn,
+.oc-input-action-group .ant-input-group > .ant-input-group-addon .ant-btn {
   height: 100% !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 
-.ant-input-search .ant-input-group > .ant-input-group-addon .ant-btn {
+.oc-input-action-group.ant-input-search .ant-input-group > .ant-input-group-addon .ant-btn {
   min-width: 56px;
 }
 
-.ant-input-number-group .ant-input-number {
+.oc-input-action-group .ant-input-number-group .ant-input-number {
   height: 38px !important;
 }
 
-.ant-input-number-group .ant-input-number-input-wrap {
+.oc-input-action-group .ant-input-number-group .ant-input-number-input-wrap {
   height: 100%;
 }
 
-.ant-input-number-group .ant-input-number-input {
+.oc-input-action-group .ant-input-number-group .ant-input-number-input {
   height: 36px !important;
 }
 
-.ant-input-number-group .ant-input-number-group-addon {
+.oc-input-action-group .ant-input-number-group .ant-input-number-group-addon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -906,17 +906,17 @@ input.ant-input { text-indent: 4px; }
   background: var(--oc-color-surface-soft) !important;
 }
 
-.ant-input-search:hover .ant-input,
-.ant-input-search:hover .ant-input-group-addon,
-.ant-input-number:hover,
-.ant-input-number-group-wrapper:hover .ant-input-number-group-addon {
+.oc-input-action-group.ant-input-search:hover .ant-input,
+.oc-input-action-group.ant-input-search:hover .ant-input-group-addon,
+.oc-input-action-group.ant-input-number:hover,
+.oc-input-action-group.ant-input-number-group-wrapper:hover .ant-input-number-group-addon {
   border-color: var(--oc-color-border-strong) !important;
 }
 
-.ant-input-search:focus-within .ant-input,
-.ant-input-search:focus-within .ant-input-group-addon,
-.ant-input-number-group-wrapper:focus-within .ant-input-number,
-.ant-input-number-group-wrapper:focus-within .ant-input-number-group-addon {
+.oc-input-action-group.ant-input-search:focus-within .ant-input,
+.oc-input-action-group.ant-input-search:focus-within .ant-input-group-addon,
+.oc-input-action-group.ant-input-number-group-wrapper:focus-within .ant-input-number,
+.oc-input-action-group.ant-input-number-group-wrapper:focus-within .ant-input-number-group-addon {
   border-color: var(--oc-color-primary) !important;
 }
 .ant-tabs .ant-tabs-tab { padding: 8px 0; }
