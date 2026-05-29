@@ -16,7 +16,55 @@ export type SaleChannelAccount = {
   authorizationType?: string | null;
   status?: string | null;
   remarks?: string | null;
+  importBatchNo?: string | null;
   lastSyncAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleShopTag = {
+  tagId: string;
+  tagName: string;
+  color?: string | null;
+  accountCount?: number | null;
+};
+
+export type SaleAsyncTask = {
+  taskId: string;
+  taskType: string;
+  taskName?: string | null;
+  status?: string | null;
+  totalCount?: number | null;
+  pendingCount?: number | null;
+  runningCount?: number | null;
+  successCount?: number | null;
+  failedCount?: number | null;
+  skippedCount?: number | null;
+  productCount?: number | null;
+  targetShopCount?: number | null;
+  cleanupCount?: number | null;
+  progressPercent?: number | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleAsyncTaskItem = {
+  itemId: string;
+  taskId: string;
+  bizKey?: string | null;
+  channelAccountId?: string | null;
+  itemName?: string | null;
+  status?: string | null;
+  attemptCount?: number | null;
+  maxAttemptCount?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  requestPayloadJson?: string | null;
+  responsePayloadJson?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   updatedAt?: string | null;
 };
 
@@ -601,11 +649,18 @@ export type SaleProductPublishItem = {
 export type SaleProductPublishBatch = {
   batchId: string | number;
   channelAccountId: string | number;
+  channelAccountName?: string | null;
   platformCode?: string | null;
   batchNo?: string | null;
   batchName?: string | null;
   mode?: string | null;
   sourceType?: string | null;
+  sourceChannelAccountId?: string | number | null;
+  targetChannelAccountIds?: Array<string | number> | null;
+  targetTagIds?: Array<string | number> | null;
+  targetTagNames?: string[] | null;
+  offerPrefix?: string | null;
+  publishMode?: string | null;
   status?: string | null;
   totalCount?: number | null;
   readyCount?: number | null;

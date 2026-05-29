@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { Key, ReactNode } from 'react'
 import {
   Alert,
   App,
@@ -31,7 +31,9 @@ import {
   Tag,
   Tabs,
   Typography,
+  Upload,
 } from 'antd'
+import type { RcFile, UploadProps } from 'antd/es/upload/interface'
 import type { ColumnsType } from 'antd/es/table'
 import {
   AlertOutlined,
@@ -39,19 +41,27 @@ import {
   BuildOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  DownloadOutlined,
+  ReadOutlined,
   ReloadOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
+import * as XLSX from 'xlsx'
 import { UserButton } from '@clerk/clerk-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import MonthlyAreaChart from '../../components/charts/MonthlyAreaChart'
 import { saleApi } from '../../api/sale'
 import styleDetailApi from '../../api/style-detail'
 import stylesApi from '../../api/styles'
+import OzonProductPublish from './OzonProductPublish'
+import OzonProductPublishDetails from './OzonProductPublishDetails'
 import type {
   SaleChannelAccount,
   SaleChannelCredential,
+  SaleAsyncTask,
+  SaleAsyncTaskItem,
   SaleIdempotencyRecordItem,
   SaleOrderDetail,
   SaleOrderItem,
@@ -61,6 +71,7 @@ import type {
   SaleSalesProductItem,
   SaleSyncLogItem,
   SaleProductSyncStatus,
+  SaleShopTag,
 } from '../../types/sale'
 import { getSaleOrderSyncModeLabel, getSaleSellerTypeLabel } from '../../types/sale'
 import type { StyleData, StyleDetailData } from '../../types/style'
@@ -74,11 +85,13 @@ type SectionKey =
   | 'workbench'
   | 'product-sync'
   | 'product-publish'
+  | 'product-publish-details'
   | 'product-bindings'
   | 'order-issues'
   | 'sales-data'
   | 'shop-management'
   | 'governance-sync'
+  | 'tutorial-center'
 
 type ProductMappingRecord = Awaited<ReturnType<typeof saleApi.listProductMappings>>[number]
 type ProductMappingDraftRecord = Awaited<ReturnType<typeof saleApi.listProductMappingDrafts>>[number]
@@ -103,6 +116,18 @@ type ShopFormValues = {
   refreshToken?: string
   credentialStatus?: string
   extraPayload?: string
+}
+
+type OzonShopCredentialImportRow = {
+  rowNumber: number
+  accountName: string
+  shopId?: string
+  shopName?: string
+  clientId: string
+  apiKey: string
+  tags: string[]
+  regionCode?: string
+  gatewayUrl?: string
 }
 
 const SALE_PLATFORM_OPTIONS = [
@@ -203,11 +228,13 @@ const sectionPathMap: Record<SectionKey, string> = {
   workbench: '/sale/workbench',
   'product-sync': '/sale/products/sync',
   'product-publish': '/sale/ozon/listing',
+  'product-publish-details': '/sale/ozon/listing-details',
   'product-bindings': '/sale/products/bindings',
   'order-issues': '/sale/orders/issues',
   'sales-data': '/sale/sales-data',
   'shop-management': '/sale/shops',
   'governance-sync': '/sale/governance/sync',
+  'tutorial-center': '/sale/tutorials',
 }
 
 const pathSectionMap: Record<string, SectionKey> = {
@@ -215,6 +242,7 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/dashboard': 'workbench',
   '/sale/products/sync': 'product-sync',
   '/sale/ozon/listing': 'product-publish',
+  '/sale/ozon/listing-details': 'product-publish-details',
   '/sale/products/publish': 'product-publish',
   '/sale/products/bindings': 'product-bindings',
   '/sale/orders/issues': 'order-issues',
@@ -223,9 +251,10 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/sales-data': 'sales-data',
   '/sale/shops': 'shop-management',
   '/sale/governance/sync': 'governance-sync',
+  '/sale/tutorials': 'tutorial-center',
 }
 
-const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-publish' || section === 'product-bindings'
+const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-publish' || section === 'product-publish-details' || section === 'product-bindings'
 
 const navItems = [
   {
@@ -240,6 +269,7 @@ const navItems = [
     children: [
       { key: 'product-sync', label: '商品同步' },
       { key: 'product-publish', label: 'Ozon 铺货' },
+      { key: 'product-publish-details', label: '铺货明细' },
       { key: 'product-bindings', label: '商品绑定' },
     ],
   },
@@ -267,7 +297,33 @@ const navItems = [
     label: '治理中心',
     children: [{ key: 'governance-sync', label: '同步任务与日志' }],
   },
+  {
+    key: 'tutorial-group',
+    icon: <ReadOutlined />,
+    label: '操作教程',
+    children: [{ key: 'tutorial-center', label: '教程入口' }],
+  },
 ] as const
+
+type TutorialItem = {
+  key: string
+  title: string
+  description: string
+  href: string
+  updatedAt: string
+  tags: string[]
+}
+
+const tutorialItems: TutorialItem[] = [
+  {
+    key: 'ozon-copy-publish',
+    title: 'OZON 平台复制铺货教程',
+    description: '从店铺接入、参考店铺商品加载、生成复制草稿、提交 Ozon 到查看铺货任务进度的完整操作流程。',
+    href: '/tutorials/ozon-copy-publish-20260529/index.html',
+    updatedAt: '2026-05-29',
+    tags: ['OZON', '复制铺货', '店铺接入'],
+  },
+]
 
 const processingStatusOptions = [
   { value: 'PENDING_CONFIRM', label: '待人工确认' },
@@ -445,6 +501,12 @@ const getFailureInsight = (log?: Pick<SaleSyncLogItem, 'bizType' | 'errorCode' |
 
 const normalizeOptionalText = (value?: string | null) => value || undefined
 const trimToUndefined = (value?: string | null) => value?.trim() ? value.trim() : undefined
+const splitTagText = (value?: string | null) => (
+  value
+    ?.split(/[,，;；\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean) || []
+)
 const hasCredentialInput = (values: ShopFormValues) =>
   Boolean(
     trimToUndefined(values.appKey) ||
@@ -569,6 +631,16 @@ const SaleCenterWorkspace = () => {
   const [credentialLoading, setCredentialLoading] = useState(false)
   const [credentialSubmitting, setCredentialSubmitting] = useState(false)
   const [credentialDetail, setCredentialDetail] = useState<SaleChannelCredential | null>(null)
+  const [shopTags, setShopTags] = useState<SaleShopTag[]>([])
+  const [shopAsyncTasks, setShopAsyncTasks] = useState<SaleAsyncTask[]>([])
+  const [activeShopAsyncTask, setActiveShopAsyncTask] = useState<SaleAsyncTask>()
+  const [failedShopTaskItems, setFailedShopTaskItems] = useState<SaleAsyncTaskItem[]>([])
+  const [shopBulkImportOpen, setShopBulkImportOpen] = useState(false)
+  const [shopBulkImportDefaultTags, setShopBulkImportDefaultTags] = useState('')
+  const [shopBulkImportRows, setShopBulkImportRows] = useState<OzonShopCredentialImportRow[]>([])
+  const [shopBulkImportFileName, setShopBulkImportFileName] = useState('')
+  const [shopBulkDeleteTagIds, setShopBulkDeleteTagIds] = useState<string[]>([])
+  const [selectedShopRowKeys, setSelectedShopRowKeys] = useState<Key[]>([])
   const [tokenChecking, setTokenChecking] = useState(false)
   const [capabilityChecking, setCapabilityChecking] = useState(false)
   const [orderSyncSubmittingAccountId, setOrderSyncSubmittingAccountId] = useState<string>()
@@ -622,6 +694,10 @@ const SaleCenterWorkspace = () => {
       const effectiveSelectedAccountId =
         productSectionActive && selectedAccountStillExists ? selectedAccountId : undefined
       const preferredAccountId = effectiveSelectedAccountId || channelAccounts[0]?.id || ''
+      const needsOrders = activeSection === 'workbench' || activeSection === 'order-issues'
+      const needsMappings = activeSection === 'workbench' || productSectionActive
+      const needsGovernance = activeSection === 'workbench' || activeSection === 'governance-sync'
+      const needsProductState = productSectionActive && Boolean(preferredAccountId)
       const [
         orderList,
         mappingList,
@@ -631,15 +707,15 @@ const SaleCenterWorkspace = () => {
         syncState,
         draftList,
       ] = await Promise.all([
-        saleApi.listOrders(),
-        saleApi.listProductMappings(),
-        saleApi.listSyncLogs(),
-        saleApi.listRetryCandidates(),
-        saleApi.listIdempotencyRecords(),
-        productSectionActive && preferredAccountId
+        needsOrders ? saleApi.listOrders() : Promise.resolve([]),
+        needsMappings ? saleApi.listProductMappings() : Promise.resolve([]),
+        needsGovernance ? saleApi.listSyncLogs() : Promise.resolve([]),
+        needsGovernance ? saleApi.listRetryCandidates() : Promise.resolve([]),
+        needsGovernance ? saleApi.listIdempotencyRecords() : Promise.resolve([]),
+        needsProductState
           ? saleApi.getProductSyncStatus(preferredAccountId).catch(() => null)
           : Promise.resolve(null),
-        productSectionActive && preferredAccountId
+        needsProductState
           ? saleApi.listProductMappingDrafts(preferredAccountId).catch(() => [])
           : Promise.resolve([]),
       ])
@@ -659,17 +735,84 @@ const SaleCenterWorkspace = () => {
       setDrafts(draftList)
     } catch (error) {
       console.error(error)
-      setWorkspaceError('销售中心数据加载失败，请刷新重试。')
-      message.error('销售中心数据加载失败，请稍后重试。')
+      const messageText = activeSection === 'shop-management' ? '店铺管理数据加载失败，请刷新重试。' : '销售中心数据加载失败，请刷新重试。'
+      setWorkspaceError(messageText)
+      message.error(activeSection === 'shop-management' ? '店铺管理数据加载失败，请稍后重试。' : '销售中心数据加载失败，请稍后重试。')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [message, productSectionActive, selectedAccountId])
+  }, [activeSection, message, productSectionActive, selectedAccountId])
+
+  const loadShopAsyncSupport = useCallback(async () => {
+    try {
+      const [tags, tasks] = await Promise.all([
+        saleApi.listSaleShopTags(),
+        saleApi.listSaleAsyncTasks({ limit: 20 }),
+      ])
+      const shopTasks = tasks.filter((task) => ['OZON_SHOP_CREDENTIAL_IMPORT', 'SHOP_BULK_DELETE', 'OZON_SHOP_BULK_DELETE'].includes(task.taskType))
+      setShopTags(tags)
+      setShopAsyncTasks(shopTasks)
+      setActiveShopAsyncTask((current) => {
+        if (current && shopTasks.some((task) => String(task.taskId) === String(current.taskId))) {
+          return shopTasks.find((task) => String(task.taskId) === String(current.taskId))
+        }
+        return shopTasks[0]
+      })
+    } catch (error) {
+      console.error(error)
+    }
+  }, [])
 
   useEffect(() => {
     void loadWorkspaceData()
   }, [loadWorkspaceData])
+
+  useEffect(() => {
+    if (activeSection !== 'shop-management') {
+      return
+    }
+    void loadShopAsyncSupport()
+  }, [activeSection, loadShopAsyncSupport])
+
+  useEffect(() => {
+    if (!activeShopAsyncTask?.taskId || activeSection !== 'shop-management') {
+      setFailedShopTaskItems([])
+      return undefined
+    }
+    let cancelled = false
+    const running = ['PENDING', 'RUNNING'].includes((activeShopAsyncTask.status || '').toUpperCase())
+    const refreshTask = async () => {
+      try {
+        const [task, failed] = await Promise.all([
+          saleApi.getSaleAsyncTask(activeShopAsyncTask.taskId),
+          saleApi.listSaleAsyncTaskItems(activeShopAsyncTask.taskId, { status: 'FAILED', limit: 8 }),
+        ])
+        if (cancelled) return
+        setActiveShopAsyncTask(task)
+        setFailedShopTaskItems(failed.list)
+        setShopAsyncTasks((current) => current.map((item) => (String(item.taskId) === String(task.taskId) ? task : item)))
+        if (!['PENDING', 'RUNNING'].includes((task.status || '').toUpperCase())) {
+          void loadWorkspaceData()
+          void loadShopAsyncSupport()
+        }
+      } catch (error) {
+        console.error(error)
+      }
+    }
+    void refreshTask()
+    const timer = running
+      ? window.setInterval(() => {
+          void refreshTask()
+        }, 2000)
+      : undefined
+    return () => {
+      cancelled = true
+      if (timer) {
+        window.clearInterval(timer)
+      }
+    }
+  }, [activeSection, activeShopAsyncTask?.taskId, activeShopAsyncTask?.status, loadShopAsyncSupport, loadWorkspaceData])
 
   const handleAccountChange = useCallback((value?: string) => {
     setSelectedAccountId(value)
@@ -1050,6 +1193,19 @@ const SaleCenterWorkspace = () => {
     autoSyncEnabledCount: shopOverviewRows.filter((item) => item.orderAutoSyncEnabled).length,
   }), [shopOverviewRows])
 
+  const selectedActiveShopRows = useMemo(
+    () => {
+      const selectedIds = new Set(selectedShopRowKeys.map(String))
+      return shopOverviewRows.filter((item) => selectedIds.has(String(item.account.id)) && item.account.status === 'ACTIVE')
+    },
+    [selectedShopRowKeys, shopOverviewRows],
+  )
+
+  const emptyShopTags = useMemo(
+    () => shopTags.filter((tag) => !tag.accountCount),
+    [shopTags],
+  )
+
   const currentShopOverview = useMemo(
     () => (editingShop ? shopOverviewMap.get(editingShop.id) : undefined),
     [editingShop, shopOverviewMap],
@@ -1302,8 +1458,13 @@ const SaleCenterWorkspace = () => {
       void loadSalesData()
       return
     }
+    if (activeSection === 'shop-management') {
+      void loadWorkspaceData()
+      void loadShopAsyncSupport()
+      return
+    }
     void loadWorkspaceData()
-  }, [activeSection, loadSalesData, loadWorkspaceData])
+  }, [activeSection, loadSalesData, loadShopAsyncSupport, loadWorkspaceData])
 
   const loadSalesDetail = useCallback(async (styleId: string) => {
     setSalesDetailLoading(true)
@@ -1631,6 +1792,212 @@ const SaleCenterWorkspace = () => {
       setCredentialSubmitting(false)
     }
   }, [editingShop, loadWorkspaceData, message, selectedAccountId, shopForm])
+
+  const parseOzonShopImportFile = useCallback(async (file: File): Promise<OzonShopCredentialImportRow[]> => {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array', raw: false })
+    const sheetName = workbook.SheetNames[0]
+    if (!sheetName) return []
+    const rows = XLSX.utils.sheet_to_json<Array<string | number | null>>(workbook.Sheets[sheetName], {
+      header: 1,
+      blankrows: false,
+      defval: '',
+    })
+    if (rows.length <= 1) return []
+    const header = rows[0].map((value) => String(value ?? '').trim())
+    const headerMap = new Map<string, number>()
+    header.forEach((label, index) => headerMap.set(label, index))
+    const getValue = (row: Array<string | number | null>, labels: string[]) => {
+      const index = labels.map((label) => headerMap.get(label)).find((item) => item !== undefined)
+      return index !== undefined ? String(row[index] ?? '').trim() : ''
+    }
+    return rows
+      .slice(1)
+      .map((row, index) => ({
+        rowNumber: index + 2,
+        accountName: getValue(row, ['绑定名称', 'accountName', '账号名称']),
+        shopId: getValue(row, ['平台店铺ID', 'shopId', '店铺ID']),
+        shopName: getValue(row, ['店铺名称', 'shopName']),
+        clientId: getValue(row, ['Client-Id', 'clientId', 'ClientId']),
+        apiKey: getValue(row, ['Api-Key', 'apiKey', 'ApiKey']),
+        tags: splitTagText(getValue(row, ['标签', 'tags', '店铺标签'])),
+        regionCode: getValue(row, ['Region', 'regionCode', '区域']) || 'RU',
+        gatewayUrl: getValue(row, ['Gateway', 'gatewayUrl', '接口地址']) || 'https://api-seller.ozon.ru',
+      }))
+      .filter((row) => row.accountName || row.shopId || row.shopName || row.clientId || row.apiKey)
+  }, [])
+
+  const handleDownloadOzonShopTemplate = useCallback(() => {
+    const rows = [
+      ['绑定名称', '平台店铺ID', '店铺名称', 'Client-Id', 'Api-Key', '标签', 'Region', 'Gateway'],
+      ['Ozon 店铺 001', '123456', 'Ozon RU 001', 'client-id', 'api-key', '2026春季店群,ozon-ru', 'RU', 'https://api-seller.ozon.ru'],
+    ]
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.aoa_to_sheet(rows)
+    worksheet['!cols'] = [
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 34 },
+      { wch: 26 },
+      { wch: 12 },
+      { wch: 30 },
+    ]
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Ozon店铺凭证')
+    XLSX.writeFile(workbook, 'ozon-shop-credential-import-template.xlsx')
+  }, [])
+
+  const handleOzonShopImportBeforeUpload: UploadProps['beforeUpload'] = useCallback((file: RcFile) => {
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      message.error('仅支持 .xlsx / .xls / .csv 文件。')
+      return Upload.LIST_IGNORE
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      message.error('导入文件不能超过 10MB。')
+      return Upload.LIST_IGNORE
+    }
+    void parseOzonShopImportFile(file as File)
+      .then((rows) => {
+        setShopBulkImportRows(rows)
+        setShopBulkImportFileName(file.name)
+        if (!rows.length) {
+          message.warning('未解析到有效店铺数据，请检查模板表头和内容。')
+          return
+        }
+        message.success(`已解析 ${rows.length} 个店铺，确认后提交异步导入。`)
+      })
+      .catch((error) => {
+        console.error(error)
+        message.error('解析导入文件失败，请检查文件格式。')
+      })
+    return Upload.LIST_IGNORE
+  }, [message, parseOzonShopImportFile])
+
+  const handleSubmitOzonShopBulkImport = useCallback(async () => {
+    const rows = shopBulkImportRows
+    if (!rows.length) {
+      message.warning('请先上传要导入的 Ozon 店铺凭证表格。')
+      return
+    }
+    const invalid = rows.find((row) => !row.accountName || !row.clientId || !row.apiKey)
+    if (invalid) {
+      message.warning(`第 ${invalid.rowNumber} 行缺少绑定名称、Client-Id 或 Api-Key。`)
+      return
+    }
+    setCredentialSubmitting(true)
+    try {
+      const task = await saleApi.importOzonShopCredentials({
+        taskName: `Ozon 店铺凭证批量导入 ${new Date().toISOString().slice(0, 10)}`,
+        importBatchNo: `OZON-SHOP-${Date.now()}`,
+        defaultTags: splitTagText(shopBulkImportDefaultTags),
+        shops: rows.map((row) => ({
+          accountName: row.accountName,
+          shopId: row.shopId,
+          shopName: row.shopName,
+          regionCode: row.regionCode,
+          gatewayUrl: row.gatewayUrl,
+          clientId: row.clientId,
+          apiKey: row.apiKey,
+          tags: row.tags,
+          sellerType: 'LOCAL',
+        })),
+      })
+      setActiveShopAsyncTask(task)
+      setShopBulkImportOpen(false)
+      setShopBulkImportRows([])
+      setShopBulkImportFileName('')
+      message.success(`已提交 ${rows.length} 个 Ozon 店铺凭证导入任务。`)
+      await loadShopAsyncSupport()
+    } catch (error) {
+      console.error(error)
+      message.error('提交 Ozon 店铺批量导入失败。')
+    } finally {
+      setCredentialSubmitting(false)
+    }
+  }, [loadShopAsyncSupport, message, shopBulkImportDefaultTags, shopBulkImportRows])
+
+  const handleSubmitOzonShopBulkDelete = useCallback(async () => {
+    if (!shopBulkDeleteTagIds.length) {
+      message.warning('请选择要删除的店铺标签。')
+      return
+    }
+    setCredentialSubmitting(true)
+    try {
+      const task = await saleApi.deleteShopsBulk({
+        taskName: '按标签批量删除店铺',
+        tagIds: shopBulkDeleteTagIds.map(Number),
+      })
+      setActiveShopAsyncTask(task)
+      setShopBulkDeleteTagIds([])
+      message.success('店铺批量删除任务已提交。')
+      await loadWorkspaceData()
+      await loadShopAsyncSupport()
+    } catch (error) {
+      console.error(error)
+      message.error('提交店铺批量删除任务失败。')
+    } finally {
+      setCredentialSubmitting(false)
+    }
+  }, [loadShopAsyncSupport, loadWorkspaceData, message, shopBulkDeleteTagIds])
+
+  const handleSubmitSelectedShopBulkDelete = useCallback(async () => {
+    if (!selectedActiveShopRows.length) {
+      message.warning('请选择要删除的启用店铺。')
+      return
+    }
+    setCredentialSubmitting(true)
+    try {
+      const task = await saleApi.deleteShopsBulk({
+        taskName: `批量删除 ${selectedActiveShopRows.length} 个店铺`,
+        accountIds: selectedActiveShopRows.map((row) => Number(row.account.id)),
+      })
+      setActiveShopAsyncTask(task)
+      setSelectedShopRowKeys([])
+      message.success('店铺批量删除任务已提交。')
+      await loadWorkspaceData()
+      await loadShopAsyncSupport()
+    } catch (error) {
+      console.error(error)
+      message.error('提交店铺批量删除任务失败。')
+    } finally {
+      setCredentialSubmitting(false)
+    }
+  }, [loadShopAsyncSupport, loadWorkspaceData, message, selectedActiveShopRows])
+
+  const handleDeleteEmptyShopTag = useCallback(async (tag: SaleShopTag) => {
+    if (tag.accountCount) {
+      message.warning('只能删除数量为 0 的店铺标签。')
+      return
+    }
+    setCredentialSubmitting(true)
+    try {
+      await saleApi.deleteSaleShopTag(tag.tagId)
+      setShopBulkDeleteTagIds((current) => current.filter((tagId) => tagId !== tag.tagId))
+      message.success('空标签已删除。')
+      await loadShopAsyncSupport()
+    } catch (error) {
+      console.error(error)
+      message.error('删除空标签失败。')
+    } finally {
+      setCredentialSubmitting(false)
+    }
+  }, [loadShopAsyncSupport, message])
+
+  const handleRetryShopAsyncTask = useCallback(async () => {
+    if (!activeShopAsyncTask?.taskId) return
+    setCredentialSubmitting(true)
+    try {
+      const task = await saleApi.retrySaleAsyncTaskFailedItems(activeShopAsyncTask.taskId)
+      setActiveShopAsyncTask(task)
+      message.success('失败项已重新排队。')
+    } catch (error) {
+      console.error(error)
+      message.error('重试失败项提交失败。')
+    } finally {
+      setCredentialSubmitting(false)
+    }
+  }, [activeShopAsyncTask?.taskId, message])
 
   const handleDeleteShop = useCallback(async (account: SaleChannelAccount) => {
     try {
@@ -2968,9 +3335,219 @@ const SaleCenterWorkspace = () => {
         </Col>
       </Row>
       <Card className="scw-panel-card">
-        <SectionHeading title="店铺管理" description="该页面用于店铺名册、接入资料和健康状态管理。" extra={<Button type="primary" onClick={openCreateShop} data-testid="shop-create-button">新建店铺</Button>} />
-        <Table rowKey={(row) => row.account.id} dataSource={shopOverviewRows} columns={shopColumns} pagination={{ pageSize: 8 }} />
+        <SectionHeading
+          title="Ozon 店铺批量接入与店铺删除"
+          description="批量导入 Ozon 店铺凭证时可以统一设置标签；需要清理整批店铺时，按标签提交通用异步软删除任务。"
+          extra={<Button onClick={() => void loadShopAsyncSupport()}>刷新任务</Button>}
+        />
+        <Space direction="vertical" size={14} style={{ width: '100%' }}>
+          <Space wrap>
+            <Button type="primary" onClick={() => setShopBulkImportOpen(true)}>
+              批量导入 Ozon 凭证
+            </Button>
+          </Space>
+          <div className="scw-shop-tag-delete-row">
+            <Text strong>按标签删除</Text>
+            <Select
+              mode="multiple"
+              allowClear
+              maxTagCount={1}
+              maxTagTextLength={18}
+              maxTagPlaceholder={(omittedValues) => `+${omittedValues.length} 个标签`}
+              placeholder="选择标签批量删除店铺"
+              value={shopBulkDeleteTagIds}
+              onChange={setShopBulkDeleteTagIds}
+              className="scw-shop-tag-delete-select"
+              popupMatchSelectWidth={false}
+              options={shopTags.map((tag) => ({
+                value: String(tag.tagId),
+                label: `${tag.tagName}（${formatNumber(tag.accountCount || 0)}）`,
+              }))}
+            />
+            <Popconfirm
+              title="按标签批量删除店铺？"
+              description="确认后会异步软删除标签下的店铺，并停用对应凭证。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={!shopBulkDeleteTagIds.length}
+              onConfirm={() => void handleSubmitOzonShopBulkDelete()}
+            >
+              <Button danger disabled={!shopBulkDeleteTagIds.length || credentialSubmitting}>
+                按标签删除店铺
+              </Button>
+            </Popconfirm>
+          </div>
+          {emptyShopTags.length ? (
+            <div className="scw-shop-empty-tags">
+              <Text type="secondary">空标签</Text>
+              <Space wrap size={[8, 8]}>
+                {emptyShopTags.map((tag) => (
+                  <Tag key={tag.tagId} color={tag.color || undefined} className="scw-shop-empty-tag">
+                    <span>{tag.tagName}</span>
+                    <Popconfirm
+                      title="删除这个空标签？"
+                      description="该标签当前没有启用店铺，删除后不会影响店铺凭证。"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void handleDeleteEmptyShopTag(tag)}
+                    >
+                      <Button type="link" size="small" danger disabled={credentialSubmitting}>
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  </Tag>
+                ))}
+              </Space>
+            </div>
+          ) : null}
+          <Space wrap>
+            <Select
+              placeholder="查看导入 / 删除任务"
+              value={activeShopAsyncTask?.taskId}
+              onChange={(value) => {
+                setActiveShopAsyncTask(shopAsyncTasks.find((task) => String(task.taskId) === String(value)))
+              }}
+              style={{ minWidth: 360 }}
+              options={shopAsyncTasks.map((task) => ({
+                value: String(task.taskId),
+                label: `${task.taskName || task.taskType} · ${task.status || '--'}`,
+              }))}
+            />
+            {activeShopAsyncTask ? <StatusChip label={activeShopAsyncTask.status || '--'} tone={activeShopAsyncTask.failedCount ? 'danger' : ['SUCCESS'].includes(activeShopAsyncTask.status || '') ? 'success' : 'info'} /> : null}
+            {activeShopAsyncTask?.failedCount ? (
+              <Button danger loading={credentialSubmitting} onClick={() => void handleRetryShopAsyncTask()}>
+                重试失败项 {formatNumber(activeShopAsyncTask.failedCount)}
+              </Button>
+            ) : null}
+          </Space>
+          {activeShopAsyncTask ? (
+            <div className="scw-shop-task-progress">
+              <Progress
+                percent={activeShopAsyncTask.progressPercent || 0}
+                status={activeShopAsyncTask.failedCount ? 'exception' : ['PENDING', 'RUNNING'].includes(activeShopAsyncTask.status || '') ? 'active' : 'success'}
+              />
+              <Space wrap>
+                <Text type="secondary">总数 {formatNumber(activeShopAsyncTask.totalCount || 0)}</Text>
+                <Text type="success">成功 {formatNumber(activeShopAsyncTask.successCount || 0)}</Text>
+                <Text type={activeShopAsyncTask.failedCount ? 'danger' : 'secondary'}>失败 {formatNumber(activeShopAsyncTask.failedCount || 0)}</Text>
+                <Text type="secondary">待执行 {formatNumber(activeShopAsyncTask.pendingCount || 0)}</Text>
+              </Space>
+            </div>
+          ) : (
+            <Empty description="暂无店铺导入或删除任务" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          )}
+          {failedShopTaskItems.length ? (
+            <Table
+              rowKey={(record) => record.itemId}
+              size="small"
+              pagination={false}
+              dataSource={failedShopTaskItems}
+              columns={[
+                { title: '失败店铺 / 任务', dataIndex: 'itemName' },
+                { title: '重试次数', width: 90, render: (_, record) => `${record.attemptCount || 0}/${record.maxAttemptCount || 0}` },
+                { title: '失败原因', dataIndex: 'errorMessage' },
+              ]}
+            />
+          ) : null}
+        </Space>
       </Card>
+      <Card className="scw-panel-card">
+        <SectionHeading
+          title="店铺管理"
+          description="该页面用于店铺名册、接入资料和健康状态管理。"
+          extra={<Button type="primary" onClick={openCreateShop} data-testid="shop-create-button">新建店铺</Button>}
+        />
+        <div className="scw-shop-table-toolbar">
+          <Space wrap>
+            <Text type="secondary">已选择 {formatNumber(selectedActiveShopRows.length)} 个可删除店铺</Text>
+            <Popconfirm
+              title="批量删除已选择的店铺？"
+              description="确认后会异步软删除这些启用中的店铺，并停用对应凭证。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={!selectedActiveShopRows.length}
+              onConfirm={() => void handleSubmitSelectedShopBulkDelete()}
+            >
+              <Button danger disabled={!selectedActiveShopRows.length || credentialSubmitting}>
+                批量删除所选
+              </Button>
+            </Popconfirm>
+          </Space>
+          <Text type="secondary">仅可批量删除启用中的店铺；已停用或已删除店铺不参与批量操作。</Text>
+        </div>
+        <Table
+          rowKey={(row) => row.account.id}
+          dataSource={shopOverviewRows}
+          columns={shopColumns}
+          rowSelection={{
+            selectedRowKeys: selectedShopRowKeys,
+            onChange: setSelectedShopRowKeys,
+            getCheckboxProps: (record) => ({
+              disabled: record.account.status !== 'ACTIVE',
+            }),
+          }}
+          pagination={{ pageSize: 8 }}
+        />
+      </Card>
+      <Drawer
+        open={shopBulkImportOpen}
+        onClose={() => setShopBulkImportOpen(false)}
+        width={720}
+        title="批量导入 Ozon 店铺凭证"
+        className="scw-drawer"
+      >
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="下载模板，填写后上传导入"
+            description="每行一个店铺，必填：绑定名称、Client-Id、Api-Key。标签可在模板中逐行填写，也可以在下方设置统一标签。"
+          />
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} onClick={handleDownloadOzonShopTemplate}>
+              下载导入模板
+            </Button>
+            <Upload
+              accept=".xlsx,.xls,.csv"
+              showUploadList={false}
+              beforeUpload={handleOzonShopImportBeforeUpload}
+            >
+              <Button icon={<UploadOutlined />}>上传填写后的表格</Button>
+            </Upload>
+            {shopBulkImportFileName ? <Text type="secondary">{shopBulkImportFileName}</Text> : null}
+          </Space>
+          <Input
+            value={shopBulkImportDefaultTags}
+            onChange={(event) => setShopBulkImportDefaultTags(event.target.value)}
+            placeholder="统一标签，例如 2026春季店群, ozon-ru"
+          />
+          <Table
+            rowKey={(record) => String(record.rowNumber)}
+            size="small"
+            pagination={false}
+            dataSource={shopBulkImportRows.slice(0, 8)}
+            locale={{ emptyText: '上传表格后预览前 8 行' }}
+            columns={[
+              { title: '行号', dataIndex: 'rowNumber', width: 70 },
+              { title: '绑定名称', dataIndex: 'accountName' },
+              { title: '店铺ID', dataIndex: 'shopId' },
+              { title: '店铺名称', dataIndex: 'shopName' },
+              { title: 'Client-Id', dataIndex: 'clientId' },
+              { title: '标签', render: (_, record) => record.tags.join('、') || '--' },
+            ]}
+          />
+          {shopBulkImportRows.length > 8 ? <Text type="secondary">共解析 {formatNumber(shopBulkImportRows.length)} 行，仅预览前 8 行。</Text> : null}
+          <Space>
+            <Button type="primary" loading={credentialSubmitting} onClick={() => void handleSubmitOzonShopBulkImport()}>
+              提交导入任务
+            </Button>
+            <Button onClick={() => setShopBulkImportOpen(false)}>取消</Button>
+          </Space>
+        </Space>
+      </Drawer>
       <Drawer
         open={shopDrawerOpen}
         onClose={() => {
@@ -3335,12 +3912,54 @@ const SaleCenterWorkspace = () => {
     </Space>
   )
 
+  const renderTutorialCenter = () => (
+    <Card className="scw-panel-card scw-tutorial-card">
+      <SectionHeading title="教程入口" description="集中查看销售中心操作教程和平台流程说明。" />
+      <List
+        itemLayout="vertical"
+        dataSource={tutorialItems}
+        renderItem={(item) => (
+          <List.Item
+            key={item.key}
+            actions={[
+              <Button key="open" type="primary" icon={<ReadOutlined />} onClick={() => window.open(item.href, '_blank', 'noopener,noreferrer')}>
+                打开教程
+              </Button>,
+            ]}
+          >
+            <List.Item.Meta
+              avatar={<Avatar icon={<ReadOutlined />} className="scw-tutorial-avatar" />}
+              title={
+                <Space size={8} wrap>
+                  <Text strong>{item.title}</Text>
+                  {item.tags.map((tag) => (
+                    <Tag key={tag}>{tag}</Tag>
+                  ))}
+                </Space>
+              }
+              description={
+                <Space direction="vertical" size={4}>
+                  <Text type="secondary">{item.description}</Text>
+                  <Text type="secondary">更新时间：{item.updatedAt}</Text>
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    </Card>
+  )
+
   const renderContent = () => {
     switch (activeSection) {
       case 'workbench':
         return renderWorkbench()
       case 'product-sync':
         return renderProductSync()
+      case 'product-publish':
+        return <OzonProductPublish embedded />
+      case 'product-publish-details':
+        return <OzonProductPublishDetails />
       case 'product-bindings':
         return renderProductBindings()
       case 'order-issues':
@@ -3351,6 +3970,8 @@ const SaleCenterWorkspace = () => {
         return renderShopManagement()
       case 'governance-sync':
         return renderGovernance()
+      case 'tutorial-center':
+        return renderTutorialCenter()
       default:
         return renderWorkbench()
     }
@@ -3362,6 +3983,7 @@ const SaleCenterWorkspace = () => {
     if (activeSection.startsWith('sales')) return ['risk-group']
     if (activeSection.startsWith('shop')) return ['shop-group']
     if (activeSection.startsWith('governance')) return ['governance-group']
+    if (activeSection.startsWith('tutorial')) return ['tutorial-group']
     return []
   }, [activeSection])
 
@@ -3405,34 +4027,46 @@ const SaleCenterWorkspace = () => {
                 ? '今日工作台'
                 : activeSection === 'product-sync'
                   ? '商品同步'
-                  : activeSection === 'product-bindings'
-                    ? '商品绑定'
-                      : activeSection === 'order-issues'
-                        ? '问题订单'
-                      : activeSection === 'sales-data'
-                        ? '售卖数据'
-                        : activeSection === 'shop-management'
-                          ? '店铺管理'
-                          : '同步任务与日志'}
+                  : activeSection === 'product-publish'
+                    ? 'Ozon 铺货中心'
+                    : activeSection === 'product-publish-details'
+                      ? '铺货明细'
+                      : activeSection === 'product-bindings'
+                        ? '商品绑定'
+                        : activeSection === 'order-issues'
+                          ? '问题订单'
+                          : activeSection === 'sales-data'
+                            ? '售卖数据'
+                            : activeSection === 'shop-management'
+                              ? '店铺管理'
+                              : activeSection === 'governance-sync'
+                                ? '同步任务与日志'
+                                : '操作教程'}
             </Title>
             <Text type="secondary">
               {activeSection === 'workbench'
                 ? '先看结论，再看对象，最后执行动作。'
                 : activeSection === 'product-sync'
                   ? '只负责读取平台商品并更新本地快照。'
-                  : activeSection === 'product-bindings'
-                    ? '将平台 SKU 与本地款式规格准确映射。'
-                    : activeSection === 'order-issues'
-                      ? '聚焦需要人工处理的异常订单。'
-                      : activeSection === 'sales-data'
-                        ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
-                        : activeSection === 'shop-management'
-                          ? '管理销售渠道店铺名册、接入信息与健康状态。'
-                          : '排查同步失败、不可重试和幂等冲突。'}
+                  : activeSection === 'product-publish'
+                    ? '从本地商品生成 Ozon 铺货草稿，按参考商品动态维护类目属性并提交发品。'
+                    : activeSection === 'product-publish-details'
+                      ? '查看历史铺货批次、目标店铺商品级结果，并执行下架或删除。'
+                      : activeSection === 'product-bindings'
+                        ? '将平台 SKU 与本地款式规格准确映射。'
+                      : activeSection === 'order-issues'
+                        ? '聚焦需要人工处理的异常订单。'
+                        : activeSection === 'sales-data'
+                          ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
+                          : activeSection === 'shop-management'
+                            ? '管理销售渠道店铺名册、接入信息与健康状态。'
+                            : activeSection === 'governance-sync'
+                              ? '排查同步失败、不可重试和幂等冲突。'
+                              : '集中查看销售中心操作教程和平台流程说明。'}
             </Text>
           </div>
           <Space align="center" size={16} className="scw-topbar__actions">
-            {productSectionActive ? (
+            {productSectionActive && activeSection !== 'product-publish' ? (
               <Select
                 value={selectedAccountId}
                 style={{ minWidth: 220 }}

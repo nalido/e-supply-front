@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OZON 平台复制发品操作教程</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --text: #152033;
+      --muted: #667085;
+      --line: #dbe3ef;
+      --blue: #2563eb;
+      --green: #0f9f6e;
+      --red: #dc2626;
+      --amber: #b45309;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.65;
+    }
+
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .wrap {
+      width: min(1180px, calc(100vw - 48px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 40px 0 28px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 34px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f8fbff;
+      color: #344054;
+      font-size: 13px;
+    }
+
+    main {
+      padding: 28px 0 56px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    nav {
+      position: sticky;
+      top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    nav h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    nav a {
+      display: block;
+      padding: 7px 8px;
+      border-radius: 5px;
+      color: #344054;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      background: #eef4ff;
+      color: var(--blue);
+    }
+
+    section {
+      margin-bottom: 20px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 17px;
+    }
+
+    p { margin: 0 0 10px; }
+
+    ol {
+      margin: 10px 0 0 22px;
+      padding: 0;
+    }
+
+    li { margin: 6px 0; }
+
+    .step-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .num {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-weight: 700;
+    }
+
+    figure {
+      margin: 16px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: #0f172a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .ok { color: var(--green); font-weight: 700; }
+    .warn { color: var(--amber); font-weight: 700; }
+    .danger { color: var(--red); font-weight: 700; }
+
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .check {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafcff;
+    }
+
+    footer {
+      padding: 24px 0 40px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      nav { position: static; }
+      .checklist { grid-template-columns: 1fr; }
+      .wrap { width: min(100vw - 28px, 1180px); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <h1>OZON 平台复制发品操作教程</h1>
+      <p class="subtitle">从店铺接入到复制 OZON 商品、生成草稿、提交发品、查看进度并终止任务的完整操作路径。</p>
+      <div class="meta">
+        <span class="tag">适用页面：销售中心 V1</span>
+        <span class="tag">流程：复制 Ozon 商品</span>
+        <span class="tag">更新时间：2026-05-29</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="grid">
+      <nav>
+        <h2>目录</h2>
+        <a href="#overview">流程总览</a>
+        <a href="#shop-create">1. 创建 OZON 店铺</a>
+        <a href="#shop-import">2. 批量导入店铺</a>
+        <a href="#copy-entry">3. 进入复制发品</a>
+        <a href="#load-products">4. 加载并勾选商品</a>
+        <a href="#draft">5. 生成复制草稿</a>
+        <a href="#target">6. 按标签选目标店铺</a>
+        <a href="#submit">7. 提交 OZON 发品</a>
+        <a href="#progress">8. 查看进度与明细</a>
+        <a href="#stop">9. 终止发布任务</a>
+        <a href="#rules">关键规则</a>
+      </nav>
+
+      <div>
+        <section id="overview">
+          <h2>流程总览</h2>
+          <p>本教程说明一次 OZON 复制发品的标准路径：先确认店铺接入方式，再在 OZON 铺货页选择参考店铺、读取商品、选择需要复制的商品生成草稿，按标签选择目标店铺后提交发品，并在铺货明细中观察自动刷新，最后终止任务。</p>
+          <div class="checklist">
+            <div class="check"><span class="ok">输入：</span>已接入的 OZON 参考店铺、目标店铺标签、可复制的 OZON 商品。</div>
+            <div class="check"><span class="ok">输出：</span>一个新的 OZON 发布批次号和可追踪的批次明细。</div>
+            <div class="check"><span class="warn">预期：</span>假店铺标签下的任务会失败，这是测试环境预期结果。</div>
+            <div class="check"><span class="danger">注意：</span>提交发品与终止任务会产生真实任务记录，演示时使用测试店铺。</div>
+          </div>
+        </section>
+
+        <section id="shop-create">
+          <div class="step-head"><span class="num">1</span><h2>创建 OZON 店铺</h2></div>
+          <p>进入 <strong>店铺接入 → 店铺管理</strong>，点击 <strong>新建店铺</strong>。在抽屉中将 <strong>所属平台</strong> 切换为 <strong>Ozon</strong>，展开 <strong>店铺凭证</strong>。</p>
+          <ol>
+            <li>填写店铺名称、平台店铺 ID、显示名等基础信息。</li>
+            <li>所属平台选择 <strong>Ozon</strong> 后，凭证区会变为 <code>Client-Id</code> 与 <code>Api-Key</code>。</li>
+            <li>保存前确认 Client-Id 是正整数，Api-Key 与店铺匹配。</li>
+          </ol>
+          <figure>
+            <img src="images/01-create-ozon-shop.png" alt="创建 OZON 店铺，展示 Client-Id 和 Api-Key 字段" />
+          </figure>
+        </section>
+
+        <section id="shop-import">
+          <div class="step-head"><span class="num">2</span><h2>批量导入 OZON 店铺</h2></div>
+          <p>在店铺管理页点击 <strong>批量导入 Ozon 凭证</strong>。批量导入适合一次接入大量假店铺或测试店铺，并给整批店铺统一设置标签。</p>
+          <ol>
+            <li>下载导入模板。</li>
+            <li>在模板中填写绑定名称、店铺 ID、店铺名称、Client-Id、Api-Key。</li>
+            <li>可填写统一标签，例如“压测 2000 店铺异步铺货”。</li>
+            <li>上传后检查预览表格，确认无误再提交导入任务。</li>
+          </ol>
+          <figure>
+            <img src="images/02-bulk-import-ozon.png" alt="批量导入 Ozon 店铺凭证弹窗" />
+          </figure>
+        </section>
+
+        <section id="copy-entry">
+          <div class="step-head"><span class="num">3</span><h2>进入 OZON 复制发品</h2></div>
+          <p>进入 <strong>商品中心 → Ozon 铺货</strong>，切换到 <strong>复制 Ozon 商品</strong>。参考店铺选择“ozon 店铺 1”；如果当前环境展示的是测试数据，可以选择对应的测试 OZON 参考店铺。</p>
+          <ol>
+            <li>确认页头为 <strong>Ozon 铺货中心</strong>。</li>
+            <li>切换分段控件到 <strong>复制 Ozon 商品</strong>。</li>
+            <li>选择参考店铺后，点击 <strong>读取 Ozon 商品</strong>。</li>
+          </ol>
+          <figure>
+            <img src="images/03-copy-entry-reference-shop.png" alt="Ozon 铺货中心选择复制 Ozon 商品和参考店铺" />
+          </figure>
+        </section>
+
+        <section id="load-products">
+          <div class="step-head"><span class="num">4</span><h2>加载商品并勾选商品</h2></div>
+          <p>点击 <strong>读取 Ozon 商品</strong> 后，页面会加载参考店铺商品列表。按本次铺货需要勾选要复制的商品，用于生成复制草稿。</p>
+          <ol>
+            <li>等待商品表格出现商品名称、offer_id、product_id、价格、库存等信息。</li>
+            <li>勾选本次需要复制到目标店铺的商品。</li>
+            <li>确认顶部指标中“已选 Ozon”数量与勾选结果一致。</li>
+          </ol>
+          <figure>
+            <img src="images/04-loaded-products.png" alt="读取 Ozon 商品后的商品列表" />
+          </figure>
+          <figure>
+            <img src="images/05-select-first-five.png" alt="勾选要复制的 Ozon 商品" />
+          </figure>
+        </section>
+
+        <section id="draft">
+          <div class="step-head"><span class="num">5</span><h2>生成复制草稿</h2></div>
+          <p>勾选商品后点击 <strong>生成复制草稿</strong>。系统会为本次选择生成新的草稿数据，并进入草稿编辑区域。</p>
+          <ol>
+            <li>检查草稿商品数是否等于已选商品数。</li>
+            <li>保持草稿编辑表格的横向宽表格视图，便于检查标题、货号、类目、属性、价格、图片等字段。</li>
+            <li>本流程不再管理历史草稿；每次发品都重新生成草稿。</li>
+          </ol>
+          <figure>
+            <img src="images/06-draft-generated.png" alt="生成复制草稿后的草稿编辑页面" />
+          </figure>
+        </section>
+
+        <section id="target">
+          <div class="step-head"><span class="num">6</span><h2>按标签选择目标店铺</h2></div>
+          <p>在顶部 <strong>店铺标签</strong> 中选择目标店铺标签。系统会按标签批量选择目标店铺，并在目标店铺区域显示已选数量。</p>
+          <ol>
+            <li>选择测试用标签，例如包含 2000 个假店铺的压测标签。</li>
+            <li>确认目标店铺数量符合预期。</li>
+            <li>假店铺任务全部失败属于预期，不影响教程演示。</li>
+          </ol>
+          <figure>
+            <img src="images/07-target-tag-selected.png" alt="按标签选择目标店铺" />
+          </figure>
+        </section>
+
+        <section id="submit">
+          <div class="step-head"><span class="num">7</span><h2>提交 OZON 发品</h2></div>
+          <p>确认草稿可发布数量和目标店铺后，点击 <strong>提交 Ozon</strong>。每次提交都应该生成一个新的发布批次号，避免复用旧批次造成明细中批次号重复。</p>
+          <ol>
+            <li>提交前确认“可发布”数量大于 0。</li>
+            <li>点击提交后，等待页面展示新批次号和实时进度。</li>
+            <li>记录批次号，例如 <code>OZON-PUB-YYYYMMDD...</code>。</li>
+          </ol>
+          <figure>
+            <img src="images/08-submit-ozon.png" alt="提交 Ozon 发品生成新批次" />
+          </figure>
+        </section>
+
+        <section id="progress">
+          <div class="step-head"><span class="num">8</span><h2>查看任务进度与铺货明细</h2></div>
+          <p>提交后进入 <strong>铺货明细</strong>。明细页应展示批次状态、商品数、目标店铺数、任务数、成功/失败/待执行数量，以及自动刷新的进度条。</p>
+          <ol>
+            <li>在批次列表中找到刚刚生成的新批次。</li>
+            <li>确认状态从“执行中”开始变化。</li>
+            <li>点击批次号进入明细表，观察状态和数量自动刷新。</li>
+            <li>如果任务失败，结果/失败原因列会展示 OZON 接口或凭证相关错误。</li>
+          </ol>
+          <figure>
+            <img src="images/09-batch-progress.png" alt="铺货明细批次列表展示进度" />
+          </figure>
+          <figure>
+            <img src="images/10-batch-detail-auto-refresh.png" alt="批次明细表自动刷新任务状态" />
+          </figure>
+        </section>
+
+        <section id="stop">
+          <div class="step-head"><span class="num">9</span><h2>终止发布中的任务</h2></div>
+          <p>发布中的批次任务提供 <strong>终止</strong> 按钮。点击后任务会停止继续执行，已完成的任务保持成功或失败状态，未执行部分进入终止相关状态。</p>
+          <ol>
+            <li>在批次列表或明细页找到状态为“执行中”的批次。</li>
+            <li>点击 <strong>终止</strong> 并确认。</li>
+            <li>刷新后状态应变为“已终止”，操作区可看到后续可用动作，例如运行或重试。</li>
+          </ol>
+          <figure>
+            <img src="images/11-terminate-running-task.png" alt="终止发布中的 OZON 批次任务" />
+          </figure>
+          <figure>
+            <img src="images/12-terminated-actions.png" alt="已终止任务提供运行按钮，失败任务提供重试按钮" />
+          </figure>
+        </section>
+
+        <section id="rules">
+          <h2>关键规则</h2>
+          <ol>
+            <li><strong>每次提交都生成新批次：</strong>同一个草稿点击修改信息后重新提交，也必须生成新的批次号。</li>
+            <li><strong>草稿不作为历史数据管理：</strong>每次发品都重新生成草稿，历史页只展示发布批次。</li>
+            <li><strong>运行会跳过已成功任务：</strong>已终止任务点击运行时，只恢复未完成、已跳过或可继续执行的任务，不重复发布已成功任务。</li>
+            <li><strong>失败任务可重试：</strong>失败或部分失败批次提供重试按钮，仅重试失败项。</li>
+            <li><strong>执行中可终止：</strong>终止后停止后续任务，已成功的明细不回滚。</li>
+            <li><strong>明细自动刷新：</strong>批次列表和批次明细应自动刷新状态、进度条和数量信息。</li>
+          </ol>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    OZON 复制发品教程
+  </footer>
+</body>
+</html>

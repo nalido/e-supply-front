@@ -1,6 +1,6 @@
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { Image, Upload, message } from 'antd';
+import { Image, Modal, Upload, message } from 'antd';
 import type { RcFile, UploadFile } from 'antd/es/upload/interface';
 import type { UploadRequestOption as RcCustomRequestOptions } from 'rc-upload/lib/interface';
 import { CloseOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
@@ -13,6 +13,9 @@ type ImageUploaderBaseProps = {
   tips?: ReactNode;
   accept?: string;
   disabled?: boolean;
+  className?: string;
+  compact?: boolean;
+  maxVisibleCount?: number;
 };
 
 type SingleImageUploaderProps = ImageUploaderBaseProps & {
@@ -96,15 +99,23 @@ const ImageUploader = ({
   tips,
   accept = 'image/*',
   disabled,
+  className,
+  compact = false,
+  maxVisibleCount,
   multiple = false,
   maxCount,
 }: ImageUploaderProps) => {
   const [fileList, setFileList] = useState<UploadFile[]>(() => buildPreviewFiles(value));
   const [uploading, setUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string>();
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [activeUid, setActiveUid] = useState<string>();
   const resolvedMaxCount = multiple ? (maxCount ?? MAX_MULTI_COUNT_DEFAULT) : 1;
+  const previewUrls = fileList
+    .map((item) => item.url ?? item.thumbUrl)
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 
   useEffect(() => {
     setFileList(buildPreviewFiles(value));
@@ -186,22 +197,95 @@ const ImageUploader = ({
       message.warning('当前图片暂不可预览');
       return;
     }
-    setPreviewImage(previewUrl);
+    const nextImages = previewUrls.length ? previewUrls : [previewUrl];
+    setPreviewImages(nextImages);
+    setPreviewIndex(Math.max(0, nextImages.indexOf(previewUrl)));
     setPreviewOpen(true);
   };
 
   const uploadButton = useMemo(
     () => (
-      <div>
+      <div className={compact ? 'image-uploader__upload-button image-uploader__upload-button--compact' : 'image-uploader__upload-button'}>
         <PlusOutlined />
-        <div style={{ marginTop: 8 }}>上传</div>
+        {compact ? null : <div style={{ marginTop: 8 }}>上传</div>}
+      </div>
+    ),
+    [compact],
+  );
+  const galleryUploadButton = useMemo(
+    () => (
+      <div className="image-uploader__upload-button image-uploader__upload-button--gallery">
+        <PlusOutlined />
+        <div>上传图片</div>
       </div>
     ),
     [],
   );
+  const compactSlotCount = multiple && compact && maxVisibleCount !== undefined ? Math.max(1, maxVisibleCount) : undefined;
+  const shouldCollapseList = compactSlotCount !== undefined && fileList.length > compactSlotCount;
+  const visibleFileCount = compactSlotCount === undefined
+    ? fileList.length
+    : shouldCollapseList
+      ? Math.max(0, compactSlotCount - 1)
+      : Math.min(fileList.length, compactSlotCount);
+  const hiddenCount = shouldCollapseList ? fileList.length - visibleFileCount : 0;
+  const showUploadButton = fileList.length < resolvedMaxCount
+    && (compactSlotCount === undefined || (!shouldCollapseList && fileList.length < compactSlotCount));
+
+  const renderUploadItem = (originNode: ReactNode, file: UploadFile, collapseOverflow: boolean) => {
+    const renderedNode = rewritePreviewAnchors(originNode, file, (target) => {
+      void handlePreview(target);
+    });
+    const fileIndex = fileList.findIndex((item) => item.uid === file.uid);
+    const collapsed = collapseOverflow
+      && shouldCollapseList
+      && fileIndex >= visibleFileCount;
+
+    return (
+      <div
+        className={`image-uploader__item${collapsed ? ' image-uploader__item--collapsed' : ''}`}
+        onMouseEnter={() => setActiveUid(file.uid)}
+        onMouseLeave={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
+        onFocus={() => setActiveUid(file.uid)}
+        onBlur={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
+      >
+        {renderedNode}
+        {file.status === 'done' ? (
+          <>
+            <button
+              type="button"
+              className={`image-uploader__preview-button${activeUid === file.uid ? ' is-visible' : ''}`}
+              aria-label="查看大图"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void handlePreview(file);
+              }}
+            >
+              <EyeOutlined />
+            </button>
+            {!disabled ? (
+              <button
+                type="button"
+                className={`image-uploader__remove-button${activeUid === file.uid ? ' is-visible' : ''}`}
+                aria-label="删除图片"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleRemove(file);
+                }}
+              >
+                <CloseOutlined />
+              </button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
-    <div>
+    <div className={className}>
       <Upload
         listType="picture-card"
         fileList={fileList}
@@ -210,71 +294,63 @@ const ImageUploader = ({
         customRequest={handleUpload}
         onPreview={handlePreview}
         onRemove={handleRemove}
-        itemRender={(originNode, file) => {
-          const renderedNode = rewritePreviewAnchors(originNode, file, (target) => {
-            void handlePreview(target);
-          });
-
-          return (
-            <div
-              className="image-uploader__item"
-              onMouseEnter={() => setActiveUid(file.uid)}
-              onMouseLeave={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
-              onFocus={() => setActiveUid(file.uid)}
-              onBlur={() => setActiveUid((current) => (current === file.uid ? undefined : current))}
-            >
-              {renderedNode}
-              {file.status === 'done' ? (
-                <>
-                  <button
-                    type="button"
-                    className={`image-uploader__preview-button${activeUid === file.uid ? ' is-visible' : ''}`}
-                    aria-label="查看大图"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      void handlePreview(file);
-                    }}
-                  >
-                    <EyeOutlined />
-                  </button>
-                  {!disabled ? (
-                    <button
-                      type="button"
-                      className={`image-uploader__remove-button${activeUid === file.uid ? ' is-visible' : ''}`}
-                      aria-label="删除图片"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleRemove(file);
-                      }}
-                    >
-                      <CloseOutlined />
-                    </button>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          );
-        }}
+        itemRender={(originNode, file) => renderUploadItem(originNode, file, true)}
         accept={accept}
         disabled={disabled || uploading}
         showUploadList={{ showPreviewIcon: false, showRemoveIcon: false }}
       >
-        {fileList.length >= resolvedMaxCount ? null : uploadButton}
+        {showUploadButton ? uploadButton : null}
       </Upload>
-      <Image
-        style={{ display: 'none' }}
-        src={previewImage}
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          className="image-uploader__more-count"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setGalleryOpen(true);
+          }}
+        >
+          +{hiddenCount}
+        </button>
+      ) : null}
+      <Modal
+        title={`全部图片（${previewUrls.length}）`}
+        open={galleryOpen}
+        footer={null}
+        width={720}
+        onCancel={() => setGalleryOpen(false)}
+      >
+        <Upload
+          listType="picture-card"
+          fileList={fileList}
+          maxCount={resolvedMaxCount}
+          multiple={multiple}
+          customRequest={handleUpload}
+          onPreview={handlePreview}
+          onRemove={handleRemove}
+          itemRender={(originNode, file) => renderUploadItem(originNode, file, false)}
+          accept={accept}
+          disabled={disabled || uploading}
+          showUploadList={{ showPreviewIcon: false, showRemoveIcon: false }}
+          className="image-uploader__gallery-upload"
+        >
+          {fileList.length >= resolvedMaxCount ? null : galleryUploadButton}
+        </Upload>
+      </Modal>
+      <Image.PreviewGroup
+        items={previewImages}
         preview={{
           visible: previewOpen,
-          src: previewImage,
+          current: previewIndex,
           onVisibleChange: (visible) => {
             setPreviewOpen(visible);
             if (!visible) {
-              setPreviewImage(undefined);
+              setPreviewImages([]);
+              setPreviewIndex(0);
             }
           },
+          onChange: (current) => setPreviewIndex(current),
         }}
       />
       {tips ? (
