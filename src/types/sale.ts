@@ -591,6 +591,8 @@ export type SaleProductPublishSourceList = {
   list: SaleProductPublishSourceProduct[];
   total?: number | null;
   requestId?: string | null;
+  nextLastId?: string | null;
+  hasMore?: boolean | null;
 };
 
 export type SaleProductPublishDraftPreview = {

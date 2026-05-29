@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Key } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Key, UIEvent } from 'react';
 import {
   Alert,
   Button,
@@ -34,6 +34,7 @@ import {
   ReloadOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
+  SearchOutlined,
   ShopOutlined,
   SyncOutlined,
   UndoOutlined,
@@ -60,6 +61,7 @@ import './ozon-product-publish.css';
 
 const { Content, Header, Sider } = Layout;
 const { Text, Title } = Typography;
+const REFERENCE_PAGE_SIZE = 30;
 
 type ProductPayload = Record<string, unknown>;
 
@@ -384,6 +386,10 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
   const [publishMode, setPublishMode] = useState<PublishMode>('local-reference');
   const [localProducts, setLocalProducts] = useState<StyleData[]>([]);
   const [referenceProducts, setReferenceProducts] = useState<SaleProductPublishSourceProduct[]>([]);
+  const [referenceTotal, setReferenceTotal] = useState(0);
+  const [referenceNextLastId, setReferenceNextLastId] = useState<string>();
+  const [referenceHasMore, setReferenceHasMore] = useState(false);
+  const [referenceLoadingMore, setReferenceLoadingMore] = useState(false);
   const [selectedLocalKeys, setSelectedLocalKeys] = useState<Key[]>([]);
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<Key[]>([]);
   const [selectedReferenceKey, setSelectedReferenceKey] = useState<Key>();
@@ -400,6 +406,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
   const [initialLoading, setInitialLoading] = useState(true);
   const [errorText, setErrorText] = useState<string>();
   const [credentialMessage, setCredentialMessage] = useState<string>();
+  const referenceLoadingMoreRef = useRef(false);
 
   const ozonAccounts = useMemo(
     () => accounts.filter((account) => account.platformCode?.toUpperCase() === 'OZON'),
@@ -425,6 +432,29 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
   const readyPercent = currentBatch?.totalCount ? Math.round(((currentBatch.readyCount || 0) / currentBatch.totalCount) * 100) : 0;
 
   const referenceRowKey = (record: SaleProductPublishSourceProduct) => String(record.offerId || record.productId);
+  const mergeReferenceProducts = (
+    current: SaleProductPublishSourceProduct[],
+    incoming: SaleProductPublishSourceProduct[],
+  ) => {
+    const merged = [...current];
+    const keys = new Set(current.map(referenceRowKey));
+    incoming.forEach((item) => {
+      const key = referenceRowKey(item);
+      if (!keys.has(key)) {
+        merged.push(item);
+        keys.add(key);
+      }
+    });
+    return merged;
+  };
+  const resetReferencePaging = () => {
+    setReferenceProducts([]);
+    setReferenceTotal(0);
+    setReferenceNextLastId(undefined);
+    setReferenceHasMore(false);
+    referenceLoadingMoreRef.current = false;
+    setReferenceLoadingMore(false);
+  };
   const selectedReference = referenceProducts.find((item) => referenceRowKey(item) === selectedReferenceKey);
   const selectedSourceProducts = useMemo(
     () => referenceProducts.filter((item) => selectedSourceKeys.includes(referenceRowKey(item))),
@@ -557,6 +587,10 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
       setTargetTagIds([]);
       setLocalProducts(demoState === 'idle' ? [] : demoLocalRows);
       setReferenceProducts(demoState === 'idle' ? [] : demoReferenceRows);
+      setReferenceTotal(demoState === 'idle' ? 0 : demoReferenceRows.length);
+      setReferenceNextLastId(undefined);
+      setReferenceHasMore(false);
+      setReferenceLoadingMore(false);
       setSelectedLocalKeys(demoState === 'idle' ? [] : demoLocalRows.map((item) => item.id));
       setSelectedReferenceKey(demoState === 'idle' ? undefined : referenceRowKey(demoReferenceRows[0]));
       setCurrentBatch(demoBatch);
@@ -583,8 +617,9 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
   const handleAccountChange = (value: string) => {
     setAccountId(value);
     setTargetAccountIds((current) => current.filter((item) => publishMode !== 'ozon-copy' || String(item) !== String(value)));
-    setReferenceProducts([]);
+    resetReferencePaging();
     setSelectedReferenceKey(undefined);
+    setSelectedSourceKeys([]);
     setCurrentBatch(undefined);
     setLatestTask(undefined);
     clearAllDirty();
@@ -607,11 +642,12 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     }
   };
 
-  const loadLocalProducts = async () => {
+  const loadLocalProducts = async (options?: { keyword?: string }) => {
     setLoading(true);
     setErrorText(undefined);
     try {
-      const result = await stylesApi.list({ page: 1, pageSize: 50, keyword: localKeyword.trim() || undefined });
+      const keyword = (options?.keyword ?? localKeyword).trim();
+      const result = await stylesApi.list({ page: 1, pageSize: 50, keyword: keyword || undefined });
       setLocalProducts(result.list || []);
       setSelectedLocalKeys([]);
       messageApi.success(`已读取 ${result.list?.length || 0} 个本地商品`);
@@ -622,26 +658,68 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     }
   };
 
-  const loadReferenceProducts = async () => {
+  const loadReferenceProducts = async (options?: { append?: boolean; keyword?: string }) => {
     const channelAccountId = guardedAccountId();
     if (!channelAccountId) return;
-    setLoading(true);
+    const append = Boolean(options?.append);
+    if (append && (!referenceHasMore || referenceLoadingMoreRef.current || !referenceNextLastId)) {
+      return;
+    }
+    if (append) {
+      referenceLoadingMoreRef.current = true;
+      setReferenceLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     setErrorText(undefined);
     try {
-      const keyword = referenceKeyword.trim();
+      const keyword = (options?.keyword ?? referenceKeyword).trim();
       const result = await saleApi.listProductPublishSources({
         channelAccountId,
-        limit: 30,
+        limit: REFERENCE_PAGE_SIZE,
         keyword: keyword || undefined,
+        lastId: append ? referenceNextLastId : undefined,
       });
-      setReferenceProducts(result.list || []);
-      setSelectedReferenceKey(undefined);
-      setSelectedSourceKeys([]);
-      messageApi.success(keyword ? `已匹配 ${result.list?.length || 0} 个参考商品` : `已读取 ${result.list?.length || 0} 个参考商品`);
+      const nextList = result.list || [];
+      setReferenceProducts((current) => (append ? mergeReferenceProducts(current, nextList) : nextList));
+      setReferenceTotal(result.total || 0);
+      setReferenceNextLastId(result.nextLastId || undefined);
+      setReferenceHasMore(Boolean(result.hasMore && result.nextLastId));
+      if (!append) {
+        setSelectedReferenceKey(undefined);
+        setSelectedSourceKeys([]);
+        messageApi.success(keyword ? `已匹配 ${nextList.length} 个参考商品` : `已读取 ${nextList.length} 个参考商品`);
+      }
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : '参考商品读取失败');
     } finally {
-      setLoading(false);
+      if (append) {
+        referenceLoadingMoreRef.current = false;
+        setReferenceLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleReferenceScroll = (event: UIEvent<HTMLElement>) => {
+    const target = event.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight <= 96) {
+      void loadReferenceProducts({ append: true });
+    }
+  };
+
+  const handleLocalKeywordChange = (value: string) => {
+    setLocalKeyword(value);
+    if (!value.trim()) {
+      void loadLocalProducts({ keyword: '' });
+    }
+  };
+
+  const handleReferenceKeywordChange = (value: string) => {
+    setReferenceKeyword(value);
+    if (!value.trim()) {
+      void loadReferenceProducts({ keyword: '' });
     }
   };
 
@@ -716,7 +794,6 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
         targetTagIds: targetTagIds.map(Number),
         targetTagNames: selectedTargetTags.map((tag) => tag.tagName),
         batchName: 'Ozon 商品复制批次',
-        offerPrefix,
         sources: selectedSourceProducts.map((item) => ({
           sourceOfferId: item.offerId || undefined,
           sourceProductId: item.productId ? Number(item.productId) : undefined,
@@ -782,7 +859,14 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     try {
       const result = await saleApi.validateProductPublishBatch(currentBatch.batchId);
       setCurrentBatch(result);
-      messageApi.success('发布前体检已完成');
+      const blockedCount = result.blockedCount || 0;
+      if (blockedCount > 0) {
+        const text = `发布前体检发现 ${blockedCount} 个阻塞项，请补充完善后再提交。`;
+        setErrorText(text);
+        messageApi.warning(text);
+      } else {
+        messageApi.success('发布前体检已通过');
+      }
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : '发布前体检失败');
     } finally {
@@ -1060,8 +1144,21 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     { title: '单位', width: 90, render: (_, record) => <Text>{record.defaultUnit || '--'}</Text> },
   ];
 
+  const renderReferenceLoadFooter = () => (
+    <div className="opp-reference-load-footer">
+      {referenceLoadingMore ? <Spin size="small" /> : null}
+      <Text type="secondary">
+        {referenceLoadingMore
+          ? '正在加载更多'
+          : referenceHasMore
+            ? `已加载 ${referenceProducts.length}/${referenceTotal || '--'}，继续下滑加载更多`
+            : `已加载 ${referenceProducts.length}${referenceTotal ? `/${referenceTotal}` : ''}`}
+      </Text>
+    </div>
+  );
+
   const renderReferenceProductList = () => (
-    <div className="opp-reference-list">
+    <div className="opp-reference-list" onScroll={handleReferenceScroll}>
       {filteredReferenceProducts.map((record) => {
         const key = referenceRowKey(record);
         const active = selectedReferenceKey === key;
@@ -1092,6 +1189,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
           </button>
         );
       })}
+      {renderReferenceLoadFooter()}
     </div>
   );
 
@@ -1454,13 +1552,15 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
                     目标配置 {targetConfigCount} 项，预计 {estimatedTargetAccountCount} 店
                   </Tag>
                 ) : null}
-                <Input
-                  className="opp-prefix-input"
-                  value={offerPrefix}
-                  onChange={(event) => setOfferPrefix(event.target.value)}
-                  prefix={<CloudUploadOutlined />}
-                  placeholder="目标货号前缀"
-                />
+                {publishMode === 'local-reference' ? (
+                  <Input
+                    className="opp-prefix-input"
+                    value={offerPrefix}
+                    onChange={(event) => setOfferPrefix(event.target.value)}
+                    prefix={<CloudUploadOutlined />}
+                    placeholder="目标货号前缀"
+                  />
+                ) : null}
                 <Button icon={<SafetyCertificateOutlined />} disabled={!selectedAccount} onClick={() => void checkCredential()}>检查凭证</Button>
                 {publishMode === 'local-reference' ? <Button icon={<ReloadOutlined />} onClick={() => void loadLocalProducts()}>读取本地商品</Button> : null}
                 <Button type="primary" icon={<ReloadOutlined />} disabled={!selectedAccount} onClick={() => void loadReferenceProducts()}>
@@ -1495,25 +1595,29 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
                     label: (
                       <span className="opp-tab-label">
                         {publishMode === 'ozon-copy' ? '复制商品' : '选品与参考'}
-                        <Tag>{publishMode === 'ozon-copy' ? selectedSourceKeys.length : selectedLocalKeys.length}/{filteredReferenceProducts.length}</Tag>
+                        <Tag>
+                          {publishMode === 'ozon-copy' ? selectedSourceKeys.length : selectedLocalKeys.length}/
+                          {referenceTotal || filteredReferenceProducts.length}
+                        </Tag>
                       </span>
                     ),
                     children: publishMode === 'ozon-copy' ? (
                       <div className="opp-selection-layout">
                         <section className="opp-panel opp-panel--wide">
                           <div className="opp-section-title">
-                            <div>
+                            <div className="opp-section-title__text">
                               <Text strong>选择要复制的 Ozon 商品</Text>
                               <Text type="secondary">从参考店铺读取已上架商品，多选后复制为目标店铺的铺货草稿，可继续微调属性、图片、价格和货号。</Text>
                             </div>
-                            <Space wrap>
-                              <Input.Search
+                            <Space wrap className="opp-section-actions">
+                              <Input
+                                className="opp-section-search"
                                 allowClear
-                                enterButton="搜索"
                                 placeholder="搜索 offer_id / product_id / 标题"
+                                suffix={<SearchOutlined />}
                                 value={referenceKeyword}
-                                onChange={(event) => setReferenceKeyword(event.target.value)}
-                                onSearch={() => void loadReferenceProducts()}
+                                onChange={(event) => handleReferenceKeywordChange(event.target.value)}
+                                onPressEnter={(event) => void loadReferenceProducts({ keyword: event.currentTarget.value })}
                               />
                               <Button icon={<FileProtectOutlined />} disabled={!selectedSourceKeys.length} onClick={() => void createCopyBatch()}>
                                 生成复制草稿
@@ -1533,8 +1637,10 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
                                   disabled: selectedSourceKeys.length >= 10 && !selectedSourceKeys.includes(referenceRowKey(record)),
                                 }),
                               }}
-                              pagination={{ pageSize: 8, showSizeChanger: false }}
-                              scroll={{ x: 760 }}
+                              pagination={false}
+                              scroll={{ x: 760, y: 420 }}
+                              onScroll={handleReferenceScroll}
+                              footer={renderReferenceLoadFooter}
                             />
                           ) : (
                             <Empty description={referenceProducts.length ? '没有匹配的 Ozon 商品' : '读取 Ozon 商品后选择要复制到目标店铺的商品'} />
@@ -1545,12 +1651,20 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
                       <div className="opp-selection-layout">
                         <section className="opp-panel">
                           <div className="opp-section-title">
-                            <div>
+                            <div className="opp-section-title__text">
                               <Text strong>本地待铺货商品</Text>
                               <Text type="secondary">选择准备上架到 Ozon 的本地商品，系统会用本地标题、款号和图片生成铺货草稿。</Text>
                             </div>
-                            <Space wrap>
-                              <Input.Search allowClear placeholder="搜索款号 / 标题 / 颜色 / 尺码" value={localKeyword} onChange={(event) => setLocalKeyword(event.target.value)} onSearch={() => void loadLocalProducts()} />
+                            <Space wrap className="opp-section-actions">
+                              <Input
+                                className="opp-section-search"
+                                allowClear
+                                placeholder="搜索款号 / 标题 / 颜色 / 尺码"
+                                suffix={<SearchOutlined />}
+                                value={localKeyword}
+                                onChange={(event) => handleLocalKeywordChange(event.target.value)}
+                                onPressEnter={(event) => void loadLocalProducts({ keyword: event.currentTarget.value })}
+                              />
                               <Button icon={<FileProtectOutlined />} disabled={!selectedLocalKeys.length || !selectedReference} onClick={() => void createBatch()}>
                                 生成铺货草稿
                               </Button>
@@ -1579,18 +1693,18 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
 
                         <section className="opp-panel">
                           <div className="opp-section-title">
-                            <div>
+                            <div className="opp-section-title__text">
                               <Text strong>Ozon 参考商品</Text>
                               <Text type="secondary">参考商品只用于套用类目、属性结构、尺寸重量字段。</Text>
                             </div>
-                            <Input.Search
-                              className="opp-search-compact"
+                            <Input
+                              className="opp-section-search opp-search-compact"
                               allowClear
-                              enterButton="精准搜索"
                               placeholder="offer_id / product_id"
+                              suffix={<SearchOutlined />}
                               value={referenceKeyword}
-                              onChange={(event) => setReferenceKeyword(event.target.value)}
-                              onSearch={() => void loadReferenceProducts()}
+                              onChange={(event) => handleReferenceKeywordChange(event.target.value)}
+                              onPressEnter={(event) => void loadReferenceProducts({ keyword: event.currentTarget.value })}
                             />
                           </div>
                           {filteredReferenceProducts.length ? (
@@ -1614,7 +1728,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
                       <div className="opp-draft-layout">
 	                        <section className="opp-panel opp-batch-panel">
 	                          <div className="opp-section-title">
-	                            <div>
+	                            <div className="opp-section-title__text">
 	                              <Text strong>当前草稿</Text>
 	                              <Text type="secondary">{currentBatch?.batchNo || '尚未生成本次铺货草稿'}</Text>
 	                            </div>
@@ -1675,7 +1789,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
 
                         <section className="opp-panel opp-validation-panel">
                           <div className="opp-section-title">
-                            <div>
+                            <div className="opp-section-title__text">
                               <Text strong>发布前体检</Text>
                               <Text type="secondary">阻塞项必须清零后才允许提交平台。</Text>
                             </div>
@@ -1697,7 +1811,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
 
 	                        <section className="opp-panel opp-async-task-panel">
 	                          <div className="opp-section-title">
-	                            <div>
+	                            <div className="opp-section-title__text">
 	                              <Text strong>本次提交进度</Text>
 	                              <Text type="secondary">每次提交都会生成新的发布批次号，当前页实时刷新数量进度。</Text>
 	                            </div>
@@ -1729,7 +1843,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
 
 	                        <section className="opp-panel opp-draft-table-panel">
 	                          <div className="opp-section-title">
-	                            <div>
+	                            <div className="opp-section-title__text">
 	                              <Text strong>铺货草稿</Text>
 	                              <Text type="secondary">草稿表格保持横向无限宽编辑；历史草稿不再管理，每次发品重新生成草稿。</Text>
 	                            </div>

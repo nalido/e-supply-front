@@ -448,6 +448,7 @@ export const saleApi = {
     channelAccountId: number;
     limit?: number;
     keyword?: string;
+    lastId?: string;
   }): Promise<SaleProductPublishSourceList> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleProductPublishSourceList>('/api/v1/sale/products/publish-source/list', payload, {

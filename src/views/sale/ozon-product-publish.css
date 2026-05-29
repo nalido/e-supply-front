@@ -266,11 +266,28 @@
   margin-bottom: 10px;
 }
 
-.opp-section-title > div {
+.opp-section-title__text {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.opp-section-actions {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: min(100%, 520px);
+  justify-content: flex-end;
+}
+
+.opp-section-actions .ant-space-item {
+  min-width: 0;
+}
+
+.opp-section-search {
+  width: clamp(220px, 24vw, 320px);
+  max-width: 100%;
+  border-radius: 12px !important;
 }
 
 .opp-reference-list {
@@ -281,6 +298,15 @@
   gap: 8px;
   overflow: auto;
   padding-right: 4px;
+}
+
+.opp-reference-load-footer {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #667085;
 }
 
 .opp-reference-row {
@@ -805,7 +831,7 @@
     width: 100%;
   }
 
-  .opp-section-title .ant-input-search,
+  .opp-section-title .ant-input-affix-wrapper,
   .opp-section-title .ant-btn,
   .opp-section-title .ant-select {
     width: 100% !important;
