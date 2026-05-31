@@ -65,10 +65,26 @@ type SnapshotProperty = {
 };
 
 type SnapshotPayload = {
+  offer_id?: string;
+  product_id?: string | number;
+  sku?: string | number;
   extCode?: string;
   productExtCode?: string;
   skuExtCode?: string;
   productProperties?: SnapshotProperty[];
+  attributes?: Array<{
+    name?: string;
+    attribute_name?: string;
+    attribute_name_zh?: string;
+    values?: Array<{ value?: string; name?: string }>;
+    value?: string;
+  }>;
+  stock?: number;
+  stock_info?: {
+    stocks?: Array<Record<string, unknown>>;
+    items?: Array<Record<string, unknown>>;
+  };
+  raw?: Record<string, unknown>;
 };
 
 type DraftRow = {
@@ -194,6 +210,38 @@ const formatPropertyValue = (item: SnapshotProperty) => {
   return item.propValue || '--';
 };
 
+const formatOzonAttributeValue = (item: NonNullable<SnapshotPayload['attributes']>[number]) => {
+  if (item.value) {
+    return item.value;
+  }
+  const firstValue = item.values?.[0];
+  return firstValue?.value || firstValue?.name || '--';
+};
+
+const parseOzonAttributeEntries = (snapshot?: SnapshotPayload | null) =>
+  (snapshot?.attributes ?? [])
+    .map((item) => {
+      const name = item.attribute_name_zh || item.attribute_name || item.name;
+      return name ? `${name}: ${formatOzonAttributeValue(item)}` : null;
+    })
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 8);
+
+const resolveOzonStock = (snapshot?: SnapshotPayload | null) => {
+  if (typeof snapshot?.stock === 'number') {
+    return snapshot.stock;
+  }
+  const stockRows = snapshot?.stock_info?.stocks ?? snapshot?.stock_info?.items ?? [];
+  if (!stockRows.length) {
+    return null;
+  }
+  return stockRows.reduce((sum, item) => {
+    const rawValue = item.present ?? item.valid_stock_count ?? item.stock ?? item.available_stock_count;
+    const value = Number(rawValue);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+};
+
 const compareNullableText = (left?: string, right?: string) => {
   const leftValue = left?.trim() ?? '';
   const rightValue = right?.trim() ?? '';
@@ -246,6 +294,7 @@ const SaleChannelMappings = () => {
     () => accounts.find((item) => item.id === selectedAccountId),
     [accounts, selectedAccountId],
   );
+  const isOzonAccount = selectedAccount?.platformCode?.toUpperCase() === 'OZON';
 
   const draftsByMappingId = useMemo(() => {
     const result = new Map<string, DraftRow[]>();
@@ -886,6 +935,9 @@ const SaleChannelMappings = () => {
         render: (_, record) => {
           const snapshot = parsePlatformSnapshot(record.platformSnapshotJson);
           const categoryLabel = record.platformCategoryPath?.split(' / ').at(-1);
+          const offerId = snapshot?.offer_id || record.platformSkuCode;
+          const productId = snapshot?.product_id || record.platformSpuId;
+          const platformSku = snapshot?.sku || record.platformSkuId;
           return (
             <Space align="start" size={12}>
               {renderImage(record.platformMainImageUrl, record.platformProductName)}
@@ -894,15 +946,31 @@ const SaleChannelMappings = () => {
                   {record.platformProductName || record.platformSkuId}
                 </Typography.Text>
                 <Typography.Text type="secondary">类目：{categoryLabel || record.platformCategoryPath || '--'}</Typography.Text>
-                <Typography.Text type="secondary" copyable={{ text: record.platformSpuId || '' }}>
-                  SPU ID：{record.platformSpuId || '--'}
-                </Typography.Text>
-                <Typography.Text type="secondary" copyable={{ text: record.platformSkcId || '' }}>
-                  SKC ID：{record.platformSkcId || '--'}
-                </Typography.Text>
-                <Typography.Text type="secondary">
-                  货号：{snapshot?.productExtCode || '--'}
-                </Typography.Text>
+                {isOzonAccount ? (
+                  <>
+                    <Typography.Text type="secondary" copyable={{ text: String(productId || '') }}>
+                      product_id：{productId || '--'}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" copyable={{ text: String(offerId || '') }}>
+                      offer_id：{offerId || '--'}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" copyable={{ text: String(platformSku || '') }}>
+                      sku：{platformSku || '--'}
+                    </Typography.Text>
+                  </>
+                ) : (
+                  <>
+                    <Typography.Text type="secondary" copyable={{ text: record.platformSpuId || '' }}>
+                      SPU ID：{record.platformSpuId || '--'}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" copyable={{ text: record.platformSkcId || '' }}>
+                      SKC ID：{record.platformSkcId || '--'}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      货号：{snapshot?.productExtCode || '--'}
+                    </Typography.Text>
+                  </>
+                )}
                 <Space size={[4, 4]} wrap>
                   {record.platformStatus ? <Tag color="processing">平台状态：{record.platformStatus}</Tag> : null}
                   {record.normalizedColor ? <Tag color="magenta">{record.normalizedColor}</Tag> : null}
@@ -920,7 +988,33 @@ const SaleChannelMappings = () => {
         render: (_, record) => {
           const snapshot = parsePlatformSnapshot(record.platformSnapshotJson);
           const properties = (snapshot?.productProperties ?? []).filter((item) => item.propName);
+          const ozonAttributes = parseOzonAttributeEntries(snapshot);
           const preview = properties.slice(0, 4);
+          if (isOzonAccount && ozonAttributes.length) {
+            return (
+              <Space direction="vertical" size={4}>
+                {ozonAttributes.slice(0, 4).map((item) => (
+                  <Typography.Text key={item}>{item}</Typography.Text>
+                ))}
+                {ozonAttributes.length > 4 ? (
+                  <Popover
+                    content={
+                      <Space direction="vertical" size={4}>
+                        {ozonAttributes.map((item) => (
+                          <Typography.Text key={item}>{item}</Typography.Text>
+                        ))}
+                      </Space>
+                    }
+                    title="全部 Ozon 属性"
+                  >
+                    <Button type="link" size="small" style={{ paddingInline: 0 }}>
+                      全部
+                    </Button>
+                  </Popover>
+                ) : null}
+              </Space>
+            );
+          }
           if (!preview.length) {
             return <Typography.Text type="secondary">暂无商品属性</Typography.Text>;
           }
@@ -989,7 +1083,7 @@ const SaleChannelMappings = () => {
         },
       },
       {
-        title: 'SKU ID',
+        title: isOzonAccount ? 'Ozon SKU' : 'SKU ID',
         key: 'sku',
         width: 180,
         render: (_, record) => (
@@ -999,12 +1093,16 @@ const SaleChannelMappings = () => {
         ),
       },
       {
-        title: 'SKU货号',
+        title: isOzonAccount ? 'offer_id' : 'SKU货号',
         key: 'skuCode',
         width: 160,
         render: (_, record) => {
           const snapshot = parsePlatformSnapshot(record.platformSnapshotJson);
-          return <Typography.Text>{snapshot?.skuExtCode || record.platformSkuCode || '--'}</Typography.Text>;
+          return (
+            <Typography.Text>
+              {isOzonAccount ? snapshot?.offer_id || record.platformSkuCode || '--' : snapshot?.skuExtCode || record.platformSkuCode || '--'}
+            </Typography.Text>
+          );
         },
       },
       {
@@ -1132,7 +1230,11 @@ const SaleChannelMappings = () => {
         title: '库存',
         key: 'inventory',
         width: 100,
-        render: () => <Typography.Text>-</Typography.Text>,
+        render: (_, record) => {
+          const snapshot = parsePlatformSnapshot(record.platformSnapshotJson);
+          const stock = resolveOzonStock(snapshot);
+          return <Typography.Text>{stock ?? '-'}</Typography.Text>;
+        },
       },
       {
         title: '状态',
@@ -1171,6 +1273,7 @@ const SaleChannelMappings = () => {
       handleRejectDraft,
       isAllSkcSelected,
       isPartiallySelected,
+      isOzonAccount,
       openMappingModal,
       selectedRowKeys,
       skcSelectableRowIds,
@@ -1205,7 +1308,7 @@ const SaleChannelMappings = () => {
       <Card title="步骤 1：同步平台商品">
         <Space>
           <Popconfirm
-            title="确认提交 Temu 商品后台同步任务？"
+            title={`确认提交 ${selectedAccount?.platformCode || '平台'} 商品后台同步任务？`}
             onConfirm={() => void handleSync()}
             okText="确认"
             cancelText="取消"

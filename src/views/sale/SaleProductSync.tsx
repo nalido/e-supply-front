@@ -13,6 +13,8 @@ import {
 } from '../../components/sale/SaleCenterUI';
 import type { SaleChannelAccount, SaleProductSyncStatus, SaleProductSyncTaskSubmitResponse } from '../../types/sale';
 
+const ACTIVE_SYNC_STATUSES = new Set(['QUEUED', 'RUNNING']);
+
 const SaleProductSync = () => {
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
@@ -59,6 +61,18 @@ const SaleProductSync = () => {
     }),
     [syncStatus],
   );
+  const currentTask = syncStatus?.currentTask ?? null;
+  const hasActiveSyncTask = Boolean(currentTask?.status && ACTIVE_SYNC_STATUSES.has(currentTask.status));
+
+  useEffect(() => {
+    if (!selectedAccountId || !hasActiveSyncTask) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void loadData(selectedAccountId);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [hasActiveSyncTask, loadData, selectedAccountId]);
 
   const handleSync = async () => {
     if (!selectedAccountId) {
@@ -84,11 +98,11 @@ const SaleProductSync = () => {
   };
 
   const handleCancel = async () => {
-    if (!syncStatus?.currentTask?.taskId) {
+    if (!currentTask?.taskId) {
       return;
     }
     try {
-      await saleApi.cancelProductSync(syncStatus.currentTask.taskId);
+      await saleApi.cancelProductSync(currentTask.taskId);
       message.success('已提交取消请求');
       await loadData(selectedAccountId);
     } catch (error) {
@@ -130,11 +144,11 @@ const SaleProductSync = () => {
                 <Button size="large" onClick={() => void loadData(selectedAccountId)}>
                   刷新
                 </Button>
-                <Button size="large" onClick={() => void handleCancel()} disabled={!syncStatus?.currentTask?.taskId}>
+                <Button size="large" onClick={() => void handleCancel()} disabled={!currentTask?.taskId}>
                   取消同步
                 </Button>
-                <Button type="primary" size="large" loading={syncing} onClick={() => void handleSync()}>
-                  开始同步
+                <Button type="primary" size="large" loading={syncing} disabled={hasActiveSyncTask} onClick={() => void handleSync()}>
+                  {hasActiveSyncTask ? '同步进行中' : '开始同步'}
                 </Button>
               </Space>
             </div>

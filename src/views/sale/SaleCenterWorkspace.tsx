@@ -76,6 +76,7 @@ import type {
 import { getSaleOrderSyncModeLabel, getSaleSellerTypeLabel } from '../../types/sale'
 import type { StyleData, StyleDetailData } from '../../types/style'
 import { deriveOrderIssue, getShopLabel, isMappedStatus } from './sale-center-helpers'
+import { SALE_ACTIVE_ACCOUNT_ID_KEY, publishSaleContextChanged } from '../../utils/sale-menu-context'
 import './sale-workspace.css'
 
 const { Header, Sider, Content } = Layout
@@ -341,6 +342,8 @@ const syncBizTypeLabels: Record<string, string> = {
   ORDER_SYNC: '订单同步',
   INVENTORY_READ: '售卖数据同步',
 }
+
+const ACTIVE_PRODUCT_SYNC_STATUSES = new Set(['QUEUED', 'RUNNING'])
 
 const getSyncBizLabel = (value?: string | null) => {
   const normalized = (value || '').toUpperCase()
@@ -682,17 +685,24 @@ const SaleCenterWorkspace = () => {
     [governanceDrawerId, syncLogs],
   )
   const productSectionActive = isProductSection(activeSection)
+  const currentProductSyncTask = syncStatus?.currentTask ?? null
+  const hasActiveProductSyncTask = Boolean(
+    currentProductSyncTask?.status && ACTIVE_PRODUCT_SYNC_STATUSES.has(currentProductSyncTask.status),
+  )
 
   const loadWorkspaceData = useCallback(async () => {
     setRefreshing(true)
     setWorkspaceError(undefined)
     try {
       const channelAccounts = await saleApi.listChannelAccounts()
-      const selectedAccountStillExists = selectedAccountId
-        ? channelAccounts.some((account) => account.id === selectedAccountId)
+      const storedAccountId =
+        typeof window === 'undefined' ? undefined : window.localStorage.getItem(SALE_ACTIVE_ACCOUNT_ID_KEY) ?? undefined
+      const accountIdCandidate = selectedAccountId || storedAccountId
+      const selectedAccountStillExists = accountIdCandidate
+        ? channelAccounts.some((account) => account.id === accountIdCandidate)
         : false
       const effectiveSelectedAccountId =
-        productSectionActive && selectedAccountStillExists ? selectedAccountId : undefined
+        productSectionActive && selectedAccountStillExists ? accountIdCandidate : undefined
       const preferredAccountId = effectiveSelectedAccountId || channelAccounts[0]?.id || ''
       const needsOrders = activeSection === 'workbench' || activeSection === 'order-issues'
       const needsMappings = activeSection === 'workbench' || productSectionActive
@@ -721,7 +731,11 @@ const SaleCenterWorkspace = () => {
       ])
 
       setAccounts(channelAccounts)
-      if (productSectionActive && !effectiveSelectedAccountId && preferredAccountId) {
+      if (
+        productSectionActive
+        && preferredAccountId
+        && selectedAccountId !== preferredAccountId
+      ) {
         setSelectedAccountId(preferredAccountId)
       } else if (selectedAccountId && !selectedAccountStillExists) {
         setSelectedAccountId(undefined)
@@ -776,6 +790,38 @@ const SaleCenterWorkspace = () => {
   }, [activeSection, loadShopAsyncSupport])
 
   useEffect(() => {
+    if (!productSectionActive || !selectedAccountId || !hasActiveProductSyncTask) {
+      return undefined
+    }
+    let cancelled = false
+    const refreshProductSyncStatus = async () => {
+      try {
+        const status = await saleApi.getProductSyncStatus(selectedAccountId)
+        if (cancelled) {
+          return
+        }
+        setSyncStatus(status)
+        const stillActive = Boolean(
+          status.currentTask?.status && ACTIVE_PRODUCT_SYNC_STATUSES.has(status.currentTask.status),
+        )
+        if (!stillActive) {
+          void loadWorkspaceData()
+        }
+      } catch (error) {
+        console.error(error)
+      }
+    }
+    void refreshProductSyncStatus()
+    const timer = window.setInterval(() => {
+      void refreshProductSyncStatus()
+    }, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [hasActiveProductSyncTask, loadWorkspaceData, productSectionActive, selectedAccountId])
+
+  useEffect(() => {
     if (!activeShopAsyncTask?.taskId || activeSection !== 'shop-management') {
       setFailedShopTaskItems([])
       return undefined
@@ -816,6 +862,7 @@ const SaleCenterWorkspace = () => {
 
   const handleAccountChange = useCallback((value?: string) => {
     setSelectedAccountId(value)
+    publishSaleContextChanged({ accountId: value })
   }, [])
 
   useEffect(() => {
@@ -1512,18 +1559,18 @@ const SaleCenterWorkspace = () => {
   }, [loadWorkspaceData, message, productSyncMode, selectedAccountId])
 
   const handleCancelSync = useCallback(async () => {
-    if (!syncStatus?.currentTask?.taskId) {
+    if (!currentProductSyncTask?.taskId) {
       return
     }
     try {
-      await saleApi.cancelProductSync(syncStatus.currentTask.taskId)
+      await saleApi.cancelProductSync(currentProductSyncTask.taskId)
       message.success('已提交取消任务请求。')
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
       message.error('取消商品同步失败。')
     }
-  }, [loadWorkspaceData, message, selectedAccountId, syncStatus?.currentTask?.taskId])
+  }, [currentProductSyncTask?.taskId, loadWorkspaceData, message])
 
   const handleGenerateDrafts = useCallback(async () => {
     if (!selectedAccountId) {
@@ -2466,10 +2513,16 @@ const SaleCenterWorkspace = () => {
                 <Text type="secondary">价格、库存等售卖数据在售卖数据页独立汇总展示，不在这里单独勾选。</Text>
               </div>
               <Space>
-                <Button type="primary" icon={<ReloadOutlined />} onClick={handleStartSync} data-testid="product-sync-start">
-                  开始同步
+                <Button
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  onClick={handleStartSync}
+                  disabled={hasActiveProductSyncTask}
+                  data-testid="product-sync-start"
+                >
+                  {hasActiveProductSyncTask ? '同步进行中' : '开始同步'}
                 </Button>
-                <Button onClick={handleCancelSync} disabled={!syncStatus?.currentTask?.taskId} data-testid="product-sync-cancel">
+                <Button onClick={handleCancelSync} disabled={!currentProductSyncTask?.taskId} data-testid="product-sync-cancel">
                   取消同步
                 </Button>
               </Space>
@@ -2479,19 +2532,20 @@ const SaleCenterWorkspace = () => {
         <Col xs={24} xl={13}>
           <Card className="scw-panel-card">
             <SectionHeading title="当前任务" description="任务执行过程中只看最关键的判断字段。" />
-            {syncStatus?.currentTask ? (
+            {currentProductSyncTask ? (
               <Space direction="vertical" size={16} style={{ width: '100%' }}>
                 <div className="scw-current-task__title">
-                  <Title level={4}>{syncStatus.currentTask.taskId}</Title>
-                  <StatusChip label={syncStatus.currentTask.status || '同步中'} tone="info" />
+                  <Title level={4}>{currentProductSyncTask.taskId}</Title>
+                  <StatusChip label={currentProductSyncTask.status || '同步中'} tone="info" />
                 </div>
-                <Progress percent={Math.min(100, Number((((syncStatus.currentTask.successCount || 0) / Math.max(syncStatus.currentTask.processedCount || 1, 1)) * 100).toFixed(0)))} strokeColor="#FF5A1F" />
+                <Progress percent={Math.min(100, Number((((currentProductSyncTask.successCount || 0) / Math.max(currentProductSyncTask.processedCount || 1, 1)) * 100).toFixed(0)))} strokeColor="#FF5A1F" />
                 <Row gutter={[16, 12]}>
-                  <Col span={12}><Statistic title="开始时间" value={formatDateTime(syncStatus.currentTask.startedAt)} /></Col>
-                  <Col span={12}><Statistic title="已处理商品数" value={formatNumber(syncStatus.currentTask.processedCount)} /></Col>
-                  <Col span={12}><Statistic title="成功商品数" value={formatNumber(syncStatus.currentTask.successCount)} /></Col>
-                  <Col span={12}><Statistic title="异常数" value={formatNumber(syncStatus.currentTask.failedCount)} /></Col>
+                  <Col span={12}><Statistic title="开始时间" value={formatDateTime(currentProductSyncTask.startedAt)} /></Col>
+                  <Col span={12}><Statistic title="已处理商品数" value={formatNumber(currentProductSyncTask.processedCount)} /></Col>
+                  <Col span={12}><Statistic title="成功商品数" value={formatNumber(currentProductSyncTask.successCount)} /></Col>
+                  <Col span={12}><Statistic title="异常数" value={formatNumber(currentProductSyncTask.failedCount)} /></Col>
                 </Row>
+                {currentProductSyncTask.remark ? <Text type="secondary">{currentProductSyncTask.remark}</Text> : null}
               </Space>
             ) : (
               <Empty description="当前没有运行中的商品同步任务" />
