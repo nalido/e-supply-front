@@ -166,6 +166,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         quantity: quantities[item.id],
         unit: item.unit,
         color: item.color,
+        specification: item.specification,
       })),
     };
     setSubmitting(true);

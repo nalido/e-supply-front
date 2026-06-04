@@ -163,6 +163,7 @@ export const materialIssueService = {
           quantity: line.quantity,
           unit: line.unit,
           color: line.color,
+          specification: line.specification,
           unitPrice: line.unitPrice,
         })),
       },

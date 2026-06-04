@@ -28,7 +28,7 @@ type MaterialFormModalProps = {
   onCancel: () => void;
 };
 
-const units: MaterialUnit[] = ['kg', '米', '件', '个', '码', '张', '套', '条'];
+const units: MaterialUnit[] = ['kg', '公斤', '斤', '米', '件', '个', '码', '张', '套', '条'];
 
 const formatToleranceValue = (value?: string) => {
   if (value === undefined || value === null) {

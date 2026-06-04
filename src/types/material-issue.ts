@@ -20,6 +20,7 @@ export type MaterialIssueRecord = {
   materialType: string;
   imageUrl?: string;
   color?: string;
+  specification?: string;
   width?: string;
   weight?: string;
   unit: string;
@@ -69,6 +70,7 @@ export type MaterialIssueCreateLine = {
   quantity: number;
   unit?: string;
   color?: string;
+  specification?: string;
   unitPrice?: number;
 };
 

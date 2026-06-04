@@ -1,6 +1,6 @@
 export type MaterialBasicType = 'fabric' | 'accessory';
 
-export type MaterialUnit = 'kg' | '米' | '件' | '个' | '码' | '张' | '套' | '条';
+export type MaterialUnit = 'kg' | '公斤' | '斤' | '米' | '件' | '个' | '码' | '张' | '套' | '条';
 
 export type MaterialItem = {
   id: string;
