@@ -578,6 +578,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       ),
       key: 'selection',
       width: 48,
+      fixed: 'left',
       align: 'center',
       onCell: (record) => ({ rowSpan: record.groupRowSpan }),
       render: (_, record) =>
@@ -591,7 +592,8 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
     {
       title: 'SPU / SKC',
       dataIndex: 'name',
-      width: 460,
+      width: 400,
+      fixed: 'left',
       onCell: (record) => ({ rowSpan: record.groupRowSpan }),
       render: (value, record) => (
         record.groupHead ? (
@@ -787,7 +789,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
             setPageSize(nextPagination.pageSize || 50)
             setSelectedRowKeys([])
           }}
-          scroll={{ x: 1320, y: 'calc(100vh - 460px)' }}
+          scroll={{ x: 1478, y: 'calc(100vh - 460px)' }}
         />
       </Card>
       <OzonOperationTaskDrawer open={taskOpen} task={task} onClose={() => setTaskOpen(false)} />
