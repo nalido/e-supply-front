@@ -165,7 +165,7 @@ const SettlementReportCustomerDetails = () => {
         ...appliedFilters,
       });
       message.success('已生成导出任务，请稍后到下载中心查看');
-      console.info('mock export url', result.fileUrl);
+      console.info('export url', result.fileUrl);
     } catch (error) {
       console.error('failed to export customer detail report', error);
       message.error('导出失败，请稍后重试');

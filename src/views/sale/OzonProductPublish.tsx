@@ -65,12 +65,10 @@ const REFERENCE_PAGE_SIZE = 30;
 
 type ProductPayload = Record<string, unknown>;
 
-type FlowStage = 'idle' | 'sources' | 'draft' | 'published' | 'deleted' | 'error';
 type WorkbenchTabKey = 'selection' | 'draft';
 type PublishMode = 'local-reference' | 'ozon-copy';
 
 type OzonProductPublishProps = {
-  demoState?: FlowStage;
   embedded?: boolean;
 };
 
@@ -95,46 +93,6 @@ const menuItems = [
   { key: '/sale/products/bindings', icon: <LinkOutlined />, label: <Link to="/sale/products/bindings">商品绑定</Link> },
   { key: '/sale/orders/issues', icon: <FileSearchOutlined />, label: <Link to="/sale/orders/issues">FBS 订单</Link> },
   { key: '/sale/shops', icon: <ShopOutlined />, label: <Link to="/sale/shops">店铺管理</Link> },
-];
-
-const demoLocalRows: StyleData[] = [
-  {
-    id: '101',
-    styleNo: 'JK-2026-001',
-    styleName: '女士轻薄防晒夹克',
-    image: '/operation-guide/48-basic-styles.png',
-    colors: ['黑色', '米白'],
-    sizes: ['S', 'M', 'L'],
-    status: 'active',
-    defaultUnit: '件',
-  },
-  {
-    id: '102',
-    styleNo: 'TS-2026-018',
-    styleName: '男士速干圆领T恤',
-    image: '/operation-guide/49-basic-material.png',
-    colors: ['灰色', '藏青'],
-    sizes: ['M', 'L', 'XL'],
-    status: 'active',
-    defaultUnit: '件',
-  },
-];
-
-const demoReferenceRows: SaleProductPublishSourceProduct[] = [
-  {
-    productId: 4595303167,
-    offerId: 'REF-JACKET-001',
-    name: 'Ozon 同类目夹克参考商品',
-    visibility: 'VISIBLE',
-    raw: { price: '99.00', currency_code: 'CNY', description_category_id: '17028922', description_category_name: 'Одежда', type_id: '93134', type_name: 'Куртка', stock: 38 },
-  },
-  {
-    productId: 4595303168,
-    offerId: 'REF-TSHIRT-001',
-    name: 'Ozon 同类目T恤参考商品',
-    visibility: 'VISIBLE',
-    raw: { price: '109.00', currency_code: 'CNY', description_category_id: '17028922', description_category_name: 'Одежда', type_id: '93134', type_name: 'Футболка', stock: 22 },
-  },
 ];
 
 const statusColor = (value?: string | null) => {
@@ -302,81 +260,7 @@ const isTaskActive = (task?: SaleAsyncTask) => {
   return ['PENDING', 'RUNNING', 'PROCESSING'].includes(status);
 };
 
-const createDemoBatch = (state: FlowStage): SaleProductPublishBatch | undefined => {
-  if (!['draft', 'published', 'deleted', 'error'].includes(state)) return undefined;
-  const blocked = state === 'error';
-  return {
-    batchId: '90001',
-    channelAccountId: '9001',
-    platformCode: 'OZON',
-    batchNo: 'OZON-20260520103000',
-    batchName: 'Ozon 铺货批次',
-    mode: 'PRODUCTION',
-    sourceType: 'LOCAL_STYLE_WITH_OZON_REFERENCE',
-    status: state === 'deleted' ? 'CLEANED' : state === 'published' ? 'SUCCESS' : blocked ? 'DRAFT' : 'VALIDATED',
-    totalCount: 2,
-    readyCount: blocked ? 1 : 2,
-    blockedCount: blocked ? 1 : 0,
-    submittedCount: ['published', 'deleted'].includes(state) ? 2 : 0,
-    successCount: ['published', 'deleted'].includes(state) ? 2 : 0,
-    failedCount: 0,
-    cleanedCount: state === 'deleted' ? 2 : 0,
-    taskId: ['published', 'deleted'].includes(state) ? 4482776225 : undefined,
-    requestId: ['published', 'deleted'].includes(state) ? 'demo-request-id' : undefined,
-    items: demoLocalRows.map((local, index) => ({
-      itemId: index + 1,
-      localStyleId: local.id,
-      localStyleNo: local.styleNo,
-      referenceProductId: demoReferenceRows[0].productId,
-      referenceOfferId: demoReferenceRows[0].offerId,
-      sourceProductId: demoReferenceRows[0].productId,
-      sourceOfferId: demoReferenceRows[0].offerId,
-      targetProductId: ['published', 'deleted'].includes(state) ? 4627913883 + index : undefined,
-      targetOfferId: `OZON-20260520103000-${index + 1}`,
-      productName: local.styleName,
-      imageUrl: local.image,
-      categoryId: '17028922',
-      attributeCount: blocked && index === 1 ? 0 : 18,
-      imageCount: 6,
-      price: index === 0 ? '99.00' : '109.00',
-      currencyCode: 'CNY',
-      validationStatus: blocked && index === 1 ? 'BLOCKED' : 'READY',
-      validationIssueCount: blocked && index === 1 ? 1 : 0,
-      validationIssues: blocked && index === 1 ? [{ field: 'attributes', severity: 'BLOCKER', message: '关键属性缺少有效值' }] : [],
-      publishStatus: ['published', 'deleted'].includes(state) ? 'SUCCESS' : 'DRAFT',
-      platformStatus: ['published', 'deleted'].includes(state) ? 'imported' : undefined,
-      platformErrors: [],
-      cleanupStatus: state === 'deleted' ? 'CLEANED' : 'PENDING',
-      cleanupMessage: state === 'deleted' ? '已归档并删除' : undefined,
-      item: {
-        offer_id: `OZON-20260520103000-${index + 1}`,
-        name: local.styleName,
-        price: index === 0 ? '99.00' : '109.00',
-        currency_code: 'CNY',
-        description_category_id: 17028922,
-        description_category_name: 'Одежда',
-        category_name: 'Одежда',
-        type_id: 93134,
-        type_name: index === 0 ? 'Куртка' : 'Футболка',
-        primary_image: local.image,
-        images: local.image ? [local.image, '/operation-guide/01-sample-list.png', '/operation-guide/03-sample-detail.png'] : [],
-        width: 300,
-        height: 20,
-        depth: 240,
-        dimension_unit: 'mm',
-        weight: 450,
-        weight_unit: 'g',
-        attributes: [
-          { id: 85, complex_id: 0, attribute_name: 'Цвет товара', attribute_name_zh: '商品颜色', attribute_group_name: 'Основные', attribute_group_name_zh: '基础属性', attribute_required: true, attribute_type: 'String', values: [{ value: local.colors[0] || '黑色' }] },
-          { id: 9048, complex_id: 0, attribute_name: 'Размер', attribute_name_zh: '尺码', attribute_group_name: 'Основные', attribute_group_name_zh: '基础属性', attribute_required: true, attribute_type: 'String', values: [{ value: local.sizes.join(', ') }] },
-          { id: 10096, complex_id: 0, attribute_name: 'Материал', attribute_name_zh: '材质', attribute_group_name: 'Характеристики', attribute_group_name_zh: '商品特征', attribute_required: false, attribute_type: 'String', values: [{ value: 'polyester' }] },
-        ],
-      },
-    })),
-  };
-};
-
-const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishProps) => {
+const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
   const navigate = useNavigate();
   const [messageApi, contextHolder] = message.useMessage();
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
@@ -544,17 +428,15 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
   }, [referenceKeyword, referenceProducts]);
 
   const loadShopTags = useCallback(async () => {
-    if (demoState) return;
     try {
       const tags = await saleApi.listSaleShopTags();
       setShopTags(tags);
     } catch (error) {
       console.error(error);
     }
-  }, [demoState]);
+  }, []);
 
   const loadAccounts = useCallback(async () => {
-    if (demoState) return;
     setInitialLoading(true);
     try {
       const list = await saleApi.listChannelAccounts();
@@ -568,39 +450,11 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     } finally {
       setInitialLoading(false);
     }
-  }, [demoState]);
+  }, []);
 
   useEffect(() => {
-    if (demoState) {
-      const demoAccount: SaleChannelAccount = {
-        id: '9001',
-        platformCode: 'OZON',
-        accountName: 'Ozon 店铺',
-        shopName: 'Ozon 店铺',
-        regionCode: 'RU',
-        status: 'ACTIVE',
-      };
-      const demoBatch = createDemoBatch(demoState);
-      setAccounts([demoAccount]);
-      setAccountId(demoAccount.id);
-      setTargetAccountIds([]);
-      setTargetTagIds([]);
-      setLocalProducts(demoState === 'idle' ? [] : demoLocalRows);
-      setReferenceProducts(demoState === 'idle' ? [] : demoReferenceRows);
-      setReferenceTotal(demoState === 'idle' ? 0 : demoReferenceRows.length);
-      setReferenceNextLastId(undefined);
-      setReferenceHasMore(false);
-      setReferenceLoadingMore(false);
-      setSelectedLocalKeys(demoState === 'idle' ? [] : demoLocalRows.map((item) => item.id));
-      setSelectedReferenceKey(demoState === 'idle' ? undefined : referenceRowKey(demoReferenceRows[0]));
-      setCurrentBatch(demoBatch);
-      setLatestTask(undefined);
-      setErrorText(demoState === 'error' ? '1 个商品存在发布前阻塞项，请先修正后再提交。' : undefined);
-      setInitialLoading(false);
-      return;
-    }
     void loadAccounts();
-  }, [demoState, loadAccounts]);
+  }, [loadAccounts]);
 
   useEffect(() => {
     void loadShopTags();
@@ -894,13 +748,8 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     setLoading(true);
     setErrorText(undefined);
     try {
-      if (demoState) {
-        const demoBatch = createDemoBatch(demoState);
-        setCurrentBatch(demoBatch);
-      } else {
-        const result = await saleApi.getProductPublishBatch(currentBatch.batchId);
-        setCurrentBatch(result);
-      }
+      const result = await saleApi.getProductPublishBatch(currentBatch.batchId);
+      setCurrentBatch(result);
       clearAllDirty();
       messageApi.success('已放弃全部未保存修改');
     } catch (error) {
@@ -917,10 +766,7 @@ const OzonProductPublish = ({ demoState, embedded = false }: OzonProductPublishP
     setLoading(true);
     setErrorText(undefined);
     try {
-      const restoredBatch = demoState ? createDemoBatch(demoState) : await saleApi.getProductPublishBatch(currentBatch.batchId);
-      if (!restoredBatch) {
-        throw new Error('未找到可恢复的草稿批次');
-      }
+      const restoredBatch = await saleApi.getProductPublishBatch(currentBatch.batchId);
       const restoredItem = (restoredBatch.items || []).find((item) => String(item.itemId) === String(record.itemId));
       if (!restoredItem) {
         throw new Error('未找到可恢复的草稿商品');

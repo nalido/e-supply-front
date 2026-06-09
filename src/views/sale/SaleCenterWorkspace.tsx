@@ -57,6 +57,9 @@ import styleDetailApi from '../../api/style-detail'
 import stylesApi from '../../api/styles'
 import OzonProductPublish from './OzonProductPublish'
 import OzonProductPublishDetails from './OzonProductPublishDetails'
+import OzonInventoryBatch from './OzonInventoryBatch'
+import OzonPromotions from './OzonPromotions'
+import SaleProductManagement from './SaleProductManagement'
 import type {
   SaleChannelAccount,
   SaleChannelCredential,
@@ -85,8 +88,11 @@ const { Title, Text, Paragraph } = Typography
 type SectionKey =
   | 'workbench'
   | 'product-sync'
+  | 'product-management'
   | 'product-publish'
   | 'product-publish-details'
+  | 'ozon-inventory'
+  | 'ozon-promotions'
   | 'product-bindings'
   | 'order-issues'
   | 'sales-data'
@@ -228,8 +234,11 @@ const buildMissingShopProfileMessage = (fields: string[]) =>
 const sectionPathMap: Record<SectionKey, string> = {
   workbench: '/sale/workbench',
   'product-sync': '/sale/products/sync',
+  'product-management': '/sale/products/manage',
   'product-publish': '/sale/ozon/listing',
   'product-publish-details': '/sale/ozon/listing-details',
+  'ozon-inventory': '/sale/ozon/inventory',
+  'ozon-promotions': '/sale/ozon/promotions',
   'product-bindings': '/sale/products/bindings',
   'order-issues': '/sale/orders/issues',
   'sales-data': '/sale/sales-data',
@@ -242,8 +251,11 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/workbench': 'workbench',
   '/sale/dashboard': 'workbench',
   '/sale/products/sync': 'product-sync',
+  '/sale/products/manage': 'product-management',
   '/sale/ozon/listing': 'product-publish',
   '/sale/ozon/listing-details': 'product-publish-details',
+  '/sale/ozon/inventory': 'ozon-inventory',
+  '/sale/ozon/promotions': 'ozon-promotions',
   '/sale/products/publish': 'product-publish',
   '/sale/products/bindings': 'product-bindings',
   '/sale/orders/issues': 'order-issues',
@@ -255,7 +267,9 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/tutorials': 'tutorial-center',
 }
 
-const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-publish' || section === 'product-publish-details' || section === 'product-bindings'
+const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-management' || section === 'product-publish' || section === 'product-publish-details' || section === 'product-bindings'
+
+const isOzonOperationSection = (section: SectionKey) => section === 'ozon-inventory' || section === 'ozon-promotions'
 
 const navItems = [
   {
@@ -269,9 +283,19 @@ const navItems = [
     label: '商品中心',
     children: [
       { key: 'product-sync', label: '商品同步' },
+      { key: 'product-bindings', label: '商品绑定' },
+      { key: 'product-management', label: '商品管理' },
+    ],
+  },
+  {
+    key: 'ozon-group',
+    icon: <DatabaseOutlined />,
+    label: 'Ozon 运营',
+    children: [
       { key: 'product-publish', label: 'Ozon 铺货' },
       { key: 'product-publish-details', label: '铺货明细' },
-      { key: 'product-bindings', label: '商品绑定' },
+      { key: 'ozon-inventory', label: '设置库存' },
+      { key: 'ozon-promotions', label: 'Ozon 活动' },
     ],
   },
   {
@@ -701,9 +725,21 @@ const SaleCenterWorkspace = () => {
       const selectedAccountStillExists = accountIdCandidate
         ? channelAccounts.some((account) => account.id === accountIdCandidate)
         : false
+      const selectedOzonAccountStillExists = accountIdCandidate
+        ? channelAccounts.some((account) => account.id === accountIdCandidate && account.platformCode?.toUpperCase() === 'OZON')
+        : false
+      const ozonOperationActive = isOzonOperationSection(activeSection)
       const effectiveSelectedAccountId =
-        productSectionActive && selectedAccountStillExists ? accountIdCandidate : undefined
-      const preferredAccountId = effectiveSelectedAccountId || channelAccounts[0]?.id || ''
+        productSectionActive && selectedAccountStillExists
+          ? accountIdCandidate
+          : ozonOperationActive && selectedOzonAccountStillExists
+            ? accountIdCandidate
+            : undefined
+      const preferredAccountId =
+        effectiveSelectedAccountId
+        || (ozonOperationActive ? channelAccounts.find((account) => account.platformCode?.toUpperCase() === 'OZON')?.id : undefined)
+        || channelAccounts[0]?.id
+        || ''
       const needsOrders = activeSection === 'workbench' || activeSection === 'order-issues'
       const needsMappings = activeSection === 'workbench' || productSectionActive
       const needsGovernance = activeSection === 'workbench' || activeSection === 'governance-sync'
@@ -732,7 +768,7 @@ const SaleCenterWorkspace = () => {
 
       setAccounts(channelAccounts)
       if (
-        productSectionActive
+        (productSectionActive || ozonOperationActive)
         && preferredAccountId
         && selectedAccountId !== preferredAccountId
       ) {
@@ -4010,10 +4046,16 @@ const SaleCenterWorkspace = () => {
         return renderWorkbench()
       case 'product-sync':
         return renderProductSync()
+      case 'product-management':
+        return <SaleProductManagement accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
       case 'product-publish':
         return <OzonProductPublish embedded />
       case 'product-publish-details':
         return <OzonProductPublishDetails />
+      case 'ozon-inventory':
+        return <OzonInventoryBatch accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
+      case 'ozon-promotions':
+        return <OzonPromotions accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
       case 'product-bindings':
         return renderProductBindings()
       case 'order-issues':
@@ -4032,7 +4074,8 @@ const SaleCenterWorkspace = () => {
   }
 
   const openKeys = useMemo(() => {
-    if (activeSection.startsWith('product')) return ['product-group']
+    if (activeSection === 'product-sync' || activeSection === 'product-bindings' || activeSection === 'product-management') return ['product-group']
+    if (activeSection === 'product-publish' || activeSection === 'product-publish-details' || activeSection === 'ozon-inventory' || activeSection === 'ozon-promotions') return ['ozon-group']
     if (activeSection.startsWith('order')) return ['order-group']
     if (activeSection.startsWith('sales')) return ['risk-group']
     if (activeSection.startsWith('shop')) return ['shop-group']
@@ -4081,46 +4124,58 @@ const SaleCenterWorkspace = () => {
                 ? '今日工作台'
                 : activeSection === 'product-sync'
                   ? '商品同步'
+                  : activeSection === 'product-management'
+                    ? '商品管理'
                   : activeSection === 'product-publish'
                     ? 'Ozon 铺货中心'
                     : activeSection === 'product-publish-details'
                       ? '铺货明细'
-                      : activeSection === 'product-bindings'
-                        ? '商品绑定'
-                        : activeSection === 'order-issues'
-                          ? '问题订单'
-                          : activeSection === 'sales-data'
-                            ? '售卖数据'
-                            : activeSection === 'shop-management'
-                              ? '店铺管理'
-                              : activeSection === 'governance-sync'
-                                ? '同步任务与日志'
-                                : '操作教程'}
+                      : activeSection === 'ozon-inventory'
+                        ? 'Ozon 库存'
+                        : activeSection === 'ozon-promotions'
+                          ? 'Ozon 活动'
+                          : activeSection === 'product-bindings'
+                            ? '商品绑定'
+                            : activeSection === 'order-issues'
+                              ? '问题订单'
+                              : activeSection === 'sales-data'
+                                ? '售卖数据'
+                                : activeSection === 'shop-management'
+                                  ? '店铺管理'
+                                  : activeSection === 'governance-sync'
+                                    ? '同步任务与日志'
+                                    : '操作教程'}
             </Title>
             <Text type="secondary">
               {activeSection === 'workbench'
                 ? '先看结论，再看对象，最后执行动作。'
                 : activeSection === 'product-sync'
                   ? '只负责读取平台商品并更新本地快照。'
+                  : activeSection === 'product-management'
+                    ? '集中治理本地同步商品，支持按店铺、offer_id、店铺标签筛选并批量删除本地商品。'
                   : activeSection === 'product-publish'
                     ? '从本地商品生成 Ozon 铺货草稿，按参考商品动态维护类目属性并提交发品。'
                     : activeSection === 'product-publish-details'
                       ? '查看历史铺货批次、目标店铺商品级结果，并执行下架或删除。'
-                      : activeSection === 'product-bindings'
-                        ? '将平台 SKU 与本地款式规格准确映射。'
-                      : activeSection === 'order-issues'
-                        ? '聚焦需要人工处理的异常订单。'
-                        : activeSection === 'sales-data'
-                          ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
-                          : activeSection === 'shop-management'
-                            ? '管理销售渠道店铺名册、接入信息与健康状态。'
-                            : activeSection === 'governance-sync'
-                              ? '排查同步失败、不可重试和幂等冲突。'
-                              : '集中查看销售中心操作教程和平台流程说明。'}
+                      : activeSection === 'ozon-inventory'
+                        ? '按店铺、仓库和商品设置 Ozon 目标库存，并用异步任务追踪逐条结果。'
+                        : activeSection === 'ozon-promotions'
+                          ? '查看 Ozon 活动、候选商品和已报名商品，批量报名或退出活动。'
+                          : activeSection === 'product-bindings'
+                            ? '将平台 SKU 与本地款式规格准确映射。'
+                          : activeSection === 'order-issues'
+                            ? '聚焦需要人工处理的异常订单。'
+                            : activeSection === 'sales-data'
+                              ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
+                              : activeSection === 'shop-management'
+                                ? '管理销售渠道店铺名册、接入信息与健康状态。'
+                                : activeSection === 'governance-sync'
+                                  ? '排查同步失败、不可重试和幂等冲突。'
+                                  : '集中查看销售中心操作教程和平台流程说明。'}
             </Text>
           </div>
           <Space align="center" size={16} className="scw-topbar__actions">
-            {productSectionActive && activeSection !== 'product-publish' ? (
+            {productSectionActive && activeSection !== 'product-publish' && activeSection !== 'product-management' ? (
               <Select
                 value={selectedAccountId}
                 style={{ minWidth: 220 }}

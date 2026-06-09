@@ -581,7 +581,7 @@ const StockingPurchaseInbound = () => {
       };
       const result = await stockingPurchaseInboundService.export(params);
       message.success('导出任务已生成，请稍后在下载中心查看');
-      console.info('mock export url', result.fileUrl);
+      console.info('export url', result.fileUrl);
     } catch (error) {
       console.error('failed to export stocking purchase list', error);
       message.error('导出失败，请稍后重试');

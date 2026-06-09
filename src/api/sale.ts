@@ -17,6 +17,11 @@ import type {
   SaleAsyncTaskItem,
   SaleProductSyncStatus,
   SaleProductSyncTaskSubmitResponse,
+  SaleOzonInventoryStock,
+  SaleOzonPromotion,
+  SaleOzonPromotionProduct,
+  SaleOzonWarehouse,
+  SaleProductMapping,
   SaleProductPublishDraftPreview,
   SaleProductPublishBatch,
   SaleProductPublishBatchList,
@@ -35,6 +40,17 @@ import type {
 type BackendListResponse<T> = {
   list?: T[];
   total?: number;
+  page?: number;
+  pageSize?: number;
+  lastId?: string | null;
+  requestId?: string | null;
+};
+
+export type BackendCursorListResponse<T> = {
+  list: T[];
+  total?: number;
+  lastId?: string | null;
+  requestId?: string | null;
 };
 
 const getTenantIdOrThrow = (): string => {
@@ -372,6 +388,95 @@ export const saleApi = {
     return response.data;
   },
 
+  async listOzonWarehouses(channelAccountId: string | number): Promise<SaleOzonWarehouse[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOzonWarehouse>>('/api/v1/sale/ozon/warehouses', {
+      params: { tenantId, channelAccountId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async submitOzonInventoryUpdate(payload: {
+    taskName?: string;
+    channelAccountIds: number[];
+    rows: Array<{
+      channelAccountId?: number | null;
+      offerId?: string | null;
+      productId?: number | null;
+      warehouseId: number;
+      warehouseName?: string | null;
+      stock: number;
+    }>;
+  }): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>('/api/v1/sale/ozon/inventory/bulk-update', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async queryOzonInventoryStocks(payload: {
+    channelAccountId: string | number;
+    warehouseId?: string | number | null;
+    rows: Array<{
+      offerId?: string | null;
+      productId?: number | null;
+    }>;
+  }): Promise<SaleOzonInventoryStock[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<BackendListResponse<SaleOzonInventoryStock>>('/api/v1/sale/ozon/inventory/stocks/query', payload, {
+      params: { tenantId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async listOzonPromotions(channelAccountId: string | number): Promise<SaleOzonPromotion[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOzonPromotion>>('/api/v1/sale/ozon/promotions', {
+      params: { tenantId, channelAccountId },
+    });
+    return response.data.list ?? [];
+  },
+
+  async listOzonPromotionProducts(params: {
+    channelAccountId: string | number;
+    actionId: string;
+    productType?: 'CANDIDATE' | 'PARTICIPATING';
+    lastId?: string;
+    limit?: number;
+  }): Promise<BackendCursorListResponse<SaleOzonPromotionProduct>> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOzonPromotionProduct>>('/api/v1/sale/ozon/promotions/products', {
+      params: { tenantId, ...params },
+    });
+    return {
+      list: response.data.list ?? [],
+      total: response.data.total,
+      lastId: response.data.lastId,
+      requestId: response.data.requestId,
+    };
+  },
+
+  async submitOzonPromotion(payload: {
+    taskName?: string;
+    actionId: string;
+    operation: 'ACTIVATE' | 'DEACTIVATE';
+    channelAccountIds: number[];
+    products: Array<{
+      channelAccountId?: number | null;
+      offerId?: string | null;
+      productId?: number | null;
+      actionPrice?: string | number | null;
+      stock?: number | null;
+    }>;
+  }): Promise<SaleAsyncTask> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleAsyncTask>('/api/v1/sale/ozon/promotions/submit', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
   async listOrders(channelAccountId?: string): Promise<SaleOrderItem[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
@@ -651,77 +756,50 @@ export const saleApi = {
 
   async listProductMappings(params?: {
     channelAccountId?: string;
+    channelAccountIds?: Array<string | number>;
+    tagIds?: Array<string | number>;
+    keyword?: string;
+    offerId?: string;
+    platformSkuId?: string;
     mappingStatus?: string;
-  }): Promise<
-    Array<{
-      id: string;
-      channelAccountId: string;
-      platformSpuId?: string;
-      platformSkcId?: string;
-      platformSkuId: string;
-      platformSkuCode?: string;
-      platformProductName?: string;
-      platformMainImageUrl?: string;
-      platformCategoryId?: string;
-      platformCategoryPath?: string;
-      platformStatus?: string;
-      normalizedColor?: string;
-      normalizedSize?: string;
-      normalizedSpecSummary?: string;
-      normalizedAttributesJson?: string;
-      platformSnapshotJson?: string;
-      styleId?: string;
-      styleNo?: string;
-      styleName?: string;
-      styleImageUrl?: string;
-      styleVariantId?: string;
-      styleVariantColor?: string;
-      styleVariantSize?: string;
-      styleVariantAttributesJson?: string;
-      warehouseId?: string;
-      mappingStatus?: string;
-      lastSyncedAt?: string;
-      updatedAt?: string;
-      remark?: string;
-    }>
-  > {
+    page?: number;
+    pageSize?: number;
+  }): Promise<SaleProductMapping[]> {
     const tenantId = getTenantIdOrThrow();
-    const response = await http.get<
-      BackendListResponse<{
-        id: string;
-        channelAccountId: string;
-        platformSpuId?: string;
-        platformSkcId?: string;
-        platformSkuId: string;
-        platformSkuCode?: string;
-        platformProductName?: string;
-        platformMainImageUrl?: string;
-        platformCategoryId?: string;
-        platformCategoryPath?: string;
-        platformStatus?: string;
-        normalizedColor?: string;
-        normalizedSize?: string;
-        normalizedSpecSummary?: string;
-        normalizedAttributesJson?: string;
-        platformSnapshotJson?: string;
-        styleId?: string;
-        styleNo?: string;
-        styleName?: string;
-        styleImageUrl?: string;
-        styleVariantId?: string;
-        styleVariantColor?: string;
-        styleVariantSize?: string;
-        styleVariantAttributesJson?: string;
-        warehouseId?: string;
-        mappingStatus?: string;
-        lastSyncedAt?: string;
-        updatedAt?: string;
-        remark?: string;
-      }>
-    >('/api/v1/sale/product-mappings', {
-      params: { tenantId, ...params },
+    const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
+      params: { tenantId, pageSize: 200, ...params },
     });
     return response.data.list ?? [];
+  },
+
+  async listProductMappingsPage(params?: {
+    channelAccountId?: string;
+    channelAccountIds?: Array<string | number>;
+    tagIds?: Array<string | number>;
+    keyword?: string;
+    offerId?: string;
+    platformSkuId?: string;
+    mappingStatus?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<BackendListResponse<SaleProductMapping>> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
+      params: { tenantId, ...params },
+    });
+    return response.data;
+  },
+
+  async bulkDeleteProductMappings(mappingIds: Array<string | number>): Promise<{ deletedCount: number; deletedMappingIds: string[] }> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<{ deletedCount: number; deletedMappingIds: string[] }>(
+      '/api/v1/sale/product-mappings/bulk-delete',
+      { mappingIds: mappingIds.map(Number) },
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
   },
 
   async generateProductMappingDrafts(payload: {

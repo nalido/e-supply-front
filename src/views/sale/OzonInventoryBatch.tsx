@@ -4,7 +4,7 @@ import { Alert, App, Button, Card, Checkbox, Col, Input, InputNumber, Modal, Row
 import type { ColumnsType } from 'antd/es/table'
 import { CheckCircleOutlined, DatabaseOutlined, ReloadOutlined } from '@ant-design/icons'
 import { saleApi } from '../../api/sale'
-import type { SaleAsyncTask, SaleChannelAccount, SaleOzonWarehouse } from '../../types/sale'
+import type { SaleAsyncTask, SaleChannelAccount, SaleOzonInventoryStock, SaleOzonWarehouse, SaleShopTag } from '../../types/sale'
 import { getShopLabel } from './sale-center-helpers'
 import OzonOperationTaskDrawer from './OzonOperationTaskDrawer'
 import { sortColorValues, sortSizeValues } from '../../utils/spec'
@@ -13,6 +13,8 @@ const { Text } = Typography
 
 type InventoryProduct = {
   key: string
+  channelAccountId: string
+  shopName: string
   platformSpuId?: string | null
   platformSkcId?: string | null
   platformSkuId?: string | null
@@ -21,6 +23,7 @@ type InventoryProduct = {
   spuLabel?: string | null
   skcLabel?: string | null
   offerId?: string | null
+  factoryStyleNo?: string | null
   productId?: number | null
   name?: string | null
   imageUrl?: string | null
@@ -74,7 +77,6 @@ type Props = {
   accounts: SaleChannelAccount[]
   selectedAccountId?: string
   onAccountChange: (accountId: string) => void
-  demoMode?: boolean
 }
 
 const parseSnapshot = (value?: string | null) => {
@@ -208,6 +210,14 @@ const getGroupKey = (item: InventoryProduct) => {
   return `sku:${item.key}`
 }
 
+const getMatrixGroupKey = (item: InventoryProduct) => `${item.channelAccountId}::${getGroupKey(item)}`
+
+const shallowEqualRecord = (left: Record<string, string>, right: Record<string, string>) => {
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  return leftKeys.length === rightKeys.length && leftKeys.every((key) => left[key] === right[key])
+}
+
 const ProductThumb = ({ src, name, size = 56 }: { src?: string | null; name?: string | null; size?: number }) => {
   if (src?.trim()) {
     return <img className="scw-thumb" src={src.trim()} alt={name || '商品图'} style={{ width: size, height: size }} />
@@ -219,34 +229,113 @@ const ProductThumb = ({ src, name, size = 56 }: { src?: string | null; name?: st
   )
 }
 
-export default function OzonInventoryBatch({ accounts, selectedAccountId, onAccountChange, demoMode }: Props) {
+export default function OzonInventoryBatch({ accounts, selectedAccountId, onAccountChange }: Props) {
   const { message } = App.useApp()
-  const [warehouseId, setWarehouseId] = useState<string>()
-  const [warehouses, setWarehouses] = useState<SaleOzonWarehouse[]>([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [shopTags, setShopTags] = useState<SaleShopTag[]>([])
+  const [selectedWarehouseByAccountId, setSelectedWarehouseByAccountId] = useState<Record<string, string>>({})
+  const [warehousesByAccountId, setWarehousesByAccountId] = useState<Record<string, SaleOzonWarehouse[]>>({})
   const [products, setProducts] = useState<InventoryProduct[]>([])
   const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const [total, setTotal] = useState(0)
   const [batchTargetStock, setBatchTargetStock] = useState<number | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [task, setTask] = useState<SaleAsyncTask | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
+  const [stockRefreshedAt, setStockRefreshedAt] = useState<string>()
 
   const ozonAccounts = useMemo(() => accounts.filter((item) => item.platformCode?.toUpperCase() === 'OZON'), [accounts])
-  const effectiveAccountId = ozonAccounts.some((item) => item.id === selectedAccountId) ? selectedAccountId : ozonAccounts[0]?.id
-  const selectedWarehouse = warehouses.find((item) => item.warehouseId === warehouseId)
+  const effectiveAccountIds = useMemo(
+    () => selectedAccountIds.length
+      ? selectedAccountIds.filter((item) => ozonAccounts.some((account) => account.id === item))
+      : selectedAccountId && ozonAccounts.some((item) => item.id === selectedAccountId)
+        ? [selectedAccountId]
+        : ozonAccounts[0]?.id ? [ozonAccounts[0].id] : [],
+    [ozonAccounts, selectedAccountId, selectedAccountIds],
+  )
+
+  const getSelectedWarehouse = useCallback(
+    (accountId: string) => {
+      const warehouseId = selectedWarehouseByAccountId[accountId]
+      return warehouseId ? warehousesByAccountId[accountId]?.find((item) => item.warehouseId === warehouseId) : undefined
+    },
+    [selectedWarehouseByAccountId, warehousesByAccountId],
+  )
+
+  const applyLiveStocks = useCallback(
+    async (items: InventoryProduct[], warehouseMap: Record<string, string>) => {
+      if (!items.length) return items
+      const stocksByAccountProduct = new Map<string, SaleOzonInventoryStock>()
+      const itemsByAccount = new Map<string, InventoryProduct[]>()
+      items.forEach((item) => {
+        itemsByAccount.set(item.channelAccountId, [...(itemsByAccount.get(item.channelAccountId) || []), item])
+      })
+      await Promise.all(Array.from(itemsByAccount.entries()).map(async ([accountId, accountItems]) => {
+        const queryRows = accountItems
+          .filter((item) => item.offerId || item.productId)
+          .slice(0, 100)
+          .map((item) => ({ offerId: item.offerId, productId: item.productId }))
+        if (!queryRows.length) return
+        const liveStocks = await saleApi.queryOzonInventoryStocks({
+          channelAccountId: accountId,
+          warehouseId: warehouseMap[accountId] ? Number(warehouseMap[accountId]) : undefined,
+          rows: queryRows,
+        })
+        liveStocks.forEach((stock) => {
+          if (stock.productId) stocksByAccountProduct.set(`${accountId}:product:${stock.productId}`, stock)
+          if (stock.offerId) stocksByAccountProduct.set(`${accountId}:offer:${stock.offerId}`, stock)
+        })
+      }))
+      setStockRefreshedAt(new Date().toLocaleString('zh-CN', { hour12: false }))
+      return items.map((item) => {
+        const stock = (item.productId ? stocksByAccountProduct.get(`${item.channelAccountId}:product:${item.productId}`) : undefined) || (item.offerId ? stocksByAccountProduct.get(`${item.channelAccountId}:offer:${item.offerId}`) : undefined)
+        if (!stock) return item
+        return {
+          ...item,
+          stockPresent: stock.present ?? stock.stock ?? item.stockPresent,
+          stockReserved: stock.reserved ?? item.stockReserved,
+        }
+      })
+    },
+    [],
+  )
 
   const loadData = useCallback(async () => {
-    if (!effectiveAccountId || demoMode) return
+    if (!effectiveAccountIds.length) return
     setLoading(true)
     try {
-      const [warehouseList, mappings] = await Promise.all([
-        saleApi.listOzonWarehouses(effectiveAccountId),
-        saleApi.listProductMappings({ channelAccountId: effectiveAccountId }),
-      ])
-      setWarehouses(warehouseList)
-      setWarehouseId((current) => current || warehouseList[0]?.warehouseId)
-      setProducts(mappings.map((item) => {
+      const mappingPage = await saleApi.listProductMappingsPage({
+        channelAccountIds: effectiveAccountIds,
+        tagIds: selectedTagIds.length ? selectedTagIds : undefined,
+        keyword: keyword.trim() || undefined,
+        page,
+        pageSize,
+      })
+      const mappings = mappingPage.list ?? []
+      setTotal(mappingPage.total ?? mappings.length)
+      const accountIdsForRows = Array.from(new Set(mappings.map((item) => item.channelAccountId).filter(Boolean)))
+      const warehouseAccountIds = Array.from(new Set([...effectiveAccountIds, ...accountIdsForRows]))
+      const warehouseEntries = await Promise.all(
+        warehouseAccountIds.map(async (accountId) => [accountId, await saleApi.listOzonWarehouses(accountId)] as const),
+      )
+      const nextWarehousesByAccountId = Object.fromEntries(warehouseEntries)
+      const nextWarehouseByAccountId = { ...selectedWarehouseByAccountId }
+      warehouseEntries.forEach(([accountId, warehouseList]) => {
+        if (!nextWarehouseByAccountId[accountId] || !warehouseList.some((item) => item.warehouseId === nextWarehouseByAccountId[accountId])) {
+          nextWarehouseByAccountId[accountId] = warehouseList[0]?.warehouseId
+        }
+      })
+      setWarehousesByAccountId(nextWarehousesByAccountId)
+      if (!shallowEqualRecord(selectedWarehouseByAccountId, nextWarehouseByAccountId)) {
+        setSelectedWarehouseByAccountId(nextWarehouseByAccountId)
+      }
+      const mappedProducts = mappings.map((item) => {
+        const shopName = getShopLabel(ozonAccounts.find((account) => account.id === item.channelAccountId))
         const snapshot = parseSnapshot(item.platformSnapshotJson)
         const normalizedAttributes = parseSnapshot(item.normalizedAttributesJson)
         const attributes = collectAttributeMap(normalizedAttributes, snapshot)
@@ -254,6 +343,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         const offerId = textFrom(snapshot.offer_id, snapshot.offerId, item.platformSkuCode)
         const platformSkuId = textFrom(item.platformSkuId, snapshot.sku, snapshot.fbo_sku, snapshot.fbs_sku)
         const cardKey = attributeText(attributes, ['合并至一张卡片', 'Объединить на одной карточке'], ['合并', 'карточ'])
+        const factoryStyleNo = textFrom(normalizedAttributes.factory_style_no, normalizedAttributes.factoryStyleNo, cardKey)
         const color = textFrom(
           item.normalizedColor,
           attributeText(attributes, ['商品颜色', 'Цвет товара'], ['颜色', 'цвет']),
@@ -271,18 +361,23 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
           snapshot.normalizedSize,
         )
         const makerSize = textFrom(attributeText(attributes, ['由制造商规定尺码', 'Размер производителя']))
-        const spuKey = textFrom(cardKey, item.platformProductName, snapshot.name, snapshot.title)
-        const skcKey = textFrom(cardKey && color ? `${cardKey}:${color}` : undefined, color, colorName, offerId)
+        const platformSpuId = textFrom(item.platformSpuId, normalizedAttributes.ozon_spu_key, normalizedAttributes.model_id, snapshot.model_info && isRecord(snapshot.model_info) ? snapshot.model_info.model_id : undefined)
+        const platformSkcId = textFrom(item.platformSkcId, normalizedAttributes.ozon_skc_key, platformSpuId && color ? `${platformSpuId}:${color}` : undefined)
+        const spuKey = textFrom(platformSpuId, item.platformProductName, snapshot.name, snapshot.title)
+        const skcKey = textFrom(platformSkcId, platformSpuId && color ? `${platformSpuId}:${color}` : undefined, color, colorName, offerId)
         return {
-          key: item.id,
-          platformSpuId: textFrom(item.platformSpuId, snapshot.spu_id, snapshot.spuId),
-          platformSkcId: textFrom(item.platformSkcId, snapshot.skc_id, snapshot.skcId, snapshot.card_id, snapshot.cardId),
+          key: `${item.channelAccountId}:${item.id}`,
+          channelAccountId: item.channelAccountId,
+          shopName,
+          platformSpuId,
+          platformSkcId,
           platformSkuId,
           spuKey,
           skcKey,
-          spuLabel: cardKey || spuKey,
+          spuLabel: platformSpuId || cardKey || spuKey,
           skcLabel: textFrom(colorName && color && colorName !== color ? `${color} / ${colorName}` : undefined, color, colorName),
           offerId,
+          factoryStyleNo,
           productId: productId ?? undefined,
           name: textFrom(item.platformProductName, snapshot.name, snapshot.title),
           imageUrl: textFrom(item.platformMainImageUrl, firstImageFromSnapshot(snapshot)),
@@ -299,59 +394,36 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
           updatedAt: item.updatedAt,
           targetStock: null,
         }
-      }).filter((item) => item.offerId || item.productId))
+      }).filter((item) => item.offerId || item.productId)
+      setProducts(await applyLiveStocks(mappedProducts, nextWarehouseByAccountId))
+      setSelectedRowKeys([])
     } catch (error) {
       message.error(error instanceof Error ? error.message : '加载 Ozon 库存数据失败')
     } finally {
       setLoading(false)
     }
-  }, [demoMode, effectiveAccountId, message])
+  }, [applyLiveStocks, effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, selectedTagIds, selectedWarehouseByAccountId])
 
   useEffect(() => {
-    if (!demoMode && effectiveAccountId && effectiveAccountId !== selectedAccountId) {
-      onAccountChange(effectiveAccountId)
-    }
-  }, [demoMode, effectiveAccountId, onAccountChange, selectedAccountId])
+    saleApi.listSaleShopTags()
+      .then(setShopTags)
+      .catch((error) => message.error(error instanceof Error ? error.message : '加载店铺标签失败'))
+  }, [message])
 
   useEffect(() => {
-    if (demoMode) {
-      setWarehouses([
-        { warehouseId: '100001', warehouseName: 'Ozon 默认仓', status: 'ACTIVE' },
-        { warehouseId: '100002', warehouseName: '莫斯科前置仓', status: 'ACTIVE' },
-      ])
-      setWarehouseId('100001')
-      setProducts([
-        { key: 'demo-1', spuKey: 'ET0070+003-02', skcKey: 'ET0070+003-02:蓝色', spuLabel: 'ET0070+003-02', skcLabel: '蓝色', platformSkuId: '4472409140', offerId: 'ET0070-003-02-ZQ-140', productId: 4783514322, name: '儿童卫衣套装', color: '蓝色', size: '140', makerSize: '140cm', stockPresent: 20, targetStock: 12, updatedAt: '2026-06-04 08:30' },
-        { key: 'demo-2', spuKey: 'ET0070+003-02', skcKey: 'ET0070+003-02:蓝色', spuLabel: 'ET0070+003-02', skcLabel: '蓝色', platformSkuId: '4472408357', offerId: 'ET0070-003-02-ZQ-160', productId: 4783512867, name: '儿童卫衣套装', color: '蓝色', size: '160', makerSize: '160cm', stockPresent: 8, targetStock: 0, updatedAt: '2026-06-04 08:30' },
-        { key: 'demo-3', spuKey: 'ET0070+003-02', skcKey: 'ET0070+003-02:黑色', spuLabel: 'ET0070+003-02', skcLabel: '黑色', platformSkuId: '4472403039', offerId: 'ET0070-003-02-HS-140', productId: 4783513662, name: '儿童卫衣套装', color: '黑色', size: '140', makerSize: '140cm', stockPresent: 14, targetStock: 6, updatedAt: '2026-06-04 08:30' },
-      ])
-      setSelectedRowKeys(['spu:ET0070+003-02::skc:ET0070+003-02:蓝色'])
-      return
+    if (effectiveAccountIds[0] && effectiveAccountIds[0] !== selectedAccountId) {
+      onAccountChange(effectiveAccountIds[0])
     }
+  }, [effectiveAccountIds, onAccountChange, selectedAccountId])
+
+  useEffect(() => {
     void loadData()
-  }, [demoMode, loadData])
-
-  const filteredProducts = useMemo(() => {
-    const text = keyword.trim().toLowerCase()
-    if (!text) return products
-    return products.filter((item) =>
-      [
-        item.name,
-        item.offerId,
-        item.platformSkuId,
-        item.productId ? String(item.productId) : '',
-        item.spuLabel,
-        item.skcLabel,
-        item.color,
-        item.size,
-      ].some((value) => (value || '').toLowerCase().includes(text)),
-    )
-  }, [keyword, products])
+  }, [loadData])
 
   const inventoryGroups = useMemo<InventoryGroup[]>(() => {
     const groupMap = new Map<string, InventoryProduct[]>()
-    filteredProducts.forEach((item) => {
-      const key = getGroupKey(item)
+    products.forEach((item) => {
+      const key = getMatrixGroupKey(item)
       groupMap.set(key, [...(groupMap.get(key) || []), item])
     })
     return Array.from(groupMap.entries())
@@ -374,7 +446,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         }
       })
       .sort((left, right) => compareText(left.spuLabel, right.spuLabel) || compareText(left.skcLabel, right.skcLabel) || compareText(left.name, right.name))
-  }, [filteredProducts])
+  }, [products])
 
   const displayRows = useMemo<InventoryDisplayRow[]>(
     () =>
@@ -401,10 +473,12 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
   )
 
   const selectedGroupKeys = useMemo(() => new Set(selectedRowKeys.map((item) => String(item))), [selectedRowKeys])
-  const selectedRows = products.filter((item) => selectedGroupKeys.has(getGroupKey(item)))
+  const selectedRows = products.filter((item) => selectedGroupKeys.has(getMatrixGroupKey(item)))
   const selectedSkuCount = selectedRows.length
   const allGroupKeys = inventoryGroups.map((group) => group.key)
-  const spuCount = new Set(filteredProducts.map((item) => item.spuKey || item.name || item.key)).size
+  const spuCount = new Set(products.map((item) => item.spuKey || item.name || item.key)).size
+  const accountCount = new Set(products.map((item) => item.channelAccountId)).size
+  const warehouseCount = Object.values(warehousesByAccountId).reduce((count, list) => count + list.length, 0)
   const allGroupsSelected = allGroupKeys.length > 0 && allGroupKeys.every((key) => selectedGroupKeys.has(key))
   const partiallySelected = selectedGroupKeys.size > 0 && !allGroupsSelected
 
@@ -424,10 +498,14 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
     setSelectedRowKeys(checked ? allGroupKeys : [])
   }
 
-  const invalidReason = !effectiveAccountId
+  const updateSelectedWarehouse = (accountId: string, warehouseId: string) => {
+    setSelectedWarehouseByAccountId((current) => ({ ...current, [accountId]: warehouseId }))
+  }
+
+  const invalidReason = !effectiveAccountIds.length
     ? '请选择类型为 Ozon 的店铺'
-    : !warehouseId
-      ? '请选择 Ozon 仓库'
+    : selectedRows.some((item) => !selectedWarehouseByAccountId[item.channelAccountId])
+      ? '请为所选商品对应店铺选择 Ozon 仓库'
       : selectedRows.length === 0
         ? '请选择商品'
         : selectedRows.some((item) => item.targetStock === null || item.targetStock === undefined || item.targetStock < 0 || !Number.isInteger(item.targetStock))
@@ -447,7 +525,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       message.warning('批量目标库存必须是大于等于 0 的整数')
       return
     }
-    setProducts((current) => current.map((item) => selectedGroupKeys.has(getGroupKey(item)) ? { ...item, targetStock: batchTargetStock } : item))
+    setProducts((current) => current.map((item) => selectedGroupKeys.has(getMatrixGroupKey(item)) ? { ...item, targetStock: batchTargetStock } : item))
     message.success(`已为 ${selectedRows.length} 个 SKU 设置目标库存`)
   }
 
@@ -456,45 +534,32 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       message.warning(invalidReason)
       return
     }
-    if (demoMode) {
-      setTask({
-        taskId: 'DEMO-OZON-INVENTORY',
-        taskType: 'OZON_INVENTORY_UPDATE',
-        taskName: 'Ozon 库存设置 - Ozon 默认仓',
-        status: 'SUCCESS',
-        totalCount: selectedRows.length,
-        successCount: selectedRows.length,
-        failedCount: 0,
-        skippedCount: 0,
-        pendingCount: 0,
-        runningCount: 0,
-        progressPercent: 100,
-      })
-      setTaskOpen(true)
-      return
-    }
     Modal.confirm({
       title: '确认设置 Ozon 目标库存',
-      content: `将向 ${selectedRows.length} 个商品写入目标库存，库存值会覆盖所选 Ozon 仓库当前可售库存。`,
+      content: `将向 ${new Set(selectedRows.map((item) => item.channelAccountId)).size} 个店铺的 ${selectedRows.length} 个商品写入目标库存，库存值会覆盖对应店铺所选 Ozon 仓库当前可售库存。`,
       okText: '提交任务',
       cancelText: '取消',
       onOk: async () => {
         setSubmitting(true)
         try {
           const created = await saleApi.submitOzonInventoryUpdate({
-            taskName: `Ozon 库存设置 - ${selectedWarehouse?.warehouseName || warehouseId}`,
-            channelAccountIds: [Number(effectiveAccountId)],
+            taskName: `Ozon 库存矩阵设置 - ${selectedRows.length} 个 SKU`,
+            channelAccountIds: Array.from(new Set(selectedRows.map((item) => Number(item.channelAccountId)))),
             rows: selectedRows.map((item) => ({
+              channelAccountId: Number(item.channelAccountId),
               offerId: item.offerId,
               productId: item.productId,
-              warehouseId: Number(warehouseId),
-              warehouseName: selectedWarehouse?.warehouseName,
+              warehouseId: Number(selectedWarehouseByAccountId[item.channelAccountId]),
+              warehouseName: getSelectedWarehouse(item.channelAccountId)?.warehouseName,
               stock: Number(item.targetStock),
             })),
           })
           setTask(created)
           setTaskOpen(true)
           message.success('已创建 Ozon 库存设置任务')
+          window.setTimeout(() => {
+            void loadData()
+          }, 3000)
         } finally {
           setSubmitting(false)
         }
@@ -538,6 +603,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
                 <Tag color="geekblue">SPU {record.groupSpuLabel || '--'}</Tag>
                 <Tag color="magenta">SKC {record.groupSkcLabel || record.groupColors.join(' / ') || '--'}</Tag>
                 <Tag color="blue">尺码 {record.groupSizes.length ? record.groupSizes.join(' / ') : '--'}</Tag>
+                <Tag>{record.shopName}</Tag>
                 <Tag>{record.groupItems.length} 个 SKU</Tag>
               </Space>
               {record.groupCategoryName ? <Text type="secondary">类目：{record.groupCategoryName}</Text> : null}
@@ -559,13 +625,13 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       ),
     },
     {
-      title: '本地货号',
+      title: '工厂货品',
       key: 'offerId',
       width: 220,
       render: (_, record) => (
         <Space direction="vertical" size={4}>
-          <Text copyable={{ text: record.offerId || '' }}>{record.offerId || '--'}</Text>
-          <Text type="secondary">offer_id</Text>
+          <Text copyable={{ text: record.offerId || '' }}>货品ID：{record.offerId || '--'}</Text>
+          <Text type="secondary">款号：{record.factoryStyleNo || '--'}</Text>
         </Space>
       ),
     },
@@ -613,35 +679,58 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
   ]
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <div className="scw-ops-page">
       <Alert
         showIcon
         type="warning"
         message="库存调整会覆盖 Ozon 当前仓库可售库存"
-        description="提交前请核对店铺、仓库、商品和目标库存；任务执行后可在结果明细中查看平台返回状态。"
+        description={stockRefreshedAt ? `刷新会实时读取 Ozon 平台库存；最近刷新：${stockRefreshedAt}。提交任务后可在结果明细中查看平台返回状态。` : '点击刷新会实时读取 Ozon 平台库存；提交前请核对店铺、仓库、商品和目标库存。'}
       />
-      <Card>
+      <Card className="scw-ops-toolbar scw-ops-toolbar--sticky">
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={5}>
+          <Col xs={24} md={6}>
             <Select
-              value={effectiveAccountId}
+              mode="multiple"
+              value={effectiveAccountIds}
               placeholder="Ozon 店铺"
               style={{ width: '100%' }}
+              maxTagCount="responsive"
               options={ozonAccounts.map((item) => ({ label: getShopLabel(item), value: item.id }))}
-              onChange={onAccountChange}
+              onChange={(values) => {
+                setSelectedAccountIds(values)
+                setPage(1)
+                setSelectedRowKeys([])
+                if (values[0]) onAccountChange(values[0])
+              }}
             />
           </Col>
           <Col xs={24} md={5}>
             <Select
-              value={warehouseId}
-              placeholder="Ozon 仓库"
+              mode="multiple"
+              value={selectedTagIds}
+              placeholder="店铺标签"
               style={{ width: '100%' }}
-              options={warehouses.map((item) => ({ label: item.warehouseName, value: item.warehouseId }))}
-              onChange={setWarehouseId}
+              maxTagCount="responsive"
+              allowClear
+              options={shopTags.map((item) => ({ label: item.tagName, value: item.tagId }))}
+              onChange={(values) => {
+                setSelectedTagIds(values)
+                setPage(1)
+                setSelectedRowKeys([])
+              }}
             />
           </Col>
           <Col xs={24} md={6}>
-            <Input value={keyword} placeholder="搜索商品名 / 本地货号 / product_id / Ozon SKU / SPU / SKC" onChange={(event) => setKeyword(event.target.value)} />
+            <Input
+              value={keyword}
+              placeholder="搜索商品名 / 本地货号 / product_id / Ozon SKU / SPU / SKC"
+              onChange={(event) => {
+                setKeyword(event.target.value)
+                setPage(1)
+              }}
+              onPressEnter={() => void loadData()}
+              allowClear
+            />
           </Col>
           <Col xs={24} md={8}>
             <Space wrap>
@@ -654,16 +743,36 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
                 style={{ width: 140 }}
               />
               <Button disabled={!selectedRowKeys.length} onClick={applyBatchTargetStock}>应用到选中商品</Button>
-              <Button icon={<ReloadOutlined />} loading={loading} onClick={loadData}>刷新</Button>
+              <Button icon={<ReloadOutlined />} loading={loading} onClick={loadData}>刷新平台库存</Button>
               <Button type="primary" icon={<CheckCircleOutlined />} loading={submitting} disabled={!!invalidReason} onClick={submit}>提交库存任务</Button>
             </Space>
           </Col>
         </Row>
       </Card>
+      <Card size="small" title="店铺仓库映射">
+        <div className="scw-warehouse-matrix">
+          {effectiveAccountIds.map((accountId) => {
+            const account = ozonAccounts.find((item) => item.id === accountId)
+            const warehouseList = warehousesByAccountId[accountId] || []
+            return (
+              <div className="scw-warehouse-matrix__item" key={accountId}>
+                <Text strong>{getShopLabel(account)}</Text>
+                <Select
+                  value={selectedWarehouseByAccountId[accountId]}
+                  placeholder="Ozon 仓库"
+                  style={{ minWidth: 220 }}
+                  options={warehouseList.map((item) => ({ label: item.warehouseName, value: item.warehouseId }))}
+                  onChange={(value) => updateSelectedWarehouse(accountId, value)}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </Card>
       <Row gutter={[16, 16]}>
-        <Col xs={12} md={6}><Card><Statistic title="SPU 款数" value={spuCount} prefix={<DatabaseOutlined />} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="SKC 组数" value={inventoryGroups.length} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="仓库数量" value={warehouses.length} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="店铺数量" value={accountCount} prefix={<DatabaseOutlined />} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="SPU 款数" value={spuCount} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="仓库数量" value={warehouseCount} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title="已选 SKU" value={selectedSkuCount} /></Card></Col>
       </Row>
       <Card title="商品库存">
@@ -672,11 +781,16 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
           loading={loading}
           columns={columns}
           dataSource={displayRows}
-          pagination={{ pageSize: 50 }}
-          scroll={{ x: 1320 }}
+          pagination={{ current: page, pageSize, total, showSizeChanger: true }}
+          onChange={(nextPagination) => {
+            setPage(nextPagination.current || 1)
+            setPageSize(nextPagination.pageSize || 50)
+            setSelectedRowKeys([])
+          }}
+          scroll={{ x: 1320, y: 'calc(100vh - 460px)' }}
         />
       </Card>
       <OzonOperationTaskDrawer open={taskOpen} task={task} onClose={() => setTaskOpen(false)} />
-    </Space>
+    </div>
   )
 }

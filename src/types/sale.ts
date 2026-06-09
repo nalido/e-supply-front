@@ -68,6 +68,85 @@ export type SaleAsyncTaskItem = {
   updatedAt?: string | null;
 };
 
+export type SaleOzonWarehouse = {
+  warehouseId: string;
+  warehouseName: string;
+  status?: string | null;
+  rawPayloadJson?: string | null;
+};
+
+export type SaleOzonInventoryStock = {
+  offerId?: string | null;
+  productId?: number | null;
+  warehouseId?: number | string | null;
+  warehouseName?: string | null;
+  present?: number | null;
+  reserved?: number | null;
+  stock?: number | null;
+  stockType?: string | null;
+  rawPayloadJson?: string | null;
+};
+
+export type SaleProductMapping = {
+  id: string;
+  channelAccountId: string;
+  platformSpuId?: string;
+  platformSkcId?: string;
+  platformSkuId: string;
+  platformSkuCode?: string;
+  platformProductName?: string;
+  platformMainImageUrl?: string;
+  platformCategoryId?: string;
+  platformCategoryPath?: string;
+  platformStatus?: string;
+  normalizedColor?: string;
+  normalizedSize?: string;
+  normalizedSpecSummary?: string;
+  normalizedAttributesJson?: string;
+  platformSnapshotJson?: string;
+  styleId?: string;
+  styleNo?: string;
+  styleName?: string;
+  styleImageUrl?: string;
+  styleVariantId?: string;
+  styleVariantColor?: string;
+  styleVariantSize?: string;
+  styleVariantAttributesJson?: string;
+  warehouseId?: string;
+  mappingStatus?: string;
+  lastSyncedAt?: string;
+  updatedAt?: string;
+  remark?: string;
+};
+
+export type SaleOzonPromotion = {
+  actionId: string;
+  title: string;
+  actionType?: string | null;
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  potentialProductsCount?: number | null;
+  participatingProductsCount?: number | null;
+  participating?: boolean | null;
+  rawPayloadJson?: string | null;
+};
+
+export type SaleOzonPromotionProduct = {
+  offerId?: string | null;
+  productId?: number | null;
+  name?: string | null;
+  imageUrl?: string | null;
+  color?: string | null;
+  size?: string | null;
+  price?: string | number | null;
+  actionPrice?: string | number | null;
+  maxActionPrice?: string | number | null;
+  stock?: number | null;
+  minStock?: number | null;
+  addMode?: string | null;
+  rawPayloadJson?: string | null;
+};
+
 export const getSaleSellerTypeLabel = (sellerType?: string | null): string => {
   if (sellerType === 'FULLY_MANAGED') {
     return '全托管';

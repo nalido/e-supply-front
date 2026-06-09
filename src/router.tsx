@@ -73,7 +73,6 @@ const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ 
 const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
 const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
 const SaleCenterWorkspace = lazy(() => import('./views/sale/SaleCenterWorkspace'));
-const OzonProductPublish = lazy(() => import('./views/sale/OzonProductPublish'));
 
 const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
 
@@ -82,13 +81,6 @@ const createLazyPageElement = (Component: React.ComponentType) =>
     Suspense,
     { fallback: pageFallback },
     React.createElement(Component),
-  );
-
-const createLazyPageElementWithProps = <P extends object>(Component: React.ComponentType<P>, props: P) =>
-  React.createElement(
-    Suspense,
-    { fallback: pageFallback },
-    React.createElement(Component, props),
   );
 
 const createPlaceholderElement = (name: string): ReactElement =>
@@ -188,34 +180,6 @@ const router = createBrowserRouter([
     path: '/sign-in/*',
     element: createLazyPageElement(SignInPage),
   },
-  ...(import.meta.env.DEV
-    ? [
-        {
-          path: '/dev/ozon-product-publish/empty',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'idle' }),
-        },
-        {
-          path: '/dev/ozon-product-publish/sources',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'sources' }),
-        },
-        {
-          path: '/dev/ozon-product-publish/draft',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'draft' }),
-        },
-        {
-          path: '/dev/ozon-product-publish/published',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'published' }),
-        },
-        {
-          path: '/dev/ozon-product-publish/deleted',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'deleted' }),
-        },
-        {
-          path: '/dev/ozon-product-publish/error',
-          element: createLazyPageElementWithProps(OzonProductPublish, { demoState: 'error' }),
-        },
-      ]
-    : []),
   {
     path: '/',
     element: React.createElement(ProtectedLayout),
@@ -307,8 +271,11 @@ const router = createBrowserRouter([
       { path: 'workbench', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'dashboard', element: React.createElement(Navigate, { to: '/sale/workbench', replace: true }) },
       { path: 'products/sync', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'products/manage', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'ozon/listing', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'ozon/listing-details', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'ozon/inventory', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'ozon/promotions', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'products/publish', element: React.createElement(Navigate, { to: '/sale/ozon/listing', replace: true }) },
       { path: 'products/bindings', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'orders', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },

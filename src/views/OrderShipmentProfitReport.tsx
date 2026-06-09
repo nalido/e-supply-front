@@ -127,7 +127,7 @@ const OrderShipmentProfitReport = () => {
       const params = buildListParams(page, pageSize, appliedKeyword);
       const result = await orderShipmentProfitReportService.export(params);
       message.success('导出任务已生成，请稍后到下载中心查看');
-      console.info('mock export file url', result.fileUrl);
+      console.info('export file url', result.fileUrl);
     } catch (error) {
       console.error('failed to export shipment profit', error);
       message.error('导出失败，请稍后重试');
