@@ -134,10 +134,14 @@ export type SaleOzonPromotion = {
 export type SaleOzonPromotionProduct = {
   offerId?: string | null;
   productId?: number | null;
+  platformSpuId?: string | null;
+  platformSkcId?: string | null;
+  platformSkuId?: string | null;
   name?: string | null;
   imageUrl?: string | null;
   color?: string | null;
   size?: string | null;
+  normalizedSpecSummary?: string | null;
   price?: string | number | null;
   actionPrice?: string | number | null;
   maxActionPrice?: string | number | null;

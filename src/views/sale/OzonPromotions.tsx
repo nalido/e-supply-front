@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Key } from 'react'
-import { Alert, App, Button, Card, Col, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, Checkbox, Col, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { GiftOutlined, ReloadOutlined } from '@ant-design/icons'
 import { saleApi } from '../../api/sale'
 import type { SaleAsyncTask, SaleChannelAccount, SaleOzonPromotion, SaleOzonPromotionProduct } from '../../types/sale'
 import { getShopLabel } from './sale-center-helpers'
 import OzonOperationTaskDrawer from './OzonOperationTaskDrawer'
+import { sortColorValues, sortSizeValues } from '../../utils/spec'
 
 const { Text } = Typography
 
@@ -14,8 +15,40 @@ type PromotionProductRow = SaleOzonPromotionProduct & {
   key: string
   channelAccountId: string
   shopName: string
+  spuKey?: string | null
+  skcKey?: string | null
+  spuLabel?: string | null
+  skcLabel?: string | null
   inputActionPrice?: number | null
   inputStock?: number | null
+}
+
+type PromotionProductGroup = {
+  key: string
+  name?: string | null
+  imageUrl?: string | null
+  platformSpuId?: string | null
+  platformSkcId?: string | null
+  spuLabel?: string | null
+  skcLabel?: string | null
+  colors: string[]
+  sizes: string[]
+  items: PromotionProductRow[]
+}
+
+type PromotionDisplayRow = PromotionProductRow & {
+  groupKey: string
+  groupHead: boolean
+  groupRowSpan: number
+  groupName?: string | null
+  groupImageUrl?: string | null
+  groupPlatformSpuId?: string | null
+  groupPlatformSkcId?: string | null
+  groupSpuLabel?: string | null
+  groupSkcLabel?: string | null
+  groupColors: string[]
+  groupSizes: string[]
+  groupItems: PromotionProductRow[]
 }
 
 type PromotionSummary = SaleOzonPromotion & {
@@ -36,6 +69,32 @@ const toNumber = (value: unknown): number | null => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
+
+const normalizeGroupText = (value?: string | null) => value?.trim().toLowerCase() || ''
+
+const compareText = (left?: string | null, right?: string | null) =>
+  (left || '').localeCompare(right || '', 'zh-CN', { numeric: true, sensitivity: 'base' })
+
+const comparePromotionProducts = (left: PromotionProductRow, right: PromotionProductRow) => {
+  const colorOrder = sortColorValues([left.color, right.color])
+  const leftColorIndex = left.color ? colorOrder.indexOf(left.color) : Number.MAX_SAFE_INTEGER
+  const rightColorIndex = right.color ? colorOrder.indexOf(right.color) : Number.MAX_SAFE_INTEGER
+  if (leftColorIndex !== rightColorIndex) return leftColorIndex - rightColorIndex
+  const sizeOrder = sortSizeValues([left.size, right.size])
+  const leftSizeIndex = left.size ? sizeOrder.indexOf(left.size) : Number.MAX_SAFE_INTEGER
+  const rightSizeIndex = right.size ? sizeOrder.indexOf(right.size) : Number.MAX_SAFE_INTEGER
+  if (leftSizeIndex !== rightSizeIndex) return leftSizeIndex - rightSizeIndex
+  return compareText(left.offerId, right.offerId)
+}
+
+const getGroupKey = (item: PromotionProductRow) => {
+  if (item.spuKey?.trim() && item.skcKey?.trim()) return `spu:${item.spuKey.trim()}::skc:${item.skcKey.trim()}`
+  if (item.spuKey?.trim()) return `spu:${item.spuKey.trim()}::sku:${item.key}`
+  if (item.name?.trim()) return `name:${normalizeGroupText(item.name)}`
+  return `sku:${item.key}`
+}
+
+const getMatrixGroupKey = (item: PromotionProductRow) => `${item.channelAccountId}::${getGroupKey(item)}`
 
 const getAvatarText = (value?: string | null) => (value || '商').trim().slice(0, 1).toUpperCase()
 
@@ -85,14 +144,22 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     shopName: string,
     item: SaleOzonPromotionProduct,
     productType: 'CANDIDATE' | 'PARTICIPATING',
-  ): PromotionProductRow => ({
-    ...item,
-    channelAccountId: accountId,
-    shopName,
-    key: `${accountId}:${item.productId || item.offerId}`,
-    inputActionPrice: toNumber(item.actionPrice ?? item.maxActionPrice ?? item.price),
-    inputStock: productType === 'PARTICIPATING' ? toNumber(item.stock) ?? 1 : toNumber(item.stock ?? item.minStock),
-  }), [])
+  ): PromotionProductRow => {
+    const spuKey = item.platformSpuId || item.name
+    const skcKey = item.platformSkcId || (item.platformSpuId && item.color ? `${item.platformSpuId}:${item.color}` : undefined) || item.color || item.offerId
+    return {
+      ...item,
+      channelAccountId: accountId,
+      shopName,
+      key: `${accountId}:${item.productId || item.offerId}`,
+      spuKey,
+      skcKey,
+      spuLabel: item.platformSpuId || item.name,
+      skcLabel: item.color || item.platformSkcId,
+      inputActionPrice: toNumber(item.actionPrice ?? item.maxActionPrice ?? item.price),
+      inputStock: productType === 'PARTICIPATING' ? toNumber(item.stock) ?? 1 : toNumber(item.stock ?? item.minStock),
+    }
+  }, [])
 
   const loadPromotions = useCallback(async () => {
     if (!effectiveAccountIds.length) return
@@ -179,7 +246,57 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   }, [keyword, promotions])
 
   const activeRows = activeTab === 'CANDIDATE' ? candidateRows : participatingRows
-  const selectedRows = activeRows.filter((item) => selectedRowKeys.includes(item.key))
+  const productGroups = useMemo<PromotionProductGroup[]>(() => {
+    const groupMap = new Map<string, PromotionProductRow[]>()
+    activeRows.forEach((item) => {
+      const key = getMatrixGroupKey(item)
+      groupMap.set(key, [...(groupMap.get(key) || []), item])
+    })
+    return Array.from(groupMap.entries())
+      .map(([key, items]) => {
+        const sortedItems = [...items].sort(comparePromotionProducts)
+        const head = sortedItems[0]
+        return {
+          key,
+          name: head?.name,
+          imageUrl: head?.imageUrl,
+          platformSpuId: head?.platformSpuId,
+          platformSkcId: head?.platformSkcId,
+          spuLabel: head?.spuLabel,
+          skcLabel: head?.skcLabel,
+          colors: sortColorValues(sortedItems.map((item) => item.color)),
+          sizes: sortSizeValues(sortedItems.map((item) => item.size)),
+          items: sortedItems,
+        }
+      })
+      .sort((left, right) => compareText(left.spuLabel, right.spuLabel) || compareText(left.skcLabel, right.skcLabel) || compareText(left.name, right.name))
+  }, [activeRows])
+  const displayRows = useMemo<PromotionDisplayRow[]>(
+    () =>
+      productGroups.flatMap((group) =>
+        group.items.map((item, index) => ({
+          ...item,
+          groupKey: group.key,
+          groupHead: index === 0,
+          groupRowSpan: index === 0 ? group.items.length : 0,
+          groupName: group.name,
+          groupImageUrl: group.imageUrl,
+          groupPlatformSpuId: group.platformSpuId,
+          groupPlatformSkcId: group.platformSkcId,
+          groupSpuLabel: group.spuLabel,
+          groupSkcLabel: group.skcLabel,
+          groupColors: group.colors,
+          groupSizes: group.sizes,
+          groupItems: group.items,
+        })),
+      ),
+    [productGroups],
+  )
+  const selectedGroupKeys = useMemo(() => new Set(selectedRowKeys.map((item) => String(item))), [selectedRowKeys])
+  const selectedRows = activeRows.filter((item) => selectedGroupKeys.has(getMatrixGroupKey(item)))
+  const allGroupKeys = productGroups.map((group) => group.key)
+  const allGroupsSelected = allGroupKeys.length > 0 && allGroupKeys.every((key) => selectedGroupKeys.has(key))
+  const partiallySelected = selectedGroupKeys.size > 0 && !allGroupsSelected
   const invalidReason = !effectiveAccountIds.length
     ? '请选择类型为 Ozon 的店铺'
     : !selectedActionId
@@ -195,6 +312,22 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const updateRow = (key: string, patch: Partial<PromotionProductRow>) => {
     const setter = activeTab === 'CANDIDATE' ? setCandidateRows : setParticipatingRows
     setter((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item))
+  }
+
+  const toggleGroupSelection = (groupKey: string, checked: boolean) => {
+    setSelectedRowKeys((current) => {
+      const next = new Set(current.map((item) => String(item)))
+      if (checked) {
+        next.add(groupKey)
+      } else {
+        next.delete(groupKey)
+      }
+      return Array.from(next)
+    })
+  }
+
+  const toggleAllGroups = (checked: boolean) => {
+    setSelectedRowKeys(checked ? allGroupKeys : [])
   }
 
   const loadMoreProducts = useCallback(async () => {
@@ -256,15 +389,15 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     Modal.confirm({
       title: operation === 'ACTIVATE' ? '确认报名 Ozon 活动' : '确认退出 Ozon 活动',
       content: operation === 'ACTIVATE'
-        ? `将向活动 ${selectedActionId} 提交 ${selectedRows.length} 个商品，请确认活动价和活动库存。`
-        : `将从活动 ${selectedActionId} 退出 ${selectedRows.length} 个商品。`,
+        ? `将向活动 ${selectedActionId} 提交 ${selectedGroupKeys.size} 个 SKC、${selectedRows.length} 个 SKU，请确认活动价和活动库存。`
+        : `将从活动 ${selectedActionId} 退出 ${selectedGroupKeys.size} 个 SKC、${selectedRows.length} 个 SKU。`,
       okText: '提交任务',
       cancelText: '取消',
       onOk: async () => {
         setSubmitting(true)
         try {
           const created = await saleApi.submitOzonPromotion({
-            taskName: `Ozon 活动${operation === 'ACTIVATE' ? '报名' : '退出'} - ${selectedPromotion?.title || selectedActionId}`,
+            taskName: `Ozon 活动${operation === 'ACTIVATE' ? '报名' : '退出'} - ${selectedGroupKeys.size} 个 SKC - ${selectedPromotion?.title || selectedActionId}`,
             actionId: String(selectedActionId),
             operation,
             channelAccountIds: Array.from(new Set(selectedRows.map((item) => Number(item.channelAccountId)))),
@@ -286,22 +419,74 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     })
   }
 
-  const productColumns: ColumnsType<PromotionProductRow> = [
+  const productColumns: ColumnsType<PromotionDisplayRow> = [
     {
-      title: '商品',
+      title: (
+        <Checkbox
+          checked={allGroupsSelected}
+          indeterminate={partiallySelected}
+          onChange={(event) => toggleAllGroups(event.target.checked)}
+        />
+      ),
+      key: 'selection',
+      width: 48,
+      fixed: 'left',
+      align: 'center',
+      onCell: (record) => ({ rowSpan: record.groupRowSpan }),
+      render: (_, record) =>
+        record.groupHead ? (
+          <Checkbox
+            checked={selectedGroupKeys.has(record.groupKey)}
+            onChange={(event) => toggleGroupSelection(record.groupKey, event.target.checked)}
+          />
+        ) : null,
+    },
+    {
+      title: 'SPU / SKC',
       dataIndex: 'name',
+      width: 400,
+      fixed: 'left',
+      onCell: (record) => ({ rowSpan: record.groupRowSpan }),
       render: (value, record) => (
-        <Space align="start" size={12}>
-          <ProductThumb src={record.imageUrl} name={value} />
-          <Space direction="vertical" size={4}>
-            <Text strong>{value || record.offerId || record.productId || '--'}</Text>
-            <Space size={[4, 4]} wrap>
-              <Tag>{record.shopName}</Tag>
-              <Tag color="magenta">颜色：{record.color || '--'}</Tag>
-              <Tag color="blue">尺码：{record.size || '--'}</Tag>
+        record.groupHead ? (
+          <Space align="start" size={12}>
+            <ProductThumb src={record.groupImageUrl} name={value} size={72} />
+            <Space direction="vertical" size={4}>
+              <Text strong>{value || record.groupPlatformSkcId || '--'}</Text>
+              <Space size={[4, 4]} wrap>
+                <Tag color="geekblue">SPU {record.groupSpuLabel || record.groupPlatformSpuId || '--'}</Tag>
+                <Tag color="magenta">SKC {record.groupSkcLabel || record.groupColors.join(' / ') || '--'}</Tag>
+                <Tag color="blue">尺码 {record.groupSizes.length ? record.groupSizes.join(' / ') : '--'}</Tag>
+                <Tag>{record.shopName}</Tag>
+                <Tag>{record.groupItems.length} 个 SKU</Tag>
+              </Space>
+              {record.groupPlatformSkcId ? <Text type="secondary">SKC ID：{record.groupPlatformSkcId}</Text> : null}
             </Space>
-            <Text type="secondary">offer_id：{record.offerId || '--'} / product_id：{record.productId || '--'}</Text>
           </Space>
+        ) : null
+      ),
+    },
+    {
+      title: '平台身份',
+      key: 'platformIdentity',
+      width: 220,
+      render: (_, record) => (
+        <Space direction="vertical" size={4}>
+          <Text copyable={{ text: String(record.productId || '') }}>product_id：{record.productId || '--'}</Text>
+          <Text copyable={{ text: record.platformSkuId || '' }}>Ozon SKU：{record.platformSkuId || '--'}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: '货品 / 规格',
+      key: 'offerSpec',
+      width: 240,
+      render: (_, record) => (
+        <Space direction="vertical" size={4}>
+          <Text copyable={{ text: record.offerId || '' }}>offer_id：{record.offerId || '--'}</Text>
+          <Text>颜色：{record.color || '--'}</Text>
+          <Text>尺码：{record.size || '--'}</Text>
+          {record.normalizedSpecSummary ? <Text type="secondary">{record.normalizedSpecSummary}</Text> : null}
         </Space>
       ),
     },
@@ -399,9 +584,9 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
       </Card>
       <Row gutter={[16, 16]}>
         <Col xs={12} md={6}><Card><Statistic title="活动数量" value={promotions.length} prefix={<GiftOutlined />} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="候选商品" value={candidateRows.length} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="已报名商品" value={participatingRows.length} /></Card></Col>
-        <Col xs={12} md={6}><Card><Statistic title="已选商品" value={selectedRowKeys.length} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="候选 SKU" value={candidateRows.length} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="已报名 SKU" value={participatingRows.length} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="已选 SKC" value={selectedGroupKeys.size} /></Card></Col>
       </Row>
       <div className="scw-ops-grid scw-ops-grid--promotion">
         <Card title="活动列表" className="scw-ops-panel">
@@ -432,10 +617,9 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
             rowKey="key"
             loading={productLoading}
             columns={productColumns}
-            dataSource={activeRows}
-            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+            dataSource={displayRows}
             pagination={{ pageSize: 20 }}
-            scroll={{ x: 880, y: 'calc(100vh - 530px)' }}
+            scroll={{ x: 1180, y: 'calc(100vh - 530px)' }}
           />
         </Card>
       </div>
