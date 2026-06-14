@@ -28,11 +28,13 @@ import styleBomApi, { buildStyleBomUpdatePayload } from '../api/style-bom';
 import styleDetailApi from '../api/style-detail';
 import ListImage from '../components/common/ListImage';
 import ImageUploader from '../components/upload/ImageUploader';
+import StyleCodeMatrixEditor from '../components/style/StyleCodeMatrixEditor';
 import { NumberWithUnitInput, PageHeader, PageSection, SearchField } from '../components/page';
 import type { MaterialBasicType, MaterialItem } from '../types/material';
 import type {
   StyleBomMaterialDraft,
   StyleColorImageMap,
+  StyleCodeVariantDraft,
   StyleDetailData,
   StyleDetailSavePayload,
   StyleFormMeta,
@@ -66,6 +68,26 @@ type MaterialPickerState = {
   materialType: MaterialBasicType;
   list: MaterialItem[];
 };
+
+const buildDefaultCode = (...parts: Array<string | undefined>) => {
+  const normalized = parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/\s+/g, '-'));
+  return normalized.length ? normalized.join('-') : undefined;
+};
+
+const normalizeOptionalText = (value?: string) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const buildVariantKey = (color?: string, size?: string) => `${color ?? ''}|${size ?? ''}`;
+
+const buildDraftCodeValue = (
+  sourceType: StyleCodeVariantDraft['sourceType'],
+  actualValue?: string,
+) => (sourceType === 'SYSTEM_DERIVED' ? undefined : actualValue);
 
 const buildInitialValues = (detail?: StyleDetailData): StyleFormValues => ({
   styleNo: detail?.styleNo ?? '',
@@ -125,6 +147,7 @@ const StyleDetail = () => {
   const [detailImages, setDetailImages] = useState<string[]>([]);
   const [detail, setDetail] = useState<StyleDetailData>();
   const [materials, setMaterials] = useState<StyleBomMaterialDraft[]>([]);
+  const [variantDrafts, setVariantDrafts] = useState<Record<string, StyleCodeVariantDraft>>({});
   const [isDirty, setIsDirty] = useState(false);
   const initializingRef = useRef(false);
   const [materialPicker, setMaterialPicker] = useState<MaterialPickerState>({
@@ -140,6 +163,7 @@ const StyleDetail = () => {
 
   const watchedColors = Form.useWatch('colors', form);
   const watchedSizes = Form.useWatch('sizes', form);
+  const watchedStyleNo = Form.useWatch('styleNo', form);
   const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
   const normalizedSizes = useMemo(() => watchedSizes ?? [], [watchedSizes]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
@@ -171,11 +195,30 @@ const StyleDetail = () => {
           setMaterials(toBomDrafts(materialResult));
           setColorImages(detailPayload.colorImages ?? {});
           setDetailImages(detailPayload.detailImageUrls ?? []);
+          setVariantDrafts(
+            Object.fromEntries(
+              (detailPayload.variants ?? []).map((variant) => [
+                buildVariantKey(variant.color, variant.size),
+                {
+                  color: variant.color ?? '',
+                  size: variant.size ?? '',
+                  skcNo: buildDraftCodeValue(variant.sourceType, variant.skcNo),
+                  systemSkcNo: variant.systemSkcNo,
+                  skuNo: buildDraftCodeValue(variant.sourceType, variant.skuNo),
+                  systemSkuNo: variant.systemSkuNo,
+                  barcode: variant.barcode,
+                  sourceType: variant.sourceType ?? 'SYSTEM_DERIVED',
+                  attributes: variant.attributes,
+                },
+              ]),
+            ),
+          );
         } else {
           setDetail(undefined);
           setColorImages({});
           setDetailImages([]);
           setMaterials([]);
+          setVariantDrafts({});
         }
         formRef.setFieldsValue(buildInitialValues(detailPayload));
         setIsDirty(false);
@@ -204,6 +247,31 @@ const StyleDetail = () => {
     });
   }, [normalizedColors]);
 
+  useEffect(() => {
+    setVariantDrafts((prev) => {
+      const next: Record<string, StyleCodeVariantDraft> = {};
+      normalizedColors.forEach((color) => {
+        normalizedSizes.forEach((size) => {
+          const key = buildVariantKey(color, size);
+          const existing = prev[key];
+          const systemSkcNo = buildDefaultCode(watchedStyleNo, color);
+          const systemSkuNo = buildDefaultCode(watchedStyleNo, color, size);
+          next[key] = {
+            color,
+            size,
+            systemSkcNo,
+            systemSkuNo,
+            skcNo: existing?.skcNo,
+            skuNo: existing?.skuNo,
+            barcode: existing?.barcode,
+            attributes: existing?.attributes,
+          };
+        });
+      });
+      return next;
+    });
+  }, [normalizedColors, normalizedSizes, watchedStyleNo]);
+
   const markDirty = useCallback(() => {
     if (!initializingRef.current) {
       setIsDirty(true);
@@ -224,6 +292,60 @@ const StyleDetail = () => {
   }, [markDirty]);
 
   const handleValuesChange = useCallback(() => {
+    markDirty();
+  }, [markDirty]);
+
+  const variantRows = useMemo(
+    () =>
+      normalizedColors.flatMap((color) =>
+        normalizedSizes.map((size) => variantDrafts[buildVariantKey(color, size)]).filter(Boolean),
+      ),
+    [normalizedColors, normalizedSizes, variantDrafts],
+  );
+
+  const handleSkcDraftChange = useCallback((color: string, value: string) => {
+    setVariantDrafts((prev) => {
+      const next = { ...prev };
+      normalizedSizes.forEach((size) => {
+        const key = buildVariantKey(color, size);
+        const current = next[key];
+        if (current) {
+          next[key] = {
+            ...current,
+            skcNo: value,
+          };
+        }
+      });
+      return next;
+    });
+    markDirty();
+  }, [markDirty, normalizedSizes]);
+
+  const handleSkuDraftChange = useCallback((color: string, size: string, value: string) => {
+    const key = buildVariantKey(color, size);
+    setVariantDrafts((prev) => ({
+      ...prev,
+      [key]: prev[key]
+        ? {
+            ...prev[key],
+            skuNo: value,
+          }
+        : prev[key],
+    }));
+    markDirty();
+  }, [markDirty]);
+
+  const handleBarcodeDraftChange = useCallback((color: string, size: string, value: string) => {
+    const key = buildVariantKey(color, size);
+    setVariantDrafts((prev) => ({
+      ...prev,
+      [key]: prev[key]
+        ? {
+            ...prev[key],
+            barcode: value,
+          }
+        : prev[key],
+    }));
     markDirty();
   }, [markDirty]);
 
@@ -406,7 +528,6 @@ const StyleDetail = () => {
         message.warning('请至少输入一个尺码');
         return;
       }
-      setSaving(true);
       const payload: StyleDetailSavePayload = {
         styleNo: values.styleNo.trim(),
         styleName: values.styleName.trim(),
@@ -420,9 +541,58 @@ const StyleDetail = () => {
         detailImageUrls: detailImages,
         sizeChartImageUrl: values.sizeChartImageUrl,
         colorImages: values.colorImagesEnabled ? colorImages : {},
+        variants: variantRows.map((variant) => ({
+          color: variant.color,
+          size: variant.size,
+          skcNo: normalizeOptionalText(variant.skcNo),
+          skuNo: normalizeOptionalText(variant.skuNo),
+          barcode: normalizeOptionalText(variant.barcode),
+          attributes: variant.attributes,
+        })),
       };
+      let confirmCodeImpact = false;
+      if (isEditing && styleId) {
+        const impact = await styleDetailApi.checkCodeImpact(styleId, payload);
+        if (impact.requiresConfirmation) {
+          const confirmed = await new Promise<boolean>((resolve) => {
+            Modal.confirm({
+              title: '该款式已发布，确认继续修改编码吗？',
+              content: (
+                <div className="style-code-impact-confirm">
+                  <Text type="secondary">
+                    保存后会影响以下已发布范围，请确认是否继续：
+                  </Text>
+                  <div className="style-code-impact-confirm__list">
+                    {impact.impactedLinks.map((item, index) => (
+                      <div
+                        key={`${item.channelAccountId ?? item.targetOfferId ?? index}`}
+                        className="style-code-impact-confirm__item"
+                      >
+                        <Text strong>{item.platformCode ?? '平台'}</Text>
+                        <Text>{item.shopName || item.accountName || '未命名店铺'}</Text>
+                        <Text type="secondary">
+                          商品：{item.targetOfferId || item.targetProductId || '-'}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ),
+              okText: '确认保存',
+              cancelText: '继续检查',
+              onOk: () => resolve(true),
+              onCancel: () => resolve(false),
+            });
+          });
+          if (!confirmed) {
+            return;
+          }
+          confirmCodeImpact = true;
+        }
+      }
+      setSaving(true);
       const savedDetail = isEditing && styleId
-        ? await styleDetailApi.update(styleId, payload)
+        ? await styleDetailApi.update(styleId, payload, { confirmCodeImpact })
         : await styleDetailApi.create(payload);
 
       if (savedDetail.id) {
@@ -460,7 +630,7 @@ const StyleDetail = () => {
     } finally {
       setSaving(false);
     }
-  }, [colorImages, detailImages, form, isEditing, load, materials, styleId]);
+  }, [colorImages, detailImages, form, isEditing, load, materials, styleId, variantRows]);
 
   const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
   const overviewStats = useMemo(
@@ -524,7 +694,7 @@ const StyleDetail = () => {
                   </Col>
                   <Col xs={24} sm={12}>
                     <Form.Item name="styleName" label="款名" rules={[{ required: true, message: '请输入款式名称' }]}>
-                      <Input placeholder="请输入款式名称" />
+                      <Input placeholder="请输入款式名称" maxLength={1024} showCount />
                     </Form.Item>
                   </Col>
                   <Col xs={24} sm={12}>
@@ -592,6 +762,24 @@ const StyleDetail = () => {
                         />
                       </div>
                     ))}
+                  </div>
+                )}
+                {variantRows.length > 0 && (
+                  <div className="style-detail-variant-rules">
+                    <div className="style-detail-variant-rules__header">
+                      <Title level={5} style={{ margin: 0 }}>编码规则</Title>
+                      <Text type="secondary">只维护最终要生效的编码；输入留空时按系统默认规则生成并保存。</Text>
+                    </div>
+                    <div className="style-detail-variant-rules__table">
+                      <StyleCodeMatrixEditor
+                        colors={normalizedColors}
+                        sizes={normalizedSizes}
+                        variantDrafts={variantDrafts}
+                        onSkcChange={handleSkcDraftChange}
+                        onSkuChange={handleSkuDraftChange}
+                        onBarcodeChange={handleBarcodeDraftChange}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

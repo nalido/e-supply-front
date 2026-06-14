@@ -82,8 +82,36 @@ export interface StyleDetailData {
     id: string;
     color?: string;
     size?: string;
+    skcNo?: string;
+    systemSkcNo?: string;
+    skuNo?: string;
+    systemSkuNo?: string;
+    barcode?: string;
+    sourceType?: 'SYSTEM_DERIVED' | 'USER_CONFIRMED' | 'USER_EDITED';
     attributes?: Record<string, unknown>;
   }>;
+}
+
+export interface StyleCodeVariantDraft {
+  color: string;
+  size: string;
+  skcNo?: string;
+  systemSkcNo?: string;
+  skuNo?: string;
+  systemSkuNo?: string;
+  barcode?: string;
+  sourceType?: 'SYSTEM_DERIVED' | 'USER_CONFIRMED' | 'USER_EDITED';
+  attributes?: Record<string, unknown>;
+}
+
+export interface StyleVariantSavePayload {
+  color?: string;
+  size?: string;
+  skcNo?: string;
+  skuNo?: string;
+  barcode?: string;
+  sourceType?: 'SYSTEM_DERIVED' | 'USER_CONFIRMED' | 'USER_EDITED';
+  attributes?: Record<string, unknown>;
 }
 
 export interface StyleDetailSavePayload {
@@ -99,6 +127,22 @@ export interface StyleDetailSavePayload {
   colors: string[];
   sizes: string[];
   colorImages: StyleColorImageMap;
+  variants?: StyleVariantSavePayload[];
+}
+
+export interface StyleCodeImpactLink {
+  channelAccountId?: string;
+  accountName?: string;
+  shopName?: string;
+  platformCode?: string;
+  targetOfferId?: string;
+  targetProductId?: string;
+}
+
+export interface StyleCodeImpactCheckResult {
+  requiresConfirmation: boolean;
+  impactedCount: number;
+  impactedLinks: StyleCodeImpactLink[];
 }
 
 export interface StyleBomUpdatePayload {

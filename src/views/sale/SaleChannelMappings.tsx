@@ -271,6 +271,9 @@ const SaleChannelMappings = () => {
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>();
   const [mappingStatus, setMappingStatus] = useState<MappingStatus>('ALL');
+  const [mappingPage, setMappingPage] = useState(1);
+  const [mappingPageSize, setMappingPageSize] = useState(20);
+  const [mappingTotal, setMappingTotal] = useState(0);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [rows, setRows] = useState<MappingRow[]>([]);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -570,29 +573,38 @@ const SaleChannelMappings = () => {
     }
   }, []);
 
-  const loadRows = useCallback(async (accountId?: string, status?: MappingStatus) => {
+  const loadRows = useCallback(async (
+    accountId?: string,
+    status?: MappingStatus,
+    page = mappingPage,
+    pageSize = mappingPageSize,
+  ) => {
     if (!accountId) {
       setRows([]);
       setDrafts([]);
+      setMappingTotal(0);
       return;
     }
     setLoading(true);
     try {
-      const [list, draftList] = await Promise.all([
-        saleApi.listProductMappings({
+      const [response, draftList] = await Promise.all([
+        saleApi.listProductMappingsPage({
           channelAccountId: accountId,
           mappingStatus: status && status !== 'ALL' ? status : undefined,
+          page,
+          pageSize,
         }),
         saleApi.listProductMappingDrafts(accountId),
       ]);
-      setRows(list);
+      setRows(response.list ?? []);
+      setMappingTotal(response.total ?? 0);
       setDrafts(draftList);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mappingPage, mappingPageSize]);
 
   const loadSyncStatus = useCallback(async (accountId?: string) => {
     if (!accountId) {
@@ -636,8 +648,8 @@ const SaleChannelMappings = () => {
   }, [loadAccounts]);
 
   useEffect(() => {
-    void loadRows(selectedAccountId, mappingStatus);
-  }, [mappingStatus, selectedAccountId, loadRows]);
+    void loadRows(selectedAccountId, mappingStatus, mappingPage, mappingPageSize);
+  }, [mappingPage, mappingPageSize, mappingStatus, selectedAccountId, loadRows]);
 
   useEffect(() => {
     void loadSyncStatus(selectedAccountId);
@@ -646,6 +658,7 @@ const SaleChannelMappings = () => {
   useEffect(() => {
     setSelectedRowKeys([]);
     setSyncSubmission(null);
+    setMappingPage(1);
   }, [mappingStatus, selectedAccountId]);
 
   useEffect(() => {
@@ -1396,7 +1409,17 @@ const SaleChannelMappings = () => {
           loading={loading}
           columns={columns}
           dataSource={displayRows}
-          pagination={{ pageSize: 20, showSizeChanger: false }}
+          pagination={{
+            current: mappingPage,
+            pageSize: mappingPageSize,
+            total: mappingTotal,
+            showSizeChanger: true,
+            pageSizeOptions: [20, 50, 100],
+            onChange: (page, pageSize) => {
+              setMappingPage(page);
+              setMappingPageSize(pageSize);
+            },
+          }}
           scroll={{ x: 2410 }}
         />
       </Card>

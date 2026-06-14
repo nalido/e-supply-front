@@ -1538,7 +1538,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
                         label="款名"
                         rules={[{ required: true, message: '请输入款名' }]}
                       >
-                        <Input placeholder="请输入款名" />
+                        <Input placeholder="请输入款名" maxLength={1024} showCount />
                       </Form.Item>
                     </Col>
                     <Form.Item name="styleId" hidden>

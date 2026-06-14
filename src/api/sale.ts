@@ -785,7 +785,7 @@ export const saleApi = {
   }): Promise<BackendListResponse<SaleProductMapping>> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
-      params: { tenantId, ...params },
+      params: { tenantId, page: 1, pageSize: 50, ...params },
     });
     return response.data;
   },

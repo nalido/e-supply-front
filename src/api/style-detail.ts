@@ -1,4 +1,5 @@
 import type {
+  StyleCodeImpactCheckResult,
   StyleDetailData,
   StyleMaterialData,
   StyleDetailSavePayload,
@@ -14,6 +15,12 @@ type BackendStyleVariant = {
   id: number;
   color?: string;
   size?: string;
+  skcNo?: string;
+  systemSkcNo?: string;
+  skuNo?: string;
+  systemSkuNo?: string;
+  barcode?: string;
+  sourceType?: 'SYSTEM_DERIVED' | 'USER_CONFIRMED' | 'USER_EDITED';
   attributes?: Record<string, unknown> | null;
 };
 
@@ -51,17 +58,40 @@ type BackendStyleRequest = {
   remarks?: string;
   coverImageUrl?: string;
   variants: BackendStyleVariantRequest[];
+  confirmCodeImpact?: boolean;
 };
 
 type BackendStyleVariantRequest = {
   color?: string;
   size?: string;
+  skcNo?: string;
+  skuNo?: string;
+  barcode?: string;
+  sourceType?: 'SYSTEM_DERIVED' | 'USER_CONFIRMED' | 'USER_EDITED';
   attributes?: Record<string, unknown> | null;
 };
 
 type BackendMetadataResponse = {
   units?: string[];
   designers?: Array<{ id: number; name: string }>;
+};
+
+type BackendStyleCodeImpactResponse = {
+  requiresConfirmation: boolean;
+  impactedCount: number;
+  impactedLinks?: Array<{
+    channelAccountId?: number;
+    accountName?: string;
+    shopName?: string;
+    platformCode?: string;
+    targetOfferId?: string;
+    targetProductId?: number;
+  }>;
+};
+
+const normalizeOptionalText = (value?: string) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 };
 
 const adaptStatus = (status: BackendStyleStatus): StyleStatus =>
@@ -125,6 +155,12 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
       id: String(variant.id),
       color: variant.color ?? undefined,
       size: variant.size ?? undefined,
+      skcNo: variant.skcNo ?? undefined,
+      systemSkcNo: variant.systemSkcNo ?? undefined,
+      skuNo: variant.skuNo ?? undefined,
+      systemSkuNo: variant.systemSkuNo ?? undefined,
+      barcode: variant.barcode ?? undefined,
+      sourceType: variant.sourceType ?? 'SYSTEM_DERIVED',
       attributes: (variant.attributes ?? undefined) as Record<string, unknown> | undefined,
     })),
   };
@@ -134,14 +170,11 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
   const colors = sortColorValues(payload.colors);
   const sizes = sortSizeValues(payload.sizes);
   const { colorImages, sizeChartImageUrl, detailImageUrls } = payload;
-  if (!colors.length || !sizes.length) {
-    return [];
-  }
-  const variants: BackendStyleVariantRequest[] = [];
-  colors.forEach((color) => {
-    sizes.forEach((size) => {
-      const image = colorImages[color];
-      const attributes: Record<string, unknown> = {};
+  return (payload.variants ?? [])
+    .filter((variant) => colors.includes(variant.color ?? '') && sizes.includes(variant.size ?? ''))
+    .map((variant) => {
+      const attributes: Record<string, unknown> = { ...(variant.attributes ?? {}) };
+      const image = variant.color ? colorImages[variant.color] : undefined;
       if (image) {
         attributes.colorImageUrl = image;
       }
@@ -151,17 +184,22 @@ const buildVariants = (payload: StyleDetailSavePayload): BackendStyleVariantRequ
       if (detailImageUrls.length > 0) {
         attributes.detailImageUrls = detailImageUrls;
       }
-      variants.push({
-        color,
-        size,
+      return {
+        color: variant.color,
+        size: variant.size,
+        skcNo: normalizeOptionalText(variant.skcNo),
+        skuNo: normalizeOptionalText(variant.skuNo),
+        barcode: normalizeOptionalText(variant.barcode),
         attributes: Object.keys(attributes).length > 0 ? attributes : null,
-      });
+      };
     });
-  });
-  return variants;
 };
 
-const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): BackendStyleRequest => ({
+const buildRequestBody = (
+  payload: StyleDetailSavePayload,
+  tenantId: number,
+  options?: { confirmCodeImpact?: boolean },
+): BackendStyleRequest => ({
   tenantId,
   styleNo: payload.styleNo,
   styleName: payload.styleName,
@@ -171,6 +209,7 @@ const buildRequestBody = (payload: StyleDetailSavePayload, tenantId: number): Ba
   remarks: payload.remarks,
   coverImageUrl: payload.coverImageUrl,
   variants: buildVariants(payload),
+  confirmCodeImpact: options?.confirmCodeImpact,
 });
 
 export const styleDetailApi = {
@@ -209,9 +248,36 @@ export const styleDetailApi = {
     const response = await http.post<BackendStyleResponse>('/api/v1/styles', requestBody);
     return adaptDetail(response.data);
   },
-  async update(styleId: string, payload: StyleDetailSavePayload): Promise<StyleDetailData> {
+  async checkCodeImpact(
+    styleId: string,
+    payload: StyleDetailSavePayload,
+  ): Promise<StyleCodeImpactCheckResult> {
     const tenantId = requireNumericTenantId();
     const requestBody = buildRequestBody(payload, tenantId);
+    const response = await http.post<BackendStyleCodeImpactResponse>(
+      `/api/v1/styles/${styleId}/code-impact-check`,
+      requestBody,
+    );
+    return {
+      requiresConfirmation: Boolean(response.data.requiresConfirmation),
+      impactedCount: Number(response.data.impactedCount ?? 0),
+      impactedLinks: (response.data.impactedLinks ?? []).map((item) => ({
+        channelAccountId: item.channelAccountId ? String(item.channelAccountId) : undefined,
+        accountName: item.accountName ?? undefined,
+        shopName: item.shopName ?? undefined,
+        platformCode: item.platformCode ?? undefined,
+        targetOfferId: item.targetOfferId ?? undefined,
+        targetProductId: item.targetProductId ? String(item.targetProductId) : undefined,
+      })),
+    };
+  },
+  async update(
+    styleId: string,
+    payload: StyleDetailSavePayload,
+    options?: { confirmCodeImpact?: boolean },
+  ): Promise<StyleDetailData> {
+    const tenantId = requireNumericTenantId();
+    const requestBody = buildRequestBody(payload, tenantId, options);
     await http.post<BackendStyleResponse>(`/api/v1/styles/${styleId}/update`, requestBody);
     return this.fetchDetail(styleId);
   },
