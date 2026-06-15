@@ -7,6 +7,7 @@ import { saleApi } from '../../api/sale'
 import type { SaleAsyncTask, SaleChannelAccount, SaleOzonInventoryStock, SaleOzonWarehouse, SaleShopTag } from '../../types/sale'
 import { getShopLabel } from './sale-center-helpers'
 import OzonOperationTaskDrawer from './OzonOperationTaskDrawer'
+import { getOzonGroupKey, resolveOzonProductDisplayInfo } from './ozon-product-display'
 import { sortColorValues, sortSizeValues } from '../../utils/spec'
 
 const { Text } = Typography
@@ -79,114 +80,7 @@ type Props = {
   onAccountChange: (accountId: string) => void
 }
 
-const parseSnapshot = (value?: string | null) => {
-  if (!value) return {}
-  try {
-    return JSON.parse(value) as Record<string, unknown>
-  } catch {
-    return {}
-  }
-}
-
-const numberFrom = (value: unknown): number | null => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const textFrom = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim()
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  }
-  return undefined
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const arrayFrom = (value: unknown): unknown[] => Array.isArray(value) ? value : []
-
-const valueFromAttribute = (attribute: Record<string, unknown>) => {
-  const direct = textFrom(attribute.value)
-  if (direct && !direct.startsWith('[')) return direct
-  const values = arrayFrom(attribute.values)
-  for (const item of values) {
-    if (isRecord(item)) {
-      const value = textFrom(item.value, item.name)
-      if (value) return value
-    }
-    const value = textFrom(item)
-    if (value) return value
-  }
-  return undefined
-}
-
-const collectAttributeMap = (...sources: Record<string, unknown>[]) => {
-  const result = new Map<string, string>()
-  sources.forEach((source) => {
-    Object.entries(source).forEach(([key, value]) => {
-      if (key === 'raw' || key === 'attributes' || key === 'price_info' || key === 'stock_info') return
-      const text = textFrom(value)
-      if (text) result.set(key.trim(), text)
-    })
-    arrayFrom(source.attributes).forEach((item) => {
-      if (!isRecord(item)) return
-      const name = textFrom(item.attribute_name_zh, item.attribute_name, item.name)
-      const value = valueFromAttribute(item)
-      if (name && value) result.set(name.trim(), value.trim())
-    })
-  })
-  return result
-}
-
-const attributeText = (attributes: Map<string, string>, exactNames: string[], fuzzyNames: string[] = []) => {
-  for (const name of exactNames) {
-    const value = attributes.get(name)
-    if (value) return value
-  }
-  for (const [key, value] of attributes.entries()) {
-    const normalizedKey = key.toLowerCase()
-    if (fuzzyNames.some((name) => normalizedKey.includes(name.toLowerCase()))) {
-      return value
-    }
-  }
-  return undefined
-}
-
-const firstImageFromSnapshot = (snapshot: Record<string, unknown>) => {
-  const direct = textFrom(snapshot.primary_image, snapshot.primaryImage, snapshot.image, snapshot.image_url, snapshot.imageUrl)
-  if (direct) return direct
-  for (const image of arrayFrom(snapshot.images)) {
-    if (isRecord(image)) {
-      const value = textFrom(image.url, image.file_name, image.image, image.image_url)
-      if (value) return value
-    }
-    const value = textFrom(image)
-    if (value) return value
-  }
-  return undefined
-}
-
-const firstStockNumber = (snapshot: Record<string, unknown>, keys: string[]) => {
-  const stockInfo = isRecord(snapshot.stock_info) ? snapshot.stock_info : {}
-  const stocks = arrayFrom(stockInfo.stocks)
-  for (const stock of stocks) {
-    if (!isRecord(stock)) continue
-    for (const key of keys) {
-      const value = numberFrom(stock[key])
-      if (value !== null) return value
-    }
-  }
-  for (const key of keys) {
-    const value = numberFrom(stockInfo[key])
-    if (value !== null) return value
-  }
-  return null
-}
-
 const getAvatarText = (value?: string | null) => (value || '商').trim().slice(0, 1).toUpperCase()
-
-const normalizeGroupText = (value?: string | null) => value?.trim().toLowerCase() || ''
 
 const compareText = (left?: string | null, right?: string | null) =>
   (left || '').localeCompare(right || '', 'zh-CN', { numeric: true, sensitivity: 'base' })
@@ -203,14 +97,15 @@ const compareInventoryProducts = (left: InventoryProduct, right: InventoryProduc
   return compareText(left.offerId, right.offerId)
 }
 
-const getGroupKey = (item: InventoryProduct) => {
-  if (item.spuKey?.trim() && item.skcKey?.trim()) return `spu:${item.spuKey.trim()}::skc:${item.skcKey.trim()}`
-  if (item.spuKey?.trim()) return `spu:${item.spuKey.trim()}::sku:${item.key}`
-  if (item.name?.trim()) return `name:${normalizeGroupText(item.name)}`
-  return `sku:${item.key}`
-}
-
-const getMatrixGroupKey = (item: InventoryProduct) => `${item.channelAccountId}::${getGroupKey(item)}`
+const getMatrixGroupKey = (item: InventoryProduct) =>
+  `${item.channelAccountId}::${getOzonGroupKey(
+    {
+      spuKey: item.spuKey || undefined,
+      skcKey: item.skcKey || undefined,
+      name: item.name || undefined,
+    },
+    item.key,
+  )}`
 
 const shallowEqualRecord = (left: Record<string, string>, right: Record<string, string>) => {
   const leftKeys = Object.keys(left)
@@ -244,6 +139,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
   const [batchTargetStock, setBatchTargetStock] = useState<number | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
   const [loading, setLoading] = useState(false)
+  const [stockRefreshing, setStockRefreshing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [task, setTask] = useState<SaleAsyncTask | null>(null)
   const [taskOpen, setTaskOpen] = useState(false)
@@ -313,6 +209,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         channelAccountIds: effectiveAccountIds,
         tagIds: selectedTagIds.length ? selectedTagIds : undefined,
         keyword: keyword.trim() || undefined,
+        groupBy: 'SPU_SKC',
         page,
         pageSize,
       })
@@ -324,85 +221,78 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         warehouseAccountIds.map(async (accountId) => [accountId, await saleApi.listOzonWarehouses(accountId)] as const),
       )
       const nextWarehousesByAccountId = Object.fromEntries(warehouseEntries)
-      const nextWarehouseByAccountId = { ...selectedWarehouseByAccountId }
-      warehouseEntries.forEach(([accountId, warehouseList]) => {
-        if (!nextWarehouseByAccountId[accountId] || !warehouseList.some((item) => item.warehouseId === nextWarehouseByAccountId[accountId])) {
-          nextWarehouseByAccountId[accountId] = warehouseList[0]?.warehouseId
-        }
-      })
       setWarehousesByAccountId(nextWarehousesByAccountId)
-      if (!shallowEqualRecord(selectedWarehouseByAccountId, nextWarehouseByAccountId)) {
-        setSelectedWarehouseByAccountId(nextWarehouseByAccountId)
-      }
-      const mappedProducts = mappings.map((item) => {
+      setSelectedWarehouseByAccountId((current) => {
+        const nextWarehouseByAccountId = { ...current }
+        warehouseEntries.forEach(([accountId, warehouseList]) => {
+          if (!nextWarehouseByAccountId[accountId] || !warehouseList.some((item) => item.warehouseId === nextWarehouseByAccountId[accountId])) {
+            nextWarehouseByAccountId[accountId] = warehouseList[0]?.warehouseId
+          }
+        })
+        return shallowEqualRecord(current, nextWarehouseByAccountId) ? current : nextWarehouseByAccountId
+      })
+      const mappedProducts = mappings.flatMap((item) => {
         const shopName = getShopLabel(ozonAccounts.find((account) => account.id === item.channelAccountId))
-        const snapshot = parseSnapshot(item.platformSnapshotJson)
-        const normalizedAttributes = parseSnapshot(item.normalizedAttributesJson)
-        const attributes = collectAttributeMap(normalizedAttributes, snapshot)
-        const productId = numberFrom(snapshot.product_id ?? snapshot.productId ?? item.platformSkuId)
-        const offerId = textFrom(snapshot.offer_id, snapshot.offerId, item.platformSkuCode)
-        const platformSkuId = textFrom(item.platformSkuId, snapshot.sku, snapshot.fbo_sku, snapshot.fbs_sku)
-        const cardKey = attributeText(attributes, ['合并至一张卡片', 'Объединить на одной карточке'], ['合并', 'карточ'])
-        const factoryStyleNo = textFrom(normalizedAttributes.factory_style_no, normalizedAttributes.factoryStyleNo, cardKey)
-        const color = textFrom(
-          item.normalizedColor,
-          attributeText(attributes, ['商品颜色', 'Цвет товара'], ['颜色', 'цвет']),
-          snapshot.color,
-          snapshot.colour,
-          snapshot.normalized_color,
-          snapshot.normalizedColor,
-        )
-        const colorName = textFrom(attributeText(attributes, ['颜色名称', 'Название цвета']))
-        const size = textFrom(
-          item.normalizedSize,
-          attributeText(attributes, ['俄罗斯尺码', 'Российский размер'], ['尺码', 'размер']),
-          snapshot.size,
-          snapshot.normalized_size,
-          snapshot.normalizedSize,
-        )
-        const makerSize = textFrom(attributeText(attributes, ['由制造商规定尺码', 'Размер производителя']))
-        const platformSpuId = textFrom(item.platformSpuId, normalizedAttributes.ozon_spu_key, normalizedAttributes.model_id, snapshot.model_info && isRecord(snapshot.model_info) ? snapshot.model_info.model_id : undefined)
-        const platformSkcId = textFrom(item.platformSkcId, normalizedAttributes.ozon_skc_key, platformSpuId && color ? `${platformSpuId}:${color}` : undefined)
-        const spuKey = textFrom(platformSpuId, item.platformProductName, snapshot.name, snapshot.title)
-        const skcKey = textFrom(platformSkcId, platformSpuId && color ? `${platformSpuId}:${color}` : undefined, color, colorName, offerId)
-        return {
-          key: `${item.channelAccountId}:${item.id}`,
-          channelAccountId: item.channelAccountId,
-          shopName,
-          platformSpuId,
-          platformSkcId,
-          platformSkuId,
-          spuKey,
-          skcKey,
-          spuLabel: platformSpuId || cardKey || spuKey,
-          skcLabel: textFrom(colorName && color && colorName !== color ? `${color} / ${colorName}` : undefined, color, colorName),
-          offerId,
-          factoryStyleNo,
-          productId: productId ?? undefined,
-          name: textFrom(item.platformProductName, snapshot.name, snapshot.title),
-          imageUrl: textFrom(item.platformMainImageUrl, firstImageFromSnapshot(snapshot)),
-          color,
-          colorName,
-          size,
-          makerSize,
-          categoryName: textFrom(item.platformCategoryPath, snapshot.description_category_name, snapshot.category_name, snapshot.type_name),
-          platformStatus: textFrom(item.platformStatus, snapshot.visibility, snapshot.status, snapshot.state),
-          price: textFrom(isRecord(snapshot.price_info) && isRecord(snapshot.price_info.price) ? snapshot.price_info.price.price : undefined, snapshot.price),
-          currencyCode: textFrom(isRecord(snapshot.price_info) && isRecord(snapshot.price_info.price) ? snapshot.price_info.price.currency_code : undefined, snapshot.currency_code),
-          stockPresent: firstStockNumber(snapshot, ['present', 'valid_stock_count', 'stock', 'available_stock_count']),
-          stockReserved: firstStockNumber(snapshot, ['reserved', 'reserved_stock_count']),
-          updatedAt: item.updatedAt,
-          targetStock: null,
-        }
+        const skuRows = item.skus?.length ? item.skus : [item]
+        return skuRows.map((sku) => {
+          const merged = { ...item, ...sku }
+          const display = resolveOzonProductDisplayInfo(merged)
+          const groupDisplay = resolveOzonProductDisplayInfo(item)
+          return {
+            key: `${item.channelAccountId}:${sku.id}`,
+            channelAccountId: item.channelAccountId,
+            shopName,
+            platformSpuId: groupDisplay.platformSpuId || display.platformSpuId,
+            platformSkcId: groupDisplay.platformSkcId || display.platformSkcId,
+            platformSkuId: display.platformSkuId,
+            spuKey: groupDisplay.spuKey || display.spuKey,
+            skcKey: groupDisplay.skcKey || display.skcKey,
+            spuLabel: groupDisplay.spuLabel || display.spuLabel,
+            skcLabel: groupDisplay.skcLabel || display.skcLabel,
+            offerId: display.offerId,
+            factoryStyleNo: display.factoryStyleNo,
+            productId: display.productId,
+            name: groupDisplay.name || display.name,
+            imageUrl: groupDisplay.imageUrl || display.imageUrl,
+            color: display.color,
+            colorName: display.colorName,
+            size: display.size,
+            makerSize: display.makerSize,
+            categoryName: groupDisplay.categoryName || display.categoryName,
+            platformStatus: groupDisplay.platformStatus || display.platformStatus,
+            price: display.price,
+            currencyCode: display.currencyCode,
+            stockPresent: display.stockPresent ?? null,
+            stockReserved: display.stockReserved ?? null,
+            updatedAt: sku.updatedAt || item.updatedAt,
+            targetStock: null,
+          }
+        })
       }).filter((item) => item.offerId || item.productId)
-      setProducts(await applyLiveStocks(mappedProducts, nextWarehouseByAccountId))
+      setProducts(mappedProducts)
       setSelectedRowKeys([])
+      setStockRefreshedAt(undefined)
     } catch (error) {
       message.error(error instanceof Error ? error.message : '加载 Ozon 库存数据失败')
     } finally {
       setLoading(false)
     }
-  }, [applyLiveStocks, effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, selectedTagIds, selectedWarehouseByAccountId])
+  }, [effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, selectedTagIds])
+
+  const refreshLiveStocks = useCallback(async () => {
+    if (!products.length) {
+      message.warning('当前没有可刷新的本地商品')
+      return
+    }
+    setStockRefreshing(true)
+    try {
+      setProducts(await applyLiveStocks(products, selectedWarehouseByAccountId))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '刷新 Ozon 平台库存失败')
+    } finally {
+      setStockRefreshing(false)
+    }
+  }, [applyLiveStocks, message, products, selectedWarehouseByAccountId])
 
   useEffect(() => {
     saleApi.listSaleShopTags()
@@ -500,6 +390,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
 
   const updateSelectedWarehouse = (accountId: string, warehouseId: string) => {
     setSelectedWarehouseByAccountId((current) => ({ ...current, [accountId]: warehouseId }))
+    setStockRefreshedAt(undefined)
   }
 
   const invalidReason = !effectiveAccountIds.length
@@ -686,7 +577,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         showIcon
         type="warning"
         message="库存调整会覆盖 Ozon 当前仓库可售库存"
-        description={stockRefreshedAt ? `刷新会实时读取 Ozon 平台库存；最近刷新：${stockRefreshedAt}。提交任务后可在结果明细中查看平台返回状态。` : '点击刷新会实时读取 Ozon 平台库存；提交前请核对店铺、仓库、商品和目标库存。'}
+        description={stockRefreshedAt ? `页面默认展示本地已同步商品及最近同步快照；最近一次平台实时库存刷新：${stockRefreshedAt}。提交任务后可在结果明细中查看平台返回状态。` : '页面默认展示本地已同步商品及最近同步快照；只有点击“刷新平台库存”时才会实时读取 Ozon 平台库存。'}
       />
       <Card className="scw-ops-toolbar scw-ops-toolbar--sticky">
         <Row gutter={[16, 16]} align="middle">
@@ -745,7 +636,8 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
                 style={{ width: 140 }}
               />
               <Button disabled={!selectedRowKeys.length} onClick={applyBatchTargetStock}>应用到选中商品</Button>
-              <Button icon={<ReloadOutlined />} loading={loading} onClick={loadData}>刷新平台库存</Button>
+              <Button icon={<ReloadOutlined />} loading={loading} onClick={loadData}>刷新本地商品</Button>
+              <Button icon={<ReloadOutlined />} loading={stockRefreshing} onClick={refreshLiveStocks}>刷新平台库存</Button>
               <Button type="primary" icon={<CheckCircleOutlined />} loading={submitting} disabled={!!invalidReason} onClick={submit}>提交库存任务</Button>
             </Space>
           </Col>

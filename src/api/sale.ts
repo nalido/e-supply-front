@@ -762,6 +762,7 @@ export const saleApi = {
     offerId?: string;
     platformSkuId?: string;
     mappingStatus?: string;
+    groupBy?: 'SPU_SKC';
     page?: number;
     pageSize?: number;
   }): Promise<SaleProductMapping[]> {
@@ -780,6 +781,7 @@ export const saleApi = {
     offerId?: string;
     platformSkuId?: string;
     mappingStatus?: string;
+    groupBy?: 'SPU_SKC';
     page?: number;
     pageSize?: number;
   }): Promise<BackendListResponse<SaleProductMapping>> {

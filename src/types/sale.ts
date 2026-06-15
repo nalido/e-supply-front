@@ -117,6 +117,35 @@ export type SaleProductMapping = {
   lastSyncedAt?: string;
   updatedAt?: string;
   remark?: string;
+  groupKey?: string | null;
+  groupHead?: boolean | null;
+  groupRowSpan?: number | null;
+  groupSkuCount?: number | null;
+  skus?: SaleProductMappingSku[];
+};
+
+export type SaleProductMappingSku = {
+  id: string;
+  platformSkuId?: string | null;
+  platformSkuCode?: string | null;
+  normalizedColor?: string | null;
+  normalizedSize?: string | null;
+  normalizedSpecSummary?: string | null;
+  normalizedAttributesJson?: string | null;
+  platformSnapshotJson?: string | null;
+  styleId?: string | null;
+  styleNo?: string | null;
+  styleName?: string | null;
+  styleImageUrl?: string | null;
+  styleVariantId?: string | null;
+  styleVariantColor?: string | null;
+  styleVariantSize?: string | null;
+  styleVariantAttributesJson?: string | null;
+  warehouseId?: string | null;
+  mappingStatus?: string | null;
+  lastSyncedAt?: string | null;
+  updatedAt?: string | null;
+  remark?: string | null;
 };
 
 export type SaleOzonPromotion = {

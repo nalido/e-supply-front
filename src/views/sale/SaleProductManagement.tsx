@@ -6,10 +6,15 @@ import { DeleteOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/ico
 import { saleApi } from '../../api/sale'
 import type { SaleChannelAccount, SaleShopTag } from '../../types/sale'
 import { getShopLabel, isMappedStatus } from './sale-center-helpers'
+import { isSuspiciousHistoryRow, resolveOzonProductDisplayInfo, type OzonProductDisplayInfo } from './ozon-product-display'
 
 const { Text } = Typography
 
 type ProductMappingRow = Awaited<ReturnType<typeof saleApi.listProductMappings>>[number]
+type DisplayProductRow = ProductMappingRow &
+  OzonProductDisplayInfo & {
+    groupSkuCount: number;
+  }
 
 type Props = {
   accounts: SaleChannelAccount[]
@@ -17,7 +22,7 @@ type Props = {
   onAccountChange: (accountId?: string) => void
 }
 
-const parseSnapshot = (value?: string) => {
+const parseSnapshot = (value?: string | null) => {
   if (!value) return null
   try {
     return JSON.parse(value) as Record<string, unknown>
@@ -33,32 +38,24 @@ const textOf = (...values: unknown[]) => {
   return ''
 }
 
-const isSuspiciousHistoryRow = (row: ProductMappingRow) => {
-  const snapshot = parseSnapshot(row.platformSnapshotJson)
-  const snapshotProductId = textOf(
-    snapshot?.product_id,
-    snapshot?.productId,
-    typeof snapshot?.raw === 'object' && snapshot?.raw && 'list' in snapshot.raw
-      ? (snapshot.raw as Record<string, unknown>).list && typeof (snapshot.raw as Record<string, unknown>).list === 'object'
-        ? (snapshot.raw as Record<string, unknown>).list && ((snapshot.raw as Record<string, unknown>).list as Record<string, unknown>).product_id
-        : undefined
-      : undefined,
-  )
-  const offerId = textOf(row.platformSkuCode, snapshot?.offer_id, snapshot?.offerId)
-  return Boolean(
-    row.platformSkuId
-    && snapshotProductId
-    && row.platformSkuId === snapshotProductId
-    && !textOf(row.platformProductName)
-    && offerId,
-  )
-}
-
-const getFactoryStyleNo = (row: ProductMappingRow) => {
+const getFactoryStyleNo = (row: { normalizedAttributesJson?: string | null }) => {
   const normalizedAttributes = parseSnapshot(row.normalizedAttributesJson)
   return textOf(
     normalizedAttributes?.factory_style_no,
     normalizedAttributes?.factoryStyleNo,
+  )
+}
+
+const getAvatarText = (value?: string | null) => (value || '商').trim().slice(0, 1).toUpperCase()
+
+const ProductThumb = ({ src, name, size = 56 }: { src?: string | null; name?: string | null; size?: number }) => {
+  if (src?.trim()) {
+    return <img className="scw-thumb" src={src.trim()} alt={name || '商品图'} style={{ width: size, height: size }} />
+  }
+  return (
+    <div className="scw-thumb scw-thumb--placeholder" style={{ width: size, height: size }}>
+      {getAvatarText(name)}
+    </div>
   )
 }
 
@@ -76,6 +73,9 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
   const [mappingStatus, setMappingStatus] = useState('ALL')
   const [dirtyOnly, setDirtyOnly] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+  const [tablePage, setTablePage] = useState(1)
+  const [tablePageSize, setTablePageSize] = useState(20)
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     if (selectedAccountId && !accountIds.length) {
@@ -94,15 +94,19 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
   const loadRows = useCallback(async () => {
     setLoading(true)
     try {
-      const list = await saleApi.listProductMappings({
+      const result = await saleApi.listProductMappingsPage({
         channelAccountIds: accountIds.length ? accountIds : undefined,
         tagIds: tagIds.length ? tagIds : undefined,
         keyword: keyword.trim() || undefined,
         offerId: offerId.trim() || undefined,
         platformSkuId: platformSkuId.trim() || undefined,
         mappingStatus: mappingStatus === 'ALL' ? undefined : mappingStatus,
+        groupBy: 'SPU_SKC',
+        page: tablePage,
+        pageSize: tablePageSize,
       })
-      setRows(list)
+      setRows(result.list ?? [])
+      setTotal(result.total ?? 0)
       setSelectedRowKeys([])
     } catch (error) {
       console.error(error)
@@ -110,7 +114,7 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
     } finally {
       setLoading(false)
     }
-  }, [accountIds, keyword, mappingStatus, message, offerId, platformSkuId, tagIds])
+  }, [accountIds, keyword, mappingStatus, message, offerId, platformSkuId, tablePage, tablePageSize, tagIds])
 
   useEffect(() => {
     void loadTags()
@@ -120,6 +124,10 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
     void loadRows()
   }, [loadRows])
 
+  useEffect(() => {
+    setTablePage(1)
+  }, [accountIds, dirtyOnly, keyword, mappingStatus, offerId, platformSkuId, tagIds])
+
   const accountMap = useMemo(() => new Map(accounts.map((item) => [item.id, item])), [accounts])
   const visibleRows = useMemo(
     () => (dirtyOnly ? rows.filter(isSuspiciousHistoryRow) : rows),
@@ -128,6 +136,26 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
   const dirtyCount = useMemo(() => rows.filter(isSuspiciousHistoryRow).length, [rows])
   const mappedCount = useMemo(() => rows.filter((item) => isMappedStatus(item.mappingStatus)).length, [rows])
   const selectedRows = useMemo(() => visibleRows.filter((item) => selectedRowKeys.includes(item.id)), [selectedRowKeys, visibleRows])
+  const currentSkuCount = useMemo(
+    () => visibleRows.reduce((sum, item) => sum + (item.skus?.length || item.groupSkuCount || 1), 0),
+    [visibleRows],
+  )
+  const getMappingIds = (items: ProductMappingRow[]) =>
+    items.flatMap((item) => item.skus?.length ? item.skus.map((sku) => sku.id) : [item.id])
+  const displayRows = useMemo<DisplayProductRow[]>(
+    () => visibleRows.map((row) => {
+      const display = resolveOzonProductDisplayInfo(row)
+      return {
+        ...row,
+        ...display,
+        platformSpuId: display.platformSpuId || row.platformSpuId,
+        platformSkcId: display.platformSkcId || row.platformSkcId,
+        platformSkuId: display.platformSkuId || row.platformSkuId,
+        groupSkuCount: row.skus?.length || row.groupSkuCount || 1,
+      }
+    }),
+    [visibleRows],
+  )
   const hasScopedFilter = accountIds.length > 0
     || tagIds.length > 0
     || keyword.trim()
@@ -160,7 +188,7 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
       onOk: async () => {
         setDeleting(true)
         try {
-          const result = await saleApi.bulkDeleteProductMappings(selectedRows.map((item) => item.id))
+          const result = await saleApi.bulkDeleteProductMappings(getMappingIds(selectedRows))
           message.success(`已删除 ${result.deletedCount} 条本地商品`)
           await loadRows()
         } catch (error) {
@@ -195,7 +223,7 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
       onOk: async () => {
         setDeleting(true)
         try {
-          const result = await saleApi.bulkDeleteProductMappings(visibleRows.map((item) => item.id))
+          const result = await saleApi.bulkDeleteProductMappings(getMappingIds(visibleRows))
           message.success(`已删除 ${result.deletedCount} 条本地商品`)
           await loadRows()
         } catch (error) {
@@ -208,7 +236,7 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
     })
   }
 
-  const columns: ColumnsType<ProductMappingRow> = [
+  const columns: ColumnsType<DisplayProductRow> = [
     {
       title: '店铺',
       dataIndex: 'channelAccountId',
@@ -225,18 +253,24 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
     },
     {
       title: '商品',
-      dataIndex: 'platformProductName',
-      width: 320,
+      dataIndex: 'name',
+      width: 380,
       render: (value: string | undefined, record) => (
-        <Space direction="vertical" size={4}>
-          <Text strong>{value || record.platformSkuCode || record.platformSkuId}</Text>
-          <Space size={[4, 4]} wrap>
-            <Tag color={isMappedStatus(record.mappingStatus) ? 'green' : 'gold'}>
-              {isMappedStatus(record.mappingStatus) ? '已绑定' : (record.mappingStatus || '待绑定')}
-            </Tag>
-            {isSuspiciousHistoryRow(record) ? <Tag color="red">疑似历史脏数据</Tag> : null}
+        <Space align="start" size={12}>
+          <ProductThumb src={record.imageUrl || record.platformMainImageUrl} name={value} size={64} />
+          <Space direction="vertical" size={4}>
+            <Text strong>{value || record.platformSkuCode || record.platformSkuId}</Text>
+            <Space size={[4, 4]} wrap>
+              <Tag color="geekblue">SPU {record.spuLabel || '--'}</Tag>
+              <Tag color="magenta">SKC {record.skcLabel || record.platformSkcId || '--'}</Tag>
+              <Tag>{record.groupSkuCount} 个 SKU</Tag>
+              <Tag color={isMappedStatus(record.mappingStatus) ? 'green' : 'gold'}>
+                {isMappedStatus(record.mappingStatus) ? '已绑定' : (record.mappingStatus || '待绑定')}
+              </Tag>
+              {isSuspiciousHistoryRow(record) ? <Tag color="red">疑似历史脏数据</Tag> : null}
+            </Space>
+            <Text type="secondary">类目：{record.categoryName || '--'}</Text>
           </Space>
-          <Text type="secondary">颜色：{record.normalizedColor || '--'} / 尺码：{record.normalizedSize || '--'}</Text>
         </Space>
       ),
     },
@@ -248,18 +282,35 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
         <Space direction="vertical" size={4}>
           <Text copyable={{ text: record.platformSpuId || '' }}>{`SPU：${record.platformSpuId || '--'}`}</Text>
           <Text copyable={{ text: record.platformSkcId || '' }}>{`SKC：${record.platformSkcId || '--'}`}</Text>
-          <Text copyable={{ text: record.platformSkuId }}>{`SKU：${record.platformSkuId}`}</Text>
+          <Text type="secondary">平台状态：{record.platformStatus || '--'}</Text>
         </Space>
       ),
     },
     {
-      title: '工厂货品',
-      dataIndex: 'platformSkuCode',
-      width: 220,
-      render: (value: string | undefined, record) => (
-        <Space direction="vertical" size={4}>
-          {value ? <Text copyable={{ text: value }}>货品ID：{value}</Text> : <Text>货品ID：--</Text>}
-          <Text type="secondary">款号：{getFactoryStyleNo(record) || '--'}</Text>
+      title: 'SKU 明细',
+      key: 'skus',
+      width: 560,
+      render: (_, record) => (
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          {(record.skus?.length ? record.skus : [record]).map((sku) => {
+            const skuDisplay = resolveOzonProductDisplayInfo({ ...record, ...sku })
+            return (
+              <div key={sku.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 12, alignItems: 'start' }}>
+                <Space direction="vertical" size={2}>
+                  <Text copyable={{ text: sku.platformSkuId || '' }}>SKU：{sku.platformSkuId || '--'}</Text>
+                  <Text type="secondary">product_id：{skuDisplay.productId || '--'}</Text>
+                </Space>
+                <Space direction="vertical" size={2}>
+                  <Text>颜色：{skuDisplay.color || sku.normalizedColor || '--'}</Text>
+                  <Text type="secondary">尺码：{skuDisplay.size || sku.normalizedSize || '--'}</Text>
+                </Space>
+                <Space direction="vertical" size={2}>
+                  <Text copyable={{ text: sku.platformSkuCode || '' }}>货品ID：{sku.platformSkuCode || '--'}</Text>
+                  <Text type="secondary">款号：{skuDisplay.factoryStyleNo || getFactoryStyleNo({ ...record, ...sku }) || '--'}</Text>
+                </Space>
+              </div>
+            )
+          })}
         </Space>
       ),
     },
@@ -372,24 +423,33 @@ export default function SaleProductManagement({ accounts, selectedAccountId, onA
         </Row>
       </Card>
       <Row gutter={[16, 16]}>
-        <Col xs={12} md={6}><Card><Statistic title="当前列表商品" value={visibleRows.length} /></Card></Col>
+        <Col xs={12} md={6}><Card><Statistic title="当前页 SKC" value={visibleRows.length} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title="疑似脏数据" value={dirtyCount} prefix={<WarningOutlined />} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title="已绑定商品" value={mappedCount} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title="已选商品" value={selectedRows.length} /></Card></Col>
       </Row>
       <Card
         title="本地商品列表"
-        extra={<Text type="secondary">共 {rows.length} 条，支持按店铺、offer_id、店铺标签筛选并批量删除本地商品。</Text>}
+        extra={<Text type="secondary">共 {total} 个 SKC，当前页 {currentSkuCount} 条 SKU，支持按店铺、offer_id、店铺标签筛选并批量删除本地商品。</Text>}
         className="scw-ops-panel"
       >
         <Table
           rowKey="id"
           loading={loading}
           columns={columns}
-          dataSource={visibleRows}
+          dataSource={displayRows}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-          pagination={{ pageSize: 20, showSizeChanger: true }}
-          scroll={{ x: 1260, y: 'calc(100vh - 420px)' }}
+          pagination={{
+            current: tablePage,
+            pageSize: tablePageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (page, pageSize) => {
+              setTablePage(page)
+              setTablePageSize(pageSize)
+            },
+          }}
+          scroll={{ x: 1320, y: 'calc(100vh - 420px)' }}
         />
       </Card>
     </div>

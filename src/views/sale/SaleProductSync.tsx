@@ -186,6 +186,9 @@ const SaleProductSync = () => {
             <Col xs={24} sm={12}>
               <SaleMiniStat label="错误信息" value={syncStatus.currentTask.errorMessage || '--'} tone={syncStatus.currentTask.errorMessage ? 'danger' : 'default'} />
             </Col>
+            <Col xs={24}>
+              <SaleMiniStat label="执行说明" value={syncStatus.currentTask.remark || '--'} />
+            </Col>
           </Row>
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前无运行中的商品同步任务" />
