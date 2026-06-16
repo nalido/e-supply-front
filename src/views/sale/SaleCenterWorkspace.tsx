@@ -795,12 +795,11 @@ const SaleCenterWorkspace = () => {
       console.error(error)
       const messageText = activeSection === 'shop-management' ? '店铺管理数据加载失败，请刷新重试。' : '销售中心数据加载失败，请刷新重试。'
       setWorkspaceError(messageText)
-      message.error(activeSection === 'shop-management' ? '店铺管理数据加载失败，请稍后重试。' : '销售中心数据加载失败，请稍后重试。')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [activeSection, message, productSectionActive, selectedAccountId])
+  }, [activeSection, productSectionActive, selectedAccountId])
 
   const loadShopAsyncSupport = useCallback(async () => {
     try {
@@ -1462,7 +1461,6 @@ const SaleCenterWorkspace = () => {
       setStyleOptions(options)
     } catch (error) {
       console.error(error)
-      message.error('搜索本地款式失败，请稍后重试。')
     } finally {
       if (styleSearchRequestRef.current === requestId) {
         setStyleSearchLoading(false)
@@ -1487,7 +1485,6 @@ const SaleCenterWorkspace = () => {
       setSelectedVariantId(resolvedVariantId)
     } catch (error) {
       console.error(error)
-      message.error('加载款式规格失败，请稍后重试。')
     } finally {
       setStyleDetailLoading(false)
     }
@@ -1537,11 +1534,10 @@ const SaleCenterWorkspace = () => {
     } catch (error) {
       console.error(error)
       setSalesError('售卖数据加载失败，请刷新后重试。')
-      message.error('售卖数据加载失败，请稍后重试。')
     } finally {
       setSalesLoading(false)
     }
-  }, [message, salesDays, salesKeyword, salesPage, salesPageSize, salesSortBy])
+  }, [salesDays, salesKeyword, salesPage, salesPageSize, salesSortBy])
 
   useEffect(() => {
     if (activeSection !== 'sales-data') {
@@ -1573,11 +1569,10 @@ const SaleCenterWorkspace = () => {
       console.error(error)
       setSalesDetail(null)
       setSalesDetailError('工厂产品售卖明细加载失败，请刷新后重试。')
-      message.error('加载工厂产品售卖明细失败。')
     } finally {
       setSalesDetailLoading(false)
     }
-  }, [message, salesDays])
+  }, [salesDays])
 
   useEffect(() => {
     if (!salesDrawerStyleId) {
@@ -1604,7 +1599,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('提交商品同步失败。')
     }
   }, [loadWorkspaceData, message, productSyncMode, selectedAccountId])
 
@@ -1618,7 +1612,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('取消商品同步失败。')
     }
   }, [currentProductSyncTask?.taskId, loadWorkspaceData, message])
 
@@ -1633,7 +1626,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('生成草稿失败。')
     }
   }, [loadWorkspaceData, message, selectedAccountId])
 
@@ -1644,7 +1636,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('确认草稿失败。')
     }
   }, [loadWorkspaceData, message, selectedAccountId])
 
@@ -1655,7 +1646,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('驳回草稿失败。')
     }
   }, [loadWorkspaceData, message, selectedAccountId])
 
@@ -1687,7 +1677,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('提交商品绑定失败。')
     } finally {
       setBindingSaving(false)
     }
@@ -1883,7 +1872,6 @@ const SaleCenterWorkspace = () => {
     } catch (error) {
       if (error instanceof Error) {
         console.error(error)
-        message.error('保存店铺失败。')
       }
     } finally {
       setCredentialSubmitting(false)
@@ -2008,7 +1996,6 @@ const SaleCenterWorkspace = () => {
       await loadShopAsyncSupport()
     } catch (error) {
       console.error(error)
-      message.error('提交 Ozon 店铺批量导入失败。')
     } finally {
       setCredentialSubmitting(false)
     }
@@ -2032,7 +2019,6 @@ const SaleCenterWorkspace = () => {
       await loadShopAsyncSupport()
     } catch (error) {
       console.error(error)
-      message.error('提交店铺批量删除任务失败。')
     } finally {
       setCredentialSubmitting(false)
     }
@@ -2056,7 +2042,6 @@ const SaleCenterWorkspace = () => {
       await loadShopAsyncSupport()
     } catch (error) {
       console.error(error)
-      message.error('提交店铺批量删除任务失败。')
     } finally {
       setCredentialSubmitting(false)
     }
@@ -2075,7 +2060,6 @@ const SaleCenterWorkspace = () => {
       await loadShopAsyncSupport()
     } catch (error) {
       console.error(error)
-      message.error('删除空标签失败。')
     } finally {
       setCredentialSubmitting(false)
     }
@@ -2090,7 +2074,6 @@ const SaleCenterWorkspace = () => {
       message.success('失败项已重新排队。')
     } catch (error) {
       console.error(error)
-      message.error('重试失败项提交失败。')
     } finally {
       setCredentialSubmitting(false)
     }
@@ -2107,7 +2090,6 @@ const SaleCenterWorkspace = () => {
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
-      message.error('删除店铺失败。')
     }
   }, [editingShop?.id, loadWorkspaceData, message, selectedAccountId])
 
@@ -2192,8 +2174,8 @@ const SaleCenterWorkspace = () => {
         })
       }
       await loadWorkspaceData()
-    } catch {
-      message.error('订单同步失败，请到治理中心查看详情。')
+    } catch (error) {
+      console.error(error)
       if (useDrawerFeedback) {
         setShopActionFeedback({
           type: 'error',
