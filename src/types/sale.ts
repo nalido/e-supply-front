@@ -26,6 +26,7 @@ export type SaleShopTag = {
   tagName: string;
   color?: string | null;
   accountCount?: number | null;
+  accountIds?: string[] | null;
 };
 
 export type SaleAsyncTask = {
@@ -48,6 +49,8 @@ export type SaleAsyncTask = {
   finishedAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  alreadyRunning?: boolean | null;
+  message?: string | null;
 };
 
 export type SaleAsyncTaskItem = {

@@ -430,11 +430,15 @@ export const saleApi = {
     return response.data.list ?? [];
   },
 
-  async listOzonPromotions(channelAccountId: string | number): Promise<SaleOzonPromotion[]> {
+  async listOzonPromotions(
+    channelAccountId: string | number,
+    options?: { suppressGlobalError?: boolean },
+  ): Promise<SaleOzonPromotion[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOzonPromotion>>('/api/v1/sale/ozon/promotions', {
       params: { tenantId, channelAccountId },
-    });
+      suppressGlobalError: options?.suppressGlobalError,
+    } as unknown as undefined);
     return response.data.list ?? [];
   },
 

@@ -5,7 +5,7 @@ import { buildFriendlyError } from '../utils/friendly-error';
 
 const traceHeaderKeys = ['traceid', 'trace-id', 'x-trace-id', 'x-request-id'];
 
-type RequestConfigWithDataflow = {
+export type RequestConfigWithDataflow = {
   headers?: Record<string, unknown>;
   params?: Record<string, unknown>;
   skipPageNormalization?: boolean;
