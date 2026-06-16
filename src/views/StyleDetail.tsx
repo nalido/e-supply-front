@@ -335,20 +335,6 @@ const StyleDetail = () => {
     markDirty();
   }, [markDirty]);
 
-  const handleBarcodeDraftChange = useCallback((color: string, size: string, value: string) => {
-    const key = buildVariantKey(color, size);
-    setVariantDrafts((prev) => ({
-      ...prev,
-      [key]: prev[key]
-        ? {
-            ...prev[key],
-            barcode: value,
-          }
-        : prev[key],
-    }));
-    markDirty();
-  }, [markDirty]);
-
   const loadMaterialOptions = useCallback(async (state: MaterialPickerState) => {
     setMaterialPicker((prev) => ({ ...prev, loading: true }));
     try {
@@ -649,7 +635,6 @@ const StyleDetail = () => {
         <PageHeader
           className="oc-page-header--compact"
           title="款式资料"
-          subtitle="压缩顶部说明区，首屏直接进入主图、关键字段与 BOM 维护。"
           extra={detail?.styleNo ? <Text type="secondary">当前款号：{detail.styleNo}</Text> : null}
           stats={
             <div className="oc-summary-strip">
@@ -768,7 +753,6 @@ const StyleDetail = () => {
                   <div className="style-detail-variant-rules">
                     <div className="style-detail-variant-rules__header">
                       <Title level={5} style={{ margin: 0 }}>编码规则</Title>
-                      <Text type="secondary">只维护最终要生效的编码；输入留空时按系统默认规则生成并保存。</Text>
                     </div>
                     <div className="style-detail-variant-rules__table">
                       <StyleCodeMatrixEditor
@@ -777,7 +761,6 @@ const StyleDetail = () => {
                         variantDrafts={variantDrafts}
                         onSkcChange={handleSkcDraftChange}
                         onSkuChange={handleSkuDraftChange}
-                        onBarcodeChange={handleBarcodeDraftChange}
                       />
                     </div>
                   </div>

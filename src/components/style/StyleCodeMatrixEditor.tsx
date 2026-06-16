@@ -1,5 +1,6 @@
-import { Button, Input, Typography } from 'antd';
-import { useMemo, useState } from 'react';
+import { EditOutlined } from '@ant-design/icons';
+import { Input, Typography } from 'antd';
+import { useMemo, type MouseEvent } from 'react';
 import type { StyleCodeVariantDraft } from '../../types/style';
 import '../../styles/matrix-table.css';
 
@@ -11,10 +12,17 @@ type Props = {
   variantDrafts: Record<string, StyleCodeVariantDraft>;
   onSkcChange: (color: string, value: string) => void;
   onSkuChange: (color: string, size: string, value: string) => void;
-  onBarcodeChange: (color: string, size: string, value: string) => void;
 };
 
 const buildVariantKey = (color: string, size: string) => `${color}|${size}`;
+const getDisplayCodeValue = (customValue?: string, systemValue?: string) => customValue ?? systemValue ?? '';
+const preventSuffixMouseDown = (event: MouseEvent<HTMLElement>) => {
+  event.preventDefault();
+};
+const resolveWidthCh = (lengths: number[]) => {
+  const longest = Math.max(...lengths.map((len) => len + 4));
+  return Math.min(56, Math.max(18, longest));
+};
 
 export default function StyleCodeMatrixEditor({
   colors,
@@ -22,11 +30,8 @@ export default function StyleCodeMatrixEditor({
   variantDrafts,
   onSkcChange,
   onSkuChange,
-  onBarcodeChange,
 }: Props) {
-  const [expandedCells, setExpandedCells] = useState<Record<string, boolean>>({});
-
-  const rowSkcMap = useMemo(
+  const columnSkcMap = useMemo(
     () =>
       colors.reduce<Record<string, StyleCodeVariantDraft | undefined>>((acc, color) => {
         acc[color] = sizes.map((size) => variantDrafts[buildVariantKey(color, size)]).find(Boolean);
@@ -35,78 +40,103 @@ export default function StyleCodeMatrixEditor({
     [colors, sizes, variantDrafts],
   );
 
+  const columnWidthMap = useMemo(
+    () =>
+      colors.reduce<Record<string, number>>((acc, color) => {
+        const columnDraft = columnSkcMap[color];
+        const lengths = [
+          color.length,
+          getDisplayCodeValue(columnDraft?.skcNo, columnDraft?.systemSkcNo).length,
+          ...sizes.map((size) =>
+            getDisplayCodeValue(
+              variantDrafts[buildVariantKey(color, size)]?.skuNo,
+              variantDrafts[buildVariantKey(color, size)]?.systemSkuNo,
+            ).length,
+          ),
+        ];
+        acc[color] = resolveWidthCh(lengths);
+        return acc;
+      }, {}),
+    [colors, columnSkcMap, sizes, variantDrafts],
+  );
+
+  const rowHeaderWidthCh = useMemo(
+    () => resolveWidthCh(['尺码 / 颜色'.length, ...sizes.map((size) => size.length)]),
+    [sizes],
+  );
+
   return (
-    <div className="factory-create-matrix-wrap style-code-matrix">
-      <table className="factory-create-matrix-table style-code-matrix__table">
+    <div className="style-code-matrix">
+      <table className="style-code-matrix__table">
+        <colgroup>
+          <col style={{ width: `${rowHeaderWidthCh}ch` }} />
+          {colors.map((color) => (
+            <col key={color} style={{ width: `${columnWidthMap[color]}ch` }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
-            <th>颜色 / SKC</th>
-            {sizes.map((size) => (
-              <th key={size}>{size}</th>
-            ))}
+            <th className="style-code-matrix__corner-head">
+              <div className="style-code-matrix__corner-head-content">尺码 / 颜色</div>
+            </th>
+            {colors.map((color) => {
+              const columnDraft = columnSkcMap[color];
+              return (
+                <th key={color} className="style-code-matrix__column-head">
+                  <div className="style-code-matrix__column-head-content">
+                    <div className="style-code-matrix__column-color">
+                      <Text strong>{color}</Text>
+                    </div>
+                    <Input
+                      className="style-code-matrix__code-input oc-excel-cell-text-input"
+                      spellCheck={false}
+                      value={getDisplayCodeValue(columnDraft?.skcNo, columnDraft?.systemSkcNo)}
+                      onChange={(event) => onSkcChange(color, event.target.value)}
+                      suffix={
+                        <EditOutlined
+                          className="style-code-matrix__edit-icon"
+                          onMouseDown={preventSuffixMouseDown}
+                        />
+                      }
+                    />
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {colors.map((color) => {
-            const rowDraft = rowSkcMap[color];
-            return (
-              <tr key={color}>
-                <th className="style-code-matrix__row-head">
-                  <div className="style-code-matrix__row-color">
-                    <Text strong>{color}</Text>
-                  </div>
-                  <Input
-                    value={rowDraft?.skcNo ?? ''}
-                    placeholder={rowDraft?.systemSkcNo ? `留空使用 ${rowDraft.systemSkcNo}` : '留空按系统生成'}
-                    onChange={(event) => onSkcChange(color, event.target.value)}
-                  />
-                  <Text type="secondary" className="style-code-matrix__hint">
-                    行头维护该颜色的 SKC，留空按系统默认生成
-                  </Text>
-                </th>
-                {sizes.map((size) => {
-                  const key = buildVariantKey(color, size);
-                  const draft = variantDrafts[key];
-                  const expanded = Boolean(expandedCells[key]);
-                  return (
-                    <td key={key} className="style-code-matrix__cell">
-                      <div className="style-code-matrix__cell-main">
-                        <Input
-                          value={draft?.skuNo ?? ''}
-                          placeholder={draft?.systemSkuNo ? `留空使用 ${draft.systemSkuNo}` : '留空按系统生成'}
-                          onChange={(event) => onSkuChange(color, size, event.target.value)}
-                        />
-                      </div>
-                      <div className="style-code-matrix__cell-meta">
-                        <Button
-                          type="link"
-                          size="small"
-                          onClick={() =>
-                            setExpandedCells((prev) => ({
-                              ...prev,
-                              [key]: !prev[key],
-                            }))
-                          }
-                        >
-                          {expanded ? '收起条码' : '编辑条码'}
-                        </Button>
-                        <Text type="secondary" className="style-code-matrix__hint">
-                          默认 {draft?.systemSkuNo ?? '-'}
-                        </Text>
-                      </div>
-                      {expanded && (
-                        <Input
-                          value={draft?.barcode ?? ''}
-                          placeholder="可选条码"
-                          onChange={(event) => onBarcodeChange(color, size, event.target.value)}
-                        />
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {sizes.map((size) => (
+            <tr key={size}>
+              <th className="style-code-matrix__size-head">
+                <div className="style-code-matrix__size-head-content">
+                  <Text strong>{size}</Text>
+                </div>
+              </th>
+              {colors.map((color) => {
+                const key = buildVariantKey(color, size);
+                const draft = variantDrafts[key];
+                return (
+                  <td key={key} className="style-code-matrix__cell">
+                    <div className="style-code-matrix__cell-content">
+                      <Input
+                        className="style-code-matrix__code-input oc-excel-cell-text-input"
+                        spellCheck={false}
+                        value={getDisplayCodeValue(draft?.skuNo, draft?.systemSkuNo)}
+                        onChange={(event) => onSkuChange(color, size, event.target.value)}
+                        suffix={
+                          <EditOutlined
+                            className="style-code-matrix__edit-icon"
+                            onMouseDown={preventSuffixMouseDown}
+                          />
+                        }
+                      />
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

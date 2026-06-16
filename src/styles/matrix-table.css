@@ -174,23 +174,41 @@
 .oc-excel-cell-input.ant-input-number,
 .oc-excel-cell-input.ant-input-number-group-wrapper,
 .oc-excel-cell-text-input.ant-input,
+.oc-excel-cell-text-input.ant-input-affix-wrapper,
 .oc-excel-cell-select.ant-select {
   width: 100%;
 }
 
-.oc-excel-cell-text-input.ant-input {
-  height: 40px;
+.oc-excel-cell-text-input.ant-input,
+.oc-excel-cell-text-input.ant-input-affix-wrapper {
+  min-height: 40px;
   padding: 0 10px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.oc-excel-cell-text-input.ant-input:hover,
+.oc-excel-cell-text-input.ant-input-affix-wrapper:hover {
+  border-color: transparent;
   box-shadow: none;
   background: transparent;
 }
 
-.oc-excel-cell-text-input.ant-input:hover,
-.oc-excel-cell-text-input.ant-input:focus {
-  border: 0;
+.oc-excel-cell-text-input.ant-input:focus,
+.oc-excel-cell-text-input.ant-input-affix-wrapper:focus-within,
+.oc-excel-cell-text-input.ant-input-affix-wrapper-focused {
+  border-color: transparent;
+  outline: 1px solid var(--ant-color-primary, #1677ff);
+  outline-offset: -1px;
   box-shadow: none;
+  background: #fff;
+}
+
+.oc-excel-cell-text-input.ant-input-affix-wrapper .ant-input {
+  padding: 0;
   background: transparent;
 }
 
