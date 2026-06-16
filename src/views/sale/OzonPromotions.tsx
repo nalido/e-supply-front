@@ -552,6 +552,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
           channelAccountIds: scopedAccountIds,
           keyword: productKeyword.trim() || undefined,
           groupBy: 'SPU_SKC',
+          view: 'DETAIL',
           page: currentPage,
           pageSize: PRODUCT_PAGE_SIZE,
         })

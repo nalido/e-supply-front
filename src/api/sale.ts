@@ -767,12 +767,13 @@ export const saleApi = {
     platformSkuId?: string;
     mappingStatus?: string;
     groupBy?: 'SPU_SKC';
+    view?: 'SUMMARY' | 'DETAIL';
     page?: number;
     pageSize?: number;
   }): Promise<SaleProductMapping[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
-      params: { tenantId, pageSize: 200, ...params },
+      params: { tenantId, pageSize: 200, view: 'SUMMARY', ...params },
     });
     return response.data.list ?? [];
   },
@@ -786,12 +787,13 @@ export const saleApi = {
     platformSkuId?: string;
     mappingStatus?: string;
     groupBy?: 'SPU_SKC';
+    view?: 'SUMMARY' | 'DETAIL';
     page?: number;
     pageSize?: number;
   }): Promise<BackendListResponse<SaleProductMapping>> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
-      params: { tenantId, page: 1, pageSize: 50, ...params },
+      params: { tenantId, page: 1, pageSize: 50, view: 'SUMMARY', ...params },
     });
     return response.data;
   },

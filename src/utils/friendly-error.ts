@@ -40,6 +40,9 @@ const resolveSafeMessage = (message?: string): string | null => {
   if (!normalized) {
     return null;
   }
+  if (normalized.includes('timeout of') && normalized.includes('exceeded')) {
+    return '请求超时，请稍后重试。';
+  }
   if (normalized.includes('quantity must be greater than zero')) {
     return '请为至少一个颜色/尺码组合设置大于 0 的数量后再提交。';
   }
@@ -78,6 +81,16 @@ const resolveSafeMessage = (message?: string): string | null => {
 };
 
 const rules: ErrorRule[] = [
+  {
+    matcher: (message) => {
+      const normalized = normalize(message);
+      return normalized.includes('timeout of') && normalized.includes('exceeded');
+    },
+    build: () => ({
+      title: '请求超时',
+      description: '服务响应时间过长，请稍后重试。',
+    }),
+  },
   {
     matcher: (message) => normalize(message).includes('quantity must be greater than zero'),
     build: () => ({

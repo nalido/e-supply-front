@@ -591,6 +591,7 @@ const SaleChannelMappings = () => {
         saleApi.listProductMappingsPage({
           channelAccountId: accountId,
           mappingStatus: status && status !== 'ALL' ? status : undefined,
+          view: 'DETAIL',
           page,
           pageSize,
         }),

@@ -210,6 +210,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         tagIds: selectedTagIds.length ? selectedTagIds : undefined,
         keyword: keyword.trim() || undefined,
         groupBy: 'SPU_SKC',
+        view: 'DETAIL',
         page,
         pageSize,
       })
