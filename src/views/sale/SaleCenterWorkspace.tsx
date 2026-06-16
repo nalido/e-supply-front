@@ -721,7 +721,11 @@ const SaleCenterWorkspace = () => {
       const channelAccounts = await saleApi.listChannelAccounts()
       const storedAccountId =
         typeof window === 'undefined' ? undefined : window.localStorage.getItem(SALE_ACTIVE_ACCOUNT_ID_KEY) ?? undefined
-      const accountIdCandidate = selectedAccountId || storedAccountId
+      const ozonPromotionSectionActive = activeSection === 'ozon-promotions'
+      const accountIdCandidate =
+        ozonPromotionSectionActive
+          ? selectedAccountId
+          : selectedAccountId || storedAccountId
       const selectedAccountStillExists = accountIdCandidate
         ? channelAccounts.some((account) => account.id === accountIdCandidate)
         : false
@@ -735,9 +739,13 @@ const SaleCenterWorkspace = () => {
           : ozonOperationActive && selectedOzonAccountStillExists
             ? accountIdCandidate
             : undefined
+      const autoPreferredOzonAccountId =
+        ozonOperationActive && !ozonPromotionSectionActive
+          ? channelAccounts.find((account) => account.platformCode?.toUpperCase() === 'OZON')?.id
+          : undefined
       const preferredAccountId =
         effectiveSelectedAccountId
-        || (ozonOperationActive ? channelAccounts.find((account) => account.platformCode?.toUpperCase() === 'OZON')?.id : undefined)
+        || autoPreferredOzonAccountId
         || channelAccounts[0]?.id
         || ''
       const needsOrders = activeSection === 'workbench' || activeSection === 'order-issues'
@@ -896,10 +904,16 @@ const SaleCenterWorkspace = () => {
     }
   }, [activeSection, activeShopAsyncTask?.taskId, activeShopAsyncTask?.status, loadShopAsyncSupport, loadWorkspaceData])
 
-  const handleAccountChange = useCallback((value?: string) => {
+  const handleAccountChange = useCallback((value?: string, options?: { persist?: boolean }) => {
     setSelectedAccountId(value)
-    publishSaleContextChanged({ accountId: value })
+    if (options?.persist !== false) {
+      publishSaleContextChanged({ accountId: value })
+    }
   }, [])
+
+  const handlePersistedAccountChange = useCallback((value?: string) => {
+    handleAccountChange(value)
+  }, [handleAccountChange])
 
   useEffect(() => {
     if (!currentOrder) {
@@ -2643,7 +2657,7 @@ const SaleCenterWorkspace = () => {
           <SectionHeading title="筛选条件" />
           <div className="scw-filter-form">
             <Text className="scw-field-label">店铺</Text>
-            <Select value={selectedAccountId} options={accounts.map((account) => ({ label: getShopLabel(account), value: account.id }))} onChange={handleAccountChange} />
+            <Select value={selectedAccountId} options={accounts.map((account) => ({ label: getShopLabel(account), value: account.id }))} onChange={handlePersistedAccountChange} />
             <Text className="scw-field-label">绑定状态</Text>
             <Select value={bindingStatusFilter} onChange={setBindingStatusFilter} options={[{ label: '全部', value: 'ALL' }, { label: '已绑定', value: 'ACTIVE' }, { label: '待绑定', value: 'UNMAPPED' }, { label: '冲突', value: 'CONFLICT' }]} />
             <Text className="scw-field-label">草稿状态</Text>
@@ -4160,7 +4174,7 @@ const SaleCenterWorkspace = () => {
                       : activeSection === 'ozon-inventory'
                         ? '按店铺、仓库和商品设置 Ozon 目标库存，并用异步任务追踪逐条结果。'
                         : activeSection === 'ozon-promotions'
-                          ? '查看 Ozon 活动、候选商品和已报名商品，批量报名或退出活动。'
+                          ? '按店铺范围汇总进行中活动，生成合法待请求列表并批量提交 Ozon 报名任务。'
                           : activeSection === 'product-bindings'
                             ? '将平台 SKU 与本地款式规格准确映射。'
                           : activeSection === 'order-issues'
@@ -4181,7 +4195,7 @@ const SaleCenterWorkspace = () => {
                 style={{ minWidth: 220 }}
                 placeholder="请选择店铺"
                 options={accounts.map((account) => ({ label: getShopLabel(account), value: account.id }))}
-                onChange={handleAccountChange}
+                onChange={handlePersistedAccountChange}
               />
             ) : null}
             <Button icon={<ReloadOutlined />} loading={activeSection === 'sales-data' ? salesLoading : refreshing} onClick={handleRefresh}>
