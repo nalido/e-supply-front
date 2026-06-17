@@ -432,11 +432,11 @@ export const saleApi = {
 
   async listOzonPromotions(
     channelAccountId: string | number,
-    options?: { suppressGlobalError?: boolean },
+    options?: { suppressGlobalError?: boolean; keyword?: string },
   ): Promise<SaleOzonPromotion[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOzonPromotion>>('/api/v1/sale/ozon/promotions', {
-      params: { tenantId, channelAccountId },
+      params: { tenantId, channelAccountId, keyword: options?.keyword?.trim() || undefined },
       suppressGlobalError: options?.suppressGlobalError,
     } as unknown as undefined);
     return response.data.list ?? [];
@@ -485,6 +485,21 @@ export const saleApi = {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
       params: { tenantId, channelAccountId: channelAccountId || undefined },
+    });
+    return response.data.list ?? [];
+  },
+
+  async searchOrders(params?: {
+    channelAccountId?: string;
+    keyword?: string;
+  }): Promise<SaleOrderItem[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
+      params: {
+        tenantId,
+        channelAccountId: params?.channelAccountId || undefined,
+        keyword: params?.keyword?.trim() || undefined,
+      },
     });
     return response.data.list ?? [];
   },

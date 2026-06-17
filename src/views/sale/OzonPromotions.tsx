@@ -368,6 +368,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [shopTags, setShopTags] = useState<SaleShopTag[]>([])
   const [activityKeyword, setActivityKeyword] = useState('')
+  const [activityKeywordInput, setActivityKeywordInput] = useState('')
   const [productKeyword, setProductKeyword] = useState('')
   const [promotions, setPromotions] = useState<PromotionSummary[]>([])
   const [selectedActionId, setSelectedActionId] = useState<string>()
@@ -462,6 +463,10 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     () => (effectiveAccountScopeKey ? effectiveAccountScopeKey.split(',').filter(Boolean) : []),
     [effectiveAccountScopeKey],
   )
+  const promotionQueryKey = useMemo(
+    () => `${effectiveAccountScopeKey}|${activityKeyword.trim()}`,
+    [activityKeyword, effectiveAccountScopeKey],
+  )
   const productQueryKey = useMemo(
     () => `${effectiveAccountScopeKey}|${productKeyword.trim()}`,
     [effectiveAccountScopeKey, productKeyword],
@@ -504,7 +509,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     setPromotionLoadNotice('')
     try {
       const prefetchedScope = prefetchedPromotionScopeRef.current
-      if (prefetchedScope?.scopeKey === effectiveAccountScopeKey) {
+      if (prefetchedScope?.scopeKey === promotionQueryKey) {
         prefetchedPromotionScopeRef.current = null
         applyPromotionLoadResult(prefetchedScope.listByAccount, prefetchedScope.failedAccounts)
         return
@@ -513,7 +518,10 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
         scopedAccountIds.map(async (accountId) => ({
           accountId,
           shopName: getShopLabel(accountsById.get(accountId)),
-          promotions: await saleApi.listOzonPromotions(accountId, { suppressGlobalError: true }),
+          promotions: await saleApi.listOzonPromotions(accountId, {
+            suppressGlobalError: true,
+            keyword: activityKeyword,
+          }),
         })),
       )
       const listByAccount: Array<{ accountId: string; shopName: string; promotions: SaleOzonPromotion[] }> = []
@@ -534,7 +542,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     } finally {
       setLoadingPromotions(false)
     }
-  }, [accountsById, applyPromotionLoadResult, effectiveAccountScopeKey, scopedAccountIds])
+  }, [accountsById, activityKeyword, applyPromotionLoadResult, promotionQueryKey, scopedAccountIds])
 
   const loadProducts = useCallback(async () => {
     if (!scopedAccountIds.length) {
@@ -645,7 +653,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
       if (chosenAccount) {
         setResolvedDefaultAccountId(chosenAccount.accountId)
         prefetchedPromotionScopeRef.current = {
-          scopeKey: chosenAccount.accountId,
+          scopeKey: `${chosenAccount.accountId}|`,
           listByAccount: [chosenAccount],
           failedAccounts: [],
         }
@@ -685,12 +693,12 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     if (!scopeReady) {
       return
     }
-    if (promotionAutoLoadKeyRef.current === effectiveAccountScopeKey) {
+    if (promotionAutoLoadKeyRef.current === promotionQueryKey) {
       return
     }
-    promotionAutoLoadKeyRef.current = effectiveAccountScopeKey
+    promotionAutoLoadKeyRef.current = promotionQueryKey
     void loadPromotions()
-  }, [effectiveAccountScopeKey, loadPromotions, scopeReady])
+  }, [loadPromotions, promotionQueryKey, scopeReady])
 
   useEffect(() => {
     if (!scopeReady) {
@@ -703,15 +711,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     void loadProducts()
   }, [loadProducts, productQueryKey, scopeReady])
 
-  const visiblePromotions = useMemo(() => {
-    const keyword = activityKeyword.trim().toLowerCase()
-    if (!keyword) {
-      return promotions
-    }
-    return promotions.filter((item) =>
-      [item.title, item.actionId, item.actionType, item.shopNames.join(' ')]
-        .some((value) => (value || '').toLowerCase().includes(keyword)))
-  }, [activityKeyword, promotions])
+  const visiblePromotions = promotions
 
   const visibleRows = useMemo(() => {
     const start = (page - 1) * pageSize
@@ -1183,10 +1183,17 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
             />
           </Col>
           <Col xs={24} xl={4}>
-            <Input
-              value={activityKeyword}
+            <Input.Search
+              value={activityKeywordInput}
               placeholder="搜索活动名称 / ID"
-              onChange={(event) => setActivityKeyword(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setActivityKeywordInput(nextValue)
+                if (!nextValue.trim()) {
+                  setActivityKeyword('')
+                }
+              }}
+              onSearch={(value) => setActivityKeyword(value.trim())}
               allowClear
             />
           </Col>

@@ -411,22 +411,6 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
     });
   };
 
-  const filteredLocalProducts = useMemo(() => {
-    const keyword = localKeyword.trim().toLowerCase();
-    if (!keyword) return localProducts;
-    return localProducts.filter((item) =>
-      [item.styleName, item.styleNo, item.colors.join(','), item.sizes.join(',')].some((value) => value.toLowerCase().includes(keyword)),
-    );
-  }, [localKeyword, localProducts]);
-
-  const filteredReferenceProducts = useMemo(() => {
-    const keyword = referenceKeyword.trim().toLowerCase();
-    if (!keyword) return referenceProducts;
-    return referenceProducts.filter((item) =>
-      [item.name, item.offerId, String(item.productId || '')].some((value) => (value || '').toLowerCase().includes(keyword)),
-    );
-  }, [referenceKeyword, referenceProducts]);
-
   const loadShopTags = useCallback(async () => {
     try {
       const tags = await saleApi.listSaleShopTags();
@@ -1005,7 +989,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
 
   const renderReferenceProductList = () => (
     <div className="opp-reference-list" onScroll={handleReferenceScroll}>
-      {filteredReferenceProducts.map((record) => {
+      {referenceProducts.map((record) => {
         const key = referenceRowKey(record);
         const active = selectedReferenceKey === key;
         const categoryName = readRawText(record, 'description_category_name', 'category_name');
@@ -1443,7 +1427,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                         {publishMode === 'ozon-copy' ? '复制商品' : '选品与参考'}
                         <Tag>
                           {publishMode === 'ozon-copy' ? selectedSourceKeys.length : selectedLocalKeys.length}/
-                          {referenceTotal || filteredReferenceProducts.length}
+                          {referenceTotal || referenceProducts.length}
                         </Tag>
                       </span>
                     ),
@@ -1470,12 +1454,12 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                               </Button>
                             </Space>
                           </div>
-                          {filteredReferenceProducts.length ? (
+                          {referenceProducts.length ? (
                             <Table
                               rowKey={referenceRowKey}
                               size="middle"
                               columns={sourceProductColumns}
-                              dataSource={filteredReferenceProducts}
+                              dataSource={referenceProducts}
                               rowSelection={{
                                 selectedRowKeys: selectedSourceKeys,
                                 onChange: setSelectedSourceKeys,
@@ -1516,12 +1500,12 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                               </Button>
                             </Space>
                           </div>
-                          {filteredLocalProducts.length ? (
+                          {localProducts.length ? (
                             <Table
                               rowKey={(record) => record.id}
                               size="middle"
                               columns={localColumns}
-                              dataSource={filteredLocalProducts}
+                              dataSource={localProducts}
                               rowSelection={{
                                 selectedRowKeys: selectedLocalKeys,
                                 onChange: setSelectedLocalKeys,
@@ -1553,7 +1537,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                               onPressEnter={(event) => void loadReferenceProducts({ keyword: event.currentTarget.value })}
                             />
                           </div>
-                          {filteredReferenceProducts.length ? (
+                          {referenceProducts.length ? (
                             renderReferenceProductList()
                           ) : (
                             <Empty description={referenceProducts.length ? '没有匹配的参考商品' : '读取 Ozon 参考商品后选择一个类目相近的商品'} />

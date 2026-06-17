@@ -623,8 +623,18 @@ const SaleCenterWorkspace = () => {
   const [bindingStatusFilter, setBindingStatusFilter] = useState('ALL')
   const [bindingDraftStatusFilter, setBindingDraftStatusFilter] = useState('ALL')
   const [bindingKeyword, setBindingKeyword] = useState('')
+  const [bindingKeywordInput, setBindingKeywordInput] = useState('')
   const [bindingPage, setBindingPage] = useState(1)
   const [bindingPageSize, setBindingPageSize] = useState(10)
+  const [bindingRows, setBindingRows] = useState<ProductMappingRecord[]>([])
+  const [bindingRowsTotal, setBindingRowsTotal] = useState(0)
+  const [bindingLoading, setBindingLoading] = useState(false)
+  const [bindingSummaryCounts, setBindingSummaryCounts] = useState({
+    total: 0,
+    active: 0,
+    unmapped: 0,
+    conflict: 0,
+  })
   const [styleSearchLoading, setStyleSearchLoading] = useState(false)
   const [styleDetailLoading, setStyleDetailLoading] = useState(false)
   const [bindingSaving, setBindingSaving] = useState(false)
@@ -636,8 +646,11 @@ const SaleCenterWorkspace = () => {
   const [issueStatusFilter, setIssueStatusFilter] = useState('ALL')
   const [issueCodeFilter, setIssueCodeFilter] = useState('ALL')
   const [issueKeyword, setIssueKeyword] = useState('')
+  const [issueKeywordInput, setIssueKeywordInput] = useState('')
   const [issuePage, setIssuePage] = useState(1)
   const [issuePageSize, setIssuePageSize] = useState(8)
+  const [issueRows, setIssueRows] = useState<SaleOrderItem[]>([])
+  const [issueLoading, setIssueLoading] = useState(false)
   const [salesDays, setSalesDays] = useState<7 | 30 | 90>(30)
   const [salesKeyword, setSalesKeyword] = useState('')
   const [salesSortBy, setSalesSortBy] = useState<'SALES_VOLUME' | 'GROWTH' | 'SHOP_COVERAGE'>('SALES_VOLUME')
@@ -695,14 +708,21 @@ const SaleCenterWorkspace = () => {
     () => mappings.filter((item) => !selectedAccountId || item.channelAccountId === selectedAccountId),
     [mappings, selectedAccountId],
   )
-  const selectedOrders = useMemo(() => orders, [orders])
+  const bindingRecordSource = useMemo(
+    () => (activeSection === 'product-bindings' ? bindingRows : selectedBindings),
+    [activeSection, bindingRows, selectedBindings],
+  )
+  const orderSource = useMemo(
+    () => (activeSection === 'order-issues' ? issueRows : orders),
+    [activeSection, issueRows, orders],
+  )
   const currentMapping = useMemo(
-    () => selectedBindings.find((item) => item.id === bindingDrawerId),
-    [bindingDrawerId, selectedBindings],
+    () => bindingRecordSource.find((item) => item.id === bindingDrawerId) ?? selectedBindings.find((item) => item.id === bindingDrawerId),
+    [bindingDrawerId, bindingRecordSource, selectedBindings],
   )
   const currentOrder = useMemo(
-    () => selectedOrders.find((item) => item.id === orderDrawerId),
-    [orderDrawerId, selectedOrders],
+    () => orderSource.find((item) => item.id === orderDrawerId) ?? orders.find((item) => item.id === orderDrawerId),
+    [orderDrawerId, orderSource, orders],
   )
   const currentLog = useMemo(
     () => syncLogs.find((item) => item.id === governanceDrawerId),
@@ -801,6 +821,89 @@ const SaleCenterWorkspace = () => {
     }
   }, [activeSection, productSectionActive, selectedAccountId])
 
+  const loadBindingRows = useCallback(async () => {
+    if (activeSection !== 'product-bindings') {
+      return
+    }
+    setBindingLoading(true)
+    try {
+      const response = await saleApi.listProductMappingsPage({
+        channelAccountId: selectedAccountId,
+        keyword: bindingKeyword.trim() || undefined,
+        mappingStatus: bindingStatusFilter === 'ALL' ? undefined : bindingStatusFilter,
+        page: bindingPage,
+        pageSize: bindingPageSize,
+      })
+      setBindingRows(response.list ?? [])
+      setBindingRowsTotal(response.total ?? 0)
+    } catch (error) {
+      console.error(error)
+      message.error(error instanceof Error ? error.message : '商品绑定列表加载失败，请刷新重试。')
+    } finally {
+      setBindingLoading(false)
+    }
+  }, [activeSection, bindingKeyword, bindingPage, bindingPageSize, bindingStatusFilter, message, selectedAccountId])
+
+  const loadBindingSummaryCounts = useCallback(async () => {
+    if (activeSection !== 'product-bindings') {
+      return
+    }
+    try {
+      const [allResponse, activeResponse, unmappedResponse, conflictResponse] = await Promise.all([
+        saleApi.listProductMappingsPage({
+          channelAccountId: selectedAccountId,
+          page: 1,
+          pageSize: 1,
+        }),
+        saleApi.listProductMappingsPage({
+          channelAccountId: selectedAccountId,
+          mappingStatus: 'ACTIVE',
+          page: 1,
+          pageSize: 1,
+        }),
+        saleApi.listProductMappingsPage({
+          channelAccountId: selectedAccountId,
+          mappingStatus: 'UNMAPPED',
+          page: 1,
+          pageSize: 1,
+        }),
+        saleApi.listProductMappingsPage({
+          channelAccountId: selectedAccountId,
+          mappingStatus: 'CONFLICT',
+          page: 1,
+          pageSize: 1,
+        }),
+      ])
+      setBindingSummaryCounts({
+        total: allResponse.total ?? 0,
+        active: activeResponse.total ?? 0,
+        unmapped: unmappedResponse.total ?? 0,
+        conflict: conflictResponse.total ?? 0,
+      })
+    } catch (error) {
+      console.error(error)
+    }
+  }, [activeSection, selectedAccountId])
+
+  const loadIssueRows = useCallback(async () => {
+    if (activeSection !== 'order-issues') {
+      return
+    }
+    setIssueLoading(true)
+    try {
+      const response = await saleApi.searchOrders({
+        channelAccountId: selectedAccountId,
+        keyword: issueKeyword.trim() || undefined,
+      })
+      setIssueRows(response)
+    } catch (error) {
+      console.error(error)
+      message.error(error instanceof Error ? error.message : '问题订单列表加载失败，请刷新重试。')
+    } finally {
+      setIssueLoading(false)
+    }
+  }, [activeSection, issueKeyword, message, selectedAccountId])
+
   const loadShopAsyncSupport = useCallback(async () => {
     try {
       const [tags, tasks] = await Promise.all([
@@ -824,6 +927,18 @@ const SaleCenterWorkspace = () => {
   useEffect(() => {
     void loadWorkspaceData()
   }, [loadWorkspaceData])
+
+  useEffect(() => {
+    void loadBindingRows()
+  }, [loadBindingRows])
+
+  useEffect(() => {
+    void loadBindingSummaryCounts()
+  }, [loadBindingSummaryCounts])
+
+  useEffect(() => {
+    void loadIssueRows()
+  }, [loadIssueRows])
 
   useEffect(() => {
     if (activeSection !== 'shop-management') {
@@ -1018,12 +1133,18 @@ const SaleCenterWorkspace = () => {
   ]), [workbenchMetrics])
 
   const bindingSummary = useMemo(() => ({
-    total: selectedBindings.length,
-    active: selectedBindings.filter((item) => isMappedStatus(item.mappingStatus)).length,
-    unmapped: selectedBindings.filter((item) => !isMappedStatus(item.mappingStatus)).length,
-    conflict: selectedBindings.filter((item) => (item.mappingStatus || '').toUpperCase().includes('CONFLICT')).length,
+    total: activeSection === 'product-bindings' ? bindingSummaryCounts.total : selectedBindings.length,
+    active: activeSection === 'product-bindings'
+      ? bindingSummaryCounts.active
+      : selectedBindings.filter((item) => isMappedStatus(item.mappingStatus)).length,
+    unmapped: activeSection === 'product-bindings'
+      ? bindingSummaryCounts.unmapped
+      : selectedBindings.filter((item) => !isMappedStatus(item.mappingStatus)).length,
+    conflict: activeSection === 'product-bindings'
+      ? bindingSummaryCounts.conflict
+      : selectedBindings.filter((item) => (item.mappingStatus || '').toUpperCase().includes('CONFLICT')).length,
     draftCount: drafts.length,
-  }), [drafts.length, selectedBindings])
+  }), [activeSection, bindingSummaryCounts, drafts.length, selectedBindings])
 
   const salesVolumeBySkuId = useMemo(() => {
     const result = new Map<string, number>()
@@ -1119,7 +1240,7 @@ const SaleCenterWorkspace = () => {
   )
 
   const issueOrders = useMemo(() => {
-    return selectedOrders
+    return orderSource
       .map((item) => ({
         order: item,
         issue: deriveOrderIssue(item),
@@ -1131,7 +1252,7 @@ const SaleCenterWorkspace = () => {
           ? (right.order.updatedAt || '').localeCompare(left.order.updatedAt || '')
           : -toneScore
       })
-  }, [selectedOrders])
+  }, [orderSource])
 
   const shopOverviewRows = useMemo<ShopOverviewRow[]>(() => {
     const resolveLastSuccessAt = (accountId: string, keyword: string) => {
@@ -1308,43 +1429,24 @@ const SaleCenterWorkspace = () => {
   )
 
   const filteredBindings = useMemo(() => {
-    const keyword = bindingKeyword.trim().toLowerCase()
-    return selectedBindings
+    return bindingRecordSource
       .filter((item) => {
-        if (bindingStatusFilter === 'ACTIVE' && !isMappedStatus(item.mappingStatus)) {
-          return false
-        }
-        if (bindingStatusFilter === 'UNMAPPED' && isMappedStatus(item.mappingStatus)) {
-          return false
-        }
-        if (bindingStatusFilter === 'CONFLICT' && !(item.mappingStatus || '').toUpperCase().includes('CONFLICT')) {
-          return false
-        }
         const relatedDrafts = drafts.filter((draft) => draft.productMappingId === item.id)
         if (bindingDraftStatusFilter !== 'ALL' && !relatedDrafts.some((draft) => (draft.draftStatus || 'DRAFT') === bindingDraftStatusFilter)) {
           return false
         }
-        if (!keyword) {
-          return true
-        }
-        const values = [
-          item.platformProductName,
-          item.platformSkuCode,
-          item.platformSkuId,
-          item.styleNo,
-          item.styleName,
-          item.normalizedColor,
-          item.normalizedSize,
-        ]
-        return values.some((value) => (value || '').toLowerCase().includes(keyword))
+        return true
       })
       .sort((left, right) => (right.updatedAt || '').localeCompare(left.updatedAt || ''))
-  }, [bindingDraftStatusFilter, bindingKeyword, bindingStatusFilter, drafts, selectedBindings])
+  }, [bindingDraftStatusFilter, bindingRecordSource, drafts])
 
   const pagedBindings = useMemo(() => {
+    if (activeSection === 'product-bindings') {
+      return filteredBindings
+    }
     const start = (bindingPage - 1) * bindingPageSize
     return filteredBindings.slice(start, start + bindingPageSize)
-  }, [bindingPage, bindingPageSize, filteredBindings])
+  }, [activeSection, bindingPage, bindingPageSize, filteredBindings])
 
   useEffect(() => {
     if (activeSection !== 'product-bindings') {
@@ -1359,26 +1461,17 @@ const SaleCenterWorkspace = () => {
   }, [activeSection, currentMapping, pagedBindings])
 
   const filteredIssueOrders = useMemo(() => {
-    const keyword = issueKeyword.trim().toLowerCase()
     return issueOrders
       .filter(({ order, issue }) => {
-        if (selectedAccountId && order.channelAccountId !== selectedAccountId) {
-          return false
-        }
         if (issueStatusFilter !== 'ALL' && (order.processingStatus || issue?.code) !== issueStatusFilter) {
           return false
         }
         if (issueCodeFilter !== 'ALL' && issue?.code !== issueCodeFilter) {
           return false
         }
-        if (!keyword) {
-          return true
-        }
-        const lineTexts = (order.linePreview || []).flatMap((line) => [line.goodsName, line.platformSkuCode, line.platformSkuId])
-        const values = [order.platformOrderNo, order.receiverName, ...lineTexts]
-        return values.some((value) => (value || '').toLowerCase().includes(keyword))
+        return true
       })
-  }, [issueCodeFilter, issueKeyword, issueOrders, issueStatusFilter, selectedAccountId])
+  }, [issueCodeFilter, issueOrders, issueStatusFilter])
 
   const pagedIssueOrders = useMemo(() => {
     const start = (issuePage - 1) * issuePageSize
@@ -1551,13 +1644,23 @@ const SaleCenterWorkspace = () => {
       void loadSalesData()
       return
     }
+    if (activeSection === 'product-bindings') {
+      void loadWorkspaceData()
+      void loadBindingRows()
+      return
+    }
+    if (activeSection === 'order-issues') {
+      void loadWorkspaceData()
+      void loadIssueRows()
+      return
+    }
     if (activeSection === 'shop-management') {
       void loadWorkspaceData()
       void loadShopAsyncSupport()
       return
     }
     void loadWorkspaceData()
-  }, [activeSection, loadSalesData, loadShopAsyncSupport, loadWorkspaceData])
+  }, [activeSection, loadBindingRows, loadIssueRows, loadSalesData, loadShopAsyncSupport, loadWorkspaceData])
 
   const loadSalesDetail = useCallback(async (styleId: string) => {
     setSalesDetailLoading(true)
@@ -2645,8 +2748,21 @@ const SaleCenterWorkspace = () => {
             <Text className="scw-field-label">草稿状态</Text>
             <Select value={bindingDraftStatusFilter} onChange={setBindingDraftStatusFilter} options={[{ label: '全部', value: 'ALL' }, { label: '待评审', value: 'DRAFT' }, { label: '已确认', value: 'CONFIRMED' }, { label: '已驳回', value: 'REJECTED' }]} />
             <Text className="scw-field-label">关键词</Text>
-            <Input allowClear value={bindingKeyword} onChange={(event) => setBindingKeyword(event.target.value)} placeholder="商品名 / 平台 SKU / 本地款号" />
+            <Input.Search
+              allowClear
+              value={bindingKeywordInput}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setBindingKeywordInput(nextValue)
+                if (!nextValue.trim()) {
+                  setBindingKeyword('')
+                }
+              }}
+              onSearch={(value) => setBindingKeyword(value.trim())}
+              placeholder="商品名 / 平台 SKU / 本地款号"
+            />
             <Button onClick={() => {
+              setBindingKeywordInput('')
               setBindingKeyword('')
               setBindingStatusFilter('ALL')
               setBindingDraftStatusFilter('ALL')
@@ -2690,11 +2806,16 @@ const SaleCenterWorkspace = () => {
           </div>
         </Card>
         <Card className="scw-panel-card scw-flex-fill">
-          <SectionHeading title="平台商品" description="优先处理待绑定、高销量和冲突商品。" extra={<Text type="secondary">共 {formatNumber(filteredBindings.length)} 条</Text>} />
+          <SectionHeading
+            title="平台商品"
+            description="优先处理待绑定、高销量和冲突商品。"
+            extra={<Text type="secondary">共 {formatNumber(bindingDraftStatusFilter === 'ALL' ? bindingRowsTotal : filteredBindings.length)} 条</Text>}
+          />
           <div className="scw-binding-workbench">
             <div className="scw-binding-workbench__list">
-              <div className="scw-binding-list" data-testid="binding-list">
-                {pagedBindings.map((item) => {
+              <Spin spinning={bindingLoading}>
+                <div className="scw-binding-list" data-testid="binding-list">
+                  {pagedBindings.map((item) => {
                   const relatedDraft = drafts.find((draft) => draft.productMappingId === item.id)
                   const exception = bindingExceptionMap.get(item.id)
                   return (
@@ -2732,21 +2853,22 @@ const SaleCenterWorkspace = () => {
                       </div>
                     </button>
                   )
-                })}
-                {!pagedBindings.length ? <Empty description="当前筛选条件下没有待展示的商品绑定记录" /> : null}
-              </div>
-              <div className="scw-pagination-bar">
-                <Pagination
-                  current={bindingPage}
-                  pageSize={bindingPageSize}
-                  total={filteredBindings.length}
-                  showSizeChanger
-                  onChange={(page, pageSize) => {
-                    setBindingPage(page)
-                    setBindingPageSize(pageSize)
-                  }}
-                />
-              </div>
+                  })}
+                  {!pagedBindings.length ? <Empty description="当前筛选条件下没有待展示的商品绑定记录" /> : null}
+                </div>
+                <div className="scw-pagination-bar">
+                  <Pagination
+                    current={bindingPage}
+                    pageSize={bindingPageSize}
+                    total={bindingDraftStatusFilter === 'ALL' ? bindingRowsTotal : filteredBindings.length}
+                    showSizeChanger
+                    onChange={(page, pageSize) => {
+                      setBindingPage(page)
+                      setBindingPageSize(pageSize)
+                    }}
+                  />
+                </div>
+              </Spin>
             </div>
             <div className="scw-binding-detail-panel">
               {currentMapping ? (
@@ -2899,8 +3021,15 @@ const SaleCenterWorkspace = () => {
           <Input
             className="scw-filter-inline__search"
             allowClear
-            value={issueKeyword}
-            onChange={(event) => setIssueKeyword(event.target.value)}
+            value={issueKeywordInput}
+            onChange={(event) => {
+              const nextValue = event.target.value
+              setIssueKeywordInput(nextValue)
+              if (!nextValue.trim()) {
+                setIssueKeyword('')
+              }
+            }}
+            onPressEnter={(event) => setIssueKeyword(event.currentTarget.value.trim())}
             placeholder="订单号 / 收件人 / 商品 / SKU"
           />
           <Button
@@ -2908,13 +3037,15 @@ const SaleCenterWorkspace = () => {
             onClick={() => {
               setIssueStatusFilter('ALL')
               setIssueCodeFilter('ALL')
+              setIssueKeywordInput('')
               setIssueKeyword('')
             }}
           >
             重置
           </Button>
         </div>
-        <div className="scw-issue-list" data-testid="issue-list">
+        <Spin spinning={issueLoading}>
+          <div className="scw-issue-list" data-testid="issue-list">
           {pagedIssueOrders.map(({ order, issue }) => (
             <div key={order.id} className="scw-issue-card">
               <div className="scw-issue-card__header">
@@ -2950,7 +3081,8 @@ const SaleCenterWorkspace = () => {
             </div>
           ))}
           {!pagedIssueOrders.length ? <Empty description="当前筛选条件下没有问题订单" /> : null}
-        </div>
+          </div>
+        </Spin>
         <div className="scw-pagination-bar">
           <Pagination
             current={issuePage}
