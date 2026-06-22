@@ -181,6 +181,30 @@ export type SaleOzonPromotionProduct = {
   minStock?: number | null;
   addMode?: string | null;
   rawPayloadJson?: string | null;
+  channelAccountId?: string | number | null;
+  mappingId?: string | null;
+  mapped?: boolean | null;
+  mappingStatus?: string | null;
+  styleNo?: string | null;
+  styleName?: string | null;
+  styleVariantId?: string | null;
+  platformSkuCode?: string | null;
+  lastSyncedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SaleOzonPromotionEligibilityPreviewRow = {
+  rowKey: string;
+  channelAccountId: string | number;
+  offerId?: string | null;
+  productId?: number | null;
+  status?: 'PARTICIPATING' | 'CANDIDATE' | 'NOT_CANDIDATE' | 'MISSING_PRODUCT' | 'MISSING_ACTION' | 'MISSING_IDENTITY' | string | null;
+  reason?: string | null;
+  platformStock?: number | null;
+  actionPrice?: string | number | null;
+  maxActionPrice?: string | number | null;
+  minStock?: number | null;
+  addMode?: string | null;
 };
 
 export const getSaleSellerTypeLabel = (sellerType?: string | null): string => {

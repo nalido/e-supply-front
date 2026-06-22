@@ -19,6 +19,7 @@ import type {
   SaleProductSyncTaskSubmitResponse,
   SaleOzonInventoryStock,
   SaleOzonPromotion,
+  SaleOzonPromotionEligibilityPreviewRow,
   SaleOzonPromotionProduct,
   SaleOzonWarehouse,
   SaleProductMapping,
@@ -461,6 +462,24 @@ export const saleApi = {
     };
   },
 
+  async previewOzonPromotionEligibility(payload: {
+    actionId: string;
+    rows: Array<{
+      rowKey: string;
+      channelAccountId: number;
+      offerId?: string | null;
+      productId?: number | null;
+    }>;
+  }): Promise<SaleOzonPromotionEligibilityPreviewRow[]> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<BackendListResponse<SaleOzonPromotionEligibilityPreviewRow>>(
+      '/api/v1/sale/ozon/promotions/eligibility-preview',
+      payload,
+      { params: { tenantId }, timeout: 30000 },
+    );
+    return response.data.list ?? [];
+  },
+
   async submitOzonPromotion(payload: {
     taskName?: string;
     actionId: string;
@@ -810,6 +829,24 @@ export const saleApi = {
     const response = await http.get<BackendListResponse<SaleProductMapping>>('/api/v1/sale/product-mappings', {
       params: { tenantId, page: 1, pageSize: 50, view: 'SUMMARY', ...params },
     });
+    return response.data;
+  },
+
+  async listOzonPromotionProductMappingsPage(params: {
+    actionId: string;
+    promotionStatus: 'PARTICIPATING' | 'CANDIDATE' | 'NOT_CANDIDATE';
+    channelAccountIds?: Array<string | number>;
+    keyword?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<BackendListResponse<SaleProductMapping>> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleProductMapping>>(
+      '/api/v1/sale/ozon/promotions/product-mappings',
+      {
+        params: { tenantId, page: 1, pageSize: 50, ...params },
+      },
+    );
     return response.data;
   },
 

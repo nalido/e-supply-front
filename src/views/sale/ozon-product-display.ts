@@ -175,8 +175,26 @@ export const resolveOzonProductDisplayInfo = (row: OzonProductDisplaySource): Oz
   const snapshot = parseJson(row.platformSnapshotJson);
   const normalizedAttributes = parseJson(row.normalizedAttributesJson);
   const attributes = collectAttributeMap(normalizedAttributes, snapshot);
-  const productIdText = textFrom(snapshot.product_id, snapshot.productId);
-  const productId = numberFrom(productIdText ?? row.platformSkuId);
+  const rawSnapshot = isRecord(snapshot.raw) ? snapshot.raw : {};
+  const rawList = isRecord(rawSnapshot.list) ? rawSnapshot.list : {};
+  const rawDetail = isRecord(rawSnapshot.detail) ? rawSnapshot.detail : {};
+  const rawAttributes = isRecord(rawSnapshot.attributes) ? rawSnapshot.attributes : {};
+  const productIdText = textFrom(
+    snapshot.product_id,
+    snapshot.productId,
+    normalizedAttributes.product_id,
+    normalizedAttributes.productId,
+    rawList.product_id,
+    rawList.productId,
+    rawList.id,
+    rawDetail.product_id,
+    rawDetail.productId,
+    rawDetail.id,
+    rawAttributes.product_id,
+    rawAttributes.productId,
+    rawAttributes.id,
+  );
+  const productId = numberFrom(productIdText);
   const offerId = textFrom(snapshot.offer_id, snapshot.offerId, row.platformSkuCode);
   const platformSkuId = textFrom(row.platformSkuId, snapshot.sku, snapshot.fbo_sku, snapshot.fbs_sku);
   const invalidIdentityCandidates = [productIdText, platformSkuId, offerId];

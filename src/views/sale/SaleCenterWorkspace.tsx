@@ -84,6 +84,7 @@ import './sale-workspace.css'
 
 const { Header, Sider, Content } = Layout
 const { Title, Text, Paragraph } = Typography
+const OZON_DEFAULT_GATEWAY = 'https://api-seller.ozon.ru'
 
 type SectionKey =
   | 'workbench'
@@ -134,7 +135,6 @@ type OzonShopCredentialImportRow = {
   apiKey: string
   tags: string[]
   regionCode?: string
-  gatewayUrl?: string
 }
 
 const SALE_PLATFORM_OPTIONS = [
@@ -528,6 +528,19 @@ const getFailureInsight = (log?: Pick<SaleSyncLogItem, 'bizType' | 'errorCode' |
 
 const normalizeOptionalText = (value?: string | null) => value || undefined
 const trimToUndefined = (value?: string | null) => value?.trim() ? value.trim() : undefined
+const normalizeOzonGateway = (value?: string | null) => {
+  const trimmed = value?.trim()
+  if (!trimmed) return OZON_DEFAULT_GATEWAY
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname.trim().toLowerCase()
+    if (host === 'api-seller.ozon.ru') return OZON_DEFAULT_GATEWAY
+    if (host === 'seller.ozon.ru' || host.endsWith('.seller.ozon.ru')) return OZON_DEFAULT_GATEWAY
+    return trimmed
+  } catch {
+    return OZON_DEFAULT_GATEWAY
+  }
+}
 const splitTagText = (value?: string | null) => (
   value
     ?.split(/[,，;；\s]+/)
@@ -1898,6 +1911,9 @@ const SaleCenterWorkspace = () => {
       const appSecret = trimToUndefined(values.appSecret)
       const accessToken = trimToUndefined(values.accessToken)
       const platformCode = values.platformCode || editingShop?.platformCode || 'TEMU'
+      const gatewayUrl = platformCode === 'OZON'
+        ? normalizeOzonGateway(values.gatewayUrl)
+        : normalizeOptionalText(values.gatewayUrl)
       const accessTokenRequired = platformCode !== 'OZON'
 
       if (!editingShop && (!appKey || !appSecret || (accessTokenRequired && !accessToken))) {
@@ -1925,7 +1941,7 @@ const SaleCenterWorkspace = () => {
           shopId: normalizeOptionalText(values.shopId),
           shopName: normalizeOptionalText(values.shopName),
           regionCode: normalizeOptionalText(values.regionCode),
-          gatewayUrl: normalizeOptionalText(values.gatewayUrl),
+          gatewayUrl,
           sellerType: normalizeOptionalText(values.sellerType),
           orderSyncMode: normalizeOptionalText(values.orderSyncMode),
           orderAutoSyncEnabled: Boolean(values.orderAutoSyncEnabled),
@@ -1943,7 +1959,7 @@ const SaleCenterWorkspace = () => {
           shopId: normalizeOptionalText(values.shopId),
           shopName: normalizeOptionalText(values.shopName),
           regionCode: normalizeOptionalText(values.regionCode),
-          gatewayUrl: normalizeOptionalText(values.gatewayUrl),
+          gatewayUrl,
           sellerType: normalizeOptionalText(values.sellerType),
           orderSyncMode: normalizeOptionalText(values.orderSyncMode),
           orderAutoSyncEnabled: Boolean(values.orderAutoSyncEnabled),
@@ -2010,15 +2026,14 @@ const SaleCenterWorkspace = () => {
         apiKey: getValue(row, ['Api-Key', 'apiKey', 'ApiKey']),
         tags: splitTagText(getValue(row, ['标签', 'tags', '店铺标签'])),
         regionCode: getValue(row, ['Region', 'regionCode', '区域']) || 'RU',
-        gatewayUrl: getValue(row, ['Gateway', 'gatewayUrl', '接口地址']) || 'https://api-seller.ozon.ru',
       }))
       .filter((row) => row.accountName || row.shopId || row.shopName || row.clientId || row.apiKey)
   }, [])
 
   const handleDownloadOzonShopTemplate = useCallback(() => {
     const rows = [
-      ['绑定名称', '平台店铺ID', '店铺名称', 'Client-Id', 'Api-Key', '标签', 'Region', 'Gateway'],
-      ['Ozon 店铺 001', '123456', 'Ozon RU 001', 'client-id', 'api-key', '2026春季店群,ozon-ru', 'RU', 'https://api-seller.ozon.ru'],
+      ['绑定名称', '平台店铺ID', '店铺名称', 'Client-Id', 'Api-Key', '标签', 'Region'],
+      ['Ozon 店铺 001', '123456', 'Ozon RU 001', 'client-id', 'api-key', '2026春季店群,ozon-ru', 'RU'],
     ]
     const workbook = XLSX.utils.book_new()
     const worksheet = XLSX.utils.aoa_to_sheet(rows)
@@ -2030,7 +2045,6 @@ const SaleCenterWorkspace = () => {
       { wch: 34 },
       { wch: 26 },
       { wch: 12 },
-      { wch: 30 },
     ]
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Ozon店铺凭证')
     XLSX.writeFile(workbook, 'ozon-shop-credential-import-template.xlsx')
@@ -2084,7 +2098,6 @@ const SaleCenterWorkspace = () => {
           shopId: row.shopId,
           shopName: row.shopName,
           regionCode: row.regionCode,
-          gatewayUrl: row.gatewayUrl,
           clientId: row.clientId,
           apiKey: row.apiKey,
           tags: row.tags,
@@ -4288,7 +4301,7 @@ const SaleCenterWorkspace = () => {
                       : activeSection === 'ozon-inventory'
                         ? '按店铺、仓库和商品设置 Ozon 目标库存，并用异步任务追踪逐条结果。'
                         : activeSection === 'ozon-promotions'
-                          ? '按店铺范围汇总进行中活动，生成合法待请求列表并批量提交 Ozon 报名任务。'
+                          ? '按店铺范围查看进行中活动，筛选可报名商品并批量提交 Ozon 报名任务。'
                           : activeSection === 'product-bindings'
                             ? '将平台 SKU 与本地款式规格准确映射。'
                           : activeSection === 'order-issues'
