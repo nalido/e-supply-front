@@ -743,6 +743,12 @@ const SaleCenterWorkspace = () => {
   )
   const productSectionActive = isProductSection(activeSection)
   const currentProductSyncTask = syncStatus?.currentTask ?? null
+  const currentProductSyncProgress = Math.max(0, Math.min(100, Number(currentProductSyncTask?.progressPercent || 0)))
+  const currentProductSyncSuccessRate = Math.min(
+    100,
+    Number((((currentProductSyncTask?.successCount || 0) / Math.max(currentProductSyncTask?.processedCount || 1, 1)) * 100).toFixed(0)),
+  )
+  const latestProductSyncProgress = Math.max(0, Math.min(100, Number(syncStatus?.latestFinishedTask?.progressPercent ?? 100)))
   const hasActiveProductSyncTask = Boolean(
     currentProductSyncTask?.status && ACTIVE_PRODUCT_SYNC_STATUSES.has(currentProductSyncTask.status),
   )
@@ -2686,11 +2692,15 @@ const SaleCenterWorkspace = () => {
                   <Title level={4}>{currentProductSyncTask.taskId}</Title>
                   <StatusChip label={currentProductSyncTask.status || '同步中'} tone="info" />
                 </div>
-                <Progress percent={Math.min(100, Number((((currentProductSyncTask.successCount || 0) / Math.max(currentProductSyncTask.processedCount || 1, 1)) * 100).toFixed(0)))} strokeColor="#FF5A1F" />
+                <Progress percent={currentProductSyncProgress} strokeColor="#FF5A1F" />
                 <Row gutter={[16, 12]}>
                   <Col span={12}><Statistic title="开始时间" value={formatDateTime(currentProductSyncTask.startedAt)} /></Col>
-                  <Col span={12}><Statistic title="已处理商品数" value={formatNumber(currentProductSyncTask.processedCount)} /></Col>
+                  <Col span={12}><Statistic title="任务进度" value={`${currentProductSyncProgress}%`} /></Col>
+                  <Col span={12}><Statistic title="平台记录进度" value={`${formatNumber(currentProductSyncTask.processedRecordCount || 0)} / ${formatNumber(currentProductSyncTask.platformTotalCount || 0)}`} /></Col>
+                  <Col span={12}><Statistic title="已处理页数" value={formatNumber(currentProductSyncTask.processedPages || 0)} /></Col>
+                  <Col span={12}><Statistic title="已处理 SKU" value={formatNumber(currentProductSyncTask.processedCount)} /></Col>
                   <Col span={12}><Statistic title="成功商品数" value={formatNumber(currentProductSyncTask.successCount)} /></Col>
+                  <Col span={12}><Statistic title="已处理成功率" value={`${currentProductSyncSuccessRate}%`} /></Col>
                   <Col span={12}><Statistic title="异常数" value={formatNumber(currentProductSyncTask.failedCount)} /></Col>
                 </Row>
                 {currentProductSyncTask.remark ? <Text type="secondary">{currentProductSyncTask.remark}</Text> : null}
@@ -2724,7 +2734,7 @@ const SaleCenterWorkspace = () => {
           <Card className="scw-panel-card">
             <SectionHeading title="同步结果摘要" description="同步完成后直接进入后续商品治理。" />
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              <Progress type="circle" percent={Math.min(100, Number((((syncStatus?.latestFinishedTask?.successCount || 0) / Math.max((syncStatus?.latestFinishedTask?.processedCount || 1), 1)) * 100).toFixed(0)))} strokeColor="#12B76A" size={160} />
+              <Progress type="circle" percent={latestProductSyncProgress} strokeColor="#12B76A" size={160} />
               <Statistic title="最近失败数" value={formatNumber(syncStatus?.latestFinishedTask?.failedCount || 0)} />
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Button type="primary" block onClick={() => handleSectionNavigate('product-bindings')}>

@@ -154,14 +154,6 @@ const normalizeOfferSegment = (value: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
 
-const filterSelectOption = (input: string, option?: { label?: unknown; value?: unknown; searchText?: unknown }) => {
-  const keyword = input.trim().toLowerCase();
-  if (!keyword) return true;
-  return [option?.searchText, option?.label, option?.value]
-    .map((value) => stringValue(value).toLowerCase())
-    .some((value) => value.includes(keyword));
-};
-
 const getAccountSearchText = (account: SaleChannelAccount) => [
   getSaleChannelAccountDisplayName(account),
   account.accountName,
@@ -264,6 +256,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
   const navigate = useNavigate();
   const [messageApi, contextHolder] = message.useMessage();
   const [accounts, setAccounts] = useState<SaleChannelAccount[]>([]);
+  const [accountSearching, setAccountSearching] = useState(false);
   const [accountId, setAccountId] = useState<string>();
   const [targetAccountIds, setTargetAccountIds] = useState<string[]>([]);
   const [targetTagIds, setTargetTagIds] = useState<string[]>([]);
@@ -327,6 +320,17 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
       if (!keys.has(key)) {
         merged.push(item);
         keys.add(key);
+      }
+    });
+    return merged;
+  };
+  const mergeAccounts = (current: SaleChannelAccount[], incoming: SaleChannelAccount[]) => {
+    const merged = [...current];
+    const ids = new Set(current.map((item) => String(item.id)));
+    incoming.forEach((item) => {
+      if (!ids.has(String(item.id))) {
+        merged.push(item);
+        ids.add(String(item.id));
       }
     });
     return merged;
@@ -420,11 +424,29 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
     }
   }, []);
 
-  const loadAccounts = useCallback(async () => {
-    setInitialLoading(true);
+  const loadAccounts = useCallback(async (keyword?: string) => {
+    const searchKeyword = keyword?.trim();
+    if (!searchKeyword) {
+      setInitialLoading(true);
+    }
+    setAccountSearching(true);
     try {
-      const list = await saleApi.listChannelAccounts();
-      setAccounts(list);
+      const list = await saleApi.listChannelAccounts({
+        platformCode: 'OZON',
+        keyword: searchKeyword || undefined,
+        page: 1,
+        pageSize: 200,
+      });
+      setAccounts((current) => {
+        if (!searchKeyword) {
+          return list;
+        }
+        const selectedAccountIds = new Set(
+          [accountId, ...targetAccountIds].filter(Boolean).map((value) => String(value)),
+        );
+        const selectedAccounts = current.filter((account) => selectedAccountIds.has(String(account.id)));
+        return mergeAccounts(list, selectedAccounts);
+      });
       const firstOzon = list.find((account) => account.platformCode?.toUpperCase() === 'OZON');
       if (firstOzon) {
         setAccountId((current) => current || firstOzon.id);
@@ -432,9 +454,12 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
     } catch (error) {
       setErrorText(error instanceof Error ? error.message : '店铺列表读取失败');
     } finally {
-      setInitialLoading(false);
+      if (!searchKeyword) {
+        setInitialLoading(false);
+      }
+      setAccountSearching(false);
     }
-  }, []);
+  }, [accountId, targetAccountIds]);
 
   useEffect(() => {
     void loadAccounts();
@@ -1321,7 +1346,9 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                     onChange={handleAccountChange}
                     placeholder="参考商品店铺"
                     optionFilterProp="searchText"
-                    filterOption={filterSelectOption}
+                    filterOption={false}
+                    onSearch={(value) => void loadAccounts(value)}
+                    loading={accountSearching}
                     style={{ width: 220 }}
                     options={ozonAccounts.map((account) => ({
                       value: account.id,
@@ -1347,7 +1374,9 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                     }}
                     placeholder="可多选"
                     optionFilterProp="searchText"
-                    filterOption={filterSelectOption}
+                    filterOption={false}
+                    onSearch={(value) => void loadAccounts(value)}
+                    loading={accountSearching}
                     maxTagCount="responsive"
                     style={{ width: 320 }}
                     options={ozonAccounts.map((account) => ({

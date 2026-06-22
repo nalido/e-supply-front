@@ -102,6 +102,7 @@ export type SaleProductMapping = {
   platformCategoryId?: string;
   platformCategoryPath?: string;
   platformStatus?: string;
+  platformCreatedAt?: string | null;
   normalizedColor?: string;
   normalizedSize?: string;
   normalizedSpecSummary?: string;
@@ -131,6 +132,7 @@ export type SaleProductMappingSku = {
   id: string;
   platformSkuId?: string | null;
   platformSkuCode?: string | null;
+  platformCreatedAt?: string | null;
   normalizedColor?: string | null;
   normalizedSize?: string | null;
   normalizedSpecSummary?: string | null;
@@ -696,6 +698,10 @@ export type SaleSyncTaskSummary = {
   startedAt?: string | null;
   finishedAt?: string | null;
   processedCount?: number | null;
+  processedRecordCount?: number | null;
+  platformTotalCount?: number | null;
+  processedPages?: number | null;
+  progressPercent?: number | null;
   successCount?: number | null;
   failedCount?: number | null;
   errorMessage?: string | null;

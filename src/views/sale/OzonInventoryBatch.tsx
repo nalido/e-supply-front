@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Key } from 'react'
-import { Alert, App, Button, Card, Checkbox, Col, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
+import { Alert, App, Button, Card, Checkbox, Col, DatePicker, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { CheckCircleOutlined, DatabaseOutlined, ReloadOutlined } from '@ant-design/icons'
+import type { Dayjs } from 'dayjs'
 import { saleApi } from '../../api/sale'
 import type { SaleAsyncTask, SaleChannelAccount, SaleOzonInventoryStock, SaleOzonWarehouse, SaleShopTag } from '../../types/sale'
 import { getShopLabel } from './sale-center-helpers'
@@ -11,6 +12,7 @@ import { getOzonGroupKey, resolveOzonProductDisplayInfo } from './ozon-product-d
 import { sortColorValues, sortSizeValues } from '../../utils/spec'
 
 const { Text } = Typography
+const { RangePicker } = DatePicker
 
 type InventoryProduct = {
   key: string
@@ -34,6 +36,7 @@ type InventoryProduct = {
   makerSize?: string | null
   categoryName?: string | null
   platformStatus?: string | null
+  platformCreatedAt?: string | null
   price?: string | null
   currencyCode?: string | null
   stockPresent?: number | null
@@ -85,6 +88,12 @@ const getAvatarText = (value?: string | null) => (value || '商').trim().slice(0
 const compareText = (left?: string | null, right?: string | null) =>
   (left || '').localeCompare(right || '', 'zh-CN', { numeric: true, sensitivity: 'base' })
 
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '--'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
+}
+
 const compareInventoryProducts = (left: InventoryProduct, right: InventoryProduct) => {
   const colorOrder = sortColorValues([left.color, right.color])
   const leftColorIndex = left.color ? colorOrder.indexOf(left.color) : Number.MAX_SAFE_INTEGER
@@ -133,6 +142,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
   const [warehousesByAccountId, setWarehousesByAccountId] = useState<Record<string, SaleOzonWarehouse[]>>({})
   const [products, setProducts] = useState<InventoryProduct[]>([])
   const [keyword, setKeyword] = useState('')
+  const [platformCreatedRange, setPlatformCreatedRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [total, setTotal] = useState(0)
@@ -209,6 +219,8 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         channelAccountIds: effectiveAccountIds,
         tagIds: selectedTagIds.length ? selectedTagIds : undefined,
         keyword: keyword.trim() || undefined,
+        platformCreatedFrom: platformCreatedRange?.[0]?.startOf('day').format('YYYY-MM-DDTHH:mm:ss'),
+        platformCreatedTo: platformCreatedRange?.[1]?.endOf('day').format('YYYY-MM-DDTHH:mm:ss'),
         groupBy: 'SPU_SKC',
         view: 'DETAIL',
         page,
@@ -261,6 +273,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
             makerSize: display.makerSize,
             categoryName: groupDisplay.categoryName || display.categoryName,
             platformStatus: groupDisplay.platformStatus || display.platformStatus,
+            platformCreatedAt: sku.platformCreatedAt || item.platformCreatedAt,
             price: display.price,
             currencyCode: display.currencyCode,
             stockPresent: display.stockPresent ?? null,
@@ -278,7 +291,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
     } finally {
       setLoading(false)
     }
-  }, [effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, selectedTagIds])
+  }, [effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, platformCreatedRange, selectedTagIds])
 
   const refreshLiveStocks = useCallback(async () => {
     if (!products.length) {
@@ -530,6 +543,12 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       ),
     },
     {
+      title: '平台上架时间',
+      key: 'platformCreatedAt',
+      width: 170,
+      render: (_, record) => <Text>{formatDateTime(record.platformCreatedAt)}</Text>,
+    },
+    {
       title: 'SKU 规格',
       key: 'spec',
       width: 190,
@@ -582,7 +601,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       />
       <Card className="scw-ops-toolbar scw-ops-toolbar--sticky">
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Select
               mode="multiple"
               value={effectiveAccountIds}
@@ -598,7 +617,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
               }}
             />
           </Col>
-          <Col xs={24} md={5}>
+          <Col xs={24} md={4}>
             <Select
               mode="multiple"
               value={selectedTagIds}
@@ -614,7 +633,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
               }}
             />
           </Col>
-          <Col xs={24} md={6}>
+          <Col xs={24} md={5}>
             <Input
               value={keyword}
               placeholder="搜索商品名 / 本地货号 / product_id / Ozon SKU / SPU / SKC"
@@ -626,7 +645,19 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
               allowClear
             />
           </Col>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={5}>
+            <RangePicker
+              value={platformCreatedRange}
+              placeholder={['平台上架开始', '平台上架结束']}
+              style={{ width: '100%' }}
+              onChange={(values) => {
+                setPlatformCreatedRange(values as [Dayjs, Dayjs] | null)
+                setPage(1)
+                setSelectedRowKeys([])
+              }}
+            />
+          </Col>
+          <Col xs={24} md={10}>
             <Space wrap>
               <InputNumber
                 min={0}

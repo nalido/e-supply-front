@@ -227,10 +227,18 @@ const getPlatformRiskSummary = (
       tone: 'review',
     }
   }
-  if (!shopRow.mapped || (!row.specSummary && !row.colors.length && !row.sizes.length)) {
+  if (!shopRow.mapped) {
     return {
-      tagLabel: '待补资料',
-      title: '补齐资料后再报名',
+      tagLabel: '待关联本地商品',
+      title: '关联本地商品后再报名',
+      detail: '',
+      tone: 'warning',
+    }
+  }
+  if (!row.specSummary && !row.colors.length && !row.sizes.length) {
+    return {
+      tagLabel: '待补规格资料',
+      title: '补齐规格资料后再报名',
       detail: '',
       tone: 'warning',
     }
@@ -380,7 +388,7 @@ const buildBusinessRows = (mappings: SaleProductMapping[], accountsById: Map<str
     const groupDisplay = resolveOzonProductDisplayInfo(mapping)
     const skuRows = mapping.skus?.length ? mapping.skus : [mapping]
     skuRows.forEach((sku) => {
-      const merged = { ...mapping, ...sku }
+      const merged = { ...mapping, ...sku } as typeof mapping & typeof sku & { mapped?: boolean | null }
       const display = resolveOzonProductDisplayInfo(merged)
       const shopRow: ShopScopedProduct = {
         key: `${mapping.channelAccountId}:${sku.id}`,
@@ -405,6 +413,8 @@ const buildBusinessRows = (mappings: SaleProductMapping[], accountsById: Map<str
         promotionActionPrice: null,
         promotionMaxActionPrice: null,
         promotionMinStock: null,
+        mapped: merged.mapped ?? (merged.styleId || merged.styleVariantId ? true : null),
+        mappingStatus: merged.mappingStatus,
       }
       const businessKey = buildBusinessKey(merged, shopRow)
       shopRow.businessKey = businessKey
@@ -566,6 +576,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const [batchStock, setBatchStock] = useState<number | null>(null)
   const [loadingPromotions, setLoadingPromotions] = useState(false)
   const [loadingProducts, setLoadingProducts] = useState(false)
+  const [refreshingPlatformSnapshots, setRefreshingPlatformSnapshots] = useState(false)
   const [loadingPromotionEligibility, setLoadingPromotionEligibility] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [promotionLoadNotice, setPromotionLoadNotice] = useState('')
@@ -863,6 +874,27 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     selectedPromotion,
     workbenchTab,
   ])
+
+  const refreshPlatformSnapshots = useCallback(async () => {
+    if (workbenchTab === 'LOCAL' || !selectedPromotion || !scopedSingleAccountId) {
+      return
+    }
+    setRefreshingPlatformSnapshots(true)
+    try {
+      await saleApi.refreshOzonPromotionProductSnapshots({
+        channelAccountId: scopedSingleAccountId,
+        actionId: selectedPromotion.actionId,
+        promotionStatus: workbenchTab === 'PLATFORM_CANDIDATE' ? 'CANDIDATE' : 'PARTICIPATING',
+      })
+      setPlatformPage(1)
+      await loadProducts()
+      message.success('已刷新平台活动商品')
+    } catch (error) {
+      message.error(getErrorMessage(error, '刷新平台活动商品失败'))
+    } finally {
+      setRefreshingPlatformSnapshots(false)
+    }
+  }, [loadProducts, message, scopedSingleAccountId, selectedPromotion, workbenchTab])
 
   useEffect(() => {
     saleApi.listSaleShopTags()
@@ -2246,11 +2278,21 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
                     />
                   </>
                 ) : (
-                  <Text type="secondary">
-                    {isSingleAccountScope
-                      ? `当前店铺：${getShopLabel(accountsById.get(scopedSingleAccountId || ''))}`
-                      : '请先将店铺范围收敛到一个店铺，再查看平台商品。'}
-                  </Text>
+                  <>
+                    <Text type="secondary">
+                      {isSingleAccountScope
+                        ? `当前店铺：${getShopLabel(accountsById.get(scopedSingleAccountId || ''))}`
+                        : '请先将店铺范围收敛到一个店铺，再查看平台商品。'}
+                    </Text>
+                    <Button
+                      icon={<ReloadOutlined />}
+                      loading={refreshingPlatformSnapshots}
+                      disabled={platformTabBlocked}
+                      onClick={refreshPlatformSnapshots}
+                    >
+                      刷新平台商品
+                    </Button>
+                  </>
                 )}
                 <Button icon={<ReloadOutlined />} loading={loadingProducts} onClick={loadProducts}>
                   刷新商品

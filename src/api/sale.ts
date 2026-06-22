@@ -63,10 +63,15 @@ const getTenantIdOrThrow = (): string => {
 };
 
 export const saleApi = {
-  async listChannelAccounts(): Promise<SaleChannelAccount[]> {
+  async listChannelAccounts(params?: {
+    platformCode?: string;
+    keyword?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<SaleChannelAccount[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleChannelAccount>>('/api/v1/channel/accounts', {
-      params: { tenantId },
+      params: { tenantId, ...params },
     });
     return response.data.list ?? [];
   },
@@ -800,6 +805,8 @@ export const saleApi = {
     offerId?: string;
     platformSkuId?: string;
     mappingStatus?: string;
+    platformCreatedFrom?: string;
+    platformCreatedTo?: string;
     groupBy?: 'SPU_SKC';
     view?: 'SUMMARY' | 'DETAIL';
     page?: number;
@@ -820,6 +827,8 @@ export const saleApi = {
     offerId?: string;
     platformSkuId?: string;
     mappingStatus?: string;
+    platformCreatedFrom?: string;
+    platformCreatedTo?: string;
     groupBy?: 'SPU_SKC';
     view?: 'SUMMARY' | 'DETAIL';
     page?: number;
@@ -845,6 +854,22 @@ export const saleApi = {
       '/api/v1/sale/ozon/promotions/product-mappings',
       {
         params: { tenantId, page: 1, pageSize: 50, ...params },
+      },
+    );
+    return response.data;
+  },
+
+  async refreshOzonPromotionProductSnapshots(params: {
+    channelAccountId: string | number;
+    actionId: string;
+    promotionStatus: 'PARTICIPATING' | 'CANDIDATE';
+  }): Promise<BackendCursorListResponse<SaleOzonPromotionProduct>> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<BackendCursorListResponse<SaleOzonPromotionProduct>>(
+      '/api/v1/sale/ozon/promotions/product-snapshots/refresh',
+      {},
+      {
+        params: { tenantId, ...params },
       },
     );
     return response.data;
