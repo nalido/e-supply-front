@@ -71,6 +71,9 @@ const resolveSafeMessage = (message?: string): string | null => {
   if (normalized.includes('user not authenticated')) {
     return '登录状态已失效，请重新登录后重试。';
   }
+  if (normalized.includes('试用') && normalized.includes('到期')) {
+    return '当前企业试用期已到期，请前往“我的企业”联系管理员并输入授权码后继续使用。';
+  }
   if (normalized.includes('库存不足，无法领料') || normalized.includes('库存不足,无法领料')) {
     return '库存不足，无法领料。请先补充库存或调整本次实际用量后再试。';
   }
@@ -106,6 +109,17 @@ const rules: ErrorRule[] = [
     build: (message) => ({
       title: '库存不足，无法完成本次领料',
       description: resolveSafeMessage(message) || '请先补充库存或调整本次实际用量后再试。',
+    }),
+  },
+  {
+    matcher: (message, status) => {
+      const normalized = normalize(message);
+      return status === 403 && normalized.includes('试用') && normalized.includes('到期');
+    },
+    build: (message) => ({
+      title: '试用期已到期',
+      description: resolveSafeMessage(message) || '请前往“我的企业”联系管理员并输入授权码后继续使用。',
+      type: 'warning',
     }),
   },
   {

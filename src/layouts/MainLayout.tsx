@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Layout, Menu, Breadcrumb, Space, Button, Badge, Tooltip, message, notification, Alert } from 'antd'
+import { Layout, Menu, Breadcrumb, Space, Button, Badge, Tooltip, message, notification, Alert, Result } from 'antd'
 import type { ArgsProps } from 'antd/es/message'
 import type { MenuProps } from 'antd'
 import dayjs from 'dayjs'
@@ -108,6 +108,7 @@ const MainLayout = () => {
     )
   }, [location.pathname, location.search])
   const requiresUpgrade = overview.billing.upgradeRequired
+  const shouldBlockContentForUpgrade = requiresUpgrade && location.pathname !== '/settings/company'
   const showTrialBanner =
     (overview.billing.status === 'trial' || overview.billing.status === 'expired') &&
     location.pathname !== '/settings/company'
@@ -427,7 +428,24 @@ const MainLayout = () => {
                   }
                 />
               ) : null}
-              <Outlet />
+              {shouldBlockContentForUpgrade ? (
+                <Result
+                  status="warning"
+                  title="试用期已到期"
+                  subTitle={
+                    overview.billing.upgradeContactWechat
+                      ? '当前企业试用期已结束，请前往“我的企业”联系管理员并输入授权码后继续使用。'
+                      : '当前企业试用期已结束，请前往“我的企业”查看转正式指引并输入授权码后继续使用。'
+                  }
+                  extra={(
+                    <Button type="primary" onClick={() => navigate('/settings/company')}>
+                      去我的企业
+                    </Button>
+                  )}
+                />
+              ) : (
+                <Outlet />
+              )}
             </div>
           </Content>
         </div>
