@@ -1035,6 +1035,9 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const visiblePromotions = promotions
 
   const promotionEligibilityTargetRows = useMemo(() => {
+    if (workbenchTab !== 'LOCAL') {
+      return []
+    }
     const merged = new Map<string, BusinessProductRow>()
     allBusinessRows.forEach((row) => merged.set(row.key, row))
     selectedProducts.forEach((row) => merged.set(row.key, row))
