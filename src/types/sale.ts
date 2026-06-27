@@ -244,6 +244,13 @@ export type SaleOrderSyncResult = {
   sampleOrderNos?: string[] | null;
 };
 
+export type SaleOrderList = {
+  list: SaleOrderItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type SaleChannelCredential = {
   accountId: string;
   appKeyMasked?: string | null;
@@ -263,6 +270,11 @@ export type SaleOrderItem = {
   platformParentOrderNo?: string | null;
   platformOrderStatus?: string | null;
   normalizedStatus?: string | null;
+  fulfillmentStatus?: string | null;
+  fulfillmentDueAt?: string | null;
+  deliveryMethodId?: string | null;
+  warehouseHint?: string | null;
+  currencyCode?: string | null;
   orderAmount?: string | null;
   payAmount?: string | null;
   receiverName?: string | null;
@@ -273,6 +285,7 @@ export type SaleOrderItem = {
   exceptionFlags?: string[] | null;
   platformCreatedAt?: string | null;
   platformUpdatedAt?: string | null;
+  lastSyncedAt?: string | null;
   updatedAt?: string | null;
   linePreview?: SaleOrderLine[] | null;
 };
@@ -303,6 +316,10 @@ export type SaleOrderDetail = {
   platformParentOrderNo?: string | null;
   platformOrderStatus?: string | null;
   normalizedStatus?: string | null;
+  fulfillmentStatus?: string | null;
+  fulfillmentDueAt?: string | null;
+  deliveryMethodId?: string | null;
+  warehouseHint?: string | null;
   currencyCode?: string | null;
   orderAmount?: string | null;
   payAmount?: string | null;
@@ -330,6 +347,7 @@ export type SaleFulfillmentLine = {
   id: string;
   saleOrderLineId?: string | null;
   platformOrderNo?: string | null;
+  platformGoodsId?: string | null;
   platformSkuId?: string | null;
   quantity?: number | null;
   pushStatus?: string | null;
@@ -344,10 +362,15 @@ export type SaleFulfillmentItem = {
   fulfillmentNo: string;
   status?: string | null;
   pushStatus?: string | null;
+  shipStatus?: string | null;
+  trackingStatus?: string | null;
   trackingNo?: string | null;
   carrierCode?: string | null;
   carrierName?: string | null;
+  deliveryMethodId?: string | null;
   pushRequestId?: string | null;
+  shipRequestId?: string | null;
+  trackingRequestId?: string | null;
   pushedAt?: string | null;
   lastPushError?: string | null;
   idempotencyKey?: string | null;
@@ -425,6 +448,91 @@ export type SaleFulfillmentWorkbenchResolveResult = {
   title?: string | null;
   description?: string | null;
   sourceIds: string[];
+};
+
+export type SaleOzonFbsWorkbenchLine = {
+  saleOrderLineId: string;
+  platformGoodsId?: string | null;
+  platformSkuId?: string | null;
+  platformSkuCode?: string | null;
+  platformMainImageUrl?: string | null;
+  goodsName?: string | null;
+  quantity?: number | null;
+  mappingStatus?: string | null;
+  blockers?: string[] | null;
+  warnings?: string[] | null;
+};
+
+export type SaleOzonFbsWorkbenchOrder = {
+  saleOrderId: string;
+  platformOrderNo?: string | null;
+  platformParentOrderNo?: string | null;
+  platformOrderStatus?: string | null;
+  normalizedStatus?: string | null;
+  fulfillmentStatus?: string | null;
+  fulfillmentDueAt?: string | null;
+  deliveryMethodId?: string | null;
+  warehouseHint?: string | null;
+  receiverName?: string | null;
+  receiverCountry?: string | null;
+  totalQuantity?: number | null;
+  lines: SaleOzonFbsWorkbenchLine[];
+  blockers?: string[] | null;
+  warnings?: string[] | null;
+};
+
+export type SaleOzonFbsWorkbenchInitResult = {
+  workbenchId: string;
+  strategyCode: string;
+  status: string;
+  submitReady: boolean;
+  orders: SaleOzonFbsWorkbenchOrder[];
+  blockers?: string[] | null;
+  warnings?: string[] | null;
+};
+
+export type SaleOzonFbsWorkbenchSubmitItem = {
+  saleOrderId: string;
+  platformOrderNo?: string | null;
+  fulfillmentId?: string | null;
+  success: boolean;
+  pushStatus?: string | null;
+  requestId?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+};
+
+export type SaleOzonFbsWorkbenchSubmitResult = {
+  workbenchId: string;
+  success: boolean;
+  status: string;
+  successCount: number;
+  failedCount: number;
+  items: SaleOzonFbsWorkbenchSubmitItem[];
+};
+
+export type SaleOzonFbsWorkbenchAction = 'LABEL' | 'AWAITING_DELIVERY' | 'DELIVERING' | 'REFRESH_STATUS';
+
+export type SaleOzonFbsWorkbenchActionItem = {
+  saleOrderId: string;
+  platformOrderNo?: string | null;
+  success: boolean;
+  platformStatus?: string | null;
+  requestId?: string | null;
+  labelFileUrl?: string | null;
+  labelFileName?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+};
+
+export type SaleOzonFbsWorkbenchActionResult = {
+  workbenchId: string;
+  action: SaleOzonFbsWorkbenchAction;
+  success: boolean;
+  status: string;
+  successCount: number;
+  failedCount: number;
+  items: SaleOzonFbsWorkbenchActionItem[];
 };
 
 export type SaleTemuSellerAddress = {

@@ -9,8 +9,13 @@ import type {
   SaleFulfillmentDemandStats,
   SaleFulfillmentItem,
   SaleFulfillmentWorkbenchResolveResult,
+  SaleOzonFbsWorkbenchInitResult,
+  SaleOzonFbsWorkbenchAction,
+  SaleOzonFbsWorkbenchActionResult,
+  SaleOzonFbsWorkbenchSubmitResult,
   SaleIdempotencyRecordItem,
   SaleOrderDetail,
+  SaleOrderList,
   SaleOrderSyncResult,
   SaleOrderItem,
   SaleAsyncTask,
@@ -508,9 +513,40 @@ export const saleApi = {
   async listOrders(channelAccountId?: string): Promise<SaleOrderItem[]> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
-      params: { tenantId, channelAccountId: channelAccountId || undefined },
+      params: { tenantId, channelAccountId: channelAccountId || undefined, page: 1, pageSize: 200 },
     });
     return response.data.list ?? [];
+  },
+
+  async listOrdersPage(params?: {
+    channelAccountId?: string;
+    keyword?: string;
+    normalizedStatus?: string;
+    processingStatus?: string;
+    issueOnly?: boolean;
+    page?: number;
+    pageSize?: number;
+  }): Promise<SaleOrderList> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.get<BackendListResponse<SaleOrderItem>>('/api/v1/sale/orders', {
+      params: {
+        tenantId,
+        channelAccountId: params?.channelAccountId || undefined,
+        keyword: params?.keyword?.trim() || undefined,
+        normalizedStatus: params?.normalizedStatus || undefined,
+        processingStatus: params?.processingStatus || undefined,
+        issueOnly: params?.issueOnly || undefined,
+        page: params?.page,
+        pageSize: params?.pageSize,
+      },
+      skipPageNormalization: true,
+    });
+    return {
+      list: response.data.list ?? [],
+      total: response.data.total ?? 0,
+      page: response.data.page ?? params?.page ?? 1,
+      pageSize: response.data.pageSize ?? params?.pageSize ?? 20,
+    };
   },
 
   async searchOrders(params?: {
@@ -523,6 +559,8 @@ export const saleApi = {
         tenantId,
         channelAccountId: params?.channelAccountId || undefined,
         keyword: params?.keyword?.trim() || undefined,
+        page: 1,
+        pageSize: 200,
       },
     });
     return response.data.list ?? [];
@@ -1012,7 +1050,14 @@ export const saleApi = {
     return response.data;
   },
 
-  async syncOrders(payload: { channelAccountId: number; page?: number; pageSize?: number; continuous?: boolean }): Promise<SaleOrderSyncResult> {
+  async syncOrders(payload: {
+    channelAccountId: number;
+    page?: number;
+    pageSize?: number;
+    continuous?: boolean;
+    syncWindowDays?: number;
+    platformStatus?: string;
+  }): Promise<SaleOrderSyncResult> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleOrderSyncResult>('/api/v1/sale/orders/sync', payload, {
       params: { tenantId },
@@ -1126,6 +1171,61 @@ export const saleApi = {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleTemuFullyManagedWorkbenchSubmitResult>(
       `/api/v1/sale/fulfillment-workbenches/${workbenchId}/temu-full-managed/submit`,
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async initOzonFbsWorkbench(payload: {
+    channelAccountId: number;
+    saleOrderIds: number[];
+  }): Promise<SaleOzonFbsWorkbenchInitResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleOzonFbsWorkbenchInitResult>(
+      '/api/v1/sale/fulfillment-workbenches/ozon-fbs/init',
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async submitOzonFbsWorkbench(
+    workbenchId: string,
+    payload: {
+      confirm: boolean;
+      trackingNo?: string;
+      carrierCode?: string;
+      carrierName?: string;
+      deliveryMethod?: number;
+    },
+  ): Promise<SaleOzonFbsWorkbenchSubmitResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleOzonFbsWorkbenchSubmitResult>(
+      `/api/v1/sale/fulfillment-workbenches/${workbenchId}/ozon-fbs/submit`,
+      payload,
+      {
+        params: { tenantId },
+      },
+    );
+    return response.data;
+  },
+
+  async runOzonFbsWorkbenchAction(
+    workbenchId: string,
+    payload: {
+      action: SaleOzonFbsWorkbenchAction;
+      confirm?: boolean;
+      dryRun?: boolean;
+    },
+  ): Promise<SaleOzonFbsWorkbenchActionResult> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleOzonFbsWorkbenchActionResult>(
+      `/api/v1/sale/fulfillment-workbenches/${workbenchId}/ozon-fbs/action`,
       payload,
       {
         params: { tenantId },

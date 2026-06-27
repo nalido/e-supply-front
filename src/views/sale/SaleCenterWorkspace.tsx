@@ -59,6 +59,8 @@ import OzonProductPublish from './OzonProductPublish'
 import OzonProductPublishDetails from './OzonProductPublishDetails'
 import OzonInventoryBatch from './OzonInventoryBatch'
 import OzonPromotions from './OzonPromotions'
+import OzonFbsFulfillmentWorkbench from './OzonFbsFulfillmentWorkbench'
+import SaleOrders from './SaleOrders'
 import SaleProductManagement from './SaleProductManagement'
 import type {
   SaleChannelAccount,
@@ -95,6 +97,8 @@ type SectionKey =
   | 'ozon-inventory'
   | 'ozon-promotions'
   | 'product-bindings'
+  | 'order-overview'
+  | 'ozon-fbs-fulfillment'
   | 'order-issues'
   | 'sales-data'
   | 'shop-management'
@@ -240,6 +244,8 @@ const sectionPathMap: Record<SectionKey, string> = {
   'ozon-inventory': '/sale/ozon/inventory',
   'ozon-promotions': '/sale/ozon/promotions',
   'product-bindings': '/sale/products/bindings',
+  'order-overview': '/sale/orders/overview',
+  'ozon-fbs-fulfillment': '/sale/fulfillment-workbench/ozon-fbs',
   'order-issues': '/sale/orders/issues',
   'sales-data': '/sale/sales-data',
   'shop-management': '/sale/shops',
@@ -258,8 +264,9 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/ozon/promotions': 'ozon-promotions',
   '/sale/products/publish': 'product-publish',
   '/sale/products/bindings': 'product-bindings',
+  '/sale/orders/overview': 'order-overview',
+  '/sale/fulfillment-workbench/ozon-fbs': 'ozon-fbs-fulfillment',
   '/sale/orders/issues': 'order-issues',
-  '/sale/orders/overview': 'order-issues',
   '/sale/insights/risk': 'sales-data',
   '/sale/sales-data': 'sales-data',
   '/sale/shops': 'shop-management',
@@ -302,7 +309,11 @@ const navItems = [
     key: 'order-group',
     icon: <ShoppingCartOutlined />,
     label: '订单中心',
-    children: [{ key: 'order-issues', label: '问题订单' }],
+    children: [
+      { key: 'order-overview', label: '订单同步' },
+      { key: 'ozon-fbs-fulfillment', label: 'Ozon 发货' },
+      { key: 'order-issues', label: '问题订单' },
+    ],
   },
   {
     key: 'risk-group',
@@ -2637,7 +2648,7 @@ const SaleCenterWorkspace = () => {
       <Row gutter={[20, 20]}>
         <Col xs={24} xl={11}>
           <Card className="scw-panel-card">
-            <SectionHeading title="同步操作" description="本页只负责读取平台商品并更新本地快照。" />
+            <SectionHeading title="同步操作" description="同步平台商品并更新本地商品资料。" />
             <div className="scw-form-grid">
               <div className="scw-form-row">
                 <Text className="scw-field-label">同步范围</Text>
@@ -4124,7 +4135,7 @@ const SaleCenterWorkspace = () => {
               <Paragraph>任务类型：{getSyncBizLabel(currentLog.bizType)}</Paragraph>
               <Paragraph>店铺 / 平台：{getShopLabel(currentLog.channelAccountId ? accountMap.get(currentLog.channelAccountId) : undefined)}</Paragraph>
               <Paragraph>结果：{currentLog.success ? '成功' : '失败'}</Paragraph>
-              <Paragraph>traceId / requestId：{currentLog.requestId || '--'}</Paragraph>
+              <Paragraph>追踪编号 / 请求编号：{currentLog.requestId || '--'}</Paragraph>
             </Card>
             <Card size="small">
               <Title level={5}>请求</Title>
@@ -4209,6 +4220,10 @@ const SaleCenterWorkspace = () => {
         return <OzonPromotions accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
       case 'product-bindings':
         return renderProductBindings()
+      case 'order-overview':
+        return <SaleOrders />
+      case 'ozon-fbs-fulfillment':
+        return <OzonFbsFulfillmentWorkbench />
       case 'order-issues':
         return renderOrderIssues()
       case 'sales-data':
@@ -4227,7 +4242,7 @@ const SaleCenterWorkspace = () => {
   const openKeys = useMemo(() => {
     if (activeSection === 'product-sync' || activeSection === 'product-bindings' || activeSection === 'product-management') return ['product-group']
     if (activeSection === 'product-publish' || activeSection === 'product-publish-details' || activeSection === 'ozon-inventory' || activeSection === 'ozon-promotions') return ['ozon-group']
-    if (activeSection.startsWith('order')) return ['order-group']
+    if (activeSection.startsWith('order') || activeSection === 'ozon-fbs-fulfillment') return ['order-group']
     if (activeSection.startsWith('sales')) return ['risk-group']
     if (activeSection.startsWith('shop')) return ['shop-group']
     if (activeSection.startsWith('governance')) return ['governance-group']
@@ -4287,8 +4302,12 @@ const SaleCenterWorkspace = () => {
                           ? 'Ozon 活动'
                           : activeSection === 'product-bindings'
                             ? '商品绑定'
-                            : activeSection === 'order-issues'
-                              ? '问题订单'
+                            : activeSection === 'order-overview'
+                              ? '订单同步'
+                              : activeSection === 'ozon-fbs-fulfillment'
+                                ? 'Ozon 发货'
+                              : activeSection === 'order-issues'
+                                ? '问题订单'
                               : activeSection === 'sales-data'
                                 ? '售卖数据'
                                 : activeSection === 'shop-management'
@@ -4301,9 +4320,9 @@ const SaleCenterWorkspace = () => {
               {activeSection === 'workbench'
                 ? '先看结论，再看对象，最后执行动作。'
                 : activeSection === 'product-sync'
-                  ? '只负责读取平台商品并更新本地快照。'
-                  : activeSection === 'product-management'
-                    ? '集中治理本地同步商品，支持按店铺、offer_id、店铺标签筛选并批量删除本地商品。'
+                  ? '同步平台商品并更新本地商品资料。'
+                : activeSection === 'product-management'
+                    ? '集中治理本地同步商品，支持按店铺、平台货号、店铺标签筛选并批量删除本地商品。'
                   : activeSection === 'product-publish'
                     ? '从本地商品生成 Ozon 铺货草稿，按参考商品动态维护类目属性并提交发品。'
                     : activeSection === 'product-publish-details'
@@ -4314,8 +4333,12 @@ const SaleCenterWorkspace = () => {
                           ? '按店铺范围查看进行中活动，筛选可报名商品并批量提交 Ozon 报名任务。'
                           : activeSection === 'product-bindings'
                             ? '将平台 SKU 与本地款式规格准确映射。'
-                          : activeSection === 'order-issues'
-                            ? '聚焦需要人工处理的异常订单。'
+                          : activeSection === 'order-overview'
+                            ? '按店铺同步平台订单，沉淀商品明细、发货时限和绑定状态。'
+                            : activeSection === 'ozon-fbs-fulfillment'
+                              ? '复核 Ozon FBS 待发货订单，确认后提交发货。'
+                            : activeSection === 'order-issues'
+                              ? '聚焦需要人工处理的异常订单。'
                             : activeSection === 'sales-data'
                               ? '按本地工厂产品汇总所有店铺里的售卖情况、增长趋势和未映射销量。'
                               : activeSection === 'shop-management'
