@@ -222,7 +222,7 @@ const getPlatformRiskSummary = (
   if (options.participating) {
     return {
       tagLabel: '已报名',
-      title: '平台已报名，仅供查看',
+      title: '平台已报名，可退出活动',
       detail: '',
       tone: 'review',
     }
@@ -558,6 +558,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const [shopTags, setShopTags] = useState<SaleShopTag[]>([])
   const [activityKeyword, setActivityKeyword] = useState('')
   const [activityKeywordInput, setActivityKeywordInput] = useState('')
+  const [productKeywordInput, setProductKeywordInput] = useState('')
   const [productKeyword, setProductKeyword] = useState('')
   const [promotions, setPromotions] = useState<PromotionSummary[]>([])
   const [selectedActionId, setSelectedActionId] = useState<string>()
@@ -579,6 +580,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
   const [refreshingPlatformSnapshots, setRefreshingPlatformSnapshots] = useState(false)
   const [loadingPromotionEligibility, setLoadingPromotionEligibility] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [submittingExit, setSubmittingExit] = useState(false)
   const [promotionLoadNotice, setPromotionLoadNotice] = useState('')
   const [resolvedDefaultAccountId, setResolvedDefaultAccountId] = useState<string>()
   const [resolvingDefaultAccount, setResolvingDefaultAccount] = useState(false)
@@ -691,13 +693,13 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     [effectiveAccountScopeKey, page, pageSize, productKeyword, promotionStatusFilter, selectedPromotion?.actionId],
   )
   const platformProductQueryKey = useMemo(
-    () => `${workbenchTab}|${selectedPromotion?.actionId || ''}|${scopedSingleAccountId || ''}|${platformPage}|${pageSize}`,
-    [pageSize, platformPage, scopedSingleAccountId, selectedPromotion?.actionId, workbenchTab],
+    () => `${workbenchTab}|${selectedPromotion?.actionId || ''}|${scopedSingleAccountId || ''}|${productKeyword.trim()}|${platformPage}|${pageSize}`,
+    [pageSize, platformPage, productKeyword, scopedSingleAccountId, selectedPromotion?.actionId, workbenchTab],
   )
   const productQueryKey = isPlatformWorkbench ? platformProductQueryKey : localProductQueryKey
   const productSelectionScopeKey = useMemo(() => {
     if (isPlatformWorkbench) {
-      return `${workbenchTab}|${selectedPromotion?.actionId || ''}|${scopedSingleAccountId || ''}`
+      return `${workbenchTab}|${selectedPromotion?.actionId || ''}|${scopedSingleAccountId || ''}|${productKeyword.trim()}`
     }
     const keyword = productKeyword.trim()
     const statusKey = promotionStatusFilter === 'ALL'
@@ -818,6 +820,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
           actionId: promotion.actionId,
           promotionStatus,
           channelAccountIds: [accountId],
+          keyword: productKeyword.trim() || undefined,
           page: platformPage,
           pageSize,
         })
@@ -1020,10 +1023,18 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     setPage(1)
   }, [promotionStatusFilter, selectedPromotion?.actionId])
 
+  const commitProductKeyword = useCallback((value: string) => {
+    const normalized = value.trim()
+    setProductKeywordInput(normalized)
+    setProductKeyword(normalized)
+    setPage(1)
+    setPlatformPage(1)
+  }, [])
+
   useEffect(() => {
     setPlatformPage(1)
     setPlatformHasMore(false)
-  }, [pageSize, scopedSingleAccountId, selectedPromotion?.actionId, workbenchTab])
+  }, [pageSize, productKeyword, scopedSingleAccountId, selectedPromotion?.actionId, workbenchTab])
 
   useEffect(() => {
     setSelectedRowKeys([])
@@ -1431,7 +1442,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     }
     if (currentStep === 1) {
       if (workbenchTab === 'PLATFORM_PARTICIPATING') {
-        return '平台已报名商品，仅供核对。'
+        return '平台已报名商品可勾选后批量退出活动。'
       }
       if (workbenchTab === 'PLATFORM_CANDIDATE') {
         return '从平台候选商品里勾选本次准备报名的商品。'
@@ -1462,7 +1473,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     }
     return workbenchTab === 'PLATFORM_CANDIDATE'
       ? '当前展示已在本地建立映射、且被平台识别为候选报名的商品，可直接勾选加入本次报名。'
-      : '当前展示已在本地建立映射、且被平台识别为已报名的商品，仅供核对。'
+      : '当前展示已在本地建立映射、且被平台识别为已报名的商品，可勾选后批量退出活动。'
   }, [
     isSingleAccountScope,
     loadingPromotionEligibility,
@@ -1673,6 +1684,60 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
     })
   }
 
+  const submitPromotionExit = () => {
+    if (!selectedPromotion || !selectedActionId) {
+      message.warning('请先选择活动')
+      return
+    }
+    if (!scopedSingleAccountId) {
+      message.warning('请先选择一个 Ozon 店铺')
+      return
+    }
+    const products = selectedProducts.flatMap((row) => {
+      const shopRow = row.shopRows.find((item) => item.channelAccountId === scopedSingleAccountId) || row.shopRows[0]
+      if (!shopRow || (!shopRow.offerId && !shopRow.productId)) {
+        return []
+      }
+      return [{
+        channelAccountId: Number(shopRow.channelAccountId),
+        offerId: shopRow.offerId,
+        productId: shopRow.productId,
+      }]
+    })
+    const dedupedProducts = Array.from(
+      new Map(products.map((item) => [`${item.channelAccountId}:${item.offerId || ''}:${item.productId || ''}`, item])).values(),
+    )
+    if (!dedupedProducts.length) {
+      message.warning('请选择可退出活动的商品')
+      return
+    }
+    Modal.confirm({
+      title: '确认批量退出 Ozon 活动',
+      content: `将从活动 ${selectedPromotion.title || selectedActionId} 退出 ${dedupedProducts.length} 个平台商品。提交后会在后台执行，可在任务抽屉查看结果。`,
+      okText: '提交退出任务',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        setSubmittingExit(true)
+        try {
+          const created = await saleApi.submitOzonPromotion({
+            taskName: `Ozon 活动退出 - ${selectedPromotion.title || selectedActionId} - ${dedupedProducts.length} 个平台商品`,
+            actionId: String(selectedActionId),
+            operation: 'DEACTIVATE',
+            channelAccountIds: Array.from(new Set(dedupedProducts.map((item) => item.channelAccountId).filter(Boolean))),
+            products: dedupedProducts,
+          })
+          setTask(created)
+          setTaskOpen(true)
+          setSelectedRowKeys([])
+          message.success(created.message || (created.alreadyRunning ? '当前已有相同退出任务在后台执行' : '已创建 Ozon 活动退出任务'))
+        } finally {
+          setSubmittingExit(false)
+        }
+      },
+    })
+  }
+
   const promotionColumns: ColumnsType<PromotionSummary> = [
     {
       title: '活动（平台名称）',
@@ -1834,7 +1899,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
                   ellipsis={{ rows: 2, tooltip: record.specSummary || undefined }}
                 >
                   {record.specSummary || (isParticipatingWorkbench
-                    ? '平台已报名商品，仅供核对。'
+                    ? '平台已报名商品可勾选后批量退出活动。'
                     : (platformRow?.mapped ? '资料已齐，可直接加入本次报名。' : '尚未关联本地商品，建议先核对后再报名。'))}
                 </Paragraph>
               ) : null}
@@ -2053,7 +2118,7 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
 
   const currentProductColumns = workbenchTab === 'LOCAL' ? productColumns : platformProductColumns
   const platformTabBlocked = isPlatformWorkbench && (!selectedPromotion || !isSingleAccountScope)
-  const canSelectCurrentWorkbenchRows = workbenchTab !== 'PLATFORM_PARTICIPATING'
+  const canSelectCurrentWorkbenchRows = !platformTabBlocked
   const workbenchRowSelection = useMemo(
     () => (canSelectCurrentWorkbenchRows
       ? { selectedRowKeys, onChange: setSelectedRowKeys, preserveSelectedRowKeys: true }
@@ -2250,14 +2315,17 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
               <div className="scw-promo-workbench-actions">
                 {workbenchTab === 'LOCAL' ? (
                   <>
-                    <Input
-                      value={productKeyword}
+                    <Input.Search
+                      value={productKeywordInput}
                       placeholder="搜索商品名 / 款号 / 商家编码 / 平台商品ID"
                       onChange={(event) => {
-                        setProductKeyword(event.target.value)
-                        setPage(1)
+                        const nextValue = event.target.value
+                        setProductKeywordInput(nextValue)
+                        if (!nextValue.trim()) {
+                          commitProductKeyword('')
+                        }
                       }}
-                      onPressEnter={() => void loadProducts()}
+                      onSearch={commitProductKeyword}
                       allowClear
                       style={{ width: 280 }}
                     />
@@ -2279,6 +2347,21 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
                   </>
                 ) : (
                   <>
+                    <Input.Search
+                      value={productKeywordInput}
+                      placeholder="搜索商品名称 / 平台商品ID / 平台货号"
+                      onChange={(event) => {
+                        const nextValue = event.target.value
+                        setProductKeywordInput(nextValue)
+                        if (!nextValue.trim()) {
+                          commitProductKeyword('')
+                        }
+                      }}
+                      onSearch={commitProductKeyword}
+                      allowClear
+                      disabled={platformTabBlocked}
+                      style={{ width: 300 }}
+                    />
                     <Text type="secondary">
                       {isSingleAccountScope
                         ? `当前店铺：${getShopLabel(accountsById.get(scopedSingleAccountId || ''))}`
@@ -2376,9 +2459,20 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
             <div className="scw-promo-step-actions">
               <Button onClick={goToPreviousStep}>上一步</Button>
               {workbenchTab === 'PLATFORM_PARTICIPATING' ? (
-                <Button onClick={() => setWorkbenchTab('PLATFORM_CANDIDATE')}>
-                  查看候选报名商品
-                </Button>
+                <>
+                  <Button onClick={() => setWorkbenchTab('PLATFORM_CANDIDATE')}>
+                    查看候选报名商品
+                  </Button>
+                  <Button
+                    danger
+                    type="primary"
+                    loading={submittingExit}
+                    disabled={platformTabBlocked || !selectedProducts.length}
+                    onClick={submitPromotionExit}
+                  >
+                    {`批量退出活动${selectedProducts.length ? `（${selectedProducts.length}）` : ''}`}
+                  </Button>
+                </>
               ) : (
                 <Button
                   type="primary"
