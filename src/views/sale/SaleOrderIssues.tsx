@@ -18,7 +18,7 @@ import { deriveOrderIssue, getShopLabel, isMappedStatus } from './sale-center-he
 const processingStatusOptions = [
   { label: '待人工确认', value: 'PENDING_CONFIRM' },
   { label: '待补绑定', value: 'PENDING_BINDING' },
-  { label: '待补数据', value: 'PENDING_DATA_FIX' },
+  { label: '缺少收件信息', value: 'PENDING_DATA_FIX' },
   { label: '跟进中', value: 'IN_PROGRESS' },
   { label: '已超时', value: 'OVERDUE' },
   { label: '已升级', value: 'ESCALATED' },
@@ -141,7 +141,7 @@ const SaleOrderIssues = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         <SaleMetricCard title="问题订单数" value={metrics.total} hint="当前筛选范围内的问题订单" tone="danger" />
         <SaleMetricCard title="待补绑定" value={metrics.bindingCount} hint="商品映射未闭环" tone="warning" />
-        <SaleMetricCard title="待补数据" value={metrics.dataFixCount} hint="收件信息或基础数据异常" tone="warning" />
+        <SaleMetricCard title="缺少收件信息" value={metrics.dataFixCount} hint="收件人为空的订单" tone="warning" />
         <SaleMetricCard title="已超时 / 已升级" value={metrics.overdueCount} hint="需要优先跟进或升级" tone="danger" />
       </div>
 

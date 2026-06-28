@@ -21,6 +21,7 @@ import type {
   SaleAsyncTask,
   SaleAsyncTaskItem,
   SaleProductSyncStatus,
+  SaleProductSyncBatchSubmitResponse,
   SaleProductSyncTaskSubmitResponse,
   SaleOzonInventoryStock,
   SaleOzonPromotion,
@@ -598,6 +599,21 @@ export const saleApi = {
   }): Promise<SaleProductSyncTaskSubmitResponse> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleProductSyncTaskSubmitResponse>('/api/v1/sale/products/sync', payload, {
+      params: { tenantId },
+    });
+    return response.data;
+  },
+
+  async syncProductsBatch(payload: {
+    channelAccountIds?: number[];
+    tagIds?: number[];
+    tagNames?: string[];
+    page?: number;
+    pageSize?: number;
+    upsertOnlyUnmapped?: boolean;
+  }): Promise<SaleProductSyncBatchSubmitResponse> {
+    const tenantId = getTenantIdOrThrow();
+    const response = await http.post<SaleProductSyncBatchSubmitResponse>('/api/v1/sale/products/sync/batch', payload, {
       params: { tenantId },
     });
     return response.data;

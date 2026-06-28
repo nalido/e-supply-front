@@ -409,6 +409,11 @@ const SaleOrders = () => {
                   <div className="sale-center-rich-cell">
                     <div className="sale-center-rich-cell__label">处理状态</div>
                     <div className="sale-center-rich-cell__value">{issue?.label || '正常'}</div>
+                    {issue ? (
+                      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+                        {issue.reason}；{issue.recommendedAction}
+                      </Typography.Text>
+                    ) : null}
                   </div>
                 </div>
 

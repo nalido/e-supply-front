@@ -825,6 +825,14 @@ export type SaleProductSyncTaskSubmitResponse = {
   message?: string | null;
 };
 
+export type SaleProductSyncBatchSubmitResponse = {
+  targetAccountCount: number;
+  submittedCount: number;
+  alreadyRunningCount: number;
+  results: SaleProductSyncTaskSubmitResponse[];
+  message?: string | null;
+};
+
 export type SaleProductSyncStatus = {
   channelAccountId: string;
   currentTask?: SaleSyncTaskSummary | null;

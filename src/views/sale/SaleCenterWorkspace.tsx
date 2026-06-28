@@ -75,6 +75,7 @@ import type {
   SaleSalesProductDetail,
   SaleSalesProductItem,
   SaleSyncLogItem,
+  SaleProductSyncBatchSubmitResponse,
   SaleProductSyncStatus,
   SaleShopTag,
 } from '../../types/sale'
@@ -364,7 +365,7 @@ const tutorialItems: TutorialItem[] = [
 const processingStatusOptions = [
   { value: 'PENDING_CONFIRM', label: '待人工确认' },
   { value: 'PENDING_BINDING', label: '待补绑定' },
-  { value: 'PENDING_DATA_FIX', label: '待补数据' },
+  { value: 'PENDING_DATA_FIX', label: '缺少收件信息' },
   { value: 'IN_PROGRESS', label: '跟进中' },
   { value: 'OVERDUE', label: '已超时' },
   { value: 'ESCALATED', label: '已升级' },
@@ -644,6 +645,10 @@ const SaleCenterWorkspace = () => {
   const [idempotencyRecords, setIdempotencyRecords] = useState<SaleIdempotencyRecordItem[]>([])
   const [bindingDrawerId, setBindingDrawerId] = useState<string>()
   const [productSyncMode, setProductSyncMode] = useState<'FULL' | 'UNMAPPED_ONLY'>('FULL')
+  const [productSyncAccountIds, setProductSyncAccountIds] = useState<string[]>([])
+  const [productSyncTagIds, setProductSyncTagIds] = useState<string[]>([])
+  const [productSyncSubmitting, setProductSyncSubmitting] = useState(false)
+  const [productSyncBatchResult, setProductSyncBatchResult] = useState<SaleProductSyncBatchSubmitResponse | null>(null)
   const [bindingStatusFilter, setBindingStatusFilter] = useState('ALL')
   const [bindingDraftStatusFilter, setBindingDraftStatusFilter] = useState('ALL')
   const [bindingKeyword, setBindingKeyword] = useState('')
@@ -753,6 +758,28 @@ const SaleCenterWorkspace = () => {
     [governanceDrawerId, syncLogs],
   )
   const productSectionActive = isProductSection(activeSection)
+  const ozonProductSyncAccounts = useMemo(
+    () => accounts.filter((account) => account.platformCode?.toUpperCase() === 'OZON' && account.status === 'ACTIVE'),
+    [accounts],
+  )
+  const productSyncSelectedTags = useMemo(
+    () => shopTags.filter((tag) => productSyncTagIds.includes(String(tag.tagId))),
+    [productSyncTagIds, shopTags],
+  )
+  const productSyncTargetCount = useMemo(() => {
+    const targetIds = new Set(productSyncAccountIds)
+    for (const tag of productSyncSelectedTags) {
+      for (const accountId of tag.accountIds ?? []) {
+        if (ozonProductSyncAccounts.some((account) => account.id === String(accountId))) {
+          targetIds.add(String(accountId))
+        }
+      }
+    }
+    if (targetIds.size === 0 && selectedAccountId && ozonProductSyncAccounts.some((account) => account.id === selectedAccountId)) {
+      targetIds.add(selectedAccountId)
+    }
+    return targetIds.size
+  }, [ozonProductSyncAccounts, productSyncAccountIds, productSyncSelectedTags, selectedAccountId])
   const currentProductSyncTask = syncStatus?.currentTask ?? null
   const currentProductSyncProgress = Math.max(0, Math.min(100, Number(currentProductSyncTask?.progressPercent || 0)))
   const currentProductSyncSuccessRate = Math.min(
@@ -971,7 +998,7 @@ const SaleCenterWorkspace = () => {
   }, [loadIssueRows])
 
   useEffect(() => {
-    if (activeSection !== 'shop-management') {
+    if (activeSection !== 'shop-management' && activeSection !== 'product-sync') {
       return
     }
     void loadShopAsyncSupport()
@@ -1717,23 +1744,35 @@ const SaleCenterWorkspace = () => {
   }, [loadSalesDetail, salesDrawerStyleId])
 
   const handleStartSync = useCallback(async () => {
-    if (!selectedAccountId) {
-      message.warning('请先选择店铺。')
+    const fallbackAccountIds =
+      selectedAccountId && ozonProductSyncAccounts.some((account) => account.id === selectedAccountId)
+        ? [selectedAccountId]
+        : []
+    const accountIds = productSyncAccountIds.length ? productSyncAccountIds : fallbackAccountIds
+    if (!accountIds.length && !productSyncTagIds.length) {
+      message.warning('请先选择店铺或店铺标签。')
       return
     }
+    setProductSyncSubmitting(true)
     try {
-      await saleApi.syncProducts({
-        channelAccountId: Number(selectedAccountId),
+      const selectedTags = shopTags.filter((tag) => productSyncTagIds.includes(String(tag.tagId)))
+      const result = await saleApi.syncProductsBatch({
+        channelAccountIds: accountIds.map(Number),
+        tagIds: productSyncTagIds.map(Number),
+        tagNames: selectedTags.map((tag) => tag.tagName),
         page: 1,
         pageSize: 100,
         upsertOnlyUnmapped: productSyncMode === 'UNMAPPED_ONLY',
       })
-      message.success(productSyncMode === 'UNMAPPED_ONLY' ? '仅补未绑定商品同步任务已提交。' : '全量商品同步任务已提交。')
+      setProductSyncBatchResult(result)
+      message.success(result.message || '商品同步任务已提交。')
       void loadWorkspaceData()
     } catch (error) {
       console.error(error)
+    } finally {
+      setProductSyncSubmitting(false)
     }
-  }, [loadWorkspaceData, message, productSyncMode, selectedAccountId])
+  }, [loadWorkspaceData, message, ozonProductSyncAccounts, productSyncAccountIds, productSyncMode, productSyncTagIds, selectedAccountId, shopTags])
 
   const handleCancelSync = useCallback(async () => {
     if (!currentProductSyncTask?.taskId) {
@@ -2651,6 +2690,35 @@ const SaleCenterWorkspace = () => {
             <SectionHeading title="同步操作" description="同步平台商品并更新本地商品资料。" />
             <div className="scw-form-grid">
               <div className="scw-form-row">
+                <Text className="scw-field-label">同步店铺</Text>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  value={productSyncAccountIds}
+                  placeholder="不选则同步当前店铺"
+                  maxTagCount="responsive"
+                  options={ozonProductSyncAccounts.map((account) => ({ label: getShopLabel(account), value: account.id }))}
+                  onChange={setProductSyncAccountIds}
+                />
+                <Text type="secondary">可直接选择多个 Ozon 店铺；未选择店铺和标签时，默认同步当前店铺。</Text>
+              </div>
+              <div className="scw-form-row">
+                <Text className="scw-field-label">店铺标签</Text>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  value={productSyncTagIds}
+                  placeholder="按店铺标签批量同步"
+                  maxTagCount="responsive"
+                  options={shopTags.map((tag) => ({
+                    label: `${tag.tagName}${tag.accountCount ? `（${tag.accountCount}）` : ''}`,
+                    value: tag.tagId,
+                  }))}
+                  onChange={setProductSyncTagIds}
+                />
+                <Text type="secondary">标签会展开为标签下的活跃 Ozon 店铺，并与已选店铺自动去重。本次预计覆盖 {productSyncTargetCount} 个店铺。</Text>
+              </div>
+              <div className="scw-form-row">
                 <Text className="scw-field-label">同步范围</Text>
                 <Radio.Group
                   value={productSyncMode}
@@ -2682,15 +2750,23 @@ const SaleCenterWorkspace = () => {
                   type="primary"
                   icon={<ReloadOutlined />}
                   onClick={handleStartSync}
-                  disabled={hasActiveProductSyncTask}
+                  loading={productSyncSubmitting}
                   data-testid="product-sync-start"
                 >
-                  {hasActiveProductSyncTask ? '同步进行中' : '开始同步'}
+                  提交同步
                 </Button>
                 <Button onClick={handleCancelSync} disabled={!currentProductSyncTask?.taskId} data-testid="product-sync-cancel">
                   取消同步
                 </Button>
               </Space>
+              {productSyncBatchResult ? (
+                <Alert
+                  type="success"
+                  showIcon
+                  message={productSyncBatchResult.message || '商品同步任务已提交'}
+                  description={`覆盖 ${productSyncBatchResult.targetAccountCount} 个店铺，新提交 ${productSyncBatchResult.submittedCount} 个，已有任务执行中 ${productSyncBatchResult.alreadyRunningCount} 个。`}
+                />
+              ) : null}
             </div>
           </Card>
         </Col>

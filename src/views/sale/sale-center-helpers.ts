@@ -35,10 +35,10 @@ export const deriveOrderIssue = (order: SaleOrderItem) => {
   if (hasMissingReceiver) {
     return {
       code: 'PENDING_DATA_FIX',
-      label: '待补数据',
+      label: '缺少收件信息',
       tone: 'danger' as const,
-      reason: '收件信息不完整，无法稳定推进后续处理',
-      recommendedAction: '核对并补齐订单基础信息',
+      reason: '订单没有收件人信息，发货前无法完成收件资料核对',
+      recommendedAction: '核对平台订单收件信息，重新同步订单后再进入发货准备',
     };
   }
   if (normalizedStatus.includes('CANCEL') || normalizedStatus.includes('CLOSED') || normalizedStatus.includes('EXCEPTION')) {
