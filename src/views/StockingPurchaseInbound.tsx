@@ -909,6 +909,7 @@ const StockingPurchaseInbound = () => {
                     { value: 'all', label: '全部状态' },
                     { value: 'pending', label: '未完成' },
                     { value: 'completed', label: '已完成' },
+                    { value: 'void', label: '已作废' },
                   ]).map((option) => ({ label: option.label, value: option.value }))}
                   style={{ width: 140 }}
                 />

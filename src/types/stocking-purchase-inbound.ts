@@ -4,7 +4,7 @@ export type StockingPurchaseStatus = 'pending' | 'partial' | 'completed' | 'void
 
 export type StockingPurchaseEditableScope = 'full' | 'remark_only';
 
-export type StockingPurchaseStatusFilter = 'pending' | 'completed' | 'all';
+export type StockingPurchaseStatusFilter = 'pending' | 'completed' | 'void' | 'all';
 
 export type StockingPurchaseStatusOption = {
   value: StockingPurchaseStatusFilter;
