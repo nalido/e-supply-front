@@ -222,7 +222,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
         platformCreatedFrom: platformCreatedRange?.[0]?.startOf('day').format('YYYY-MM-DDTHH:mm:ss'),
         platformCreatedTo: platformCreatedRange?.[1]?.endOf('day').format('YYYY-MM-DDTHH:mm:ss'),
         groupBy: 'SPU_SKC',
-        view: 'DETAIL',
+        view: 'DISPLAY',
         page,
         pageSize,
       })

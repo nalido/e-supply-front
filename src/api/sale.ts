@@ -862,7 +862,7 @@ export const saleApi = {
     platformCreatedFrom?: string;
     platformCreatedTo?: string;
     groupBy?: 'SPU_SKC';
-    view?: 'SUMMARY' | 'DETAIL';
+    view?: 'SUMMARY' | 'DISPLAY' | 'DETAIL';
     page?: number;
     pageSize?: number;
   }): Promise<SaleProductMapping[]> {
@@ -884,7 +884,7 @@ export const saleApi = {
     platformCreatedFrom?: string;
     platformCreatedTo?: string;
     groupBy?: 'SPU_SKC';
-    view?: 'SUMMARY' | 'DETAIL';
+    view?: 'SUMMARY' | 'DISPLAY' | 'DETAIL';
     page?: number;
     pageSize?: number;
   }): Promise<BackendListResponse<SaleProductMapping>> {
