@@ -141,7 +141,8 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
   const [selectedWarehouseByAccountId, setSelectedWarehouseByAccountId] = useState<Record<string, string>>({})
   const [warehousesByAccountId, setWarehousesByAccountId] = useState<Record<string, SaleOzonWarehouse[]>>({})
   const [products, setProducts] = useState<InventoryProduct[]>([])
-  const [keyword, setKeyword] = useState('')
+  const [keywordInput, setKeywordInput] = useState('')
+  const [appliedKeyword, setAppliedKeyword] = useState('')
   const [platformCreatedRange, setPlatformCreatedRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
@@ -218,7 +219,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
       const mappingPage = await saleApi.listProductMappingsPage({
         channelAccountIds: effectiveAccountIds,
         tagIds: selectedTagIds.length ? selectedTagIds : undefined,
-        keyword: keyword.trim() || undefined,
+        keyword: appliedKeyword || undefined,
         platformCreatedFrom: platformCreatedRange?.[0]?.startOf('day').format('YYYY-MM-DDTHH:mm:ss'),
         platformCreatedTo: platformCreatedRange?.[1]?.endOf('day').format('YYYY-MM-DDTHH:mm:ss'),
         groupBy: 'SPU_SKC',
@@ -291,7 +292,7 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
     } finally {
       setLoading(false)
     }
-  }, [effectiveAccountIds, keyword, message, ozonAccounts, page, pageSize, platformCreatedRange, selectedTagIds])
+  }, [appliedKeyword, effectiveAccountIds, message, ozonAccounts, page, pageSize, platformCreatedRange, selectedTagIds])
 
   const refreshLiveStocks = useCallback(async () => {
     if (!products.length) {
@@ -634,14 +635,18 @@ export default function OzonInventoryBatch({ accounts, selectedAccountId, onAcco
             />
           </Col>
           <Col xs={24} md={5}>
-            <Input
-              value={keyword}
+            <Input.Search
+              value={keywordInput}
               placeholder="搜索商品名 / 本地货号 / product_id / Ozon SKU / SPU / SKC"
               onChange={(event) => {
-                setKeyword(event.target.value)
-                setPage(1)
+                setKeywordInput(event.target.value)
               }}
-              onPressEnter={() => void loadData()}
+              onSearch={(value) => {
+                setPage(1)
+                setSelectedRowKeys([])
+                setAppliedKeyword(value.trim())
+              }}
+              enterButton="搜索"
               allowClear
             />
           </Col>
