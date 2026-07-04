@@ -765,6 +765,13 @@
   flex-direction: column;
   gap: 2px;
   line-height: 1.2;
+  min-width: 0;
+}
+
+.factory-order-progress-status-grid span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .factory-order-progress-status-grid .date {
