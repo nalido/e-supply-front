@@ -18,6 +18,11 @@ import type {
   UpdateRolePayload,
   UserStatus,
   UserProfile,
+  UsageAnalyticsButton,
+  UsageAnalyticsEventPayload,
+  UsageAnalyticsOverview,
+  UsageAnalyticsPage,
+  UsageAnalyticsQuery,
   BackendAuditLogResponse,
   BackendRoleResponse,
   BackendRoleRequest,
@@ -30,6 +35,7 @@ import type {
 } from '../types/settings';
 import type { Paginated } from '../types/pagination';
 import http from './http';
+import type { RequestConfigWithDataflow } from './http';
 import {
   adaptCompanyOverviewResponse,
   type CompanyOverviewResponse,
@@ -361,6 +367,76 @@ export const settingsApi = {
       );
       return {
         list: (response.data.items ?? []).map(adaptAuditLogFromBackend),
+        total: response.data.total ?? 0,
+      };
+    },
+  },
+  analytics: {
+    record: async (payload: UsageAnalyticsEventPayload): Promise<void> => {
+      const tenantId = requireTenantId();
+      await http.post('/api/v1/settings/usage-analytics/events', payload, {
+        params: { tenantId },
+        suppressGlobalError: true,
+      } as RequestConfigWithDataflow);
+    },
+    overview: async (query: UsageAnalyticsQuery = {}): Promise<UsageAnalyticsOverview> => {
+      const tenantId = requireTenantId();
+      const response = await http.get<UsageAnalyticsOverview>('/api/v1/settings/usage-analytics/overview', {
+        params: {
+          tenantId,
+          from: query.from,
+          to: query.to,
+        },
+        suppressGlobalError: true,
+      } as RequestConfigWithDataflow);
+      return response.data;
+    },
+    pages: async (query: UsageAnalyticsQuery = {}): Promise<Paginated<UsageAnalyticsPage>> => {
+      const tenantId = requireTenantId();
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 10;
+      const response = await http.get<BackendPageResponse<UsageAnalyticsPage>>(
+        '/api/v1/settings/usage-analytics/pages',
+        {
+          params: {
+            tenantId,
+            from: query.from,
+            to: query.to,
+            module: query.module,
+            sortBy: query.sortBy,
+            page: toBackendPage(page),
+            size: pageSize,
+          },
+          skipPageNormalization: true,
+          suppressGlobalError: true,
+        } as RequestConfigWithDataflow,
+      );
+      return {
+        list: response.data.items ?? [],
+        total: response.data.total ?? 0,
+      };
+    },
+    buttons: async (query: UsageAnalyticsQuery = {}): Promise<Paginated<UsageAnalyticsButton>> => {
+      const tenantId = requireTenantId();
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 10;
+      const response = await http.get<BackendPageResponse<UsageAnalyticsButton>>(
+        '/api/v1/settings/usage-analytics/buttons',
+        {
+          params: {
+            tenantId,
+            from: query.from,
+            to: query.to,
+            module: query.module,
+            page: toBackendPage(page),
+            size: pageSize,
+          },
+          skipPageNormalization: true,
+          suppressGlobalError: true,
+        } as RequestConfigWithDataflow,
+      );
+      return {
+        list: response.data.items ?? [],
         total: response.data.total ?? 0,
       };
     },

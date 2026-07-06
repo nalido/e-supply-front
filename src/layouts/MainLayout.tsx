@@ -15,6 +15,7 @@ import { menuTree, toAntdMenuItems, type MenuNode } from '../menu.config'
 import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils/download-center-hint'
 import { PREFERENCE_UPDATED_EVENT, type PreferenceUpdatedDetail } from '../utils/preference-events'
 import AiAgentFloatingWidget from '../modules/ai-agent/ui/AiAgentFloatingWidget'
+import UsageAnalyticsTracker from '../components/analytics/UsageAnalyticsTracker'
 
 const { Header, Sider, Content } = Layout
 const DOWNLOAD_CENTER_PATH = '/downloads'
@@ -346,6 +347,7 @@ const MainLayout = () => {
 
   return (
     <Layout className="oc-app-shell">
+      <UsageAnalyticsTracker labelMap={labelMap} />
       {notificationContextHolder}
       <Sider
         width={244}

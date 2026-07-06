@@ -180,6 +180,7 @@ export const menuTree: MenuNode[] = [
       { key: '/settings/roles', label: <Link to="/settings/roles">岗位管理</Link> },
       { key: '/settings/preferences', label: <Link to="/settings/preferences">偏好设置</Link> },
       { key: '/settings/audit', label: <Link to="/settings/audit">操作日志</Link> },
+      { key: '/settings/usage-analytics', label: <Link to="/settings/usage-analytics">使用分析</Link> },
     ],
   },
 ];

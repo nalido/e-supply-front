@@ -268,6 +268,60 @@ export type ActionLogEntry = {
   order?: number;
 };
 
+export type UsageAnalyticsEventPayload = {
+  eventType: 'PAGE_VIEW' | 'PAGE_LEAVE' | 'BUTTON_CLICK';
+  pagePath: string;
+  pageTitle?: string;
+  pageModule?: string;
+  eventName?: string;
+  eventLabel?: string;
+  eventKey?: string;
+  durationSeconds?: number;
+  sessionId?: string;
+  occurredAt?: string;
+};
+
+export type UsageAnalyticsQuery = {
+  from?: string;
+  to?: string;
+  module?: string;
+  sortBy?: 'views_desc' | 'views_asc' | 'recent_asc' | 'duration_desc';
+  page?: number;
+  pageSize?: number;
+};
+
+export type UsageAnalyticsOverview = {
+  pageViews: number;
+  uniqueUsers: number;
+  activePages: number;
+  buttonClicks: number;
+  averageDurationSeconds: number;
+  lastEventAt?: string;
+};
+
+export type UsageAnalyticsPage = {
+  pagePath: string;
+  pageTitle: string;
+  pageModule: string;
+  pageViews: number;
+  uniqueUsers: number;
+  buttonClicks: number;
+  averageDurationSeconds: number;
+  lastVisitedAt?: string;
+};
+
+export type UsageAnalyticsButton = {
+  pagePath: string;
+  pageTitle: string;
+  pageModule: string;
+  eventName: string;
+  eventLabel: string;
+  eventKey: string;
+  clickCount: number;
+  uniqueUsers: number;
+  lastClickedAt?: string;
+};
+
 export type PreferenceControlType = 'switch' | 'select';
 
 export type PreferenceOption = {

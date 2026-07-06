@@ -1,13 +1,11 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 import { tenantStore } from '../stores/tenant';
 import { emitGlobalError } from '../components/common/global-error-bus';
 import { buildFriendlyError } from '../utils/friendly-error';
 
 const traceHeaderKeys = ['traceid', 'trace-id', 'x-trace-id', 'x-request-id'];
 
-export type RequestConfigWithDataflow = {
-  headers?: Record<string, unknown>;
-  params?: Record<string, unknown>;
+export type RequestConfigWithDataflow = AxiosRequestConfig & {
   skipPageNormalization?: boolean;
   suppressGlobalError?: boolean;
 };

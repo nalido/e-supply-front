@@ -71,6 +71,7 @@ const OrganizationSettings = lazy(() => import('./views/settings').then((module)
 const RolesSettings = lazy(() => import('./views/settings').then((module) => ({ default: module.RolesSettings })));
 const ActionLogPage = lazy(() => import('./views/settings').then((module) => ({ default: module.ActionLogPage })));
 const PreferencesPage = lazy(() => import('./views/settings').then((module) => ({ default: module.PreferencesPage })));
+const UsageAnalyticsPage = lazy(() => import('./views/settings').then((module) => ({ default: module.UsageAnalyticsPage })));
 const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
 const SaleCenterWorkspace = lazy(() => import('./views/sale/SaleCenterWorkspace'));
 
@@ -126,6 +127,7 @@ const autoChildren = flattenMenu(menuTree)
     n.key !== '/settings/audit' &&
     n.key !== '/ai/agent' &&
     n.key !== '/settings/preferences' &&
+    n.key !== '/settings/usage-analytics' &&
     n.key !== '/guide' &&
     n.key !== '/piecework/cutting/pending' &&
     n.key !== '/piecework/cutting/done' &&
@@ -228,6 +230,7 @@ const router = createBrowserRouter([
       { path: 'settings/roles', element: createLazyPageElement(RolesSettings) },
       { path: 'settings/preferences', element: createLazyPageElement(PreferencesPage) },
       { path: 'settings/audit', element: createLazyPageElement(ActionLogPage) },
+      { path: 'settings/usage-analytics', element: createLazyPageElement(UsageAnalyticsPage) },
       { path: 'ai/agent', element: createLazyPageElement(AIAgentPoC) },
       { path: 'piecework/cutting/pending', element: createLazyPageElement(CuttingPendingPage) },
       { path: 'piecework/cutting/done', element: createLazyPageElement(CuttingCompletedPage) },
