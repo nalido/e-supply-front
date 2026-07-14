@@ -131,6 +131,16 @@ const SaleOrders = () => {
     [orders, selectedOrderSet],
   );
   const fulfillmentReadySelected = selectedOrders.filter(isReadyForFulfillment);
+  const currentPageReadyOrders = useMemo(() => orders.filter(isReadyForFulfillment), [orders]);
+  const currentPageReadyIds = useMemo(() => currentPageReadyOrders.map((order) => order.id), [currentPageReadyOrders]);
+  const selectedCurrentPageReadyCount = useMemo(
+    () => currentPageReadyIds.filter((orderId) => selectedOrderSet.has(orderId)).length,
+    [currentPageReadyIds, selectedOrderSet],
+  );
+  const allCurrentPageReadySelected =
+    currentPageReadyIds.length > 0 && selectedCurrentPageReadyCount === currentPageReadyIds.length;
+  const partiallyCurrentPageReadySelected =
+    selectedCurrentPageReadyCount > 0 && selectedCurrentPageReadyCount < currentPageReadyIds.length;
 
   const openOrderDetail = useCallback(async (orderId: string) => {
     setDrawerLoading(true);
@@ -193,6 +203,28 @@ const SaleOrders = () => {
       } else {
         next.delete(order.id);
       }
+      return Array.from(next);
+    });
+  };
+
+  const toggleCurrentPageReadySelection = (checked: boolean) => {
+    if (!selectedIsOzon) {
+      message.warning('请先选择 Ozon 店铺');
+      return;
+    }
+    if (!currentPageReadyIds.length) {
+      message.warning('当前页没有可进入发货准备的订单');
+      return;
+    }
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      currentPageReadyIds.forEach((orderId) => {
+        if (checked) {
+          next.add(orderId);
+        } else {
+          next.delete(orderId);
+        }
+      });
       return Array.from(next);
     });
   };
@@ -348,6 +380,14 @@ const SaleOrders = () => {
         description="统一展示订单状态、发货时限、商品明细和绑定状态，减少发货前的二次核对。"
         extra={
           <Space wrap>
+            <Checkbox
+              checked={allCurrentPageReadySelected}
+              indeterminate={partiallyCurrentPageReadySelected}
+              disabled={!selectedIsOzon || !currentPageReadyIds.length}
+              onChange={(event) => toggleCurrentPageReadySelection(event.target.checked)}
+            >
+              全选当前页可发货订单
+            </Checkbox>
             <Typography.Text type="secondary">已选 {fulfillmentReadySelected.length} 单</Typography.Text>
             <Button type="primary" disabled={!selectedIsOzon || !fulfillmentReadySelected.length} onClick={startFulfillmentWorkbench}>
               进入发货准备
