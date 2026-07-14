@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import http from '../../api/http';
 import {
   Button,
   Card,
@@ -22,7 +21,7 @@ import {
   REPORT_DOWNLOAD_LABELS,
   REPORT_DOWNLOAD_OPTIONS,
 } from '../../constants/report-downloads';
-import { resolveExportFileName } from '../../utils/export-download';
+import { downloadExportFile } from '../../utils/export-download';
 import type {
   ReportDownloadListParams,
   ReportDownloadRecord,
@@ -139,20 +138,7 @@ const DownloadRecordsSection = () => {
 
   const handleDownload = useCallback(async (fileUrl: string) => {
     try {
-      const response = await http.get(fileUrl, { responseType: 'blob' });
-      const blobUrl = window.URL.createObjectURL(response.data);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = resolveExportFileName(
-        fileUrl,
-        typeof response.headers['content-disposition'] === 'string'
-          ? response.headers['content-disposition']
-          : undefined,
-      );
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      await downloadExportFile(fileUrl);
     } catch (error) {
       console.error('failed to download export file', error);
       message.error('下载失败，请稍后重试');

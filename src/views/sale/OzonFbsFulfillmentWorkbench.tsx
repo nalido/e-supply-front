@@ -11,6 +11,7 @@ import type {
   SaleOzonFbsWorkbenchInitResult,
   SaleOzonFbsWorkbenchSubmitResult,
 } from '../../types/sale';
+import { downloadExportFile } from '../../utils/export-download';
 import { isMappedStatus } from './sale-center-helpers';
 
 const parseOrderIds = (value: string | null) =>
@@ -60,6 +61,7 @@ const OzonFbsFulfillmentWorkbench = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState<SaleOzonFbsWorkbenchAction | null>(null);
+  const [labelDownloading, setLabelDownloading] = useState<string | null>(null);
   const [workbench, setWorkbench] = useState<SaleOzonFbsWorkbenchInitResult | null>(null);
   const [submitResult, setSubmitResult] = useState<SaleOzonFbsWorkbenchSubmitResult | null>(null);
   const [actionResult, setActionResult] = useState<SaleOzonFbsWorkbenchActionResult | null>(null);
@@ -179,6 +181,19 @@ const OzonFbsFulfillmentWorkbench = () => {
       cancelText: '再检查一下',
       onOk: execute,
     });
+  };
+
+  const downloadLabel = async (fileUrl: string, fileName?: string | null) => {
+    setLabelDownloading(fileUrl);
+    try {
+      await downloadExportFile(fileUrl, fileName || undefined);
+      message.success('面单下载已开始');
+    } catch (error) {
+      console.error('failed to download Ozon FBS label', error);
+      message.error('面单下载失败，请稍后重试');
+    } finally {
+      setLabelDownloading(null);
+    }
   };
 
   if (!accountId || !orderIds.length) {
@@ -416,7 +431,11 @@ const OzonFbsFulfillmentWorkbench = () => {
                 </div>
                 {item.labelFileUrl ? (
                   <div style={{ marginTop: 12 }}>
-                    <Button icon={<DownloadOutlined />} href={item.labelFileUrl} target="_blank" rel="noreferrer">
+                    <Button
+                      icon={<DownloadOutlined />}
+                      loading={labelDownloading === item.labelFileUrl}
+                      onClick={() => void downloadLabel(item.labelFileUrl!, item.labelFileName)}
+                    >
                       下载面单{item.labelFileName ? ` · ${item.labelFileName}` : ''}
                     </Button>
                   </div>
