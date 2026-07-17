@@ -139,10 +139,24 @@ export interface StyleCodeImpactLink {
   targetProductId?: string;
 }
 
+export interface StyleVariantImpactReference {
+  label: string;
+  count: number;
+}
+
+export interface StyleVariantImpact {
+  styleVariantId?: string;
+  color?: string;
+  size?: string;
+  references: StyleVariantImpactReference[];
+}
+
 export interface StyleCodeImpactCheckResult {
   requiresConfirmation: boolean;
+  blocked: boolean;
   impactedCount: number;
   impactedLinks: StyleCodeImpactLink[];
+  variantImpacts: StyleVariantImpact[];
 }
 
 export interface StyleBomUpdatePayload {

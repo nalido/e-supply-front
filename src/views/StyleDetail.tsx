@@ -38,6 +38,7 @@ import type {
   StyleDetailData,
   StyleDetailSavePayload,
   StyleFormMeta,
+  StyleVariantImpact,
 } from '../types/style';
 import '../styles/style-detail.css';
 import '../styles/sample-order-form.css';
@@ -82,7 +83,29 @@ const normalizeOptionalText = (value?: string) => {
   return trimmed ? trimmed : undefined;
 };
 
+const normalizeTagValues = (values?: string[]) => {
+  const seen = new Set<string>();
+  return (values ?? [])
+    .map((value) => value.trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    });
+};
+
 const buildVariantKey = (color?: string, size?: string) => `${color ?? ''}|${size ?? ''}`;
+
+const formatVariantImpactLabel = (impact: StyleVariantImpact) =>
+  `${impact.color || '-'} / ${impact.size || '-'}`;
+
+const formatVariantImpactReferences = (impact: StyleVariantImpact) =>
+  impact.references
+    .filter((reference) => reference.count > 0)
+    .map((reference) => `${reference.label} ${reference.count} 条`)
+    .join('、');
 
 const buildDraftCodeValue = (
   sourceType: StyleCodeVariantDraft['sourceType'],
@@ -164,8 +187,8 @@ const StyleDetail = () => {
   const watchedColors = Form.useWatch('colors', form);
   const watchedSizes = Form.useWatch('sizes', form);
   const watchedStyleNo = Form.useWatch('styleNo', form);
-  const normalizedColors = useMemo(() => watchedColors ?? [], [watchedColors]);
-  const normalizedSizes = useMemo(() => watchedSizes ?? [], [watchedSizes]);
+  const normalizedColors = useMemo(() => normalizeTagValues(watchedColors), [watchedColors]);
+  const normalizedSizes = useMemo(() => normalizeTagValues(watchedSizes), [watchedSizes]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
 
   const fabricMaterials = useMemo(
@@ -506,22 +529,25 @@ const StyleDetail = () => {
   const handleSave = useCallback(async () => {
     try {
       const values = await form.validateFields();
-      if (!values.colors?.length) {
+      const colors = normalizeTagValues(values.colors);
+      const sizes = normalizeTagValues(values.sizes);
+      if (!colors.length) {
         message.warning('请至少输入一个颜色');
         return;
       }
-      if (!values.sizes?.length) {
+      if (!sizes.length) {
         message.warning('请至少输入一个尺码');
         return;
       }
+      form.setFieldsValue({ colors, sizes });
       const payload: StyleDetailSavePayload = {
         styleNo: values.styleNo.trim(),
         styleName: values.styleName.trim(),
         defaultUnit: values.defaultUnit,
         designerId: values.designerId,
         remarks: values.remarks,
-        colors: values.colors,
-        sizes: values.sizes,
+        colors,
+        sizes,
         status: values.status,
         coverImageUrl: values.coverImageUrl,
         detailImageUrls: detailImages,
@@ -539,6 +565,41 @@ const StyleDetail = () => {
       let confirmCodeImpact = false;
       if (isEditing && styleId) {
         const impact = await styleDetailApi.checkCodeImpact(styleId, payload);
+        const blockedVariantImpacts = impact.variantImpacts.filter(
+          (item) => item.references.length > 0,
+        );
+        if (impact.blocked || blockedVariantImpacts.length > 0) {
+          Modal.warning({
+            title: '这些颜色/尺码已经被使用，不能直接删除',
+            content: (
+              <div className="style-code-impact-confirm">
+                <Text type="secondary">
+                  请保留原颜色/尺码后新增其他颜色，或先处理相关业务记录再调整。
+                </Text>
+                <div className="style-code-impact-confirm__list">
+                  {blockedVariantImpacts.slice(0, 8).map((item, index) => (
+                    <div
+                      key={`${item.styleVariantId ?? `${item.color}-${item.size}`}-${index}`}
+                      className="style-code-impact-confirm__item"
+                    >
+                      <Text strong>{formatVariantImpactLabel(item)}</Text>
+                      <Text type="secondary">
+                        {formatVariantImpactReferences(item) || '已有业务记录'}
+                      </Text>
+                    </div>
+                  ))}
+                  {blockedVariantImpacts.length > 8 ? (
+                    <Text type="secondary">
+                      还有 {blockedVariantImpacts.length - 8} 个颜色/尺码也已被使用
+                    </Text>
+                  ) : null}
+                </div>
+              </div>
+            ),
+            okText: '知道了',
+          });
+          return;
+        }
         if (impact.requiresConfirmation) {
           const confirmed = await new Promise<boolean>((resolve) => {
             Modal.confirm({

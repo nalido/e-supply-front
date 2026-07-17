@@ -78,6 +78,7 @@ type BackendMetadataResponse = {
 
 type BackendStyleCodeImpactResponse = {
   requiresConfirmation: boolean;
+  blocked?: boolean;
   impactedCount: number;
   impactedLinks?: Array<{
     channelAccountId?: number;
@@ -86,6 +87,15 @@ type BackendStyleCodeImpactResponse = {
     platformCode?: string;
     targetOfferId?: string;
     targetProductId?: number;
+  }>;
+  variantImpacts?: Array<{
+    styleVariantId?: number;
+    color?: string;
+    size?: string;
+    references?: Array<{
+      label?: string;
+      count?: number;
+    }>;
   }>;
 };
 
@@ -260,6 +270,7 @@ export const styleDetailApi = {
     );
     return {
       requiresConfirmation: Boolean(response.data.requiresConfirmation),
+      blocked: Boolean(response.data.blocked),
       impactedCount: Number(response.data.impactedCount ?? 0),
       impactedLinks: (response.data.impactedLinks ?? []).map((item) => ({
         channelAccountId: item.channelAccountId ? String(item.channelAccountId) : undefined,
@@ -268,6 +279,15 @@ export const styleDetailApi = {
         platformCode: item.platformCode ?? undefined,
         targetOfferId: item.targetOfferId ?? undefined,
         targetProductId: item.targetProductId ? String(item.targetProductId) : undefined,
+      })),
+      variantImpacts: (response.data.variantImpacts ?? []).map((item) => ({
+        styleVariantId: item.styleVariantId ? String(item.styleVariantId) : undefined,
+        color: item.color ?? undefined,
+        size: item.size ?? undefined,
+        references: (item.references ?? []).map((reference) => ({
+          label: reference.label ?? '业务记录',
+          count: Number(reference.count ?? 0),
+        })),
       })),
     };
   },
