@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/api/actuator': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/actuator/, '/actuator'),
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
@@ -14,6 +19,11 @@ export default defineConfig({
   },
   preview: {
     proxy: {
+      '/api/actuator': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/actuator/, '/actuator'),
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Col, Empty, Form, Input, InputNumber, Modal, Row, Space, Tag, message } from 'antd';
-import { DownloadOutlined, SendOutlined, SyncOutlined, TruckOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PrinterOutlined, SendOutlined, SyncOutlined, TruckOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { saleApi } from '../../api/sale';
 import { formatSaleDateTime, toDisplayText } from '../../components/sale/sale-center-formatters';
 import { ProductThumb, SaleHero, SaleMetricCard, SaleSection, SaleStatusTag, SaleToneTag } from '../../components/sale/SaleCenterUI';
 import type {
+  SaleChannelAccount,
   SaleOzonFbsWorkbenchAction,
   SaleOzonFbsWorkbenchActionResult,
   SaleOzonFbsWorkbenchInitResult,
+  SaleOzonFbsWorkbenchLine,
+  SaleOzonFbsWorkbenchOrder,
   SaleOzonFbsWorkbenchSubmitResult,
 } from '../../types/sale';
 import { downloadExportFile } from '../../utils/export-download';
@@ -54,6 +57,66 @@ const isAfterPackagingStatus = (status?: string | null) => {
   return ['READY_TO_SHIP', 'AWAITING_DELIVERY', 'AWAITING_DELIVER', 'SHIPPED', 'DELIVERING', 'COMPLETED', 'DELIVERED'].includes(key);
 };
 
+const escapeHtml = (value?: string | number | null) => {
+  if (value === undefined || value === null || value === '') {
+    return '-';
+  }
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+};
+
+const formatPrintDateTime = (date = new Date()) => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getShopDisplayName = (account?: SaleChannelAccount | null, fallbackId?: string | null) =>
+  account?.shopName || account?.accountName || (fallbackId ? `店铺 ${fallbackId}` : '当前店铺');
+
+const getLineSku = (line: SaleOzonFbsWorkbenchLine) => line.platformSkuCode || line.platformSkuId || line.platformGoodsId || '未命名货号';
+
+const getLineSpec = (line: SaleOzonFbsWorkbenchLine) => line.goodsName || '未填写规格';
+
+type PickingSummaryItem = {
+  key: string;
+  sku: string;
+  spec: string;
+  imageUrl?: string | null;
+  quantity: number;
+};
+
+const buildPickingSummary = (orders: SaleOzonFbsWorkbenchOrder[]) => {
+  const summary = new Map<string, PickingSummaryItem>();
+  orders.forEach((order) => {
+    order.lines.forEach((line) => {
+      const sku = getLineSku(line);
+      const spec = getLineSpec(line);
+      const key = `${sku}__${spec}`;
+      const quantity = line.quantity || 0;
+      const existing = summary.get(key);
+      if (existing) {
+        existing.quantity += quantity;
+        if (!existing.imageUrl && line.platformMainImageUrl) {
+          existing.imageUrl = line.platformMainImageUrl;
+        }
+        return;
+      }
+      summary.set(key, {
+        key,
+        sku,
+        spec,
+        imageUrl: line.platformMainImageUrl,
+        quantity,
+      });
+    });
+  });
+  return Array.from(summary.values());
+};
+
 const OzonFbsFulfillmentWorkbench = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -65,6 +128,7 @@ const OzonFbsFulfillmentWorkbench = () => {
   const [workbench, setWorkbench] = useState<SaleOzonFbsWorkbenchInitResult | null>(null);
   const [submitResult, setSubmitResult] = useState<SaleOzonFbsWorkbenchSubmitResult | null>(null);
   const [actionResult, setActionResult] = useState<SaleOzonFbsWorkbenchActionResult | null>(null);
+  const [channelAccount, setChannelAccount] = useState<SaleChannelAccount | null>(null);
 
   const accountId = params.get('accountId');
   const orderIds = useMemo(() => parseOrderIds(params.get('orderIds')), [params]);
@@ -93,6 +157,31 @@ const OzonFbsFulfillmentWorkbench = () => {
     void loadWorkbench();
   }, [loadWorkbench]);
 
+  useEffect(() => {
+    if (!accountId) {
+      setChannelAccount(null);
+      return;
+    }
+    let ignore = false;
+    const loadAccount = async () => {
+      try {
+        const accounts = await saleApi.listChannelAccounts({ platformCode: 'OZON', pageSize: 200 });
+        if (!ignore) {
+          setChannelAccount(accounts.find((item) => item.id === accountId) || null);
+        }
+      } catch (error) {
+        console.error('failed to load Ozon channel account for picking list', error);
+        if (!ignore) {
+          setChannelAccount(null);
+        }
+      }
+    };
+    void loadAccount();
+    return () => {
+      ignore = true;
+    };
+  }, [accountId]);
+
   const metrics = useMemo(() => {
     const orders = workbench?.orders || [];
     return {
@@ -107,6 +196,247 @@ const OzonFbsFulfillmentWorkbench = () => {
     const orders = workbench?.orders || [];
     return Boolean(orders.length && orders.every((order) => isAfterPackagingStatus(order.fulfillmentStatus || order.normalizedStatus || order.platformOrderStatus)));
   }, [workbench]);
+
+  const printPickingList = useCallback(() => {
+    const orders = workbench?.orders || [];
+    if (!orders.length) {
+      message.warning('暂无可打印的拣货订单');
+      return;
+    }
+    const printTime = formatPrintDateTime();
+    const shopName = getShopDisplayName(channelAccount, accountId);
+    const totalQuantity = orders.reduce((sum, order) => sum + (order.totalQuantity || 0), 0);
+    const summaryItems = buildPickingSummary(orders);
+    const sourceUrl = window.location.href;
+    const detailRows = orders
+      .flatMap((order) =>
+        order.lines.map((line) => {
+          const quantity = line.quantity || 0;
+          return `
+            <tr>
+              <td class="product-image-cell">
+                ${line.platformMainImageUrl ? `<img src="${escapeHtml(line.platformMainImageUrl)}" alt="${escapeHtml(getLineSku(line))}" />` : '<div class="product-image-placeholder">无图</div>'}
+              </td>
+              <td class="sku-cell"><span>货号：</span>${escapeHtml(getLineSku(line))}</td>
+              <td class="spec-cell"><span>规格：</span>${escapeHtml(getLineSpec(line))}</td>
+              <td class="order-cell">
+                <div><span>订单号：</span>${escapeHtml(order.platformOrderNo)}</div>
+                <div class="order-note"><span>订单备注：</span></div>
+              </td>
+              <td class="quantity-cell">${escapeHtml(quantity)}</td>
+            </tr>
+          `;
+        }),
+      )
+      .join('');
+    const summaryRows = summaryItems
+      .map(
+        (item) => `
+          <tr>
+            <td class="product-image-cell">
+              ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.sku)}" />` : '<div class="product-image-placeholder">无图</div>'}
+            </td>
+            <td class="sku-cell"><span>货号：</span>${escapeHtml(item.sku)}</td>
+            <td class="spec-cell"><span>规格：</span>${escapeHtml(item.spec)}</td>
+            <td class="summary-spacer"></td>
+            <td class="quantity-cell">${escapeHtml(item.quantity)}</td>
+          </tr>
+        `,
+      )
+      .join('');
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Ozon 拣货单 - ${escapeHtml(printTime)}</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 24px 32px;
+        color: #111827;
+        background: #ffffff;
+        font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", Arial, sans-serif;
+      }
+      .page-header {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: start;
+        gap: 16px;
+        margin-bottom: 18px;
+        font-size: 13px;
+      }
+      .page-header__center {
+        text-align: center;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      .page-header__right {
+        text-align: right;
+      }
+      h1 {
+        margin: 0 0 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #d1d5db;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+      h2 {
+        margin: 12px 0 8px;
+        font-size: 20px;
+        line-height: 1.3;
+      }
+      .metrics {
+        display: flex;
+        gap: 56px;
+        padding: 0 8px 8px;
+        border-bottom: 1px solid #d1d5db;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .shop-name {
+        margin: 12px 0 8px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        border: 1px solid #d1d5db;
+      }
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      td {
+        border-bottom: 1px solid #d1d5db;
+        padding: 8px 10px;
+        vertical-align: middle;
+        font-size: 13px;
+        line-height: 1.45;
+        font-weight: 600;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td span {
+        font-weight: 700;
+      }
+      .product-image-cell {
+        width: 74px;
+        text-align: center;
+      }
+      .product-image-cell img,
+      .product-image-placeholder {
+        width: 54px;
+        height: 64px;
+        object-fit: cover;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e5e7eb;
+        color: #9ca3af;
+        font-size: 12px;
+      }
+      .sku-cell { width: 30%; word-break: break-all; }
+      .spec-cell { width: 28%; word-break: break-word; }
+      .order-cell { width: 24%; word-break: break-word; }
+      .order-note { margin-top: 4px; min-height: 18px; }
+      .summary-spacer { width: 24%; }
+      .quantity-cell {
+        width: 68px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 800;
+      }
+      .summary-section {
+        margin-top: 28px;
+      }
+      .page-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 36px;
+        color: #111827;
+        font-size: 12px;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 12mm;
+      }
+      @media print {
+        body { margin: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <div>${escapeHtml(printTime)}</div>
+      <div class="page-header__center">拣货单详情</div>
+      <div class="page-header__right">打印时间： ${escapeHtml(printTime)}</div>
+    </div>
+    <h1>拣货单</h1>
+    <h2>订单明细</h2>
+    <div class="metrics">
+      <div>货号数量: ${escapeHtml(summaryItems.length)}</div>
+      <div>订单数量: ${escapeHtml(orders.length)}</div>
+      <div>总数量: ${escapeHtml(totalQuantity)}</div>
+    </div>
+    <div class="shop-name">店铺：${escapeHtml(shopName)}</div>
+    <table>
+      <tbody>${detailRows}</tbody>
+    </table>
+    <div class="summary-section">
+      <h2>汇总信息</h2>
+      <table>
+        <tbody>${summaryRows}</tbody>
+      </table>
+    </div>
+    <div class="page-footer">
+      <div>${escapeHtml(sourceUrl)}</div>
+      <div>1/1</div>
+    </div>
+  </body>
+</html>`;
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(iframe);
+
+      const cleanup = () => {
+        window.setTimeout(() => {
+          iframe.remove();
+        }, 800);
+      };
+      const triggerPrint = () => {
+        const frameWindow = iframe.contentWindow;
+        if (!frameWindow) {
+          cleanup();
+          message.error('拣货单打印失败，请稍后重试');
+          return;
+        }
+        frameWindow.focus();
+        frameWindow.print();
+        cleanup();
+      };
+      iframe.onload = () => {
+        window.setTimeout(triggerPrint, 180);
+      };
+      iframe.srcdoc = html;
+    } catch (error) {
+      console.error('failed to print Ozon picking list', error);
+      message.error('拣货单打印失败，请稍后重试');
+    }
+  }, [accountId, channelAccount, workbench]);
 
   const submit = async () => {
     if (!workbench?.workbenchId || !workbench.submitReady) {
@@ -217,6 +547,9 @@ const OzonFbsFulfillmentWorkbench = () => {
             </Button>
             <Button size="large" onClick={() => void loadWorkbench()} loading={loading}>
               刷新
+            </Button>
+            <Button size="large" icon={<PrinterOutlined />} disabled={!workbench?.orders?.length} onClick={printPickingList}>
+              打印拣货单
             </Button>
           </Space>
         }
