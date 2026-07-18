@@ -730,7 +730,7 @@ const FactoryOrders = () => {
     }
     Modal.confirm({
       title: `删除工厂订单：${record.orderCode}`,
-      content: '仅未进入执行流程、且没有节点执行记录的订单允许删除。删除后不可恢复。',
+      content: '裁剪单未开始前可以删除；未开始的关联裁剪单会同步清理。删除后不可恢复。',
       okText: '删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
