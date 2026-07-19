@@ -1,6 +1,6 @@
 import { SignedIn, SignedOut, useAuth } from '@clerk/clerk-react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Spin } from 'antd'
 import TenantProvider from '../providers/TenantProvider'
 import { onboardingApi } from '../api/onboarding'
@@ -8,6 +8,8 @@ import type { OnboardingStatus } from '../api/onboarding'
 import { useBindAuthTokenResolver } from '../hooks/useBindAuthTokenResolver'
 import OnboardingStatusError from '../views/auth/OnboardingStatusError'
 import { buildFriendlyErrorFromUnknown } from '../utils/http-error'
+import UsageAnalyticsTracker from '../components/analytics/UsageAnalyticsTracker'
+import { buildUsageAnalyticsLabelMaps } from '../components/analytics/usageAnalyticsLabels'
 
 const ONBOARDING_PATH = '/onboarding/register-enterprise'
 const WELCOME_PATH = '/welcome'
@@ -17,6 +19,7 @@ const SignedInTenantGate = () => {
   const location = useLocation()
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
   const [statusCheckError, setStatusCheckError] = useState<string | null>(null)
+  const usageAnalyticsLabelMaps = useMemo(() => buildUsageAnalyticsLabelMaps(), [])
 
   useBindAuthTokenResolver()
 
@@ -66,6 +69,10 @@ const SignedInTenantGate = () => {
 
   return (
     <TenantProvider>
+      <UsageAnalyticsTracker
+        labelMap={usageAnalyticsLabelMaps.pageLabelMap}
+        moduleMap={usageAnalyticsLabelMaps.moduleLabelMap}
+      />
       <Outlet />
     </TenantProvider>
   )

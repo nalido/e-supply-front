@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:css-components && tsc -b && vite build",
+    "build": "npm run check:css-components && npm run check:usage-analytics && tsc -b && vite build",
     "check:css-components": "node scripts/check-css-component-guards.mjs",
+    "check:usage-analytics": "node scripts/check-usage-analytics-routes.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "route:sweep": "node scripts/route_sweep.mjs"

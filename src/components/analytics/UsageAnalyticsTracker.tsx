@@ -5,6 +5,7 @@ import type { UsageAnalyticsEventPayload } from '../../types/settings';
 
 type UsageAnalyticsTrackerProps = {
   labelMap: Map<string, string>;
+  moduleMap?: Map<string, string>;
 };
 
 const SESSION_KEY = 'usage-analytics-session-id';
@@ -40,7 +41,15 @@ const findPageLabel = (labelMap: Map<string, string>, pathname: string) => {
   return candidates[0]?.[1] ?? document.title ?? pathname;
 };
 
-const findModuleLabel = (labelMap: Map<string, string>, pathname: string) => {
+const findModuleLabel = (labelMap: Map<string, string>, pathname: string, moduleMap?: Map<string, string>) => {
+  if (moduleMap) {
+    const candidates = Array.from(moduleMap.entries())
+      .filter(([path]) => pathname === path || pathname.startsWith(`${path}/`))
+      .sort((a, b) => b[0].length - a[0].length);
+    if (candidates[0]?.[1]) {
+      return candidates[0][1];
+    }
+  }
   const [, firstSegment] = pathname.split('/');
   if (!firstSegment) {
     return '工作台';
@@ -94,14 +103,14 @@ const sendAnalyticsEvent = (payload: UsageAnalyticsEventPayload) => {
   });
 };
 
-const UsageAnalyticsTracker = ({ labelMap }: UsageAnalyticsTrackerProps) => {
+const UsageAnalyticsTracker = ({ labelMap, moduleMap }: UsageAnalyticsTrackerProps) => {
   const location = useLocation();
   const sessionId = useMemo(getSessionId, []);
 
   useEffect(() => {
     const pagePath = location.pathname;
     const pageTitle = findPageLabel(labelMap, pagePath);
-    const pageModule = findModuleLabel(labelMap, pagePath);
+    const pageModule = findModuleLabel(labelMap, pagePath, moduleMap);
     const enteredAt = Date.now();
     const now = Date.now();
     const shouldSendPageView =
@@ -136,7 +145,7 @@ const UsageAnalyticsTracker = ({ labelMap }: UsageAnalyticsTrackerProps) => {
         occurredAt: new Date().toISOString(),
       });
     };
-  }, [labelMap, location.pathname, sessionId]);
+  }, [labelMap, location.pathname, moduleMap, sessionId]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -153,7 +162,7 @@ const UsageAnalyticsTracker = ({ labelMap }: UsageAnalyticsTrackerProps) => {
         eventType: 'BUTTON_CLICK',
         pagePath,
         pageTitle: findPageLabel(labelMap, pagePath),
-        pageModule: findModuleLabel(labelMap, pagePath),
+        pageModule: findModuleLabel(labelMap, pagePath, moduleMap),
         eventName: label,
         eventLabel: label,
         eventKey: buildEventKey(pagePath, label),
@@ -166,7 +175,7 @@ const UsageAnalyticsTracker = ({ labelMap }: UsageAnalyticsTrackerProps) => {
     return () => {
       document.removeEventListener('click', handleClick);
     };
-  }, [labelMap, sessionId]);
+  }, [labelMap, moduleMap, sessionId]);
 
   return null;
 };

@@ -16,6 +16,7 @@ import { subscribeDownloadCenterHint, triggerDownloadCenterHint } from '../utils
 import { PREFERENCE_UPDATED_EVENT, type PreferenceUpdatedDetail } from '../utils/preference-events'
 import AiAgentFloatingWidget from '../modules/ai-agent/ui/AiAgentFloatingWidget'
 import UsageAnalyticsTracker from '../components/analytics/UsageAnalyticsTracker'
+import { buildUsageAnalyticsLabelMaps } from '../components/analytics/usageAnalyticsLabels'
 
 const { Header, Sider, Content } = Layout
 const DOWNLOAD_CENTER_PATH = '/downloads'
@@ -26,23 +27,6 @@ const deriveOpenKeys = (pathname: string): string[] => {
   const segments = pathname.split('/').filter(Boolean)
   if (segments.length <= 1) return []
   return segments.slice(0, -1).map((_, index) => `/${segments.slice(0, index + 1).join('/')}`)
-}
-
-const readNodeLabel = (label: ReactNode): string => {
-  if (typeof label === 'string') return label
-  if (label && typeof label === 'object' && 'props' in label) {
-    const maybeChildren = (label as { props?: { children?: ReactNode } }).props?.children
-    if (typeof maybeChildren === 'string') return maybeChildren
-  }
-  return '页面'
-}
-
-const buildLabelMap = (nodes: MenuNode[], map = new Map<string, string>()) => {
-  nodes.forEach((node) => {
-    map.set(node.key, readNodeLabel(node.label))
-    if (node.children) buildLabelMap(node.children, map)
-  })
-  return map
 }
 
 const DOWNLOAD_CENTER_HINT_KEYWORDS = ['下载中心', '已生成导出文件', '导出任务已生成', '已生成导出任务', '导出任务已创建']
@@ -96,11 +80,8 @@ const MainLayout = () => {
 
   const menuNodes = useMemo<MenuNode[]>(() => menuTree, [])
   const menuItems = useMemo<MenuProps['items']>(() => toAntdMenuItems(menuNodes), [menuNodes])
-  const labelMap = useMemo(() => {
-    const map = buildLabelMap(menuNodes)
-    map.set(DOWNLOAD_CENTER_PATH, '下载中心')
-    return map
-  }, [menuNodes])
+  const usageAnalyticsLabelMaps = useMemo(() => buildUsageAnalyticsLabelMaps(), [])
+  const labelMap = usageAnalyticsLabelMaps.pageLabelMap
   const isDownloadCenterOpen = useMemo(() => {
     const searchParams = new URLSearchParams(location.search)
     return (
@@ -347,7 +328,7 @@ const MainLayout = () => {
 
   return (
     <Layout className="oc-app-shell">
-      <UsageAnalyticsTracker labelMap={labelMap} />
+      <UsageAnalyticsTracker labelMap={labelMap} moduleMap={usageAnalyticsLabelMaps.moduleLabelMap} />
       {notificationContextHolder}
       <Sider
         width={244}
