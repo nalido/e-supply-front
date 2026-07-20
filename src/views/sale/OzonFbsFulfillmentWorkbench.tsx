@@ -217,11 +217,10 @@ const OzonFbsFulfillmentWorkbench = () => {
               <td class="product-image-cell">
                 ${line.platformMainImageUrl ? `<img src="${escapeHtml(line.platformMainImageUrl)}" alt="${escapeHtml(getLineSku(line))}" />` : '<div class="product-image-placeholder">无图</div>'}
               </td>
-              <td class="sku-cell"><span>货号：</span>${escapeHtml(getLineSku(line))}</td>
-              <td class="spec-cell"><span>规格：</span>${escapeHtml(getLineSpec(line))}</td>
+              <td class="sku-cell"><div class="cell-line"><span>货号：</span>${escapeHtml(getLineSku(line))}</div></td>
+              <td class="spec-cell" title="${escapeHtml(getLineSpec(line))}"><div class="cell-line"><span>规格：</span>${escapeHtml(getLineSpec(line))}</div></td>
               <td class="order-cell">
-                <div><span>订单号：</span>${escapeHtml(order.platformOrderNo)}</div>
-                <div class="order-note"><span>订单备注：</span></div>
+                <div class="cell-line"><span>订单号：</span>${escapeHtml(order.platformOrderNo)}</div>
               </td>
               <td class="quantity-cell">${escapeHtml(quantity)}</td>
             </tr>
@@ -236,8 +235,8 @@ const OzonFbsFulfillmentWorkbench = () => {
             <td class="product-image-cell">
               ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.sku)}" />` : '<div class="product-image-placeholder">无图</div>'}
             </td>
-            <td class="sku-cell"><span>货号：</span>${escapeHtml(item.sku)}</td>
-            <td class="spec-cell"><span>规格：</span>${escapeHtml(item.spec)}</td>
+            <td class="sku-cell"><div class="cell-line"><span>货号：</span>${escapeHtml(item.sku)}</div></td>
+            <td class="spec-cell" title="${escapeHtml(item.spec)}"><div class="cell-line"><span>规格：</span>${escapeHtml(item.spec)}</div></td>
             <td class="summary-spacer"></td>
             <td class="quantity-cell">${escapeHtml(item.quantity)}</td>
           </tr>
@@ -253,18 +252,25 @@ const OzonFbsFulfillmentWorkbench = () => {
       :root { color-scheme: light; }
       * { box-sizing: border-box; }
       body {
-        margin: 24px 32px;
+        margin: 0;
         color: #111827;
         background: #ffffff;
         font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Heiti SC", Arial, sans-serif;
+      }
+      .print-page {
+        width: 190mm;
+        margin: 0 auto;
+        padding: 8mm 0;
       }
       .page-header {
         display: grid;
         grid-template-columns: 1fr auto 1fr;
         align-items: start;
-        gap: 16px;
-        margin-bottom: 18px;
-        font-size: 13px;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 10px;
+        line-height: 1.3;
+        color: #374151;
       }
       .page-header__center {
         text-align: center;
@@ -275,30 +281,30 @@ const OzonFbsFulfillmentWorkbench = () => {
         text-align: right;
       }
       h1 {
-        margin: 0 0 10px;
-        padding-bottom: 8px;
+        margin: 0 0 6px;
+        padding-bottom: 5px;
         border-bottom: 1px solid #d1d5db;
-        font-size: 28px;
+        font-size: 22px;
         line-height: 1.2;
         font-weight: 700;
         letter-spacing: 0;
       }
       h2 {
-        margin: 12px 0 8px;
-        font-size: 20px;
-        line-height: 1.3;
+        margin: 8px 0 5px;
+        font-size: 15px;
+        line-height: 1.25;
       }
       .metrics {
         display: flex;
-        gap: 56px;
-        padding: 0 8px 8px;
+        gap: 28px;
+        padding: 0 4px 5px;
         border-bottom: 1px solid #d1d5db;
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 600;
       }
       .shop-name {
-        margin: 12px 0 8px;
-        font-size: 15px;
+        margin: 7px 0 5px;
+        font-size: 12px;
         font-weight: 700;
       }
       table {
@@ -313,11 +319,12 @@ const OzonFbsFulfillmentWorkbench = () => {
       }
       td {
         border-bottom: 1px solid #d1d5db;
-        padding: 8px 10px;
+        padding: 4px 6px;
         vertical-align: middle;
-        font-size: 13px;
-        line-height: 1.45;
+        font-size: 11px;
+        line-height: 1.25;
         font-weight: 600;
+        overflow: hidden;
       }
       tr:last-child td {
         border-bottom: 0;
@@ -326,79 +333,106 @@ const OzonFbsFulfillmentWorkbench = () => {
         font-weight: 700;
       }
       .product-image-cell {
-        width: 74px;
+        width: 56px;
         text-align: center;
       }
       .product-image-cell img,
       .product-image-placeholder {
-        width: 54px;
-        height: 64px;
+        width: 42px;
+        height: 48px;
         object-fit: cover;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border: 1px solid #e5e7eb;
         color: #9ca3af;
-        font-size: 12px;
+        font-size: 10px;
       }
-      .sku-cell { width: 30%; word-break: break-all; }
-      .spec-cell { width: 28%; word-break: break-word; }
-      .order-cell { width: 24%; word-break: break-word; }
-      .order-note { margin-top: 4px; min-height: 18px; }
-      .summary-spacer { width: 24%; }
+      .cell-line {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .sku-cell {
+        width: 32%;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .spec-cell {
+        width: 18%;
+        color: #4b5563;
+        font-size: 10px;
+        font-weight: 500;
+      }
+      .order-cell {
+        width: 30%;
+        font-size: 12px;
+        word-break: break-word;
+      }
+      .summary-spacer { width: 30%; }
       .quantity-cell {
-        width: 68px;
+        width: 50px;
         text-align: center;
-        font-size: 24px;
+        font-size: 20px;
         font-weight: 800;
       }
       .summary-section {
-        margin-top: 28px;
+        margin-top: 14px;
       }
       .page-footer {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
-        margin-top: 36px;
+        gap: 8px;
+        margin-top: 14px;
         color: #111827;
-        font-size: 12px;
+        font-size: 9px;
       }
       @page {
         size: A4 portrait;
-        margin: 12mm;
+        margin: 8mm 10mm;
       }
       @media print {
         body { margin: 0; }
+        .print-page {
+          width: auto;
+          margin: 0;
+          padding: 0;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="page-header">
-      <div>${escapeHtml(printTime)}</div>
-      <div class="page-header__center">拣货单详情</div>
-      <div class="page-header__right">打印时间： ${escapeHtml(printTime)}</div>
-    </div>
-    <h1>拣货单</h1>
-    <h2>订单明细</h2>
-    <div class="metrics">
-      <div>货号数量: ${escapeHtml(summaryItems.length)}</div>
-      <div>订单数量: ${escapeHtml(orders.length)}</div>
-      <div>总数量: ${escapeHtml(totalQuantity)}</div>
-    </div>
-    <div class="shop-name">店铺：${escapeHtml(shopName)}</div>
-    <table>
-      <tbody>${detailRows}</tbody>
-    </table>
-    <div class="summary-section">
-      <h2>汇总信息</h2>
+    <main class="print-page">
+      <div class="page-header">
+        <div>${escapeHtml(printTime)}</div>
+        <div class="page-header__center">拣货单详情</div>
+        <div class="page-header__right">打印时间： ${escapeHtml(printTime)}</div>
+      </div>
+      <h1>拣货单</h1>
+      <h2>订单明细</h2>
+      <div class="metrics">
+        <div>货号数量: ${escapeHtml(summaryItems.length)}</div>
+        <div>订单数量: ${escapeHtml(orders.length)}</div>
+        <div>总数量: ${escapeHtml(totalQuantity)}</div>
+      </div>
+      <div class="shop-name">店铺：${escapeHtml(shopName)}</div>
       <table>
-        <tbody>${summaryRows}</tbody>
+        <tbody>${detailRows}</tbody>
       </table>
-    </div>
-    <div class="page-footer">
-      <div>${escapeHtml(sourceUrl)}</div>
-      <div>1/1</div>
-    </div>
+      <div class="summary-section">
+        <h2>汇总信息</h2>
+        <table>
+          <tbody>${summaryRows}</tbody>
+        </table>
+      </div>
+      <div class="page-footer">
+        <div>${escapeHtml(sourceUrl)}</div>
+        <div>1/1</div>
+      </div>
+    </main>
   </body>
 </html>`;
     try {
