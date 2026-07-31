@@ -100,8 +100,8 @@ export default function CreateOrderModal({
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item label="单价（元/件）" name="unitPrice">
-              <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="可选，不填按 0 处理" />
+            <Form.Item label="单价（元/件）" name="unitPrice" rules={[{ required: true, message: '请输入单价' }]}>
+              <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="请输入单价" />
             </Form.Item>
           </Col>
           <Col span={6}>

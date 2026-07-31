@@ -672,6 +672,9 @@ const FactoryOrders = () => {
         styleDetailApi.fetchMaterials(String(styleId)),
       ]);
       const lineGroups = (detail.lines ?? []).filter((line) => Number(line.orderedQty ?? 0) > 0);
+      const orderUnitPrice = lineGroups
+        .map((line) => line.unitPrice)
+        .find((value): value is number => typeof value === 'number' && Number.isFinite(value));
       const colors = sortColorValues(lineGroups.map((line) => normalizeSpecLabel(line.color)));
       const sizes = sortSizeValues(lineGroups.map((line) => normalizeSpecLabel(line.size)));
       const nextMatrix = buildCreateMatrix(colors, sizes);
@@ -704,6 +707,7 @@ const FactoryOrders = () => {
         orderNo: order.orderNo,
         styleId,
         expectedDelivery: order.expectedDelivery ? dayjs(order.expectedDelivery) : undefined,
+        unitPrice: orderUnitPrice,
         factoryId: order.factoryId,
         merchandiserId: order.merchandiserId,
         overallStatus: order.status === 'COMPLETED' ? 'completed' : 'unfinished',
@@ -1789,12 +1793,18 @@ const FactoryOrders = () => {
                 merchandiserId: item.merchandiserId ? Number(item.merchandiserId) : undefined,
                 factoryId: item.factoryId ? Number(item.factoryId) : undefined,
                 totalQuantity: Number(item.totalQuantity ?? 0),
+                unitPrice: Number(item.unitPrice),
                 expectedDelivery: item.expectedDelivery,
                 status: item.status,
                 materialStatus: item.materialStatus,
                 remarks: item.remarks,
               }))
-              .filter((record) => record.orderNo && Number.isFinite(record.styleId) && Number.isFinite(record.totalQuantity) && record.totalQuantity > 0)
+              .filter((record) => record.orderNo
+                && Number.isFinite(record.styleId)
+                && Number.isFinite(record.totalQuantity)
+                && record.totalQuantity > 0
+                && Number.isFinite(record.unitPrice)
+                && record.unitPrice >= 0)
           : [];
         if (!normalized.length) {
           throw new Error('文件内容为空或格式不正确');

@@ -47,6 +47,7 @@ export type FactoryOrderImportRecord = {
   merchandiserId?: number;
   factoryId?: number;
   totalQuantity: number;
+  unitPrice: number;
   expectedDelivery?: string;
   status?: string;
   materialStatus?: string;
@@ -122,6 +123,7 @@ export type FactoryOrderDetailLine = {
   size?: string;
   orderedQty?: number;
   completedQuantity?: number;
+  unitPrice?: number;
 };
 
 export type FactoryOrderDetail = {
@@ -149,6 +151,7 @@ type BackendFactoryOrderDetailLine = {
   orderedQty?: number;
   completedQty?: number;
   completedQuantity?: number;
+  unitPrice?: string | number;
 };
 
 type BackendFactoryOrderDetail = {
@@ -446,6 +449,7 @@ const adaptDetailLine = (line: BackendFactoryOrderDetailLine): FactoryOrderDetai
   size: line.size,
   orderedQty: line.orderedQty ?? 0,
   completedQuantity: line.completedQuantity ?? line.completedQty ?? 0,
+  unitPrice: line.unitPrice === undefined || line.unitPrice === null ? undefined : parseAmount(line.unitPrice),
 });
 
 const adaptDetail = (payload: BackendFactoryOrderDetail): FactoryOrderDetail => ({
@@ -615,6 +619,7 @@ export const factoryOrdersApi = {
         merchandiserId: order.merchandiserId ? Number(order.merchandiserId) : undefined,
         factoryId: order.factoryId ? Number(order.factoryId) : undefined,
         totalQuantity: Number(order.totalQuantity),
+        unitPrice: Number(order.unitPrice),
         expectedDelivery: order.expectedDelivery,
         status: order.status,
         materialStatus: normalizeMaterialStatus(order.materialStatus),
@@ -688,7 +693,6 @@ export const factoryOrdersApi = {
       expectedDelivery: payload.expectedDelivery,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),
-      totalAmount: 0,
       completedQuantity: 0,
       merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
       factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,
@@ -734,7 +738,6 @@ export const factoryOrdersApi = {
       expectedDelivery: payload.expectedDelivery,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),
-      totalAmount: 0,
       completedQuantity: 0,
       merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
       factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,

@@ -18,6 +18,7 @@ export type ImportRecord = {
   merchandiserId?: number;
   factoryId?: number;
   totalQuantity: number;
+  unitPrice: number;
   expectedDelivery?: string;
   status?: string;
   materialStatus?: string;

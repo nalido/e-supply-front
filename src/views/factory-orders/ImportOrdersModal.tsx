@@ -36,7 +36,7 @@ export default function ImportOrdersModal({ state, onCancel, onOk, onBeforeUploa
           <ImportOutlined />
         </p>
         <p className="ant-upload-text">点击或拖拽 JSON 文件到此处完成导入</p>
-        <p className="ant-upload-hint">支持字段：orderNo、styleId、merchandiserId、factoryId、totalQuantity、expectedDelivery、status、materialStatus、remarks</p>
+        <p className="ant-upload-hint">支持字段：orderNo、styleId、merchandiserId、factoryId、totalQuantity、unitPrice、expectedDelivery、status、materialStatus、remarks</p>
       </Upload.Dragger>
       {state.error ? <Alert type="error" showIcon style={{ marginTop: 16 }} message={state.error} /> : null}
       {state.records.length ? (
@@ -51,6 +51,11 @@ export default function ImportOrdersModal({ state, onCancel, onOk, onBeforeUploa
             { title: '订单号', dataIndex: 'orderNo' },
             { title: '款式 ID', dataIndex: 'styleId' },
             { title: '数量', dataIndex: 'totalQuantity' },
+            {
+              title: '单价',
+              dataIndex: 'unitPrice',
+              render: (value: number) => `¥${Number(value ?? 0).toFixed(2)}`,
+            },
             { title: '预计交期', dataIndex: 'expectedDelivery' },
             { title: '状态', dataIndex: 'status' },
             { title: '物料状态', dataIndex: 'materialStatus' },
