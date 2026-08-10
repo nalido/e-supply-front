@@ -12,6 +12,7 @@ import type {
   StockingReceiptRecord,
   StockingReceiptListResponse,
   StockingPurchaseOrderDetail,
+  StockingPurchaseBatchUpdatePayload,
 } from '../types/stocking-purchase-inbound';
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
@@ -143,6 +144,7 @@ export const stockingPurchaseInboundService = {
         expectedArrival: payload.expectedArrival,
         remarks: payload.remark,
         lines: payload.lines.map((line) => ({
+          lineId: line.lineId ? Number(line.lineId) : undefined,
           materialId: Number(line.materialId),
           orderQty: line.quantity,
           color: line.color,
@@ -150,6 +152,38 @@ export const stockingPurchaseInboundService = {
           unit: line.unit,
           unitPrice: line.unitPrice,
           remark: line.remark,
+        })),
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
+  async batchUpdateOrders(payload: StockingPurchaseBatchUpdatePayload): Promise<{ success: boolean; processedCount?: number }> {
+    const tenantId = requireTenantId();
+    const response = await http.post<{ success: boolean; processedCount?: number }>(
+      '/api/v1/procurement/stocking/orders/batch-update',
+      {
+        orders: payload.orders.map((item) => ({
+          orderId: Number(item.orderId),
+          order: {
+            type: 'STOCKING',
+            supplierId: Number(item.order.supplierId),
+            warehouseId: Number(item.order.warehouseId),
+            orderDate: item.order.orderDate,
+            expectedArrival: item.order.expectedArrival,
+            remarks: item.order.remark,
+            lines: item.order.lines.map((line) => ({
+              lineId: line.lineId ? Number(line.lineId) : undefined,
+              materialId: Number(line.materialId),
+              orderQty: line.quantity,
+              color: line.color,
+              size: line.specification,
+              unit: line.unit,
+              unitPrice: line.unitPrice,
+              remark: line.remark,
+            })),
+          },
         })),
       },
       { params: { tenantId } },

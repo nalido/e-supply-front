@@ -98,6 +98,106 @@
   padding-inline: clamp(28px, 3vw, 44px);
 }
 
+.stocking-purchase-batch-edit-modal .ant-modal-content {
+  padding: 14px 16px 12px;
+}
+
+.stocking-purchase-batch-edit-modal .ant-modal-header {
+  margin-bottom: 10px;
+}
+
+.stocking-purchase-batch-edit-modal .ant-modal-footer {
+  margin-top: 10px;
+}
+
+.stocking-purchase-batch-edit__alert {
+  margin-bottom: 8px;
+  padding-block: 5px;
+}
+
+.stocking-purchase-batch-edit__table .ant-table-thead > tr > th,
+.stocking-purchase-batch-edit__table .ant-table-tbody > tr > td {
+  font-size: 12px;
+}
+
+.stocking-purchase-batch-edit__table .ant-table-thead > tr > th {
+  height: 32px;
+  padding: 0 6px !important;
+}
+
+.stocking-purchase-batch-edit__table .ant-table-tbody > tr > td {
+  height: 36px;
+  padding: 0 !important;
+}
+
+.stocking-purchase-batch-edit__table .ant-table-thead > tr > th {
+  white-space: nowrap;
+}
+
+.stocking-purchase-batch-edit__table .ant-input-number,
+.stocking-purchase-batch-edit__table .ant-picker {
+  width: 100%;
+}
+
+.stocking-purchase-batch-edit__table .oc-excel-cell-input.ant-input-number .ant-input-number-input,
+.stocking-purchase-batch-edit__table .oc-excel-cell-input.ant-input-number-affix-wrapper,
+.stocking-purchase-batch-edit__table .oc-excel-cell-input.ant-input-number-affix-wrapper .ant-input-number,
+.stocking-purchase-batch-edit__table .oc-excel-cell-input.ant-input-number-affix-wrapper .ant-input-number-input,
+.stocking-purchase-batch-edit__table .oc-excel-cell-input.ant-input-number-group-wrapper .ant-input-number-input,
+.stocking-purchase-batch-edit__table .oc-excel-cell-select.ant-select-single .ant-select-selector,
+.stocking-purchase-batch-edit__table .oc-excel-cell-text-input.ant-input,
+.stocking-purchase-batch-edit__table .oc-excel-cell-picker.ant-picker {
+  min-height: 34px;
+  height: 34px;
+}
+
+.oc-excel-cell-picker.ant-picker {
+  padding-inline: 8px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.oc-excel-cell-picker.ant-picker:hover,
+.oc-excel-cell-picker.ant-picker-focused {
+  border: 0;
+  box-shadow: none;
+}
+
+.stocking-purchase-batch-edit__status {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.stocking-purchase-quantity-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stocking-purchase-quantity-cell__error {
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.stocking-purchase-quantity-cell .ant-input-number-group-addon {
+  padding-inline: 6px 0;
+  border: 0 !important;
+  border-inline: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
+.stocking-purchase-quantity-cell .ant-input-number-status-error + .ant-input-number-group-addon,
+.stocking-purchase-quantity-cell .ant-input-number-group-addon:last-child {
+  border: 0 !important;
+}
+
 .oc-excel-entry-table .ant-table {
   border-radius: 0;
 }
@@ -223,6 +323,8 @@
 }
 
 .oc-excel-cell-input.ant-input-number,
+.oc-excel-cell-input.ant-input-number-affix-wrapper,
+.oc-excel-cell-input.ant-input-number-affix-wrapper .ant-input-number,
 .oc-excel-cell-input.ant-input-number-group-wrapper .ant-input-number {
   border: 0;
   border-radius: 0;
@@ -233,6 +335,11 @@
 .oc-excel-cell-input.ant-input-number:hover,
 .oc-excel-cell-input.ant-input-number-focused,
 .oc-excel-cell-input.ant-input-number:focus-within,
+.oc-excel-cell-input.ant-input-number-affix-wrapper:hover,
+.oc-excel-cell-input.ant-input-number-affix-wrapper:focus-within,
+.oc-excel-cell-input.ant-input-number-affix-wrapper-focused,
+.oc-excel-cell-input.ant-input-number-affix-wrapper:hover .ant-input-number,
+.oc-excel-cell-input.ant-input-number-affix-wrapper:focus-within .ant-input-number,
 .oc-excel-cell-input.ant-input-number-group-wrapper:hover .ant-input-number,
 .oc-excel-cell-input.ant-input-number-group-wrapper:focus-within .ant-input-number,
 .oc-excel-cell-input.ant-input-number-group-wrapper .ant-input-number-focused {
@@ -241,11 +348,18 @@
 }
 
 .oc-excel-cell-input.ant-input-number .ant-input-number-input,
+.oc-excel-cell-input.ant-input-number-affix-wrapper .ant-input-number-input,
 .oc-excel-cell-input.ant-input-number-group-wrapper .ant-input-number-input {
   height: 40px;
   padding: 0 10px;
   text-align: center;
   background: transparent;
+}
+
+.oc-excel-cell-input.ant-input-number-affix-wrapper .ant-input-number-prefix {
+  margin-inline-end: 0;
+  padding-inline-start: 8px;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
 }
 
 .oc-excel-cell-input.ant-input-number .ant-input-number-group-addon,

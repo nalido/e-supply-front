@@ -24,6 +24,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   CloudUploadOutlined,
   DownloadOutlined,
+  EditOutlined,
   InboxOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -31,6 +32,7 @@ import {
 } from '@ant-design/icons';
 import { stockingPurchaseInboundService } from '../api/procurement';
 import StockingPurchaseCreateModal from '../components/procurement/StockingPurchaseCreateModal';
+import StockingPurchaseBatchEditModal from '../components/procurement/StockingPurchaseBatchEditModal';
 import type {
   StockingPurchaseListParams,
   StockingPurchaseMeta,
@@ -161,6 +163,7 @@ const StockingPurchaseInbound = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [createModalOpen, setCreateModalOpen] = useState(searchParams.get('openCreate') === 'true');
   const [editingOrder, setEditingOrder] = useState<StockingPurchaseOrderDetail | null>(null);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({
     open: false,
@@ -435,6 +438,20 @@ const StockingPurchaseInbound = () => {
     });
     return Array.from(uniqueIds);
   }, [records, selectedRowKeys]);
+
+  const handleBatchEdit = () => {
+    const selectedRecords = records.filter((record) => selectedRowKeys.includes(record.id));
+    if (!selectedRecords.length) {
+      message.warning('请先选择需要修改的备料采购单');
+      return;
+    }
+    const locked = selectedRecords.find((record) => record.status === 'completed' || record.status === 'void');
+    if (locked) {
+      message.warning(`采购单 ${locked.purchaseOrderNo} 已完成或已作废，不能参与批量修改`);
+      return;
+    }
+    setBatchEditOpen(true);
+  };
 
   const handleBatchReceive = () => {
     if (!selectedRowKeys.length) {
@@ -922,6 +939,7 @@ const StockingPurchaseInbound = () => {
             left={
               <div className="oc-toolbar-cluster">
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>备料采购</Button>
+                <Button icon={<EditOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchEdit}>批量修改</Button>
                 <Button icon={<InboxOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchReceive}>批量收料</Button>
                 <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('completed')}>设置完成</Button>
                 <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('void')}>设置作废</Button>
@@ -1015,6 +1033,18 @@ const StockingPurchaseInbound = () => {
             message.success(`已更新采购单 ${detail.orderNo}`);
             setEditingOrder(null);
             setCreateModalOpen(false);
+            void loadList();
+          }}
+        />
+        <StockingPurchaseBatchEditModal
+          open={batchEditOpen}
+          orderIds={collectSelectedOrderIds()}
+          lineIds={selectedRowKeys.map(String)}
+          materialType={materialType}
+          onClose={() => setBatchEditOpen(false)}
+          onSaved={() => {
+            setBatchEditOpen(false);
+            setSelectedRowKeys([]);
             void loadList();
           }}
         />

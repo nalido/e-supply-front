@@ -38,6 +38,8 @@ const { Text } = Typography;
 
 type SelectedMaterialRow = {
   rowId: string;
+  lineId?: string;
+  actualReceivedQty?: number;
   material?: MaterialItem;
 };
 
@@ -155,7 +157,9 @@ const StockingPurchaseCreateModal = ({
   const pendingFocusRowId = useRef<string | null>(null);
   const isEditMode = mode === 'edit';
   const isRemarkOnly = initialOrder?.editableScope === 'remark_only';
-  const lockNonRemarkFields = isEditMode && isRemarkOnly;
+  const isQuantityAndRemark = initialOrder?.editableScope === 'quantity_and_remark';
+  const lockNonRemarkFields = isEditMode && (isRemarkOnly || isQuantityAndRemark);
+  const lockQuantity = isEditMode && isRemarkOnly;
 
   useEffect(() => {
     if (!open || typeof window === 'undefined') {
@@ -345,7 +349,11 @@ const StockingPurchaseCreateModal = ({
           const response = await materialApi.list({ page: 1, pageSize: DEFAULT_PAGE_SIZE, materialType, keyword: materialKeyword });
           const matchedMaterial = response.list.find((item) => item.id === line.materialId) ?? response.list.find((item) => item.sku === line.materialCode) ?? response.list.find((item) => item.name === line.materialName) ?? response.list[0];
           if (!matchedMaterial) continue;
-          const row = buildSelectedMaterialRow(matchedMaterial);
+          const row = {
+            ...buildSelectedMaterialRow(matchedMaterial),
+            lineId: line.lineId,
+            actualReceivedQty: Number(line.actualReceivedQty ?? 0),
+          };
           matchedMaterials.push(row);
           nextQuantities[row.rowId] = Number(line.quantity ?? 0);
           nextColors[row.rowId] = line.color;
@@ -713,6 +721,7 @@ const StockingPurchaseCreateModal = ({
               allowClear
               placeholder="请选择颜色"
               value={selectedColors[record.rowId]}
+              disabled={lockNonRemarkFields}
               onChange={(value) => handleColorChange(record.rowId, value)}
               options={colorOptions}
             />
@@ -741,6 +750,7 @@ const StockingPurchaseCreateModal = ({
               allowClear
               placeholder="请选择规格"
               value={selectedSpecifications[record.rowId]}
+              disabled={lockNonRemarkFields}
               onChange={(value) => handleSpecificationChange(record.rowId, value)}
               options={specificationOptions}
             />
@@ -760,24 +770,35 @@ const StockingPurchaseCreateModal = ({
                 min={0}
                 precision={2}
                 controls={false}
-                disabled={lockNonRemarkFields}
+                disabled={lockQuantity}
                 value={bulkQuantityValue}
                 onChange={setBulkQuantityValue}
                 placeholder="批量采购数量"
               />
             );
           }
+          const actualReceivedQty = Number(record.actualReceivedQty ?? 0);
+          const quantity = Number(quantities[record.rowId] ?? 0);
+          const quantityInvalid = isQuantityAndRemark && quantity < actualReceivedQty;
           return (
-            <InputNumber
-              className="oc-excel-cell-input"
-              min={0}
-              precision={2}
-              controls={false}
-              disabled={lockNonRemarkFields || !record.material}
-              value={quantities[record.rowId] ?? 0}
-              onChange={(val) => handleQuantityChange(record.rowId, val)}
-              addonAfter={record.material?.unit ?? ''}
-            />
+            <div className="stocking-purchase-quantity-cell">
+              <InputNumber
+                className="oc-excel-cell-input"
+                min={0}
+                precision={2}
+                controls={false}
+                status={quantityInvalid ? 'error' : undefined}
+                disabled={lockQuantity || !record.material}
+                value={quantities[record.rowId] ?? 0}
+                onChange={(val) => handleQuantityChange(record.rowId, val)}
+                addonAfter={record.material?.unit ?? ''}
+              />
+              {quantityInvalid ? (
+                <Text type="danger" className="stocking-purchase-quantity-cell__error">
+                  不能小于累计实收 {actualReceivedQty}
+                </Text>
+              ) : null}
+            </div>
           );
         },
       },
@@ -838,7 +859,7 @@ const StockingPurchaseCreateModal = ({
             <Input
               className="oc-excel-cell-text-input"
               placeholder="备注"
-              disabled={lockNonRemarkFields || !record.material}
+              disabled={!record.material}
               value={lineRemarks[record.rowId]}
               onChange={(event) => handleLineRemarkChange(record.rowId, event.target.value)}
             />
@@ -897,6 +918,7 @@ const StockingPurchaseCreateModal = ({
       lineRemarks,
       loadMaterialOptions,
       lockNonRemarkFields,
+      lockQuantity,
       materialType,
       materialOptions.length,
       materialOptionsLoading,
@@ -948,8 +970,19 @@ const StockingPurchaseCreateModal = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      if (isQuantityAndRemark && initialOrder) {
+        const invalidRow = selectedMaterials.find((item) => {
+          const quantity = Number(quantities[item.rowId] ?? 0);
+          return quantity < Number(item.actualReceivedQty ?? 0);
+        });
+        if (invalidRow) {
+          message.warning('请先修正标红的采购数量');
+          return;
+        }
+      }
       const selectedLines = isRemarkOnly && initialOrder
         ? initialOrder.lines.map((line) => ({
+            lineId: line.lineId,
             materialId: line.materialId,
             quantity: Number(line.quantity ?? 0),
             unit: line.unit,
@@ -962,6 +995,7 @@ const StockingPurchaseCreateModal = ({
         : selectedMaterials
             .filter((item): item is SelectedMaterialRow & { material: MaterialItem } => Boolean(item.material))
             .map((item) => ({
+              lineId: item.lineId,
               materialId: item.material.id,
               quantity: quantities[item.rowId] ?? 0,
               unit: item.material.unit,
@@ -993,6 +1027,7 @@ const StockingPurchaseCreateModal = ({
         expectedArrival: values.expectedArrival?.format('YYYY-MM-DD'),
         remark: values.remark,
         lines: selectedLines.map((line) => ({
+          lineId: line.lineId,
           materialId: line.materialId,
           quantity: line.quantity,
           unit: line.unit,
@@ -1038,7 +1073,14 @@ const StockingPurchaseCreateModal = ({
           <Alert
             type="warning"
             showIcon
-            message="该采购单已有收料记录，当前仅允许修改备注。"
+            message="该采购单已完成，当前仅允许修改备注。"
+          />
+        ) : null}
+        {isQuantityAndRemark ? (
+          <Alert
+            type="info"
+            showIcon
+            message="该采购单正在收料，可修改采购数量和备注；采购数量不能低于累计实收数量。"
           />
         ) : null}
         <Form
