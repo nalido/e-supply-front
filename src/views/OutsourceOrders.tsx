@@ -455,9 +455,17 @@ const OutsourceOrders = () => {
         <Form form={receiptForm} layout="vertical" preserve={false}>
           <Form.Item label="本次合格接收数量">
             <OutsourcingReceiptItemsMatrix
-              plan={receiptPlan}
-              qtyMap={receiptQtyMap}
-              onChange={(lineId, value) => {
+              metric="good"
+              editable
+              items={(receiptPlan?.items ?? []).map((item) => ({
+                id: item.productionOrderLineId,
+                color: item.color,
+                size: item.size,
+                goodQty: receiptQtyMap[item.productionOrderLineId],
+                maxQty: item.pendingQty,
+              }))}
+              emptyDescription="暂无可接收的颜色尺码明细"
+              onChange={(lineId, _metric, value) => {
                 setReceiptQtyMap((prev) => ({
                   ...prev,
                   [lineId]: value,

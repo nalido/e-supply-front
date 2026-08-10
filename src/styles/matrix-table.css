@@ -4,6 +4,16 @@
   border-radius: 8px;
 }
 
+.outsourcing-receipt-matrix-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--ant-color-border, #d9d9d9); border-radius: 8px; }
+.outsourcing-receipt-matrix-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+.outsourcing-receipt-matrix-table th, .outsourcing-receipt-matrix-table td { min-width: 92px; height: 42px; padding: 8px; border-right: 1px solid var(--ant-color-border-secondary, #f0f0f0); border-bottom: 1px solid var(--ant-color-border-secondary, #f0f0f0); text-align: center; }
+.outsourcing-receipt-matrix-table th:first-child { min-width: 120px; text-align: left; }
+.outsourcing-receipt-matrix-table thead th, .outsourcing-receipt-matrix-table tfoot th, .outsourcing-receipt-matrix-table tfoot td { background: var(--ant-color-fill-quaternary, #fafafa); font-weight: 600; }
+.outsourcing-receipt-matrix-total { font-weight: 600; }
+.outsourcing-receipt-matrix-grand-total { color: var(--ant-color-primary, #1677ff); font-weight: 700; }
+.outsourcing-receipt-matrix-input.ant-input-number { width: 100%; border: 0; box-shadow: none; background: transparent; }
+.outsourcing-receipt-matrix-input .ant-input-number-input { padding: 0; text-align: center; }
+
 .factory-create-matrix-table {
   width: 100%;
   table-layout: fixed;

@@ -60,12 +60,15 @@ export interface OutsourcingReceivePayload {
   reworkQty?: number;
   receivedAt: string;
   remark?: string;
+  clientRequestId: string;
   items: OutsourcingReceiveItemPayload[];
 }
 
 export interface OutsourcingReceiveItemPayload {
   productionOrderLineId: string;
-  receivedQty: number;
+  goodQty: number;
+  defectQty: number;
+  reworkQty: number;
 }
 
 export interface OutsourcingReceiptPlanItem {
@@ -138,6 +141,9 @@ export interface OutsourcingOrderSpecItem {
   receivedQty: number;
   pendingQty?: number;
   quantity?: number;
+  goodQty?: number;
+  defectQty?: number;
+  reworkQty?: number;
 }
 
 export interface OutsourcingOrderReceipt {
@@ -148,6 +154,7 @@ export interface OutsourcingOrderReceipt {
   goodQty: number;
   receivedAt?: string;
   remark?: string;
+  breakdownAvailability: 'COMPLETE' | 'GOOD_ONLY' | 'UNAVAILABLE';
   items: OutsourcingOrderSpecItem[];
 }
 

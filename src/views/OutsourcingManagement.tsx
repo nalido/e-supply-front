@@ -7,6 +7,7 @@ import type { Dayjs } from 'dayjs';
 import ListImage from '../components/common/ListImage';
 import {
   Button,
+  Alert,
   Card,
   Descriptions,
   Drawer,
@@ -31,6 +32,7 @@ import { DownloadOutlined, MoreOutlined, PlusOutlined, SearchOutlined } from '@a
 import dayjs from 'dayjs';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
 import OutsourcingReceiptItemsMatrix from '../components/OutsourcingReceiptItemsMatrix';
+import type { OutsourcingReceiptMatrixItem, OutsourcingReceiptMetric } from '../components/OutsourcingReceiptItemsMatrix';
 import type {
   OutsourcingManagementListItem,
   OutsourcingManagementListParams,
@@ -75,24 +77,6 @@ const formatQuantity = (value: number): string => QUANTITY_FORMATTER.format(valu
 const formatPercent = (value: number): string => PERCENT_FORMATTER.format(value ?? 0);
 const formatDateTime = (value?: string): string =>
   value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-';
-
-const renderSpecSummary = (
-  items: Array<{ color?: string; size?: string; plannedQty?: number; receivedQty?: number; pendingQty?: number; quantity?: number }>,
-  quantityKey: 'plannedQty' | 'quantity' = 'plannedQty',
-) => {
-  if (!items.length) {
-    return <Text type="secondary">-</Text>;
-  }
-  return (
-    <Space direction="vertical" size={4}>
-      {items.map((item, index) => (
-        <Text key={`${item.color ?? '-'}-${item.size ?? '-'}-${index}`}>
-          {`${item.color ?? '-'} / ${item.size ?? '-'}：${formatQuantity(Number(item[quantityKey] ?? 0))}`}
-        </Text>
-      ))}
-    </Space>
-  );
-};
 
 const buildDateParams = (
   range: RangeValue<Dayjs>,
@@ -164,7 +148,9 @@ const OutsourcingManagement = () => {
   }>({ visible: false });
   const [submittingReceive, setSubmittingReceive] = useState(false);
   const [receivePlan, setReceivePlan] = useState<OutsourcingReceiptPlan | null>(null);
-  const [receiveQtyMap, setReceiveQtyMap] = useState<Record<string, number | null>>({});
+  const [receiveMatrixItems, setReceiveMatrixItems] = useState<OutsourcingReceiptMatrixItem[]>([]);
+  const [receiveMetric, setReceiveMetric] = useState<OutsourcingReceiptMetric>('good');
+  const [receiveRequestId, setReceiveRequestId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [receiveForm] = Form.useForm();
   const [createForm] = Form.useForm<OutsourcingCreateForm>();
@@ -205,6 +191,7 @@ const OutsourcingManagement = () => {
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [orderDetail, setOrderDetail] = useState<OutsourcingOrderDetail | null>(null);
+  const [expandedReceipt, setExpandedReceipt] = useState<{ id: string; metric: OutsourcingReceiptMetric } | null>(null);
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -351,33 +338,36 @@ const OutsourcingManagement = () => {
     }
     try {
       const values = await receiveForm.validateFields();
-      const items = Object.entries(receiveQtyMap)
-        .map(([productionOrderLineId, receivedQty]) => ({
-          productionOrderLineId,
-          receivedQty: Math.max(0, Math.round(Number(receivedQty) || 0)),
-        }))
-        .filter((item) => item.receivedQty > 0);
-      const goodQty = items.reduce((sum, item) => sum + item.receivedQty, 0);
-      if (goodQty <= 0) {
-        message.warning('请至少填写一个颜色尺码的接收数量');
+      const items = receiveMatrixItems.map((item) => ({
+        productionOrderLineId: item.id,
+        goodQty: Number(item.goodQty ?? 0),
+        defectQty: Number(item.defectQty ?? 0),
+        reworkQty: Number(item.reworkQty ?? 0),
+      })).filter((item) => item.goodQty + item.defectQty + item.reworkQty > 0);
+      const goodQty = items.reduce((sum, item) => sum + item.goodQty, 0);
+      const defectQty = items.reduce((sum, item) => sum + item.defectQty, 0);
+      const reworkQty = items.reduce((sum, item) => sum + item.reworkQty, 0);
+      if (goodQty + defectQty + reworkQty <= 0) {
+        message.warning('请至少填写一个颜色尺码的数量');
         return;
       }
       setSubmittingReceive(true);
       await outsourcingManagementApi.confirmReceive({
         orderId: receiveModalState.record.id,
-        receivedQty: goodQty + Number(values.defectQty ?? 0) + Number(values.reworkQty ?? 0),
-        defectQty: Number(values.defectQty ?? 0),
-        reworkQty: Number(values.reworkQty ?? 0),
+        receivedQty: goodQty + defectQty + reworkQty,
+        defectQty,
+        reworkQty,
         receivedAt:
           values.receivedAt?.format('YYYY-MM-DDTHH:mm:ss') ??
           dayjs().format('YYYY-MM-DDTHH:mm:ss'),
         remark: values.remark?.trim() || undefined,
+        clientRequestId: receiveRequestId,
         items,
       });
       message.success('已提交接收记录');
       setReceiveModalState({ visible: false });
       setReceivePlan(null);
-      setReceiveQtyMap({});
+      setReceiveMatrixItems([]);
       receiveForm.resetFields();
       void loadList();
     } catch (error: unknown) {
@@ -394,24 +384,30 @@ const OutsourcingManagement = () => {
   const handleReceiveCancel = () => {
     setReceiveModalState({ visible: false });
     setReceivePlan(null);
-    setReceiveQtyMap({});
+    setReceiveMatrixItems([]);
     receiveForm.resetFields();
   };
 
   const handleConfirmReceive = useCallback((record: OutsourcingManagementListItem) => {
     setReceiveModalState({ visible: true, record });
+    setReceiveRequestId(globalThis.crypto.randomUUID());
     receiveForm.setFieldsValue({
-      defectQty: 0,
-      reworkQty: 0,
       receivedAt: dayjs(),
       remark: '',
     });
     void outsourcingManagementApi.getReceiptPlan(record.id)
       .then((plan) => {
         setReceivePlan(plan);
-        setReceiveQtyMap(
-          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, null])),
-        );
+        setReceiveMetric('good');
+        setReceiveMatrixItems(plan.items.map((item) => ({
+          id: item.productionOrderLineId,
+          color: item.color,
+          size: item.size,
+          goodQty: 0,
+          defectQty: 0,
+          reworkQty: 0,
+          maxQty: item.pendingQty,
+        })));
       })
       .catch((error) => {
         console.error('failed to load outsourcing receipt plan', error);
@@ -438,6 +434,7 @@ const OutsourcingManagement = () => {
   const handleDetailClose = () => {
     setDetailDrawerOpen(false);
     setOrderDetail(null);
+    setExpandedReceipt(null);
     if (searchParams.get('openDetail') === '1') {
       const next = new URLSearchParams(searchParams);
       next.delete('openDetail');
@@ -749,7 +746,25 @@ const OutsourcingManagement = () => {
   );
 
   const receiptColumns = useMemo<ColumnsType<OutsourcingOrderReceipt>>(
-    () => [
+    () => {
+      const quantityCell = (record: OutsourcingOrderReceipt, metric: OutsourcingReceiptMetric, value: number, label: string) => (
+        <Button
+          type="link"
+          size="small"
+          aria-label={`查看${label}颜色尺码明细`}
+          aria-expanded={expandedReceipt?.id === record.id && expandedReceipt.metric === metric}
+          onClick={() => setExpandedReceipt((current) => current?.id === record.id && current.metric === metric ? null : { id: record.id, metric })}
+        >
+          {formatQuantity(value)}
+        </Button>
+      );
+      return [
+      {
+        title: '加工厂',
+        key: 'processorName',
+        width: 140,
+        render: () => orderDetail?.processorName ?? '-',
+      },
       {
         title: '接收时间',
         dataIndex: 'receivedAt',
@@ -757,39 +772,32 @@ const OutsourcingManagement = () => {
         render: (value?: string) => formatDateTime(value),
       },
       {
-        title: '颜色尺码',
-        dataIndex: 'items',
-        key: 'items',
-        width: 240,
-        render: (_value: unknown, record) => renderSpecSummary(record.items, 'quantity'),
-      },
-      {
         title: '接收数量',
         dataIndex: 'receivedQty',
         key: 'receivedQty',
         align: 'right',
-        render: (value: number) => formatQuantity(value),
+        render: (value: number, record) => quantityCell(record, 'received', value, '接收数量'),
       },
       {
         title: '良品',
         dataIndex: 'goodQty',
         key: 'goodQty',
         align: 'right',
-        render: (value: number) => formatQuantity(value),
+        render: (value: number, record) => quantityCell(record, 'good', value, '良品数量'),
       },
       {
         title: '次品',
         dataIndex: 'defectQty',
         key: 'defectQty',
         align: 'right',
-        render: (value: number) => formatQuantity(value),
+        render: (value: number, record) => quantityCell(record, 'defect', value, '次品数量'),
       },
       {
         title: '返工',
         dataIndex: 'reworkQty',
         key: 'reworkQty',
         align: 'right',
-        render: (value: number) => formatQuantity(value),
+        render: (value: number, record) => quantityCell(record, 'rework', value, '返工数量'),
       },
       { title: '备注', dataIndex: 'remark', key: 'remark', render: (value?: string) => value || '-' },
       {
@@ -810,8 +818,8 @@ const OutsourcingManagement = () => {
           </Popconfirm>
         ),
       },
-    ],
-    [handleDeleteReceipt],
+    ];},
+    [expandedReceipt, handleDeleteReceipt, orderDetail?.processorName],
   );
 
   const materialRequestColumns = useMemo<ColumnsType<OutsourcingMaterialRequestRecord>>(
@@ -963,7 +971,7 @@ const OutsourcingManagement = () => {
 
       <Drawer
         title={orderDetail ? `外发单 ${orderDetail.outgoingNo}` : '外发单详情'}
-        width={780}
+        width="min(1080px, 96vw)"
         open={detailDrawerOpen}
         onClose={handleDetailClose}
         destroyOnHidden
@@ -1075,6 +1083,25 @@ const OutsourcingManagement = () => {
                   columns={receiptColumns}
                   pagination={false}
                   size="small"
+                  scroll={{ x: 900 }}
+                  expandable={{
+                    expandedRowKeys: expandedReceipt ? [expandedReceipt.id] : [],
+                    showExpandColumn: false,
+                    expandedRowRender: (receipt) => {
+                      if (!expandedReceipt || expandedReceipt.id !== receipt.id) return null;
+                      const labels: Record<OutsourcingReceiptMetric, string> = { received: '接收数量', good: '良品数量', defect: '次品数量', rework: '返工数量' };
+                      const unavailable = receipt.breakdownAvailability !== 'COMPLETE'
+                        && (expandedReceipt.metric !== 'good' || receipt.breakdownAvailability === 'UNAVAILABLE');
+                      return <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        <Text strong>{labels[expandedReceipt.metric]}明细</Text>
+                        {unavailable ? <Alert type="info" showIcon message={`该批次为早期接收记录，${labels[expandedReceipt.metric]}未按颜色尺码登记；汇总数量仍以表格中的 ${formatQuantity(receipt[expandedReceipt.metric === 'received' ? 'receivedQty' : expandedReceipt.metric === 'defect' ? 'defectQty' : 'reworkQty'])} 件为准。`} /> :
+                          <OutsourcingReceiptItemsMatrix
+                            metric={expandedReceipt.metric}
+                            items={receipt.items.map((item, index) => ({ id: item.productionOrderLineId ?? `${item.color}-${item.size}-${index}`, color: item.color, size: item.size, receivedQty: item.receivedQty, goodQty: item.goodQty ?? item.quantity, defectQty: item.defectQty, reworkQty: item.reworkQty }))}
+                          />}
+                      </Space>;
+                    },
+                  }}
                 />
               </Card>
 
@@ -1101,26 +1128,9 @@ const OutsourcingManagement = () => {
         onOk={handleReceiveSubmit}
         confirmLoading={submittingReceive}
         destroyOnHidden
+        width="min(960px, 96vw)"
       >
         <Form layout="vertical" form={receiveForm} preserve={false}>
-          <Form.Item label="本次合格接收数量">
-            <OutsourcingReceiptItemsMatrix
-              plan={receivePlan}
-              qtyMap={receiveQtyMap}
-              onChange={(lineId, value) => {
-                setReceiveQtyMap((prev) => ({
-                  ...prev,
-                  [lineId]: value,
-                }));
-              }}
-            />
-          </Form.Item>
-          <Form.Item label="不良数量" name="defectQty">
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="返工数量" name="reworkQty">
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
           <Form.Item
             label="接收日期"
             name="receivedAt"
@@ -1131,6 +1141,35 @@ const OutsourcingManagement = () => {
           <Form.Item label="备注" name="remark">
             <Input.TextArea rows={3} maxLength={200} placeholder="可选" />
           </Form.Item>
+          {receivePlan ? <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Table
+              rowKey="key"
+              size="small"
+              pagination={false}
+              dataSource={[{
+                key: 'summary',
+                received: receiveMatrixItems.reduce((sum, item) => sum + Number(item.goodQty ?? 0) + Number(item.defectQty ?? 0) + Number(item.reworkQty ?? 0), 0),
+                good: receiveMatrixItems.reduce((sum, item) => sum + Number(item.goodQty ?? 0), 0),
+                defect: receiveMatrixItems.reduce((sum, item) => sum + Number(item.defectQty ?? 0), 0),
+                rework: receiveMatrixItems.reduce((sum, item) => sum + Number(item.reworkQty ?? 0), 0),
+              }]}
+              columns={([
+                ['received', '接收数量'], ['good', '良品'], ['defect', '次品'], ['rework', '返工'],
+              ] as Array<[OutsourcingReceiptMetric, string]>).map(([metric, title]) => ({ title, dataIndex: metric, align: 'right' as const, render: (value: number) => <Button type="link" size="small" aria-expanded={receiveMetric === metric} onClick={() => setReceiveMetric(metric)}>{formatQuantity(value)}</Button> }))}
+            />
+            <Text strong>{({ received: '接收数量（自动汇总）', good: '良品数量', defect: '次品数量', rework: '返工数量' } as Record<OutsourcingReceiptMetric, string>)[receiveMetric]}</Text>
+            <OutsourcingReceiptItemsMatrix
+              items={receiveMatrixItems.map((item) => ({
+                ...item,
+                maxQty: receiveMetric === 'good' ? item.maxQty : undefined,
+              }))}
+              metric={receiveMetric}
+              editable={receiveMetric !== 'received'}
+              emptyDescription="暂无可接收的颜色尺码"
+              onChange={(itemId, metric, value) => setReceiveMatrixItems((current) => current.map((item) => item.id === itemId ? { ...item, [`${metric}Qty`]: value } : item))}
+            />
+            <Text type="secondary">派工 {formatQuantity(receivePlan.dispatchQty)} 件，已完成良品 {formatQuantity(receivePlan.receivedQty)} 件，待完成 {formatQuantity(receivePlan.pendingQty)} 件</Text>
+          </Space> : <Empty description="正在加载接收明细" />}
         </Form>
       </Modal>
 

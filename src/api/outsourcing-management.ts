@@ -73,11 +73,16 @@ type BackendOutsourcingReceipt = {
   goodQty?: number;
   receivedAt?: string;
   remark?: string;
+  breakdownAvailability?: 'COMPLETE' | 'GOOD_ONLY' | 'UNAVAILABLE';
   items?: Array<{
     productionOrderLineId?: number | string;
     color?: string;
     size?: string;
     quantity?: number;
+    receivedQty?: number;
+    goodQty?: number;
+    defectQty?: number;
+    reworkQty?: number;
   }>;
 };
 
@@ -204,14 +209,18 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
         goodQty: Number(item.goodQty ?? 0),
         receivedAt: item.receivedAt ?? undefined,
         remark: item.remark ?? undefined,
+        breakdownAvailability: item.breakdownAvailability ?? 'GOOD_ONLY',
         items: Array.isArray(item.items)
           ? item.items.map((line) => ({
               productionOrderLineId: line.productionOrderLineId != null ? String(line.productionOrderLineId) : undefined,
               color: line.color ?? '-',
               size: line.size ?? '-',
               plannedQty: 0,
-              receivedQty: 0,
               quantity: Number(line.quantity ?? 0),
+              receivedQty: Number(line.receivedQty ?? line.quantity ?? 0),
+              goodQty: Number(line.goodQty ?? line.quantity ?? 0),
+              defectQty: Number(line.defectQty ?? 0),
+              reworkQty: Number(line.reworkQty ?? 0),
             }))
           : [],
       }))
@@ -272,9 +281,12 @@ export const outsourcingManagementApi = {
         reworkQty: payload.reworkQty ?? 0,
         receivedAt: payload.receivedAt,
         remark: payload.remark,
+        clientRequestId: payload.clientRequestId,
         items: payload.items.map((item) => ({
           productionOrderLineId: Number(item.productionOrderLineId),
-          receivedQty: item.receivedQty,
+          goodQty: item.goodQty,
+          defectQty: item.defectQty,
+          reworkQty: item.reworkQty,
         })),
       },
       { params: { tenantId } },
