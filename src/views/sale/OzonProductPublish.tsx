@@ -10,7 +10,6 @@ import {
   Menu,
   Popconfirm,
   Progress,
-  Segmented,
   Select,
   Space,
   Spin,
@@ -147,13 +146,6 @@ const readRawNumber = (record: SaleProductPublishSourceProduct, ...keys: string[
   return text ? Number(text) : undefined;
 };
 
-const normalizeOfferSegment = (value: string) =>
-  value
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
-
 const getAccountSearchText = (account: SaleChannelAccount) => [
   getSaleChannelAccountDisplayName(account),
   account.accountName,
@@ -260,7 +252,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
   const [accountId, setAccountId] = useState<string>();
   const [targetAccountIds, setTargetAccountIds] = useState<string[]>([]);
   const [targetTagIds, setTargetTagIds] = useState<string[]>([]);
-  const [publishMode, setPublishMode] = useState<PublishMode>('local-reference');
+  const [publishMode] = useState<PublishMode>('ozon-copy');
   const [localProducts, setLocalProducts] = useState<StyleData[]>([]);
   const [referenceProducts, setReferenceProducts] = useState<SaleProductPublishSourceProduct[]>([]);
   const [referenceTotal, setReferenceTotal] = useState(0);
@@ -589,49 +581,31 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
   const createBatch = async () => {
     const channelAccountId = guardedAccountId();
     if (!channelAccountId) return;
-    if (!selectedLocalKeys.length) {
-      setErrorText('请先选择准备铺到 Ozon 的本地商品');
-      return;
-    }
     if (!selectedReference) {
-      setErrorText('请选择一个 Ozon 参考商品，用于套用类目和属性结构');
+      setErrorText('请选择要复用的 Ozon 渠道商品');
       return;
     }
-    if (selectedLocalKeys.length > 10) {
-      setErrorText('单批次最多提交 10 个商品');
-      return;
-    }
-    const selectedLocals = localProducts.filter((item) => selectedLocalKeys.includes(item.id));
     setLoading(true);
     setErrorText(undefined);
     try {
-      const result = await saleApi.createProductPublishBatchFromReference({
+      const result = await saleApi.createProductPublishBatchFromSources({
         channelAccountId,
         targetChannelAccountIds: targetAccountIds.map(Number),
         targetTagIds: targetTagIds.map(Number),
         targetTagNames: selectedTargetTags.map((tag) => tag.tagName),
-        batchName: 'Ozon 铺货批次',
-        offerPrefix,
-        referenceOfferId: selectedReference.offerId || undefined,
-        referenceProductId: selectedReference.productId ? Number(selectedReference.productId) : undefined,
-        products: selectedLocals.map((item) => {
-          const offerSegment = normalizeOfferSegment(item.styleNo || item.id);
-          return {
-            localStyleId: Number(item.id),
-            targetOfferId: `${offerPrefix}-${offerSegment}`,
-            name: item.styleName,
-            primaryImageUrl: item.image,
-            images: item.image ? [item.image] : [],
-          };
-        }),
+        batchName: 'Ozon 商品复制批次',
+        sources: [{
+          sourceOfferId: selectedReference.offerId || undefined,
+          sourceProductId: selectedReference.productId ? Number(selectedReference.productId) : undefined,
+        }],
       });
       setCurrentBatch(result);
       setLatestTask(undefined);
       clearAllDirty();
       setActiveWorkbenchTab('draft');
-      messageApi.success('铺货草稿已生成');
+      messageApi.success('Ozon 商品复制草稿已生成');
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : '铺货草稿生成失败');
+      setErrorText(error instanceof Error ? error.message : 'Ozon 商品复制草稿生成失败');
     } finally {
       setLoading(false);
     }
@@ -1310,7 +1284,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
         {!embedded ? <Header className="opp-header">
           <div>
             <Title level={2} className="scw-page-title">Ozon 铺货中心</Title>
-            <Text type="secondary">从本地商品库生成 Ozon 铺货草稿，参考已上架商品套用类目属性，提交前完成属性、图片、价格和货号体检。</Text>
+            <Text type="secondary">直接复用已适配的 Ozon 渠道商品资料生成目标店铺草稿，提交前可继续调整价格、图片和卖家货号。</Text>
           </div>
           <Space wrap className="opp-header-actions">
             <Button icon={<ShopOutlined />} onClick={() => navigate('/sale/shops')}>店铺管理</Button>
@@ -1321,23 +1295,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
           <Spin spinning={initialLoading || loading}>
             <section className="opp-toolbar">
               <Space wrap size={12}>
-                <Segmented
-                  value={publishMode}
-                  onChange={(value) => {
-                    const nextMode = value as PublishMode;
-                    setPublishMode(nextMode);
-                    setSelectedLocalKeys([]);
-                    setSelectedReferenceKey(undefined);
-                    setSelectedSourceKeys([]);
-	                    if (nextMode === 'ozon-copy') {
-	                      setTargetAccountIds((current) => current.filter((id) => String(id) !== String(accountId)));
-	                    }
-	                  }}
-                  options={[
-                    { label: '本地商品铺货', value: 'local-reference' },
-                    { label: '复制 Ozon 商品', value: 'ozon-copy' },
-                  ]}
-                />
+                <Tag color="blue">Ozon 渠道商品复用</Tag>
                 <label className="opp-toolbar-field">
                   <span>参考店铺</span>
                   <Select

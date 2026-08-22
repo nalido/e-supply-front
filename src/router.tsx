@@ -275,6 +275,7 @@ const router = createBrowserRouter([
       { path: 'dashboard', element: React.createElement(Navigate, { to: '/sale/workbench', replace: true }) },
       { path: 'products/sync', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'products/manage', element: createLazyPageElement(SaleCenterWorkspace) },
+      { path: 'products/style-governance', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'ozon/listing', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'ozon/listing-details', element: createLazyPageElement(SaleCenterWorkspace) },
       { path: 'ozon/inventory', element: createLazyPageElement(SaleCenterWorkspace) },

@@ -712,41 +712,11 @@ export const saleApi = {
     targetTagIds?: number[];
     targetTagNames?: string[];
     batchName?: string;
-    offerPrefix?: string;
-    namePrefix?: string;
     sources: Array<{ sourceProductId?: number; sourceOfferId?: string }>;
   }): Promise<SaleProductPublishBatch> {
     const tenantId = getTenantIdOrThrow();
     const response = await http.post<SaleProductPublishBatch>(
       '/api/v1/sale/product-listings/batches/create-from-sources',
-      payload,
-      { params: { tenantId } },
-    );
-    return response.data;
-  },
-
-  async createProductPublishBatchFromReference(payload: {
-    channelAccountId: number;
-    targetChannelAccountIds?: number[];
-    targetTagIds?: number[];
-    targetTagNames?: string[];
-    batchName?: string;
-    offerPrefix?: string;
-    referenceOfferId?: string;
-    referenceProductId?: number;
-    products: Array<{
-      localStyleId: number;
-      targetOfferId?: string;
-      name?: string;
-      price?: string;
-      currencyCode?: string;
-      primaryImageUrl?: string;
-      images?: string[];
-    }>;
-  }): Promise<SaleProductPublishBatch> {
-    const tenantId = getTenantIdOrThrow();
-    const response = await http.post<SaleProductPublishBatch>(
-      '/api/v1/sale/product-listings/batches/create-from-reference',
       payload,
       { params: { tenantId } },
     );

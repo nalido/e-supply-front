@@ -62,6 +62,7 @@ import OzonPromotions from './OzonPromotions'
 import OzonFbsFulfillmentWorkbench from './OzonFbsFulfillmentWorkbench'
 import SaleOrders from './SaleOrders'
 import SaleProductManagement from './SaleProductManagement'
+import StyleCompatibilityGovernance from './StyleCompatibilityGovernance'
 import type {
   SaleChannelAccount,
   SaleChannelCredential,
@@ -93,6 +94,7 @@ type SectionKey =
   | 'workbench'
   | 'product-sync'
   | 'product-management'
+  | 'style-governance'
   | 'product-publish'
   | 'product-publish-details'
   | 'ozon-inventory'
@@ -240,6 +242,7 @@ const sectionPathMap: Record<SectionKey, string> = {
   workbench: '/sale/workbench',
   'product-sync': '/sale/products/sync',
   'product-management': '/sale/products/manage',
+  'style-governance': '/sale/products/style-governance',
   'product-publish': '/sale/ozon/listing',
   'product-publish-details': '/sale/ozon/listing-details',
   'ozon-inventory': '/sale/ozon/inventory',
@@ -259,6 +262,7 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/dashboard': 'workbench',
   '/sale/products/sync': 'product-sync',
   '/sale/products/manage': 'product-management',
+  '/sale/products/style-governance': 'style-governance',
   '/sale/ozon/listing': 'product-publish',
   '/sale/ozon/listing-details': 'product-publish-details',
   '/sale/ozon/inventory': 'ozon-inventory',
@@ -275,7 +279,7 @@ const pathSectionMap: Record<string, SectionKey> = {
   '/sale/tutorials': 'tutorial-center',
 }
 
-const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-management' || section === 'product-publish' || section === 'product-publish-details' || section === 'product-bindings'
+const isProductSection = (section: SectionKey) => section === 'product-sync' || section === 'product-management' || section === 'style-governance' || section === 'product-publish' || section === 'product-publish-details' || section === 'product-bindings'
 
 const isOzonOperationSection = (section: SectionKey) => section === 'ozon-inventory' || section === 'ozon-promotions'
 
@@ -291,6 +295,7 @@ const navItems = [
     label: '商品中心',
     children: [
       { key: 'product-sync', label: '商品同步' },
+      { key: 'style-governance', label: '款式兼容治理' },
       { key: 'product-bindings', label: '商品绑定' },
       { key: 'product-management', label: '商品管理' },
     ],
@@ -4286,6 +4291,8 @@ const SaleCenterWorkspace = () => {
         return renderProductSync()
       case 'product-management':
         return <SaleProductManagement accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
+      case 'style-governance':
+        return <StyleCompatibilityGovernance accounts={accounts} selectedAccountId={selectedAccountId} onAccountChange={handleAccountChange} />
       case 'product-publish':
         return <OzonProductPublish embedded />
       case 'product-publish-details':
@@ -4316,7 +4323,7 @@ const SaleCenterWorkspace = () => {
   }
 
   const openKeys = useMemo(() => {
-    if (activeSection === 'product-sync' || activeSection === 'product-bindings' || activeSection === 'product-management') return ['product-group']
+    if (activeSection === 'product-sync' || activeSection === 'product-bindings' || activeSection === 'product-management' || activeSection === 'style-governance') return ['product-group']
     if (activeSection === 'product-publish' || activeSection === 'product-publish-details' || activeSection === 'ozon-inventory' || activeSection === 'ozon-promotions') return ['ozon-group']
     if (activeSection.startsWith('order') || activeSection === 'ozon-fbs-fulfillment') return ['order-group']
     if (activeSection.startsWith('sales')) return ['risk-group']
@@ -4368,6 +4375,8 @@ const SaleCenterWorkspace = () => {
                   ? '商品同步'
                   : activeSection === 'product-management'
                     ? '商品管理'
+                  : activeSection === 'style-governance'
+                    ? '款式兼容治理'
                   : activeSection === 'product-publish'
                     ? 'Ozon 铺货中心'
                     : activeSection === 'product-publish-details'
@@ -4398,7 +4407,9 @@ const SaleCenterWorkspace = () => {
                 : activeSection === 'product-sync'
                   ? '同步平台商品并更新本地商品资料。'
                 : activeSection === 'product-management'
-                    ? '集中治理本地同步商品，支持按店铺、平台货号、店铺标签筛选并批量删除本地商品。'
+                    ? '查看各店铺的渠道商品资料及对应工厂款式，支持按店铺、渠道货号和店铺标签筛选。'
+                  : activeSection === 'style-governance'
+                    ? '统一工厂中文生产资料与 Ozon 俄文展示资料，逐款确认颜色和尺码对应关系。'
                   : activeSection === 'product-publish'
                     ? '从本地商品生成 Ozon 铺货草稿，按参考商品动态维护类目属性并提交发品。'
                     : activeSection === 'product-publish-details'
