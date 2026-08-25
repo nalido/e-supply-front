@@ -10,7 +10,7 @@ export const SampleStatus = {
 } as const;
 
 export type SampleStatus = typeof SampleStatus[keyof typeof SampleStatus];
-export type SampleOverallStatus = 'unfinished' | 'completed';
+export type SampleOverallStatus = 'unfinished' | 'completed' | 'cancelled';
 
 export interface SampleProcessOption {
   id: string;

@@ -1244,7 +1244,14 @@ const FactoryOrders = () => {
     const presetStyleId = Number.isFinite(parsedStyleId) && parsedStyleId > 0 ? parsedStyleId : undefined;
     const sampleOrderId = searchParams.get('sampleOrderId');
     const sampleOrderNo = searchParams.get('sampleOrderNo') ?? undefined;
-    setPendingSampleProduceContext(sampleOrderId ? { sampleOrderId, sampleOrderNo } : null);
+    const sampleOrderStatus = searchParams.get('sampleOrderStatus');
+    setPendingSampleProduceContext(sampleOrderId ? {
+      sampleOrderId,
+      sampleOrderNo,
+      sampleOrderStatus: sampleOrderStatus === SampleStatusEnum.COMPLETED
+        ? SampleStatusEnum.COMPLETED
+        : undefined,
+    } : null);
     handleOpenCreate(presetStyleId);
 
     const nextParams = new URLSearchParams(searchParams);
@@ -1252,6 +1259,7 @@ const FactoryOrders = () => {
     nextParams.delete('styleId');
     nextParams.delete('sampleOrderId');
     nextParams.delete('sampleOrderNo');
+    nextParams.delete('sampleOrderStatus');
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams, handleOpenCreate]);
 
@@ -1748,7 +1756,11 @@ const FactoryOrders = () => {
       } else {
         await factoryOrdersApi.createOrder(payload);
       }
-      if (!editingOrderId && pendingSampleProduceContext?.sampleOrderId) {
+      if (
+        !editingOrderId
+        && pendingSampleProduceContext?.sampleOrderId
+        && pendingSampleProduceContext.sampleOrderStatus !== SampleStatusEnum.COMPLETED
+      ) {
         await sampleOrderApi.updateStatus(
           pendingSampleProduceContext.sampleOrderId,
           SampleStatusEnum.PRODUCING,

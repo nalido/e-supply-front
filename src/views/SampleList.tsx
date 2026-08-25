@@ -67,7 +67,7 @@ type StatCardKey = 'total' | 'unfinished' | 'completed' | 'thisMonth' | 'urgent'
 
 type SampleListFilters = {
   keyword: string;
-  overallStatus: SampleOverallStatus;
+  overallStatus?: SampleOverallStatus;
   priority?: SampleOrder['priority'];
   dateRange?: [Dayjs, Dayjs];
 };
@@ -157,14 +157,21 @@ const isOverdueSafe = (deadline?: string): boolean => {
   return parsed.isValid() && parsed.isBefore(dayjs(), 'day');
 };
 
-const isOrderCompleted = (status: SampleStatus): boolean =>
-  status === SampleStatusEnum.COMPLETED || status === SampleStatusEnum.CANCELLED;
+const isOrderCompleted = (status: SampleStatus): boolean => status === SampleStatusEnum.COMPLETED;
 
 const getOverallStatusLabel = (status: SampleStatus): string =>
-  isOrderCompleted(status) ? '已完成' : '未完成';
+  status === SampleStatusEnum.CANCELLED
+    ? '已取消'
+    : isOrderCompleted(status)
+      ? '已完成'
+      : '未完成';
 
 const getOverallStatusColor = (status: SampleStatus): string =>
-  isOrderCompleted(status) ? 'green' : 'blue';
+  status === SampleStatusEnum.CANCELLED
+    ? 'red'
+    : isOrderCompleted(status)
+      ? 'green'
+      : 'blue';
 
 const STAT_CARD_LIST: StatCardConfig[] = [
   {
@@ -174,7 +181,7 @@ const STAT_CARD_LIST: StatCardConfig[] = [
     color: '#1677ff',
     apply: (prev) => ({
       ...prev,
-      overallStatus: 'unfinished',
+      overallStatus: undefined,
       priority: undefined,
       dateRange: undefined,
     }),
@@ -194,7 +201,7 @@ const STAT_CARD_LIST: StatCardConfig[] = [
   {
     key: 'completed',
     title: '已完成',
-    valueGetter: (value) => (value?.completed ?? 0) + (value?.cancelled ?? 0),
+    valueGetter: (value) => value?.completed ?? 0,
     color: '#52c41a',
     apply: (prev) => ({
       ...prev,
@@ -249,6 +256,17 @@ const CARD_MEDIA_STYLE: CSSProperties = {
   overflow: 'hidden',
 };
 
+const PRODUCE_ACTION: StatusAction = {
+  key: 'produce',
+  label: '下大货',
+  icon: <ShoppingCartOutlined />,
+  targetStatus: SampleStatusEnum.PRODUCING,
+  note: '转大货生产',
+  confirmTitle: '确认基于该样衣创建工厂订单吗？',
+  confirmOkText: '确认',
+  successMessage: (orderNo) => `样板单 ${orderNo} 已进入大货生产`,
+};
+
 const STATUS_ACTIONS: Record<SampleStatus, StatusAction[]> = {
   [SampleStatusEnum.PENDING]: [
     {
@@ -273,16 +291,7 @@ const STATUS_ACTIONS: Record<SampleStatus, StatusAction[]> = {
     },
   ],
   [SampleStatusEnum.CONFIRMED]: [
-    {
-      key: 'produce',
-      label: '下大货',
-      icon: <ShoppingCartOutlined />,
-      targetStatus: SampleStatusEnum.PRODUCING,
-      note: '转大货生产',
-      confirmTitle: '确认将该样板单转为“生产中”吗？',
-      confirmOkText: '确认',
-      successMessage: (orderNo) => `样板单 ${orderNo} 已进入大货生产`,
-    },
+    PRODUCE_ACTION,
     {
       key: 'cancel',
       label: '取消',
@@ -316,7 +325,7 @@ const STATUS_ACTIONS: Record<SampleStatus, StatusAction[]> = {
       successMessage: (orderNo) => `样板单 ${orderNo} 已取消`,
     },
   ],
-  [SampleStatusEnum.COMPLETED]: [],
+  [SampleStatusEnum.COMPLETED]: [PRODUCE_ACTION],
   [SampleStatusEnum.CANCELLED]: [],
 };
 
@@ -486,6 +495,9 @@ const SampleList: React.FC = () => {
   }, []);
 
   const resolveActiveKey = useCallback((nextFilters: SampleListFilters): StatCardKey | null => {
+    if (nextFilters.overallStatus === 'cancelled') {
+      return null;
+    }
     if (nextFilters.overallStatus === 'completed') {
       return 'completed';
     }
@@ -747,6 +759,7 @@ const SampleList: React.FC = () => {
           styleId: String(styleId),
           sampleOrderId: String(order.id),
           sampleOrderNo: order.orderNo,
+          sampleOrderStatus: order.status,
         });
         navigate(`/orders/factory?${params.toString()}`);
       };
@@ -841,19 +854,46 @@ const SampleList: React.FC = () => {
       message.error('节点缺少标识，无法编辑');
       return;
     }
+    if (
+      editingNode.order.status === SampleStatusEnum.COMPLETED
+      && editingNode.node.completed
+      && !values.completed
+    ) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '确认将该节点恢复为待处理吗？',
+          content: '样衣流程将同步恢复为未完成，可在重新处理完节点后再次完成。',
+          okText: '确认恢复',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) {
+        return;
+      }
+    }
     setNodeModalLoading(true);
     try {
-      await sampleOrderApi.updateFollowProgressNode(editingNode.order.id, nodeId, values);
-      message.success('节点状态已更新');
+      const progress = await sampleOrderApi.updateFollowProgressNode(editingNode.order.id, nodeId, values);
+      const progressNodes = progress?.nodes ?? [];
+      const allCompleted = progressNodes.length > 0 && progressNodes.every((node) => node.completed);
+      if (allCompleted && editingNode.order.status !== SampleStatusEnum.COMPLETED) {
+        message.success('样衣流程已完成，样板单已移入已完成');
+      } else if (!allCompleted && editingNode.order.status === SampleStatusEnum.COMPLETED) {
+        message.success('样衣流程已恢复为待处理，样板单已移入未完成');
+      } else {
+        message.success('节点状态已更新');
+      }
       setEditingNode(null);
-      await loadData();
+      await Promise.all([loadData(), loadStats()]);
     } catch (error) {
       console.error('Failed to update follow progress node', error);
       message.error('更新节点状态失败，请稍后重试');
     } finally {
       setNodeModalLoading(false);
     }
-  }, [editingNode, loadData]);
+  }, [editingNode, loadData, loadStats]);
 
   const columns = useMemo<ColumnsType<SampleOrder>>(() => [
     {
@@ -1148,10 +1188,11 @@ const SampleList: React.FC = () => {
               placeholder="状态"
               value={filters.overallStatus}
               style={{ width: 140 }}
-              onChange={(value) => handleFilterChange('overallStatus', (value || 'unfinished') as SampleOverallStatus)}
+              onChange={(value) => handleFilterChange('overallStatus', value as SampleOverallStatus | undefined)}
             >
               <Option value="unfinished">未完成</Option>
               <Option value="completed">已完成</Option>
+              <Option value="cancelled">已取消</Option>
             </Select>
             <Select
               allowClear

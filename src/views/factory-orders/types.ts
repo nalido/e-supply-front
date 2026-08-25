@@ -1,4 +1,5 @@
 import type { FactoryOrderProgress } from '../../types';
+import type { SampleStatus } from '../../types/sample';
 
 export type ViewMode = 'card' | 'table';
 export type OverallStatus = 'all' | 'unfinished' | 'completed';
@@ -120,6 +121,7 @@ export type CuttingSheetTarget = {
 export type PendingSampleProduceContext = {
   sampleOrderId: string;
   sampleOrderNo?: string;
+  sampleOrderStatus?: SampleStatus;
 };
 
 export type ProgressActionModalState = {
