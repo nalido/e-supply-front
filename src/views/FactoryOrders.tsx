@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import type { RcFile } from 'antd/es/upload';
@@ -153,6 +153,7 @@ const FactoryOrders = () => {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null);
   const [createOptionsLoading, setCreateOptionsLoading] = useState(false);
+  const [styleSearchLoading, setStyleSearchLoading] = useState(false);
   const [styleOptions, setStyleOptions] = useState<SelectOption[]>([]);
   const [factoryOptions, setFactoryOptions] = useState<SelectOption[]>([]);
   const [merchandiserOptions, setMerchandiserOptions] = useState<SelectOption[]>([]);
@@ -186,6 +187,8 @@ const FactoryOrders = () => {
   const [inOutData, setInOutData] = useState<InOutDataState>({ loading: false, summaryRows: [], detailRows: [] });
   const [progressActionForm] = Form.useForm();
   const selectedCreateStyleId = Form.useWatch('styleId', createForm);
+  const styleSearchRequestRef = useRef(0);
+  const styleSearchTimerRef = useRef<number | undefined>(undefined);
 
   const loadFactoryOptions = useCallback(async () => {
     const [factoryResp, subcontractorResp] = await Promise.all([
@@ -432,23 +435,93 @@ const FactoryOrders = () => {
     }
   };
 
-  const loadCreateOptions = useCallback(async () => {
+  const mapStyleOptions = useCallback((styles: Awaited<ReturnType<typeof stylesApi.list>>['list']): SelectOption[] => (
+    styles.map((item) => ({
+      value: Number(item.id),
+      label: `${item.styleNo} / ${item.styleName}`,
+      image: item.image,
+      colors: item.colors ?? [],
+      sizes: item.sizes ?? [],
+      colorImages: {},
+    }))
+  ), []);
+
+  const loadStyleOptions = useCallback(async (keyword?: string, preferredStyleId?: number) => {
+    const requestId = styleSearchRequestRef.current + 1;
+    styleSearchRequestRef.current = requestId;
+    setStyleSearchLoading(true);
+    try {
+      const stylesResponse = await stylesApi.list({
+        page: 1,
+        pageSize: 50,
+        keyword: keyword?.trim() || undefined,
+      });
+      if (styleSearchRequestRef.current !== requestId) {
+        return;
+      }
+      const nextOptions = mapStyleOptions(stylesResponse.list ?? []);
+      setStyleOptions((previous) => {
+        const preferredOption = preferredStyleId
+          ? previous.find((item) => item.value === preferredStyleId)
+          : undefined;
+        if (!preferredOption || nextOptions.some((item) => item.value === preferredOption.value)) {
+          return nextOptions;
+        }
+        return [preferredOption, ...nextOptions];
+      });
+    } catch (error) {
+      if (styleSearchRequestRef.current === requestId) {
+        console.error('failed to search style options', error);
+        message.error('搜索款式失败，请稍后重试');
+      }
+    } finally {
+      if (styleSearchRequestRef.current === requestId) {
+        setStyleSearchLoading(false);
+      }
+    }
+  }, [mapStyleOptions]);
+
+  const handleStyleSearch = useCallback((keyword: string) => {
+    if (styleSearchTimerRef.current !== undefined) {
+      window.clearTimeout(styleSearchTimerRef.current);
+    }
+    const preferredStyleId = Number(selectedCreateStyleId);
+    styleSearchTimerRef.current = window.setTimeout(() => {
+      void loadStyleOptions(
+        keyword,
+        Number.isFinite(preferredStyleId) && preferredStyleId > 0 ? preferredStyleId : undefined,
+      );
+    }, 300);
+  }, [loadStyleOptions, selectedCreateStyleId]);
+
+  useEffect(() => () => {
+    if (styleSearchTimerRef.current !== undefined) {
+      window.clearTimeout(styleSearchTimerRef.current);
+    }
+    styleSearchRequestRef.current += 1;
+  }, []);
+
+  useEffect(() => {
+    if (createModalOpen) {
+      return;
+    }
+    if (styleSearchTimerRef.current !== undefined) {
+      window.clearTimeout(styleSearchTimerRef.current);
+      styleSearchTimerRef.current = undefined;
+    }
+    styleSearchRequestRef.current += 1;
+    setStyleSearchLoading(false);
+  }, [createModalOpen]);
+
+  const loadCreateOptions = useCallback(async (preferredStyleId?: number) => {
     setCreateOptionsLoading(true);
     try {
-      const [stylesResponse, factoriesOptions, sampleMeta] = await Promise.all([
-        stylesApi.list({ page: 1, pageSize: 200 }),
+      const [, factoriesOptions, sampleMeta] = await Promise.all([
+        loadStyleOptions(undefined, preferredStyleId),
         loadFactoryOptions(),
         sampleOrderApi.getMeta().catch(() => undefined),
       ]);
 
-      setStyleOptions((stylesResponse.list ?? []).map((item) => ({
-        value: Number(item.id),
-        label: `${item.styleNo} / ${item.styleName}`,
-        image: item.image,
-        colors: item.colors ?? [],
-        sizes: item.sizes ?? [],
-        colorImages: {},
-      })));
       setFactoryOptions(factoriesOptions);
       setMerchandiserOptions((sampleMeta?.merchandisers ?? []).map((item) => ({
         value: Number(item.id),
@@ -463,7 +536,7 @@ const FactoryOrders = () => {
     } finally {
       setCreateOptionsLoading(false);
     }
-  }, [loadFactoryOptions]);
+  }, [loadFactoryOptions, loadStyleOptions]);
 
   const handleOpenCreate = useCallback((presetStyleId?: number) => {
     setCreateModalOpen(true);
@@ -478,7 +551,7 @@ const FactoryOrders = () => {
       materialStatus: 'PENDING',
       ...(presetStyleId && Number.isFinite(presetStyleId) ? { styleId: presetStyleId } : {}),
     });
-    void loadCreateOptions();
+    void loadCreateOptions(presetStyleId);
   }, [createForm, loadCreateOptions]);
 
   const handleCloseCreate = useCallback(() => {
@@ -2503,6 +2576,7 @@ const FactoryOrders = () => {
         onOk={handleSubmitCreate}
         form={createForm}
         createOptionsLoading={createOptionsLoading}
+        styleSearchLoading={styleSearchLoading}
         styleOptions={styleOptions}
         factoryOptions={factoryOptions}
         merchandiserOptions={merchandiserOptions}
@@ -2519,6 +2593,7 @@ const FactoryOrders = () => {
         onCreateColorsChange={handleCreateColorsChange}
         onCreateSizesChange={handleCreateSizesChange}
         onCreateMatrixQtyChange={handleCreateMatrixQtyChange}
+        onStyleSearch={handleStyleSearch}
       />
 
       <ImportOrdersModal

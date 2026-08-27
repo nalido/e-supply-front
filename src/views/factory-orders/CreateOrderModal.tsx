@@ -17,6 +17,7 @@ type Props = {
   onOk: () => void;
   form: FormInstance;
   createOptionsLoading: boolean;
+  styleSearchLoading: boolean;
   styleOptions: SelectOption[];
   factoryOptions: SelectOption[];
   merchandiserOptions: SelectOption[];
@@ -33,6 +34,7 @@ type Props = {
   onCreateColorsChange: (values: string[]) => void;
   onCreateSizesChange: (values: string[]) => void;
   onCreateMatrixQtyChange: (color: string, size: string, value?: number | null) => void;
+  onStyleSearch: (keyword: string) => void;
 };
 
 export default function CreateOrderModal({
@@ -45,6 +47,7 @@ export default function CreateOrderModal({
   onOk,
   form,
   createOptionsLoading,
+  styleSearchLoading,
   styleOptions,
   factoryOptions,
   merchandiserOptions,
@@ -61,6 +64,7 @@ export default function CreateOrderModal({
   onCreateColorsChange,
   onCreateSizesChange,
   onCreateMatrixQtyChange,
+  onStyleSearch,
 }: Props) {
   return (
     <Modal
@@ -89,12 +93,13 @@ export default function CreateOrderModal({
             <Form.Item label="款式" name="styleId" rules={[{ required: true, message: '请选择款式' }]}>
               <Select
                 showSearch
-                optionFilterProp="label"
+                filterOption={false}
                 disabled={isEditing}
-                loading={createOptionsLoading}
+                loading={createOptionsLoading || styleSearchLoading}
                 options={styleOptions}
-                placeholder={isEditing ? '款式编辑时不可修改' : '请选择款式'}
-                notFoundContent={createOptionsLoading ? '加载中...' : '暂无款式数据'}
+                onSearch={onStyleSearch}
+                placeholder={isEditing ? '款式编辑时不可修改' : '输入款号或款名搜索'}
+                notFoundContent={createOptionsLoading || styleSearchLoading ? '搜索中...' : '未找到匹配款式'}
                 data-testid="factory-order-create-style-select"
               />
             </Form.Item>
