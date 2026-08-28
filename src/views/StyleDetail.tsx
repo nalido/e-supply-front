@@ -1,47 +1,41 @@
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  App as AntdApp,
   Button,
-  Card,
   Col,
-  Drawer,
-  Empty,
   Form,
   Input,
-  InputNumber,
-  List,
   Modal,
-  Pagination,
   Row,
   Select,
   Space,
   Spin,
   Switch,
+  Tag,
   Typography,
-  message,
 } from 'antd';
 import type { FormInstance } from 'antd/es/form';
-import { DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import materialApi from '../api/material';
-import styleBomApi, { buildStyleBomUpdatePayload } from '../api/style-bom';
+import styleBomApi from '../api/style-bom';
 import styleDetailApi from '../api/style-detail';
-import ListImage from '../components/common/ListImage';
 import ImageUploader from '../components/upload/ImageUploader';
 import StyleCodeMatrixEditor from '../components/style/StyleCodeMatrixEditor';
-import { NumberWithUnitInput, PageHeader, PageSection, SearchField } from '../components/page';
-import type { MaterialBasicType, MaterialItem } from '../types/material';
+import StyleBomSection from '../components/style-bom/StyleBomSection';
+import StyleBomSaveImpactModal, { type StyleBomImpactDecision } from '../components/style-bom/StyleBomSaveImpactModal';
+import { PageHeader, PageSection } from '../components/page';
+import useStyleBomDraft from '../hooks/useStyleBomDraft';
 import type {
-  StyleBomMaterialDraft,
   StyleColorImageMap,
   StyleCodeVariantDraft,
   StyleDetailData,
   StyleDetailSavePayload,
   StyleFormMeta,
   StyleVariantImpact,
+  StyleBomImpactPreview,
 } from '../types/style';
 import '../styles/style-detail.css';
-import '../styles/sample-order-form.css';
+import '../styles/style-bom.css';
 
 const { Title, Text } = Typography;
 
@@ -57,17 +51,6 @@ type StyleFormValues = {
   colorImagesEnabled: boolean;
   coverImageUrl?: string;
   sizeChartImageUrl?: string;
-};
-
-type MaterialPickerState = {
-  open: boolean;
-  loading: boolean;
-  keyword: string;
-  page: number;
-  pageSize: number;
-  total: number;
-  materialType: MaterialBasicType;
-  list: MaterialItem[];
 };
 
 const buildDefaultCode = (...parts: Array<string | undefined>) => {
@@ -126,42 +109,15 @@ const buildInitialValues = (detail?: StyleDetailData): StyleFormValues => ({
   sizeChartImageUrl: detail?.sizeChartImageUrl,
 });
 
-const createUid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-const toBomDraft = (item: MaterialItem): StyleBomMaterialDraft => ({
-  uid: `bom-${createUid()}`,
-  materialId: item.id,
-  materialType: item.materialType,
-  name: item.name,
-  sku: item.sku,
-  unit: item.unit,
-  imageUrl: item.imageUrl,
-  consumption: 1,
-  lossRate: 0,
-  unitPrice: item.referencePrice,
-  remark: '',
-});
-
-const toBomDrafts = (items: StyleDetailData['materials'] = []): StyleBomMaterialDraft[] =>
-  items.map((item, index) => ({
-    uid: `bom-${item.materialId}-${index}`,
-    materialId: String(item.materialId),
-    materialType: item.materialType === 'FABRIC' ? 'fabric' : 'accessory',
-    name: item.materialName,
-    sku: item.materialSku,
-    unit: item.unit,
-    imageUrl: item.imageUrl,
-    consumption: Number(item.consumption ?? 0),
-    lossRate: Number(item.lossRate ?? 0) * 100,
-    unitPrice: item.unitPrice,
-    remark: item.remark ?? '',
-  }));
-
 const StyleDetail = () => {
+  const { message } = AntdApp.useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const styleId = searchParams.get('id') ?? undefined;
   const isEditing = Boolean(styleId);
+  const [createdStyleId, setCreatedStyleId] = useState<string>();
+  const effectiveStyleId = styleId ?? createdStyleId;
+  const isPersisted = Boolean(effectiveStyleId);
   const [form] = Form.useForm<StyleFormValues>();
   const [meta, setMeta] = useState<StyleFormMeta>();
   const [loading, setLoading] = useState(true);
@@ -169,20 +125,15 @@ const StyleDetail = () => {
   const [colorImages, setColorImages] = useState<StyleColorImageMap>({});
   const [detailImages, setDetailImages] = useState<string[]>([]);
   const [detail, setDetail] = useState<StyleDetailData>();
-  const [materials, setMaterials] = useState<StyleBomMaterialDraft[]>([]);
   const [variantDrafts, setVariantDrafts] = useState<Record<string, StyleCodeVariantDraft>>({});
   const [isDirty, setIsDirty] = useState(false);
   const initializingRef = useRef(false);
-  const [materialPicker, setMaterialPicker] = useState<MaterialPickerState>({
-    open: false,
-    loading: false,
-    keyword: '',
-    page: 1,
-    pageSize: 8,
-    total: 0,
-    materialType: 'fabric',
-    list: [],
-  });
+  const [impactOpen, setImpactOpen] = useState(false);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [impactPreview, setImpactPreview] = useState<StyleBomImpactPreview>();
+  const [pendingSave, setPendingSave] = useState<{ payload: StyleDetailSavePayload; confirmCodeImpact: boolean }>();
+  const impactRequestRef = useRef(0);
+  const bomSaveIdempotencyRef = useRef<{ signature: string; key: string } | undefined>(undefined);
 
   const watchedColors = Form.useWatch('colors', form);
   const watchedSizes = Form.useWatch('sizes', form);
@@ -190,15 +141,20 @@ const StyleDetail = () => {
   const normalizedColors = useMemo(() => normalizeTagValues(watchedColors), [watchedColors]);
   const normalizedSizes = useMemo(() => normalizeTagValues(watchedSizes), [watchedSizes]);
   const colorImagesEnabled = Form.useWatch('colorImagesEnabled', form);
+  const bomDraft = useStyleBomDraft(normalizedColors, normalizedSizes);
+  const { reset: resetBomDraft } = bomDraft;
 
-  const fabricMaterials = useMemo(
-    () => materials.filter((item) => item.materialType === 'fabric'),
-    [materials],
-  );
-  const accessoryMaterials = useMemo(
-    () => materials.filter((item) => item.materialType === 'accessory'),
-    [materials],
-  );
+  useEffect(() => {
+    if (!isDirty && !bomDraft.isDirty) {
+      return;
+    }
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [bomDraft.isDirty, isDirty]);
 
   const load = useCallback(
     async (formRef: FormInstance<StyleFormValues>) => {
@@ -209,13 +165,13 @@ const StyleDetail = () => {
         setMeta(metaPayload);
         let detailPayload: StyleDetailData | undefined;
         if (styleId) {
-          const [detailResult, materialResult] = await Promise.all([
+          const [detailResult, bomConfiguration] = await Promise.all([
             styleDetailApi.fetchDetail(styleId),
-            styleBomApi.fetch(styleId),
+            styleBomApi.fetchConfiguration(styleId),
           ]);
-          detailPayload = { ...detailResult, materials: materialResult };
+          detailPayload = detailResult;
           setDetail(detailPayload);
-          setMaterials(toBomDrafts(materialResult));
+          resetBomDraft(bomConfiguration, detailResult.sizes, detailResult.colors);
           setColorImages(detailPayload.colorImages ?? {});
           setDetailImages(detailPayload.detailImageUrls ?? []);
           setVariantDrafts(
@@ -240,7 +196,7 @@ const StyleDetail = () => {
           setDetail(undefined);
           setColorImages({});
           setDetailImages([]);
-          setMaterials([]);
+          resetBomDraft({ revision: 0, items: [] }, [], []);
           setVariantDrafts({});
         }
         formRef.setFieldsValue(buildInitialValues(detailPayload));
@@ -253,7 +209,7 @@ const StyleDetail = () => {
         initializingRef.current = false;
       }
     },
-    [styleId],
+    [message, resetBomDraft, styleId],
   );
 
   useEffect(() => {
@@ -358,162 +314,9 @@ const StyleDetail = () => {
     markDirty();
   }, [markDirty]);
 
-  const loadMaterialOptions = useCallback(async (state: MaterialPickerState) => {
-    setMaterialPicker((prev) => ({ ...prev, loading: true }));
-    try {
-      const result = await materialApi.list({
-        page: state.page,
-        pageSize: state.pageSize,
-        keyword: state.keyword.trim() || undefined,
-        materialType: state.materialType,
-      });
-      setMaterialPicker((prev) => ({
-        ...prev,
-        list: result.list,
-        total: result.total,
-        loading: false,
-      }));
-    } catch (error) {
-      console.error('加载物料失败', error);
-      message.error('加载物料失败，请稍后重试');
-      setMaterialPicker((prev) => ({ ...prev, loading: false }));
-    }
-  }, []);
-
-  const {
-    open: isMaterialPickerOpen,
-    page: materialPickerPage,
-    pageSize: materialPickerPageSize,
-    keyword: materialPickerKeyword,
-    materialType: materialPickerType,
-  } = materialPicker;
-
-  useEffect(() => {
-    if (!isMaterialPickerOpen) {
-      return;
-    }
-    void loadMaterialOptions({
-      open: isMaterialPickerOpen,
-      loading: false,
-      keyword: materialPickerKeyword,
-      page: materialPickerPage,
-      pageSize: materialPickerPageSize,
-      total: 0,
-      materialType: materialPickerType,
-      list: [],
-    });
-  }, [
-    isMaterialPickerOpen,
-    loadMaterialOptions,
-    materialPickerKeyword,
-    materialPickerPage,
-    materialPickerPageSize,
-    materialPickerType,
-  ]);
-
-  const handleBomFieldChange = useCallback((uid: string, patch: Partial<StyleBomMaterialDraft>) => {
-    setMaterials((prev) => prev.map((item) => (item.uid === uid ? { ...item, ...patch } : item)));
-    markDirty();
-  }, [markDirty]);
-
-  const handleBomRemove = useCallback((uid: string) => {
-    setMaterials((prev) => prev.filter((item) => item.uid !== uid));
-    markDirty();
-  }, [markDirty]);
-
-  const handleBomAdd = useCallback((item: MaterialItem) => {
-    setMaterials((prev) => {
-      if (item.id && prev.some((entry) => entry.materialId === item.id)) {
-        message.warning('该物料已在清单中');
-        return prev;
-      }
-      return [...prev, toBomDraft(item)];
-    });
-    setMaterialPicker((prev) => ({ ...prev, open: false }));
-    markDirty();
-  }, [markDirty]);
-
-  const openMaterialPicker = useCallback((materialType: MaterialBasicType) => {
-    setMaterialPicker((prev) => ({
-      ...prev,
-      open: true,
-      materialType,
-      page: 1,
-      keyword: '',
-    }));
-  }, []);
-
-  const renderBomList = useCallback((entries: StyleBomMaterialDraft[], emptyText: string) => {
-    if (entries.length === 0) {
-      return <Empty description={emptyText} style={{ margin: '12px 0' }} />;
-    }
-    return (
-      <Space direction="vertical" size={12} className="sample-order-material-list">
-        {entries.map((record) => (
-          <div key={record.uid} className="sample-order-material-item">
-            <div className="sample-order-material-info">
-              <ListImage
-                src={record.imageUrl}
-                alt={record.name}
-                width={56}
-                height={56}
-                borderRadius={8}
-                background="#f5f5f5"
-              />
-              <div className="sample-order-material-text">
-                <Text strong className="sample-order-material-name">
-                  {record.name || '未命名物料'}
-                </Text>
-                <Text type="secondary" className="sample-order-material-meta">
-                  {[record.sku, record.unit ? `单位：${record.unit}` : null, record.unitPrice !== undefined ? `参考单价 ¥${record.unitPrice.toFixed(2)}` : null]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-              </div>
-            </div>
-            <div className="sample-order-material-fields">
-              <div className="sample-order-material-field">
-                <Text type="secondary">单耗</Text>
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  value={record.consumption}
-                  style={{ width: '100%' }}
-                  onChange={(value) => handleBomFieldChange(record.uid, { consumption: Number(value ?? 0) })}
-                />
-              </div>
-              <div className="sample-order-material-field">
-                <Text type="secondary">损耗(%)</Text>
-                <NumberWithUnitInput
-                  min={0}
-                  precision={2}
-                  unit="%"
-                  value={record.lossRate}
-                  style={{ width: '100%' }}
-                  onChange={(value) => handleBomFieldChange(record.uid, { lossRate: Number(value ?? 0) })}
-                />
-              </div>
-              <div className="sample-order-material-field sample-order-material-field--remark">
-                <Text type="secondary">备注</Text>
-                <Input
-                  value={record.remark}
-                  placeholder="备注"
-                  onChange={(event) => handleBomFieldChange(record.uid, { remark: event.target.value })}
-                />
-              </div>
-            </div>
-            <div className="sample-order-material-actions">
-              <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleBomRemove(record.uid)} />
-            </div>
-          </div>
-        ))}
-      </Space>
-    );
-  }, [handleBomFieldChange, handleBomRemove]);
-
   const handleBackClick = useCallback(() => {
     const goBack = () => navigate('/basic/styles');
-    if (isDirty) {
+    if (isDirty || bomDraft.isDirty) {
       Modal.confirm({
         title: '尚未保存的修改',
         content: '离开前是否确认放弃当前修改？',
@@ -524,7 +327,154 @@ const StyleDetail = () => {
     } else {
       goBack();
     }
-  }, [isDirty, navigate]);
+  }, [bomDraft.isDirty, isDirty, navigate]);
+
+  const executeSave = useCallback(async (
+    payload: StyleDetailSavePayload,
+    confirmCodeImpact: boolean,
+    decision?: StyleBomImpactDecision,
+    previewToken?: string,
+  ) => {
+    setSaving(true);
+    let stylePersisted = false;
+    try {
+      const savedDetail = isPersisted && effectiveStyleId
+        ? isDirty
+          ? await styleDetailApi.update(effectiveStyleId, payload, { confirmCodeImpact })
+          : detail ?? await styleDetailApi.fetchDetail(effectiveStyleId)
+        : await styleDetailApi.create(payload);
+      stylePersisted = !isPersisted || isDirty;
+      if (!isPersisted && savedDetail.id) {
+        setCreatedStyleId(savedDetail.id);
+        setDetail(savedDetail);
+        setIsDirty(false);
+      }
+
+      if (bomDraft.isDirty && savedDetail.id) {
+        const idempotencySignature = JSON.stringify({
+          styleId: savedDetail.id,
+          baseBomVersionId: bomDraft.bomVersionId,
+          items: bomDraft.lines,
+          colors: payload.colors,
+          sizes: payload.sizes,
+          handlingMode: decision?.handlingMode ?? 'FUTURE_ONLY',
+          historyStart: decision?.historyStart,
+          historyEnd: decision?.historyEnd,
+        });
+        if (bomSaveIdempotencyRef.current?.signature !== idempotencySignature) {
+          bomSaveIdempotencyRef.current = {
+            signature: idempotencySignature,
+            key: crypto.randomUUID(),
+          };
+        }
+        const idempotencyKey = bomSaveIdempotencyRef.current.key;
+        if (isPersisted) {
+          if (!decision || !previewToken) {
+            throw new Error('用料影响检查结果已失效，请重新保存');
+          }
+          const updateResult = await styleBomApi.updateConfiguration(savedDetail.id, {
+            baseBomVersionId: bomDraft.bomVersionId,
+            previewToken,
+            handlingMode: decision.handlingMode,
+            historyStart: decision.historyStart,
+            historyEnd: decision.historyEnd,
+            idempotencyKey,
+            items: bomDraft.lines,
+            candidateColors: payload.colors,
+            candidateSizes: payload.sizes,
+          });
+          bomDraft.reset(updateResult.configuration, payload.sizes, payload.colors);
+          bomSaveIdempotencyRef.current = undefined;
+          if (updateResult.correctionTaskId) {
+            message.success(`历史用料差异核对任务 #${updateResult.correctionTaskId} 已生成，原出库记录未改动`);
+          } else if (updateResult.synchronizedOrderCount > 0) {
+            message.success(`已同步 ${updateResult.synchronizedOrderCount} 个尚未领料订单的用料需求`);
+          }
+        } else if (bomDraft.lines.length) {
+          const newStylePreview = await styleBomApi.previewImpact(savedDetail.id, {
+            items: bomDraft.lines,
+            candidateColors: payload.colors,
+            candidateSizes: payload.sizes,
+          });
+          const updateResult = await styleBomApi.updateConfiguration(savedDetail.id, {
+            previewToken: newStylePreview.previewToken,
+            handlingMode: 'FUTURE_ONLY',
+            idempotencyKey,
+            items: bomDraft.lines,
+            candidateColors: payload.colors,
+            candidateSizes: payload.sizes,
+          });
+          bomDraft.reset(updateResult.configuration, payload.sizes, payload.colors);
+          bomSaveIdempotencyRef.current = undefined;
+        }
+      }
+
+      setImpactOpen(false);
+      setImpactPreview(undefined);
+      setPendingSave(undefined);
+      setIsDirty(false);
+      if (isEditing && styleId) {
+        message.success('款式资料和用料已更新');
+        await load(form);
+      } else {
+        message.success(createdStyleId ? '款式资料和用料已更新' : '款式资料已创建');
+        setDetail(savedDetail);
+        setDetailImages(savedDetail.detailImageUrls ?? detailImages);
+      }
+    } catch (error) {
+      console.error('保存款式资料失败', error);
+      const backendMessage = axios.isAxiosError(error)
+        ? error.response?.data?.message ?? error.message
+        : error instanceof Error
+          ? error.message
+          : '';
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        setImpactOpen(false);
+        setImpactPreview(undefined);
+        setPendingSave(undefined);
+        message.error('款式用料或影响范围已变化，请核对当前内容后重新点击保存');
+      } else if (backendMessage.includes('Style number already exists')) {
+        message.error('款号已存在，请更换后重试');
+      } else if (stylePersisted && bomDraft.isDirty) {
+        message.error(`${isPersisted ? '款式资料已更新' : '款式已创建'}，但用料未保存；当前用料草稿仍保留，请重试`);
+      } else {
+        message.error(backendMessage || '保存失败，请稍后重试');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [bomDraft, createdStyleId, detail, detailImages, effectiveStyleId, form, isDirty, isEditing, isPersisted, load, message, styleId]);
+
+  const previewBomImpact = useCallback(async (historyStart?: string, historyEnd?: string) => {
+    if (!effectiveStyleId || !pendingSave) {
+      return;
+    }
+    const sequence = ++impactRequestRef.current;
+    setImpactLoading(true);
+    setImpactPreview(undefined);
+    try {
+      const preview = await styleBomApi.previewImpact(effectiveStyleId, {
+        baseBomVersionId: bomDraft.bomVersionId,
+        items: bomDraft.lines,
+        historyStart,
+        historyEnd,
+        candidateColors: pendingSave.payload.colors,
+        candidateSizes: pendingSave.payload.sizes,
+      });
+      if (sequence === impactRequestRef.current) {
+        setImpactPreview(preview);
+      }
+    } catch (error) {
+      if (sequence === impactRequestRef.current) {
+        console.error('检查款式用料影响失败', error);
+        message.error('无法检查受影响用料，请稍后重试');
+      }
+    } finally {
+      if (sequence === impactRequestRef.current) {
+        setImpactLoading(false);
+      }
+    }
+  }, [bomDraft.bomVersionId, bomDraft.lines, effectiveStyleId, message, pendingSave]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -563,7 +513,7 @@ const StyleDetail = () => {
         })),
       };
       let confirmCodeImpact = false;
-      if (isEditing && styleId) {
+      if (isDirty && isEditing && styleId) {
         const impact = await styleDetailApi.checkCodeImpact(styleId, payload);
         const blockedVariantImpacts = impact.variantImpacts.filter(
           (item) => item.references.length > 0,
@@ -637,28 +587,37 @@ const StyleDetail = () => {
           confirmCodeImpact = true;
         }
       }
-      setSaving(true);
-      const savedDetail = isEditing && styleId
-        ? await styleDetailApi.update(styleId, payload, { confirmCodeImpact })
-        : await styleDetailApi.create(payload);
-
-      if (savedDetail.id) {
-        const savedMaterials = await styleBomApi.update(
-          savedDetail.id,
-          buildStyleBomUpdatePayload(materials),
-        );
-        setMaterials(toBomDrafts(savedMaterials));
+      if (bomDraft.validationIssues.length) {
+        message.warning(`请先处理 ${bomDraft.validationIssues.length} 项款式用料问题`);
+        return;
       }
-
-      if (isEditing && styleId) {
-        message.success('款式资料已更新');
-        await load(form);
-      } else {
-        message.success('款式资料已创建');
-        setDetail(savedDetail);
-        setDetailImages(savedDetail.detailImageUrls ?? detailImages);
+      if (isPersisted && !isDirty && !bomDraft.isDirty) {
+        message.info('没有需要保存的修改');
+        return;
       }
-      setIsDirty(false);
+      if (isPersisted && effectiveStyleId && bomDraft.isDirty) {
+        setPendingSave({ payload, confirmCodeImpact });
+        setImpactOpen(true);
+        setImpactLoading(true);
+        try {
+          const preview = await styleBomApi.previewImpact(effectiveStyleId, {
+            baseBomVersionId: bomDraft.bomVersionId,
+            items: bomDraft.lines,
+            candidateColors: payload.colors,
+            candidateSizes: payload.sizes,
+          });
+          setImpactPreview(preview);
+        } catch (error) {
+          console.error('检查款式用料影响失败', error);
+          setImpactOpen(false);
+          setPendingSave(undefined);
+          message.error('无法检查受影响用料，尚未保存任何修改');
+        } finally {
+          setImpactLoading(false);
+        }
+        return;
+      }
+      await executeSave(payload, confirmCodeImpact);
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) {
         return;
@@ -674,10 +633,8 @@ const StyleDetail = () => {
       } else {
         message.error(backendMessage || '保存失败，请稍后重试');
       }
-    } finally {
-      setSaving(false);
     }
-  }, [colorImages, detailImages, form, isEditing, load, materials, styleId, variantRows]);
+  }, [bomDraft, colorImages, detailImages, effectiveStyleId, executeSave, form, isDirty, isEditing, isPersisted, message, styleId, variantRows]);
 
   const designerOptions = useMemo(() => meta?.designers ?? [], [meta]);
   const overviewStats = useMemo(
@@ -685,28 +642,27 @@ const StyleDetail = () => {
       { label: '颜色', value: normalizedColors.length || 0 },
       { label: '尺码', value: normalizedSizes.length || 0 },
       { label: '细节图', value: detailImages.length || 0 },
-      { label: 'BOM 物料', value: materials.length || 0 },
+      { label: '款式用料', value: bomDraft.lines.length || 0 },
     ],
-    [detailImages.length, materials.length, normalizedColors.length, normalizedSizes.length],
+    [bomDraft.lines.length, detailImages.length, normalizedColors.length, normalizedSizes.length],
   );
 
   return (
     <Spin spinning={loading} tip="加载中...">
       <div className="style-detail-page oc-page">
         <PageHeader
-          className="oc-page-header--compact"
-          title="款式资料"
-          extra={detail?.styleNo ? <Text type="secondary">当前款号：{detail.styleNo}</Text> : null}
-          stats={
-            <div className="oc-summary-strip">
-              {overviewStats.map((item) => (
-                <div key={item.label} className="oc-summary-chip">
-                  <div className="oc-summary-chip__label">{item.label}</div>
-                  <div className="oc-summary-chip__value">{item.value}</div>
-                </div>
-              ))}
-            </div>
-          }
+          className="oc-page-header--compact style-detail-identity-header"
+          title={(
+            <span className="style-detail-identity-title">
+              <span className="style-detail-identity-label">款式资料</span>
+              <span className="style-detail-current-no">{watchedStyleNo?.trim() || '新建款式'}</span>
+            </span>
+          )}
+          subtitle={(
+            <span className="style-detail-overview-tags">
+              {overviewStats.map((item) => <Tag key={item.label}>{item.label} {item.value}</Tag>)}
+            </span>
+          )}
         />
 
         <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange} data-testid="style-detail-form">
@@ -735,7 +691,7 @@ const StyleDetail = () => {
                 <Row gutter={[16, 16]}>
                   <Col xs={24} sm={12}>
                     <Form.Item name="styleNo" label="款号" rules={[{ required: true, message: '请输入款号' }]}>
-                      <Input placeholder="例如 STY-2024-001" disabled={isEditing} />
+                      <Input placeholder="例如 STY-2024-001" disabled={isPersisted} />
                     </Form.Item>
                   </Col>
                   <Col xs={24} sm={12}>
@@ -830,36 +786,19 @@ const StyleDetail = () => {
             </div>
           </PageSection>
 
-          {isEditing && (
-            <PageSection className="oc-page-section--compact style-detail-card">
-              <div className="style-detail-materials-header">
-                <div>
-                  <Title level={5} style={{ marginBottom: 4 }}>关联面辅料</Title>
-                  <Text type="secondary">与样板单共用同一份款式物料数据，便于下大货与款式资料保持一致。</Text>
-                </div>
-                <Space>
-                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => openMaterialPicker('fabric')} data-testid="style-detail-add-fabric-button">
-                    选择面料
-                  </Button>
-                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => openMaterialPicker('accessory')}>
-                    选择辅料/包材
-                  </Button>
-                </Space>
-              </div>
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={12}>
-                  <Card size="small" title="面料" data-testid="style-detail-fabric-bom-card">
-                    {renderBomList(fabricMaterials, '当前款式还没有面料 BOM')}
-                  </Card>
-                </Col>
-                <Col xs={24} lg={12}>
-                  <Card size="small" title="辅料/包材">
-                    {renderBomList(accessoryMaterials, '当前款式还没有辅料 BOM')}
-                  </Card>
-                </Col>
-              </Row>
-            </PageSection>
-          )}
+          <PageSection className="oc-page-section--compact style-detail-card style-detail-bom-card">
+            <StyleBomSection
+              lines={bomDraft.lines}
+              colors={normalizedColors}
+              sizes={normalizedSizes}
+              validationIssues={bomDraft.validationIssues}
+              onAdd={bomDraft.addLine}
+              onUpdate={bomDraft.updateLine}
+              onRemove={bomDraft.removeLine}
+              onUpdateSizeConsumption={bomDraft.updateSizeConsumption}
+              onCopySizeConsumptions={bomDraft.copySizeConsumptions}
+            />
+          </PageSection>
         </Form>
 
         <div className="style-detail-footer" data-testid="style-detail-footer">
@@ -872,60 +811,23 @@ const StyleDetail = () => {
         </div>
       </div>
 
-      <Drawer
-        title={materialPicker.materialType === 'fabric' ? '选择面料' : '选择辅料/包材'}
-        open={materialPicker.open}
-        width={520}
-        onClose={() => setMaterialPicker((prev) => ({ ...prev, open: false }))}
-        destroyOnHidden
-      >
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <SearchField
-            placeholder="搜索物料名称或编号"
-            allowClear
-            enterButton={<SearchOutlined />}
-            value={materialPicker.keyword}
-            onChange={(value) => setMaterialPicker((prev) => ({ ...prev, keyword: value }))}
-            onSearch={() => setMaterialPicker((prev) => ({ ...prev, page: 1 }))}
-          />
-          <Spin spinning={materialPicker.loading}>
-            <List
-              dataSource={materialPicker.list}
-              renderItem={(item) => (
-                <List.Item
-                  key={item.id}
-                  actions={[<Button type="link" onClick={() => handleBomAdd(item)}>选择</Button>]}
-                >
-                  <Space align="center" size={12}>
-                    <ListImage
-                      src={item.imageUrl}
-                      alt={item.name}
-                      width={48}
-                      height={48}
-                      borderRadius={8}
-                      background="#f5f5f5"
-                    />
-                    <Space direction="vertical" size={2} style={{ minWidth: 0 }}>
-                      <Text strong>{item.name}</Text>
-                      <Text type="secondary">编号：{item.sku}</Text>
-                      <Text type="secondary">单位：{item.unit}</Text>
-                    </Space>
-                  </Space>
-                </List.Item>
-              )}
-              locale={{ emptyText: '暂无物料' }}
-            />
-          </Spin>
-          <Pagination
-            current={materialPicker.page}
-            pageSize={materialPicker.pageSize}
-            total={materialPicker.total}
-            showSizeChanger
-            showQuickJumper
-            onChange={(page, pageSize) => setMaterialPicker((prev) => ({ ...prev, page, pageSize }))}
-          />
-        </Space>
-      </Drawer>
+      <StyleBomSaveImpactModal
+        open={impactOpen}
+        loading={impactLoading}
+        saving={saving}
+        preview={impactPreview}
+        onCancel={() => {
+          setImpactOpen(false);
+          setImpactPreview(undefined);
+          setPendingSave(undefined);
+        }}
+        onRangePreview={(historyStart, historyEnd) => void previewBomImpact(historyStart, historyEnd)}
+        onConfirm={(decision) => {
+          if (pendingSave && impactPreview) {
+            void executeSave(pendingSave.payload, pendingSave.confirmCodeImpact, decision, impactPreview.previewToken);
+          }
+        }}
+      />
     </Spin>
   );
 };

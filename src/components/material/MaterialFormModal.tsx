@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { Col, Form, Input, InputNumber, Modal, Row, Select } from 'antd';
-import ColorTagsInput from './ColorTagsInput';
-import type { CreateMaterialPayload, MaterialBasicType, MaterialItem, MaterialUnit } from '../../types';
+import type { CreateMaterialPayload, MaterialBasicType, MaterialItem, MaterialMinimumSpecification, MaterialUnit } from '../../types';
 import ImageUploader from '../upload/ImageUploader';
+import MaterialSpecificationEditor from './MaterialSpecificationEditor';
 
 type MaterialFormValues = {
   sku?: string;
@@ -14,6 +14,7 @@ type MaterialFormValues = {
   tolerance?: string;
   colors?: string[];
   specifications?: string[];
+  minimumSpecifications: MaterialMinimumSpecification[];
   remarks?: string;
   imageUrl?: string;
 };
@@ -70,6 +71,7 @@ const MaterialFormModal = ({
         tolerance: initialValues?.tolerance,
         colors: initialValues?.colors ?? [],
         specifications: initialValues?.specifications ?? [],
+        minimumSpecifications: initialValues?.minimumSpecifications ?? [],
         remarks: initialValues?.remarks,
         imageUrl: initialValues?.imageUrl,
       });
@@ -78,13 +80,32 @@ const MaterialFormModal = ({
 
   const handleOk = async () => {
     const values = await form.validateFields();
+    if (!values.minimumSpecifications.length) {
+      form.setFields([{ name: 'minimumSpecifications', errors: ['请至少维护一个最小规格'] }]);
+      return;
+    }
+    const duplicateKeys = new Set<string>();
+    for (const item of values.minimumSpecifications) {
+      const key = [item.color, item.specification, item.width, item.grammage]
+        .map((value) => value?.trim().toLocaleLowerCase() ?? '')
+        .join('|');
+      if (duplicateKeys.has(key)) {
+        form.setFields([{ name: 'minimumSpecifications', errors: ['存在重复的最小规格，请合并或修改'] }]);
+        return;
+      }
+      duplicateKeys.add(key);
+    }
+    const colors = Array.from(new Set(values.minimumSpecifications.map((item) => item.color?.trim()).filter((item): item is string => Boolean(item))));
+    const specifications = Array.from(new Set(values.minimumSpecifications.map((item) => item.specification?.trim()).filter((item): item is string => Boolean(item))));
+    const firstSpecification = values.minimumSpecifications[0];
     onSubmit({
       ...values,
-      width: isAccessory ? undefined : values.width,
-      grammage: isAccessory ? undefined : values.grammage,
+      width: isAccessory ? undefined : firstSpecification.width,
+      grammage: isAccessory ? undefined : firstSpecification.grammage,
       tolerance: isAccessory ? undefined : values.tolerance,
-      colors: values.colors ?? [],
-      specifications: isAccessory ? values.specifications ?? [] : [],
+      colors,
+      specifications: isAccessory ? specifications : [],
+      minimumSpecifications: values.minimumSpecifications,
       materialType,
     });
   };
@@ -131,32 +152,18 @@ const MaterialFormModal = ({
         <Row gutter={16}>
           <Col xs={24} md={12}>
             <Form.Item label="参考单价" name="referencePrice">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#6b7280', fontSize: 14, lineHeight: 1 }}>¥</span>
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  style={{ width: '100%' }}
-                  placeholder="请输入参考单价"
-                />
-              </div>
+              <InputNumber
+                min={0}
+                precision={2}
+                prefix="¥"
+                style={{ width: '100%' }}
+                placeholder="请输入参考单价"
+              />
             </Form.Item>
           </Col>
-          {!isAccessory ? (
-            <Col xs={24} md={12}>
-              <Form.Item label="幅宽" name="width">
-                <Input placeholder="如 150cm" />
-              </Form.Item>
-            </Col>
-          ) : null}
         </Row>
         {!isAccessory ? (
           <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item label="克重" name="grammage">
-                <Input placeholder="如 180g/m²" />
-              </Form.Item>
-            </Col>
             <Col xs={24} md={12}>
               <Form.Item label="空差" name="tolerance" normalize={formatToleranceValue}>
                 <Input placeholder="如 ±2cm" />
@@ -164,14 +171,9 @@ const MaterialFormModal = ({
             </Col>
           </Row>
         ) : null}
-        <Form.Item label="颜色" name="colors">
-          <ColorTagsInput />
+        <Form.Item label="最小规格" name="minimumSpecifications" required>
+          <MaterialSpecificationEditor materialType={materialType} />
         </Form.Item>
-        {isAccessory ? (
-          <Form.Item label="规格" name="specifications">
-            <ColorTagsInput placeholder="输入规格后回车" />
-          </Form.Item>
-        ) : null}
         <Form.Item label="备注" name="remarks">
           <Input.TextArea rows={4} placeholder="请输入备注信息" />
         </Form.Item>

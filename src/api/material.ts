@@ -4,6 +4,7 @@ import type {
   MaterialDataset,
   MaterialItem,
   MaterialListParams,
+  MaterialMinimumSpecification,
   MaterialUnit,
 } from '../types';
 import http from './http';
@@ -22,6 +23,16 @@ type BackendMaterialResponse = {
   status: BackendMaterialStatus;
   materialType: BackendMaterialType;
   attributes?: Record<string, unknown> | null;
+  minimumSpecifications?: Array<{
+    id?: number;
+    code?: string;
+    label?: string;
+    color?: string;
+    specification?: string;
+    width?: string;
+    grammage?: string;
+    active?: boolean;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -40,6 +51,15 @@ type MaterialImportItem = {
   unit: string;
   imageUrl?: string;
   attributes: Record<string, unknown>;
+  minimumSpecifications: Array<{
+    code?: string;
+    label: string;
+    color?: string;
+    specification?: string;
+    width?: string;
+    grammage?: string;
+    active: boolean;
+  }>;
 };
 
 type MaterialImportRequest = {
@@ -134,10 +154,65 @@ const toStringArray = (value: unknown): string[] | undefined => {
   return undefined;
 };
 
+const buildSpecificationLabel = (
+  item: Pick<MaterialMinimumSpecification, 'color' | 'specification' | 'width' | 'grammage'>,
+) => [item.color, item.specification, item.width, item.grammage].filter(Boolean).join(' · ') || '通用规格';
+
+const adaptMinimumSpecifications = (
+  item: BackendMaterialResponse,
+  colors: string[],
+  specifications: string[],
+  attributes: Record<string, unknown>,
+): MaterialMinimumSpecification[] => {
+  if (item.minimumSpecifications?.length) {
+    return item.minimumSpecifications.map((spec) => {
+      const normalized = {
+        id: spec.id == null ? undefined : String(spec.id),
+        code: spec.code?.trim() || undefined,
+        color: spec.color?.trim() || undefined,
+        specification: spec.specification?.trim() || undefined,
+        width: spec.width?.trim() || undefined,
+        grammage: spec.grammage?.trim() || undefined,
+        active: spec.active !== false,
+      };
+      return { ...normalized, label: spec.label?.trim() || buildSpecificationLabel(normalized) };
+    });
+  }
+
+  const width = toStringValue(attributes.width);
+  const grammage = toStringValue(attributes.grammage ?? attributes.weight);
+  if (item.materialType === 'FABRIC') {
+    const legacyColors = colors.length ? colors : [undefined];
+    return legacyColors.map((color) => {
+      const spec = { color, width, grammage, active: true };
+      return { ...spec, label: buildSpecificationLabel(spec) };
+    });
+  }
+  if (colors.length === 1 && specifications.length) {
+    return specifications.map((specification) => {
+      const spec = { color: colors[0], specification, active: true };
+      return { ...spec, label: buildSpecificationLabel(spec) };
+    });
+  }
+  if (specifications.length === 1 && colors.length) {
+    return colors.map((color) => {
+      const spec = { color, specification: specifications[0], active: true };
+      return { ...spec, label: buildSpecificationLabel(spec) };
+    });
+  }
+  const legacyValues = specifications.length
+    ? specifications.map((specification) => ({ specification }))
+    : colors.length
+      ? colors.map((color) => ({ color }))
+      : [{}];
+  return legacyValues.map((value) => ({ ...value, label: buildSpecificationLabel(value), active: true }));
+};
+
 const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
   const attributes = item.attributes ?? {};
   const colors = toStringArray(attributes.colors) ?? toStringArray(attributes.color) ?? [];
   const specifications = toStringArray(attributes.specifications) ?? toStringArray(attributes.specification) ?? [];
+  const minimumSpecifications = adaptMinimumSpecifications(item, colors, specifications, attributes);
   return {
     id: String(item.id),
     tenantId: item.tenantId ? String(item.tenantId) : undefined,
@@ -152,6 +227,7 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
     tolerance: toStringValue(attributes.tolerance),
     colors,
     specifications,
+    minimumSpecifications,
     remarks: toStringValue(attributes.remarks),
     status: adaptStatus(item.status),
     createdAt: item.createdAt,
@@ -179,11 +255,19 @@ const buildAttributesPayload = (payload: CreateMaterialPayload): Record<string, 
   if (payload.referencePrice !== undefined) {
     attributes.price = payload.referencePrice;
   }
-  if (payload.colors && payload.colors.length > 0) {
-    attributes.colors = payload.colors;
+  const specificationColors = payload.minimumSpecifications
+    ?.map((item) => item.color?.trim())
+    .filter((item): item is string => Boolean(item));
+  const colors = Array.from(new Set(specificationColors?.length ? specificationColors : payload.colors));
+  if (colors.length > 0) {
+    attributes.colors = colors;
   }
-  if (payload.materialType === 'accessory' && payload.specifications && payload.specifications.length > 0) {
-    attributes.specifications = payload.specifications;
+  const specificationValues = payload.minimumSpecifications
+    ?.map((item) => item.specification?.trim())
+    .filter((item): item is string => Boolean(item));
+  const specifications = Array.from(new Set(specificationValues?.length ? specificationValues : payload.specifications));
+  if (payload.materialType === 'accessory' && specifications.length > 0) {
+    attributes.specifications = specifications;
   }
   if (payload.remarks) {
     attributes.remarks = payload.remarks;
@@ -217,6 +301,16 @@ const buildRequestPayload = (
     status: options?.includeStatus === false ? undefined : 'ACTIVE',
     materialType: normalizeMaterialType(normalized.materialType),
     attributes: buildAttributesPayload(normalized),
+    minimumSpecifications: normalized.minimumSpecifications?.map((item) => ({
+      id: item.id ? Number(item.id) : undefined,
+      code: item.code?.trim() || undefined,
+      label: item.label.trim() || buildSpecificationLabel(item),
+      color: item.color?.trim() || undefined,
+      specification: item.specification?.trim() || undefined,
+      width: item.width?.trim() || undefined,
+      grammage: item.grammage?.trim() || undefined,
+      active: item.active !== false,
+    })),
   };
 };
 
@@ -230,6 +324,14 @@ const buildImportPayload = (
   materialType: normalizeMaterialType(materialType) ?? 'FABRIC',
   importMode,
   items: items.map((item) => {
+    const explicitSpecifications = item.minimumSpecifications?.filter((entry) => entry.label.trim());
+    const minimumSpecifications: MaterialMinimumSpecification[] = explicitSpecifications?.length
+      ? explicitSpecifications
+      : materialType === 'fabric' && item.colors?.length
+        ? item.colors.map((color) => ({ label: color, color, active: true }))
+        : materialType === 'accessory' && item.specifications?.length
+          ? item.specifications.map((specification) => ({ label: specification, specification, active: true }))
+          : [{ label: '通用规格', active: true }];
     return {
       rowNumber: item.rowNumber ?? 0,
       name: item.name,
@@ -237,6 +339,15 @@ const buildImportPayload = (
       unit: item.unit,
       imageUrl: item.imageUrl,
       attributes: buildAttributesPayload(item),
+      minimumSpecifications: minimumSpecifications.map((entry) => ({
+        code: entry.code?.trim() || undefined,
+        label: entry.label.trim(),
+        color: entry.color?.trim() || undefined,
+        specification: entry.specification?.trim() || undefined,
+        width: entry.width?.trim() || undefined,
+        grammage: entry.grammage?.trim() || undefined,
+        active: entry.active !== false,
+      })),
     } satisfies MaterialImportItem;
   }),
 });

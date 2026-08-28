@@ -1,4 +1,5 @@
 import type { MaterialBasicType } from './material';
+import type { MaterialMinimumSpecification } from './material';
 
 export type StyleStatus = 'active' | 'inactive';
 
@@ -47,6 +48,11 @@ export interface StyleMaterialData {
   imageUrl?: string;
   unitPrice?: number;
   remark?: string;
+  bomItemId?: string;
+  minimumSpecificationLabel?: string;
+  applicableColors?: string[];
+  applyToAllColors?: boolean;
+  sizeConsumptions?: Array<{ size: string; consumption: number | null }>;
 }
 
 export interface StyleBomMaterialDraft {
@@ -166,4 +172,79 @@ export interface StyleBomUpdatePayload {
     lossRate?: number;
     remark?: string;
   }>;
+}
+
+export type StyleBomHandlingMode = 'FUTURE_ONLY' | 'SYNC_UNISSUED' | 'CREATE_CORRECTION_TASK';
+
+export type StyleBomHistoryRangePreset = 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'LAST_90_DAYS' | 'CUSTOM' | 'ALL';
+
+export interface StyleBomSizeConsumption {
+  size: string;
+  consumption: number | null;
+}
+
+export interface StyleBomConfigurationItem {
+  id?: string;
+  materialId: string;
+  materialName: string;
+  materialSku: string;
+  materialType: MaterialBasicType;
+  unit: string;
+  imageUrl?: string;
+  materialMinimumSpecificationId: string;
+  minimumSpecification: MaterialMinimumSpecification;
+  applyToAllColors: boolean;
+  applicableColors: string[];
+  sizeConsumptions: StyleBomSizeConsumption[];
+  lossRate: number;
+  remark?: string;
+}
+
+export interface StyleBomConfiguration {
+  bomVersionId?: string;
+  revisionCode?: string;
+  revision: number;
+  items: StyleBomConfigurationItem[];
+}
+
+export interface StyleBomLineDraft extends StyleBomConfigurationItem {
+  uid: string;
+}
+
+export type StyleBomValidationIssueCode =
+  | 'MATERIAL_REQUIRED'
+  | 'SPECIFICATION_REQUIRED'
+  | 'SPECIFICATION_INACTIVE'
+  | 'COLOR_REQUIRED'
+  | 'COLOR_INVALID'
+  | 'CONSUMPTION_REQUIRED'
+  | 'DUPLICATE_SCOPE';
+
+export interface StyleBomValidationIssue {
+  uid: string;
+  code: StyleBomValidationIssueCode;
+  message: string;
+  color?: string;
+  size?: string;
+}
+
+export interface StyleBomImpactPreview {
+  previewToken: string;
+  unissuedOrderCount: number;
+  issuedOrderCount: number;
+  adjustableHistoryCount: number;
+  manualReviewCount: number;
+  lockedCount: number;
+}
+
+export interface StyleBomUpdateConfigurationPayload {
+  baseBomVersionId?: string;
+  previewToken: string;
+  handlingMode: StyleBomHandlingMode;
+  historyStart?: string;
+  historyEnd?: string;
+  idempotencyKey: string;
+  candidateColors: string[];
+  candidateSizes: string[];
+  items: StyleBomLineDraft[];
 }

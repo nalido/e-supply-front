@@ -50,6 +50,11 @@ export type CreateStyleMaterial = {
   consumption: number;
   lossRate: number;
   imageUrl?: string;
+  bomItemId?: string;
+  minimumSpecificationLabel?: string;
+  applicableColors?: string[];
+  applyToAllColors?: boolean;
+  sizeConsumptions?: Array<{ size: string; consumption: number | null }>;
 };
 
 export type ProgressStatRow = {

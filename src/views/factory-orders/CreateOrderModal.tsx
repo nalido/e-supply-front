@@ -187,7 +187,7 @@ export default function CreateOrderModal({
                 ) : (
                   <div className="factory-create-material-preview">
                     {createStyleMaterials.map((item) => (
-                      <div key={`${item.materialId}-${item.materialType}`} className="factory-create-material-card">
+                      <div key={item.bomItemId ?? `${item.materialId}-${item.materialType}-${item.minimumSpecificationLabel ?? ''}`} className="factory-create-material-card">
                         <div className="factory-create-material-card-body">
                           <ListImage src={item.imageUrl} alt={item.materialName} width={64} height={64} borderRadius={10} />
                           <div className="factory-create-material-content">
@@ -199,7 +199,13 @@ export default function CreateOrderModal({
                             </div>
                             <div className="factory-create-material-name">{item.materialName}</div>
                             <div className="factory-create-material-meta">
-                              单耗 {item.consumption || 0}{item.unit || '件'}
+                              {item.minimumSpecificationLabel}
+                              {item.applyToAllColors
+                                ? ' · 全部款式颜色'
+                                : item.applicableColors?.length ? ` · ${item.applicableColors.join('、')}` : ''}
+                              {item.sizeConsumptions?.length
+                                ? ` · 按尺码配置（${item.sizeConsumptions.map((entry) => `${entry.size} ${entry.consumption ?? '-'}${item.unit || '件'}`).join('、')}）`
+                                : ` · 单耗 ${item.consumption || 0}${item.unit || '件'}`}
                               {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
                             </div>
                           </div>

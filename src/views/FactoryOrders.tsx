@@ -742,7 +742,7 @@ const FactoryOrders = () => {
       const styleId = order.styleId;
       const [styleDetail, styleMaterials] = await Promise.all([
         styleDetailApi.fetchDetail(String(styleId)),
-        styleDetailApi.fetchMaterials(String(styleId)),
+        styleBomApi.fetch(String(styleId)).then(enrichStyleMaterialsWithImages),
       ]);
       const lineGroups = (detail.lines ?? []).filter((line) => Number(line.orderedQty ?? 0) > 0);
       const orderUnitPrice = lineGroups
@@ -794,7 +794,7 @@ const FactoryOrders = () => {
     } finally {
       setCreateSubmitting(false);
     }
-  }, [createForm, handleCloseCreate, loadCreateOptions]);
+  }, [createForm, enrichStyleMaterialsWithImages, handleCloseCreate, loadCreateOptions]);
 
   const handleDeleteOrder = useCallback((record: OrderActionSnapshot) => {
     if (record.deletable === false) {

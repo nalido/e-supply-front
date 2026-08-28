@@ -24,6 +24,7 @@ import type {
   MaterialBasicType,
   MaterialDataset,
   MaterialItem,
+  MaterialMinimumSpecification,
   MaterialUnit,
 } from '../types';
 import '../styles/material-archive.css';
@@ -388,8 +389,6 @@ const MaterialArchive = () => {
       },
       ...(activeTab === 'fabric'
         ? [
-            { title: '幅宽', dataIndex: 'width' },
-            { title: '克重', dataIndex: 'grammage' },
             { title: '空差', dataIndex: 'tolerance' },
           ]
         : []),
@@ -404,27 +403,18 @@ const MaterialArchive = () => {
         render: (value) => formatCurrency(value),
       },
       {
-        title: '颜色',
-        dataIndex: 'colors',
-        render: (colors: string[]) => (
+        title: '最小规格',
+        dataIndex: 'minimumSpecifications',
+        width: 300,
+        render: (specifications: MaterialMinimumSpecification[], record: MaterialItem) => (
           <Space size={[4, 4]} wrap>
-            {colors && colors.length > 0 ? colors.map((color) => <Tag key={color}>{color}</Tag>) : <span>-</span>}
+            <Tag color="blue">{specifications?.length ?? 0} 种</Tag>
+            {(specifications ?? []).slice(0, 2).map((specification) => <Tag key={specification.id ?? specification.label}>{specification.label}</Tag>)}
+            {(specifications?.length ?? 0) > 2 ? <span>等 {specifications.length} 种</span> : null}
+            {!specifications?.length && record.colors.length ? <span>{record.colors.join('、')}</span> : null}
           </Space>
         ),
       },
-      ...(activeTab === 'accessory'
-        ? [
-            {
-              title: '规格',
-              dataIndex: 'specifications',
-              render: (specifications: string[]) => (
-                <Space size={[4, 4]} wrap>
-                  {specifications && specifications.length > 0 ? specifications.map((spec) => <Tag key={spec}>{spec}</Tag>) : <span>-</span>}
-                </Space>
-              ),
-            },
-          ]
-        : []),
       {
         title: '操作',
         dataIndex: 'actions',

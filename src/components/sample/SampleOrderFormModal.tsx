@@ -53,7 +53,7 @@ import type { SampleOrderDetailResponse } from '../../api/adapters/sample-order'
 import materialApi from '../../api/material';
 import stylesApi from '../../api/styles';
 import styleDetailApi from '../../api/style-detail';
-import styleBomApi, { buildStyleBomUpdatePayload } from '../../api/style-bom';
+import styleBomApi from '../../api/style-bom';
 import storageApi from '../../api/storage';
 import ImageUploader from '../upload/ImageUploader';
 import '../../styles/sample-order-form.css';
@@ -1227,20 +1227,26 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
   }), [handleAttachmentUpload, messageApi]);
 
   const syncLinkedStyle = useCallback(async (values: SampleOrderFormValues, styleId: string) => {
+    const [currentStyle, currentBom] = await Promise.all([
+      styleDetailApi.fetchDetail(styleId),
+      styleBomApi.fetchConfiguration(styleId),
+    ]);
+    const preserveStructuredDimensions = Boolean(currentBom?.items.length);
     const stylePayload: StyleDetailSavePayload = {
       styleNo: values.styleCode.trim(),
       styleName: values.styleName.trim(),
       defaultUnit: values.unit,
       status: 'active',
       detailImageUrls: [],
-      colors,
-      sizes,
-      colorImages: colorImagesEnabled ? colorImageMap : {},
-      sizeChartImageUrl: sizeChartImage,
+      colors: preserveStructuredDimensions ? currentStyle.colors : colors,
+      sizes: preserveStructuredDimensions ? currentStyle.sizes : sizes,
+      colorImages: preserveStructuredDimensions
+        ? currentStyle.colorImages ?? {}
+        : colorImagesEnabled ? colorImageMap : {},
+      sizeChartImageUrl: preserveStructuredDimensions ? currentStyle.sizeChartImageUrl : sizeChartImage,
       coverImageUrl: mainAttachment?.url,
     };
     const savedDetail = await styleDetailApi.update(styleId, stylePayload);
-    const savedMaterials = await styleBomApi.update(styleId, buildStyleBomUpdatePayload(bomItems));
     form.setFieldsValue({
       styleId,
       styleCode: savedDetail.styleNo,
@@ -1252,8 +1258,7 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
     setColorImageMap(savedDetail.colorImages ?? {});
     setColorImagesEnabled(Object.values(savedDetail.colorImages ?? {}).some((value) => Boolean(value)));
     setSizeChartImage(savedDetail.sizeChartImageUrl ?? undefined);
-    setBomItems(mapStyleMaterialsToBomEntries(savedMaterials));
-  }, [bomItems, colorImageMap, colorImagesEnabled, colors, form, mainAttachment?.url, sizes, sizeChartImage]);
+  }, [colorImageMap, colorImagesEnabled, colors, form, mainAttachment?.url, sizes, sizeChartImage]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -1344,7 +1349,6 @@ const SampleOrderFormModal: React.FC<SampleOrderFormModalProps> = ({
           throw new Error('创建款式失败，未返回款式 ID');
         }
         styleId = createdStyle.id;
-        await styleBomApi.update(styleId, buildStyleBomUpdatePayload(bomItems));
       } else if (styleId) {
         await syncLinkedStyle(values, styleId);
       }
