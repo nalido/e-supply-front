@@ -6,6 +6,7 @@ import {
   DeploymentUnitOutlined,
   DatabaseOutlined,
   BuildOutlined,
+  HighlightOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -132,6 +133,15 @@ export const menuTree: MenuNode[] = [
     label: (
       <a href="/sale/workbench" target="_blank" rel="noreferrer">
         销售中心
+      </a>
+    ),
+  },
+  {
+    key: '/customization',
+    icon: <HighlightOutlined />,
+    label: (
+      <a href="/customization/workbench" target="_blank" rel="noreferrer">
+        定制商品工作台
       </a>
     ),
   },
