@@ -1,7 +1,7 @@
 import http from './http'
 import type { RequestConfigWithDataflow } from './http'
 import { requireNumericTenantId, toBackendPage } from './request-context'
-import type { PodAsset, PodDesignDraft, PodDesignListParams, PodDesignPage, PodDesignStyle, PodPrintArea, PodProductTemplate, PodProductTemplateDraft, PodTemplateImageRole, PodTemplateSupplierSkuDraft } from '../types/pod-design'
+import type { PodAsset, PodDesignDraft, PodDesignListParams, PodDesignPage, PodDesignStyle, PodPrintArea, PodPrintSizeHistory, PodProductTemplate, PodProductTemplateDraft, PodTemplateImageRole, PodTemplateSupplierSkuDraft } from '../types/pod-design'
 
 const basePath = '/api/v1/pod/design-styles'
 
@@ -106,6 +106,13 @@ export const podDesignApi = {
 }
 
 export default podDesignApi
+
+export const podPrintSizeHistoryApi = {
+  async recent(): Promise<PodPrintSizeHistory[]> {
+    const response = await http.get<PodPrintSizeHistory[]>('/api/v1/pod/print-size-history', { params: tenantParams() })
+    return response.data
+  },
+}
 
 const templatePath = '/api/v1/pod/product-templates'
 

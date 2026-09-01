@@ -25,12 +25,13 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { podProductTemplateApi } from "../../api/pod-design";
+import { podPrintSizeHistoryApi, podProductTemplateApi } from "../../api/pod-design";
 import partnersApi from "../../api/partners";
 import type { Partner } from "../../types/partners";
 import type {
   PodProductTemplate,
   PodProductTemplateDraft,
+  PodPrintSizeHistory,
   PodTemplateImageRole,
   PodTemplateSupplierSkuDraft,
   PodTemplateWorkflow,
@@ -58,6 +59,7 @@ const ProductTemplateWorkspace = () => {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<Partner[]>([]);
+  const [printSizeHistory, setPrintSizeHistory] = useState<PodPrintSizeHistory[]>([]);
   const [skuOpen, setSkuOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [templateDirty, setTemplateDirty] = useState(false);
@@ -68,11 +70,14 @@ const ProductTemplateWorkspace = () => {
   const hasUnsavedChanges = templateDirty || workflowDirty;
 
   useEffect(() => {
-    void podProductTemplateApi
-      .get(templateId)
-      .then((value) => {
+    void Promise.all([
+      podProductTemplateApi.get(templateId),
+      podPrintSizeHistoryApi.recent().catch(() => []),
+    ])
+      .then(([value, recentSizes]) => {
         setTemplate(value);
         setWorkflow(parseWorkflow(value.workflowConfig));
+        setPrintSizeHistory(recentSizes);
       })
       .catch(() => message.error("款式模板无法加载"));
   }, [message, templateId]);
@@ -120,6 +125,7 @@ const ProductTemplateWorkspace = () => {
         JSON.stringify(workflow),
       );
       setTemplate(result);
+      podPrintSizeHistoryApi.recent().then(setPrintSizeHistory).catch(() => undefined);
       setTemplateDirty(false);
       setWorkflowDirty(false);
       message.success("模板资料与生成流程已保存");
@@ -263,7 +269,7 @@ const ProductTemplateWorkspace = () => {
               {hasUnsavedChanges && <Tag color="orange">有未保存修改</Tag>}
             </Space>
             <Typography.Text type="secondary">
-              配置商品图、通用工艺与供应规格；每张商品图分别维护自己的印区尺寸
+              配置商品图、通用工艺与供应规格；每个印花位置分别维护自己的实际尺寸
             </Typography.Text>
           </div>
         </Space>
@@ -322,7 +328,7 @@ const ProductTemplateWorkspace = () => {
           {
             key: "workflow",
             label: "图片与生成流程",
-            children: <Card className="pod-panel pod-template-workbench" bodyStyle={{ padding: 0 }}>
+            children: <Card className="pod-panel pod-template-workbench" styles={{ body: { padding: 0 } }}>
               <div className="pod-template-uploadbar">
                 <Select value={role} options={roleOptions} onChange={setRole} />
                 <Input value={name} placeholder="图片名称，例如：正面白底图" onChange={(event) => setName(event.target.value)} />
@@ -330,7 +336,13 @@ const ProductTemplateWorkspace = () => {
                   <Button icon={<CloudUploadOutlined />} loading={uploading}>上传底图</Button>
                 </Upload>
               </div>
-              <TemplateWorkflowEditor template={template} value={workflow} onChange={changeWorkflow} onDeleteImage={deleteImage} />
+              <TemplateWorkflowEditor
+                template={template}
+                value={workflow}
+                sizeHistory={printSizeHistory}
+                onChange={changeWorkflow}
+                onDeleteImage={deleteImage}
+              />
             </Card>,
           },
           {

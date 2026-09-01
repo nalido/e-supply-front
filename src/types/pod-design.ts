@@ -88,6 +88,14 @@ export type PodTemplateImage = {
   sortOrder: number
 }
 
+export type PodPrintSizeHistory = {
+  id: number
+  widthMm: number
+  heightMm: number
+  useCount: number
+  lastUsedAt: string
+}
+
 export type PodProductTemplate = {
   id: number
   templateNo: string

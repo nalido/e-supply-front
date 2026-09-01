@@ -1,10 +1,10 @@
 import { Button, InputNumber, Slider, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
-import type { PodPrintArea, PodTemplateImage } from '../../types/pod-design'
+import type { PodPrintArea, PodPrintSizeHistory, PodTemplateImage } from '../../types/pod-design'
 
 type ContextArea = { id: string; area: PodPrintArea; color: string; label: string }
-type Props = { image: PodTemplateImage; value?: PodPrintArea; drawing: boolean; readOnly?: boolean; contextAreasSolid?: boolean; accentColor?: string; label?: string; contextAreas?: ContextArea[]; onDrawingChange: (drawing: boolean) => void; onChange: (area: PodPrintArea) => void }
+type Props = { image: PodTemplateImage; value?: PodPrintArea; drawing: boolean; readOnly?: boolean; contextAreasSolid?: boolean; accentColor?: string; label?: string; sizeHistory?: PodPrintSizeHistory[]; contextAreas?: ContextArea[]; onDrawingChange: (drawing: boolean) => void; onChange: (area: PodPrintArea) => void }
 type ResizeDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
 type Interaction = {
   type: 'drag' | 'resize' | 'rotate'
@@ -18,8 +18,9 @@ type Interaction = {
 const MIN_AREA_SIZE = .03
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 const normalizeAngle = (value: number) => Math.round(((value + 180) % 360 + 360) % 360 - 180)
+const formatMm = (value: number) => Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 
-const PrintAreaMarker = ({ image, value, drawing, readOnly = false, contextAreasSolid = false, accentColor = '#4f46e5', label = '设计区域', contextAreas = [], onDrawingChange, onChange }: Props) => {
+const PrintAreaMarker = ({ image, value, drawing, readOnly = false, contextAreasSolid = false, accentColor = '#4f46e5', label = '设计区域', sizeHistory = [], contextAreas = [], onDrawingChange, onChange }: Props) => {
   const ref = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState<PodPrintArea | null>(value ?? null)
   const draftRef = useRef<PodPrintArea | null>(null)
@@ -189,6 +190,11 @@ const PrintAreaMarker = ({ image, value, drawing, readOnly = false, contextAreas
     updateDraft({ ...area, [field]: value ?? undefined })
   }
 
+  const applyHistorySize = (history: PodPrintSizeHistory) => {
+    if (!area) return
+    updateDraft({ ...area, physicalWidthMm: history.widthMm, physicalHeightMm: history.heightMm })
+  }
+
   const previewRotation = (value: number | null) => {
     if (!area) return
     updateDraft({ ...area, rotationDegrees: value ?? 0 })
@@ -248,11 +254,25 @@ const PrintAreaMarker = ({ image, value, drawing, readOnly = false, contextAreas
     {area && !readOnly && <div className="pod-print-area-controls">
       <div className="pod-print-size-controls">
         <div className="pod-print-size-copy">
-          <Typography.Text strong>本印区成品尺寸</Typography.Text>
-          <Typography.Text type="secondary">只作用于“{image.imageName}”；切换图片不会丢失修改，完成后统一保存。</Typography.Text>
+          <Typography.Text strong>本位置印花实际尺寸</Typography.Text>
+          <Typography.Text type="secondary">只作用于“{image.imageName}”当前步骤；同一印花用于其他位置时可设置不同尺寸。</Typography.Text>
         </div>
-        <label><span>成品宽度</span><InputNumber min={1} precision={2} controls={false} value={area.physicalWidthMm} suffix="mm" style={{ width: '100%' }} aria-label={`${image.imageName}成品宽度`} onChange={value => previewSize('physicalWidthMm', value)} /></label>
-        <label><span>成品高度</span><InputNumber min={1} precision={2} controls={false} value={area.physicalHeightMm} suffix="mm" style={{ width: '100%' }} aria-label={`${image.imageName}成品高度`} onChange={value => previewSize('physicalHeightMm', value)} /></label>
+        <label><span>实际宽度</span><InputNumber min={1} precision={2} controls={false} value={area.physicalWidthMm} suffix="mm" style={{ width: '100%' }} aria-label={`${image.imageName}${label}实际宽度`} onChange={value => previewSize('physicalWidthMm', value)} /></label>
+        <label><span>实际高度</span><InputNumber min={1} precision={2} controls={false} value={area.physicalHeightMm} suffix="mm" style={{ width: '100%' }} aria-label={`${image.imageName}${label}实际高度`} onChange={value => previewSize('physicalHeightMm', value)} /></label>
+        {sizeHistory.length > 0 && <div className="pod-print-size-history">
+          <Typography.Text type="secondary">最近使用</Typography.Text>
+          <div className="pod-print-size-history__options">
+            {sizeHistory.map(history => <button
+              key={history.id}
+              type="button"
+              title={`${formatMm(history.widthMm)} × ${formatMm(history.heightMm)} mm`}
+              aria-label={`使用历史尺寸 ${formatMm(history.widthMm)} × ${formatMm(history.heightMm)} mm`}
+              onClick={() => applyHistorySize(history)}
+            >
+              {formatMm(history.widthMm)}×{formatMm(history.heightMm)}
+            </button>)}
+          </div>
+        </div>}
       </div>
       <div className="pod-print-rotation-controls">
       <div className="pod-print-rotation-copy">

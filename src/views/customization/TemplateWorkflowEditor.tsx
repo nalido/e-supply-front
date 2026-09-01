@@ -2,7 +2,7 @@ import { CheckCircleFilled, DeleteOutlined, PlusOutlined } from '@ant-design/ico
 import { Button, Empty, Modal, Select, Tag, Typography } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { PodProductTemplate, PodTemplateWorkflow, PodTemplateWorkflowNode } from '../../types/pod-design'
+import type { PodPrintSizeHistory, PodProductTemplate, PodTemplateWorkflow, PodTemplateWorkflowNode } from '../../types/pod-design'
 import PrintAreaMarker from './PrintAreaMarker'
 
 const COLORS = ['#2563eb', '#f97316', '#16a34a', '#9333ea', '#e11d48']
@@ -11,11 +11,12 @@ const nodeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toSt
 type Props = {
   template: PodProductTemplate
   value: PodTemplateWorkflow
+  sizeHistory: PodPrintSizeHistory[]
   onChange: (value: PodTemplateWorkflow) => void
   onDeleteImage: (imageId: number) => void
 }
 
-const TemplateWorkflowEditor = ({ template, value, onChange, onDeleteImage }: Props) => {
+const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDeleteImage }: Props) => {
   const [selectedImageId, setSelectedImageId] = useState<number>()
   const [selectedNodeId, setSelectedNodeId] = useState<string>()
   const [drawingNodeId, setDrawingNodeId] = useState<string>()
@@ -161,7 +162,7 @@ const TemplateWorkflowEditor = ({ template, value, onChange, onDeleteImage }: Pr
           const printNodes = chain.filter(node => node.type === 'PRINT' && node.area)
           const lastPrint = printNodes.at(-1)
           return lastPrint ? <PrintAreaMarker image={selectedImage} value={lastPrint.area} drawing={false} readOnly contextAreasSolid accentColor={printById.get(lastPrint.printId ?? '')?.color} label={printById.get(lastPrint.printId ?? '')?.name} contextAreas={printNodes.slice(0, -1).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: printById.get(node.printId ?? '')?.name ?? node.name }))} onDrawingChange={() => undefined} onChange={() => undefined} /> : <img className="pod-flow-input-preview" src={selectedImage.deliveryUrl} alt={selectedImage.imageName} />
-        })() : <PrintAreaMarker image={selectedImage} value={selectedNode.area} drawing={drawingNodeId === selectedNode.id} accentColor={printById.get(selectedNode.printId ?? '')?.color} label={printById.get(selectedNode.printId ?? '')?.name} contextAreas={chain.slice(0, selectedNodeIndex).filter(node => node.type === 'PRINT' && node.area).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: printById.get(node.printId ?? '')?.name ?? node.name }))} onDrawingChange={drawing => setDrawingNodeId(drawing ? selectedNode.id : undefined)} onChange={area => updateNode(selectedNode.id, { area })} />}
+        })() : <PrintAreaMarker image={selectedImage} value={selectedNode.area} drawing={drawingNodeId === selectedNode.id} sizeHistory={sizeHistory} accentColor={printById.get(selectedNode.printId ?? '')?.color} label={printById.get(selectedNode.printId ?? '')?.name} contextAreas={chain.slice(0, selectedNodeIndex).filter(node => node.type === 'PRINT' && node.area).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: printById.get(node.printId ?? '')?.name ?? node.name }))} onDrawingChange={drawing => setDrawingNodeId(drawing ? selectedNode.id : undefined)} onChange={area => updateNode(selectedNode.id, { area })} />}
       </>}
     </aside>
   </div>
