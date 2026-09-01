@@ -12,12 +12,10 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
   Row,
   Select,
   Space,
   Spin,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -26,14 +24,11 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { podPrintSizeHistoryApi, podProductTemplateApi } from "../../api/pod-design";
-import partnersApi from "../../api/partners";
-import type { Partner } from "../../types/partners";
 import type {
   PodProductTemplate,
   PodProductTemplateDraft,
   PodPrintSizeHistory,
   PodTemplateImageRole,
-  PodTemplateSupplierSkuDraft,
   PodTemplateWorkflow,
 } from "../../types/pod-design";
 import TemplateWorkflowEditor from "./TemplateWorkflowEditor";
@@ -58,15 +53,12 @@ const ProductTemplateWorkspace = () => {
   const [name, setName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [suppliers, setSuppliers] = useState<Partner[]>([]);
   const [printSizeHistory, setPrintSizeHistory] = useState<PodPrintSizeHistory[]>([]);
-  const [skuOpen, setSkuOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [templateDirty, setTemplateDirty] = useState(false);
   const [workflow, setWorkflow] = useState<PodTemplateWorkflow>(emptyWorkflow());
   const [workflowDirty, setWorkflowDirty] = useState(false);
   const [form] = Form.useForm<PodProductTemplateDraft>();
-  const [skuForm] = Form.useForm<PodTemplateSupplierSkuDraft>();
   const hasUnsavedChanges = templateDirty || workflowDirty;
 
   useEffect(() => {
@@ -81,14 +73,6 @@ const ProductTemplateWorkspace = () => {
       })
       .catch(() => message.error("款式模板无法加载"));
   }, [message, templateId]);
-  useEffect(() => {
-    void partnersApi
-      .list({ type: "supplier", page: 1, pageSize: 200 })
-      .then((value) =>
-        setSuppliers(value.list.filter((item) => !item.disabled)),
-      )
-      .catch(() => undefined);
-  }, []);
   useEffect(() => {
     if (template) form.setFieldsValue(template);
   }, [form, template]);
@@ -215,23 +199,6 @@ const ProductTemplateWorkspace = () => {
     }
   };
 
-  const saveSku = async () => {
-    const values = await skuForm.validateFields();
-    try {
-      setTemplate(
-        await podProductTemplateApi.createSupplierSku(templateId, {
-          ...values,
-          active: true,
-        }),
-      );
-      setSkuOpen(false);
-      skuForm.resetFields();
-      message.success("供应 SKU 已加入模板");
-    } catch {
-      message.error("供应 SKU 保存失败，请检查是否重复");
-    }
-  };
-
   if (!template)
     return (
       <div className="pod-page">
@@ -269,7 +236,7 @@ const ProductTemplateWorkspace = () => {
               {hasUnsavedChanges && <Tag color="orange">有未保存修改</Tag>}
             </Space>
             <Typography.Text type="secondary">
-              配置商品图、通用工艺与供应规格；每个印花位置分别维护自己的实际尺寸
+              配置商品图与通用工艺；每个印花位置分别维护自己的实际尺寸
             </Typography.Text>
           </div>
         </Space>
@@ -345,77 +312,8 @@ const ProductTemplateWorkspace = () => {
               />
             </Card>,
           },
-          {
-            key: "skus",
-            label: `供应规格（可选 · ${template.supplierSkus.length}）`,
-            children: <Card className="pod-panel" title="供应商品与 SKU 映射" extra={<Button type="primary" onClick={() => setSkuOpen(true)}>添加供应 SKU</Button>}>
-              <Alert className="pod-state-alert" type="info" showIcon message="供应规格用于订单进入生产后匹配供应商的空白商品，不影响模板启用和设计审核。" />
-              <Table rowKey="id" pagination={false} dataSource={template.supplierSkus} columns={[
-                { title: "供应商", dataIndex: "supplierName" }, { title: "供应商货号", dataIndex: "supplierProductNo" },
-                { title: "供应 SKU", dataIndex: "supplierSku" }, { title: "颜色", dataIndex: "colorName" },
-                { title: "尺码", dataIndex: "sizeName" }, { title: "材质", dataIndex: "materialName" },
-                { title: "操作", render: (_, record) => <Button type="link" danger onClick={() => void podProductTemplateApi.deleteSupplierSku(templateId, record.id).then(value => { setTemplate(value); message.success("供应 SKU 已移除") })}>移除</Button> },
-              ]} />
-            </Card>,
-          },
         ]}
       />
-      <Modal
-        title="添加供应 SKU"
-        open={skuOpen}
-        okText="保存"
-        cancelText="取消"
-        onOk={() => void saveSku()}
-        onCancel={() => setSkuOpen(false)}
-      >
-        <Form form={skuForm} layout="vertical">
-          <Form.Item
-            name="supplierId"
-            label="供应商"
-            rules={[{ required: true }]}
-          >
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={suppliers.map((item) => ({
-                value: Number(item.id),
-                label: item.name,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name="supplierProductNo"
-            label="供应商货号"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="supplierSku"
-            label="供应 SKU"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item name="colorName" label="颜色">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="sizeName" label="尺码">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="materialName" label="材质">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
     </div>
   );
 };

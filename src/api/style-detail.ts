@@ -13,6 +13,7 @@ import { sortColorValues, sortSizeValues } from '../utils/spec';
 type BackendStyleStatus = 'ACTIVE' | 'INACTIVE';
 type BackendStyleVariant = {
   id: number;
+  styleSkcId?: number;
   color?: string;
   size?: string;
   skcNo?: string;
@@ -163,6 +164,7 @@ const adaptDetail = (payload: BackendStyleResponse): StyleDetailData => {
     sizeChartImageUrl,
     variants: (payload.variants ?? []).map((variant) => ({
       id: String(variant.id),
+      styleSkcId: variant.styleSkcId ? String(variant.styleSkcId) : undefined,
       color: variant.color ?? undefined,
       size: variant.size ?? undefined,
       skcNo: variant.skcNo ?? undefined,

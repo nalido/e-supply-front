@@ -207,6 +207,16 @@
   align-items: center;
 }
 
+.style-detail-color-item--linked-skc {
+  border-color: #52c41a;
+  background: #f6ffed;
+  box-shadow: 0 0 0 2px rgb(82 196 26 / 12%);
+}
+
+.style-detail-linked-skc-alert {
+  margin-bottom: 16px;
+}
+
 .style-detail-color-label {
   font-weight: 500;
   text-align: center;

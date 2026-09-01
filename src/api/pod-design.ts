@@ -1,7 +1,7 @@
 import http from './http'
 import type { RequestConfigWithDataflow } from './http'
 import { requireNumericTenantId, toBackendPage } from './request-context'
-import type { PodAsset, PodDesignDraft, PodDesignListParams, PodDesignPage, PodDesignStyle, PodPrintArea, PodPrintSizeHistory, PodProductTemplate, PodProductTemplateDraft, PodTemplateImageRole, PodTemplateSupplierSkuDraft } from '../types/pod-design'
+import type { PodAsset, PodDesignDraft, PodDesignListParams, PodDesignPage, PodDesignStyle, PodFactoryStyleBindingDraft, PodPrintArea, PodPrintSizeHistory, PodProductTemplate, PodProductTemplateDraft, PodTemplateImageRole } from '../types/pod-design'
 
 const basePath = '/api/v1/pod/design-styles'
 
@@ -89,6 +89,11 @@ export const podDesignApi = {
     return response.data
   },
 
+  async bindFactoryStyle(id: number, payload: PodFactoryStyleBindingDraft): Promise<PodDesignStyle> {
+    const response = await http.post<PodDesignStyle>(`${basePath}/${id}/factory-style/bind`, payload, approvalRequestConfig())
+    return response.data
+  },
+
   async exportPrintArtwork(id: number): Promise<{ blob: Blob; fileName: string }> {
     const config: RequestConfigWithDataflow = {
       params: tenantParams(),
@@ -160,14 +165,6 @@ export const podProductTemplateApi = {
   },
   async updateStatus(id: number, status: 'DRAFT' | 'ACTIVE' | 'INACTIVE'): Promise<PodProductTemplate> {
     const response = await http.post<PodProductTemplate>(`${templatePath}/${id}/status/update`, undefined, { params: { ...tenantParams(), status } })
-    return response.data
-  },
-  async createSupplierSku(id: number, payload: PodTemplateSupplierSkuDraft): Promise<PodProductTemplate> {
-    const response = await http.post<PodProductTemplate>(`${templatePath}/${id}/supplier-skus`, payload, { params: tenantParams() })
-    return response.data
-  },
-  async deleteSupplierSku(id: number, mappingId: number): Promise<PodProductTemplate> {
-    const response = await http.post<PodProductTemplate>(`${templatePath}/${id}/supplier-skus/${mappingId}/delete`, undefined, { params: tenantParams() })
     return response.data
   },
 }

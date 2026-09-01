@@ -44,6 +44,16 @@ export type PodDesignStyle = {
   submittedAt?: string
   reviewedAt?: string
   reviewedBy?: number
+  factoryBinding?: {
+    styleId: number
+    styleNo: string
+    styleName: string
+    skcId: number
+    skcNo?: string
+    colorName: string
+    skuCount: number
+    boundAt: string
+  }
   publishReadiness: { ready: boolean; blockers: string[] }
   reviewEvents: Array<{ id: number; revisionId: number; action: string; operatorId?: number; comment?: string; createdAt: string }>
   revisions: Array<{ id: number; revisionNo: number; frozen: boolean; frozenAt?: string; generationBatchNo?: string; confirmedBatchNo?: string; confirmedAt?: string; assets: PodAsset[] }>
@@ -66,6 +76,14 @@ export type PodDesignListParams = {
 }
 
 export type PodDesignDraft = Pick<PodDesignStyle, 'productTemplateId' | 'styleNo' | 'styleName' | 'categoryName' | 'description'>
+
+export type PodFactoryStyleBindingDraft = {
+  mode: 'CREATE_NEW_STYLE' | 'USE_EXISTING_STYLE'
+  existingStyleId?: number
+  factoryStyleNo?: string
+  factoryStyleName?: string
+  colorName: string
+}
 
 export type PodTemplateImageRole = 'FRONT' | 'BACK' | 'SIDE' | 'MODEL' | 'MATERIAL' | 'DETAIL'
 
@@ -110,7 +128,6 @@ export type PodProductTemplate = {
   safeMarginMm?: number
   workflowConfig?: string
   images: PodTemplateImage[]
-  supplierSkus: PodTemplateSupplierSku[]
   readinessBlockers: string[]
   createdAt?: string
   updatedAt?: string
@@ -147,20 +164,6 @@ export type PodTemplateWorkflow = {
 }
 
 export type PodProductTemplateDraft = Pick<PodProductTemplate, 'templateNo' | 'templateName' | 'categoryName' | 'description' | 'printTechnique' | 'minDpi' | 'bleedMm' | 'safeMarginMm'>
-
-export type PodTemplateSupplierSku = {
-  id: number
-  supplierId: number
-  supplierName: string
-  supplierProductNo: string
-  supplierSku: string
-  colorName?: string
-  sizeName?: string
-  materialName?: string
-  active: boolean
-}
-
-export type PodTemplateSupplierSkuDraft = Omit<PodTemplateSupplierSku, 'id' | 'supplierName'>
 
 export type PodPrintArea = {
   x: number

@@ -49,6 +49,7 @@ export const stylesApi = {
       params: {
         tenantId,
         keyword: params.keyword,
+        status: params.status === 'inactive' ? 'INACTIVE' : params.status === 'active' ? 'ACTIVE' : undefined,
         page: toBackendPage(params.page),
         size: params.pageSize,
       },

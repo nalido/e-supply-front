@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   App as AntdApp,
+  Alert,
   Button,
   Col,
   Form,
@@ -114,6 +115,7 @@ const StyleDetail = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const styleId = searchParams.get('id') ?? undefined;
+  const linkedSkcId = searchParams.get('skcId') ?? undefined;
   const isEditing = Boolean(styleId);
   const [createdStyleId, setCreatedStyleId] = useState<string>();
   const effectiveStyleId = styleId ?? createdStyleId;
@@ -646,6 +648,11 @@ const StyleDetail = () => {
     ],
     [bomDraft.lines.length, detailImages.length, normalizedColors.length, normalizedSizes.length],
   );
+  const linkedSkcVariants = useMemo(
+    () => linkedSkcId ? (detail?.variants ?? []).filter((variant) => variant.styleSkcId === linkedSkcId) : [],
+    [detail?.variants, linkedSkcId],
+  );
+  const linkedSkcColor = linkedSkcVariants[0]?.color;
 
   return (
     <Spin spinning={loading} tip="加载中...">
@@ -664,6 +671,16 @@ const StyleDetail = () => {
             </span>
           )}
         />
+
+        {linkedSkcId && linkedSkcVariants.length > 0 ? (
+          <Alert
+            className="style-detail-linked-skc-alert"
+            type="success"
+            showIcon
+            message="已定位到设计款式生成的 SKC"
+            description={`${linkedSkcVariants[0]?.skcNo || linkedSkcVariants[0]?.systemSkcNo || '系统 SKC'} · ${linkedSkcColor || '未命名颜色'} · ${linkedSkcVariants.length} 个尺码 SKU`}
+          />
+        ) : null}
 
         <Form form={form} layout="vertical" className="style-detail-form" onValuesChange={handleValuesChange} data-testid="style-detail-form">
           <PageSection className="oc-page-section--compact style-detail-card style-detail-overview-card">
@@ -754,7 +771,7 @@ const StyleDetail = () => {
                 {colorImagesEnabled && normalizedColors.length > 0 && (
                   <div className="style-detail-color-images">
                     {normalizedColors.map((color) => (
-                      <div key={color} className="style-detail-color-item">
+                      <div key={color} className={`style-detail-color-item${color === linkedSkcColor ? ' style-detail-color-item--linked-skc' : ''}`}>
                         <Text className="style-detail-color-label">{color}</Text>
                         <ImageUploader
                           module="styles"

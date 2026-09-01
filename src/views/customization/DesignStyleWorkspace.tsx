@@ -1,14 +1,17 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, CloudUploadOutlined, DownloadOutlined, LockOutlined, QuestionCircleOutlined, RedoOutlined, RobotOutlined } from '@ant-design/icons'
+import { ApartmentOutlined, ArrowLeftOutlined, CheckCircleOutlined, CloudUploadOutlined, DownloadOutlined, LinkOutlined, LockOutlined, QuestionCircleOutlined, RedoOutlined, RobotOutlined } from '@ant-design/icons'
 import { Alert, App, Button, Card, Col, Empty, Form, Image, Input, Modal, Radio, Row, Select, Space, Steps, Tag, Timeline, Tooltip, Typography, Upload } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import podDesignApi, { podProductTemplateApi } from '../../api/pod-design'
-import type { PodAsset, PodDesignDraft, PodDesignStyle, PodProductTemplate } from '../../types/pod-design'
+import stylesApi from '../../api/styles'
+import type { StyleData } from '../../types/style'
+import type { PodAsset, PodDesignDraft, PodDesignStyle, PodFactoryStyleBindingDraft, PodProductTemplate } from '../../types/pod-design'
 import { PodDesignStatusTag } from './pod-design-display'
 import { parseWorkflow } from './template-workflow'
 import { formatDuration, generationResultDuration } from './pod-generation-time'
 
 type FormValues = Pick<PodDesignDraft, 'productTemplateId' | 'styleNo' | 'styleName' | 'categoryName' | 'description'>
+type FactoryFormValues = PodFactoryStyleBindingDraft
 
 const uploadErrorMessage = (caught: unknown) => {
   const responseMessage = (caught as { response?: { data?: { message?: unknown } } })?.response?.data?.message
@@ -25,6 +28,7 @@ const DesignStyleWorkspace = () => {
   const { id } = useParams()
   const isNew = !id || id === 'new'
   const [form] = Form.useForm<FormValues>()
+  const [factoryForm] = Form.useForm<FactoryFormValues>()
   const [style, setStyle] = useState<PodDesignStyle>()
   const [templates, setTemplates] = useState<PodProductTemplate[]>([])
   const [artworks, setArtworks] = useState<Record<string, PodAsset>>({})
@@ -37,11 +41,16 @@ const DesignStyleWorkspace = () => {
   const [rejectReason, setRejectReason] = useState('')
   const [reviewing, setReviewing] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [factoryOpen, setFactoryOpen] = useState(false)
+  const [factorySaving, setFactorySaving] = useState(false)
+  const [factoryStyleLoading, setFactoryStyleLoading] = useState(false)
+  const [factoryStyles, setFactoryStyles] = useState<StyleData[]>([])
   const [capability, setCapability] = useState<{ available: boolean; provider: string; model: string }>()
   const templateId = Form.useWatch('productTemplateId', form)
   const selectedTemplate = useMemo(() => templates.find(item => item.id === templateId), [templates, templateId])
   const workflow = useMemo(() => parseWorkflow(selectedTemplate?.workflowConfig), [selectedTemplate?.workflowConfig])
   const readOnly = style?.status === 'PENDING_REVIEW' || style?.status === 'APPROVED'
+  const factoryMode = Form.useWatch('mode', factoryForm)
 
   const applyStyle = useCallback((value: PodDesignStyle) => {
     setStyle(value)
@@ -130,7 +139,49 @@ const DesignStyleWorkspace = () => {
   const confirmed = completed && style?.confirmedBatchNo === style?.generationBatchNo
   const requiredPrints = workflow.prints.filter(print => workflow.nodes.some(node => node.type === 'PRINT' && node.printId === print.id))
   const allPrintsUploaded = requiredPrints.length > 0 && requiredPrints.every(print => artworks[print.id])
-  const currentStep = style?.status === 'APPROVED' ? 4 : style?.status === 'PENDING_REVIEW' ? 4 : confirmed ? 3 : allPrintsUploaded ? 2 : selectedTemplate ? 1 : 0
+  const currentStep = style?.factoryBinding ? 5 : style?.status === 'APPROVED' ? 4 : style?.status === 'PENDING_REVIEW' ? 4 : confirmed ? 3 : allPrintsUploaded ? 2 : selectedTemplate ? 1 : 0
+
+  const loadFactoryStyles = useCallback(async (keyword?: string) => {
+    setFactoryStyleLoading(true)
+    try {
+      const result = await stylesApi.list({ page: 1, pageSize: 20, keyword: keyword?.trim() || undefined, status: 'active' })
+      setFactoryStyles(result.list)
+    } catch {
+      message.error('工厂款式暂时无法加载')
+    } finally {
+      setFactoryStyleLoading(false)
+    }
+  }, [message])
+
+  const openFactoryBinding = () => {
+    if (!style) return
+    factoryForm.setFieldsValue({
+      mode: 'CREATE_NEW_STYLE',
+      factoryStyleNo: `${style.styleNo}-F`,
+      factoryStyleName: style.styleName,
+      colorName: undefined,
+      existingStyleId: undefined,
+    })
+    setFactoryOpen(true)
+  }
+
+  const bindFactoryStyle = async () => {
+    if (!style) return
+    try {
+      const values = await factoryForm.validateFields()
+      setFactorySaving(true)
+      applyStyle(await podDesignApi.bindFactoryStyle(style.id, values))
+      setFactoryOpen(false)
+      message.success(`已创建新 SKC，并生成 ${workflow.sizes.length} 个尺码 SKU`)
+    } catch (caught) {
+      if (!(caught as { errorFields?: unknown }).errorFields) {
+        const responseMessage = (caught as { response?: { data?: { message?: unknown } } })?.response?.data?.message
+        message.error(typeof responseMessage === 'string' ? responseMessage : '工厂款式生成失败')
+      }
+    } finally {
+      setFactorySaving(false)
+    }
+  }
 
   const render = async () => {
     const target = await save()
@@ -215,7 +266,7 @@ const DesignStyleWorkspace = () => {
       {style?.status === 'DRAFT' && <Button type="primary" icon={<LockOutlined />} disabled={!confirmed || !style.publishReadiness.ready} onClick={() => void submit()}>提交审核</Button>}
       {style?.status === 'PENDING_REVIEW' && <><Button danger loading={reviewing} onClick={() => setRejectOpen(true)}>驳回返修</Button><Button type="primary" loading={reviewing} onClick={() => void approve()}>审核通过</Button></>}
     </Space></div>
-    <Steps current={currentStep} items={[{ title: '选择模板' }, { title: '上传设计图' }, { title: 'AI 生成' }, { title: '确认结果' }, { title: '审核完成' }]} />
+    <Steps current={currentStep} items={[{ title: '选择模板' }, { title: '上传设计图' }, { title: 'AI 生成' }, { title: '确认结果' }, { title: '审核完成' }, { title: '生成工厂款式' }]} />
     {style?.status === 'REJECTED' && <Alert type="error" showIcon message="审核未通过" description={style.reviewComment || '请按审核意见返修'} />}
     <Row gutter={[20, 20]}>
       <Col xs={24} xl={8}><Card className="pod-panel" title="设计信息"><Form form={form} layout="vertical" disabled={readOnly} requiredMark="optional">
@@ -226,6 +277,9 @@ const DesignStyleWorkspace = () => {
         <Form.Item name="description" label="设计说明"><Input.TextArea rows={2} /></Form.Item>
       </Form>
       {selectedTemplate ? <div className="pod-selected-template"><div><Typography.Text strong>{selectedTemplate.templateName} · V{selectedTemplate.configVersion}</Typography.Text><Typography.Text type="secondary">{selectedTemplate.images.length} 张底图 · {renderableImages.length} 张参与生成</Typography.Text></div></div> : <Alert type="warning" showIcon message="请先选择已启用的模板" />}
+      {style?.status === 'APPROVED' && (style.factoryBinding
+        ? <div className="pod-factory-binding pod-factory-binding--complete"><div className="pod-factory-binding__icon"><CheckCircleOutlined /></div><div><Typography.Text type="secondary">已生成工厂 SKC</Typography.Text><Typography.Link strong onClick={() => navigate(`/foundation/product/detail?id=${style.factoryBinding?.styleId}&skcId=${style.factoryBinding?.skcId}`)}>{style.factoryBinding.styleNo} · {style.factoryBinding.styleName}</Typography.Link><Typography.Text>{style.factoryBinding.colorName} · {style.factoryBinding.skcNo || '系统 SKC'} · {style.factoryBinding.skuCount} 个尺码 SKU</Typography.Text></div><Button icon={<LinkOutlined />} onClick={() => navigate(`/foundation/product/detail?id=${style.factoryBinding?.styleId}&skcId=${style.factoryBinding?.skcId}`)}>查看工厂款式</Button></div>
+        : <Alert className="pod-factory-binding-alert" type="success" showIcon icon={<ApartmentOutlined />} message="审核已完成，可以生成工厂款式" description="选择新建工厂款式，或连接已有款式并创建一个全新的颜色 SKC；图片和尺码 SKU 会一次同步完成。" action={<Button type="primary" icon={<ApartmentOutlined />} onClick={openFactoryBinding}>生成工厂款式</Button>} />)}
       </Card></Col>
       <Col xs={24} xl={7}><Card className="pod-panel" title="印花设计图">
         {!selectedTemplate ? <Empty description="选择模板后显示需要上传的印花" /> : requiredPrints.length === 0 ? <Empty description="这个模板尚未配置印花步骤" /> : <div className="pod-print-upload-list">{requiredPrints.map((print, index) => { const asset = artworks[print.id]; const uploading = uploadingPrintId === print.id; const usages = workflow.nodes.filter(node => node.type === 'PRINT' && node.printId === print.id).map(node => `${selectedTemplate.images.find(image => image.id === node.imageId)?.imageName ?? '商品图'} · ${node.name}`); return <Upload.Dragger key={print.id} showUploadList={false} disabled={readOnly || Boolean(uploadingPrintId)} accept="image/png" beforeUpload={file => upload(print.id, file)} className="pod-print-uploader" style={{ borderColor: print.color }}><div className="pod-print-uploader__heading"><span className="pod-print-number" style={{ background: print.color }}>{index + 1}</span><strong>{print.name}</strong><Tooltip trigger={['hover', 'click']} title={`使用位置：${usages.join('、')}`}><button type="button" className="pod-print-uploader__usage-help" aria-label={`查看${print.name}使用位置`} onClick={event => { event.preventDefault(); event.stopPropagation() }}><QuestionCircleOutlined /></button></Tooltip><Tag color={asset ? 'success' : 'default'}>{asset ? '已上传' : '待上传'}</Tag></div>{asset ? <img src={asset.deliveryUrl} alt={`${print.name}设计图`} /> : <CloudUploadOutlined className="pod-print-upload-icon" />}<p>{uploading ? '上传中…' : asset ? '点击更换设计图' : `上传${print.name}的透明 PNG`}</p></Upload.Dragger>})}</div>}
@@ -242,6 +296,29 @@ const DesignStyleWorkspace = () => {
       </Card></Col>
     </Row>
     <Modal title="驳回并要求返修" open={rejectOpen} confirmLoading={reviewing} okText="确认驳回" cancelText="取消" okButtonProps={{ danger: true, disabled: !rejectReason.trim() }} onOk={() => void reject()} onCancel={() => setRejectOpen(false)}><Input.TextArea rows={4} value={rejectReason} onChange={event => setRejectReason(event.target.value)} placeholder="请填写设计师可执行的返修原因" /></Modal>
+    <Modal width={680} title="生成工厂款式与 SKC" open={factoryOpen} confirmLoading={factorySaving} okText="确认生成" cancelText="取消" onOk={() => void bindFactoryStyle()} onCancel={() => setFactoryOpen(false)} destroyOnHidden>
+      <Form form={factoryForm} layout="vertical" initialValues={{ mode: 'CREATE_NEW_STYLE' }}>
+        <Form.Item name="mode" label="生成方式" rules={[{ required: true }]}>
+          <Radio.Group className="pod-factory-mode">
+            <Radio.Button value="CREATE_NEW_STYLE">新建工厂款式</Radio.Button>
+            <Radio.Button value="USE_EXISTING_STYLE">连接已有工厂款式</Radio.Button>
+          </Radio.Group>
+        </Form.Item>
+        {factoryMode === 'USE_EXISTING_STYLE' ? <>
+          <Form.Item name="existingStyleId" label="已有工厂款式" extra="这里只选择工厂款式；提交后系统会在该款式下新建颜色 SKC。" rules={[{ required: true, message: '请选择工厂款式' }]}>
+            <Select showSearch filterOption={false} placeholder="输入款号或款名搜索" loading={factoryStyleLoading} onFocus={() => { if (factoryStyles.length === 0) void loadFactoryStyles() }} onSearch={value => void loadFactoryStyles(value)} options={factoryStyles.map(item => ({ value: Number(item.id), label: `${item.styleNo} · ${item.styleName}` }))} />
+          </Form.Item>
+        </> : <Row gutter={16}>
+          <Col span={10}><Form.Item name="factoryStyleNo" label="工厂款号" rules={[{ required: true, message: '请填写工厂款号' }]}><Input maxLength={64} /></Form.Item></Col>
+          <Col span={14}><Form.Item name="factoryStyleName" label="工厂款名" rules={[{ required: true, message: '请填写工厂款名' }]}><Input maxLength={1024} /></Form.Item></Col>
+        </Row>}
+        <Form.Item name="colorName" label="新 SKC 颜色" extra="无论选择哪种方式，都会创建新的颜色 SKC，不会绑定已有 SKC。" rules={[{ required: true, whitespace: true, message: '请填写新 SKC 颜色' }]}><Input placeholder="例如：米白印花款" maxLength={64} /></Form.Item>
+        <div className="pod-factory-summary">
+          <div><Typography.Text type="secondary">将同步图片</Typography.Text><Typography.Text strong>{renderableImages.length} 张（主图和全部其他图片）</Typography.Text></div>
+          <div><Typography.Text type="secondary">将生成尺码 SKU</Typography.Text><Space size={[4, 4]} wrap>{workflow.sizes.map(size => <Tag key={size.id}>{size.name}</Tag>)}</Space></div>
+        </div>
+      </Form>
+    </Modal>
   </div>
 }
 
