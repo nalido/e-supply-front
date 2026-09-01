@@ -1,9 +1,10 @@
 import { CheckCircleFilled, DeleteOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Empty, Modal, Select, Tag, Typography } from 'antd'
+import { App, Button, Empty, Input, Modal, Select, Tag, Typography } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PodPrintSizeHistory, PodProductTemplate, PodTemplateWorkflow, PodTemplateWorkflowNode } from '../../types/pod-design'
 import PrintAreaMarker from './PrintAreaMarker'
+import PrintSizeMatrix from './PrintSizeMatrix'
 
 const COLORS = ['#2563eb', '#f97316', '#16a34a', '#9333ea', '#e11d48']
 const nodeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -17,9 +18,11 @@ type Props = {
 }
 
 const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDeleteImage }: Props) => {
+  const { message } = App.useApp()
   const [selectedImageId, setSelectedImageId] = useState<number>()
   const [selectedNodeId, setSelectedNodeId] = useState<string>()
   const [drawingNodeId, setDrawingNodeId] = useState<string>()
+  const [sizeDraft, setSizeDraft] = useState('')
 
   useEffect(() => {
     const imageIds = new Set(template.images.map(image => image.id))
@@ -29,7 +32,11 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
       const input = imageNodes.find(node => node.type === 'INPUT') ?? {
         id: `input-${image.id}`, type: 'INPUT' as const, imageId: image.id, name: image.imageName, finalOutput: false,
       }
-      const prints = imageNodes.filter(node => node.type === 'PRINT').map(node => ({ ...node, finalOutput: false }))
+      const prints = imageNodes.filter(node => node.type === 'PRINT').map((node, index) => ({
+        ...node,
+        name: node.name?.trim() && !node.name.endsWith('融合') ? node.name : `印花位置${index + 1}`,
+        finalOutput: false,
+      }))
       const legacyOutput = imageNodes.find(node => node.finalOutput && node.type !== 'OUTPUT')
       const endpoint = legacyOutput ?? prints.at(-1) ?? input
       const output = imageNodes.find(node => node.type === 'OUTPUT') ?? {
@@ -68,6 +75,50 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
     onChange({ ...value, prints: [...value.prints, { id: nodeId('print'), name: `印花${['一', '二', '三', '四', '五'][index] ?? index + 1}`, color: COLORS[index % COLORS.length] }] })
   }
 
+  const addSize = (candidate: string) => {
+    const name = candidate.trim()
+    if (!name) return
+    if (value.sizes.some(size => size.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      message.warning(`尺码“${name}”已经存在`)
+      return
+    }
+    const size = { id: nodeId('size'), name }
+    const firstSize = value.sizes.length === 0
+    onChange({
+      ...value,
+      sizes: [...value.sizes, size],
+      nodes: value.nodes.map(node => {
+        if (node.type !== 'PRINT') return node
+        const measurements = node.sizeMeasurements ?? []
+        if (measurements.some(item => item.sizeId === size.id)) return node
+        const legacy = firstSize && node.area?.physicalWidthMm && node.area?.physicalHeightMm
+          ? { widthMm: node.area.physicalWidthMm, heightMm: node.area.physicalHeightMm }
+          : {}
+        return { ...node, sizeMeasurements: [...measurements, { sizeId: size.id, ...legacy }] }
+      }),
+    })
+    setSizeDraft('')
+  }
+
+  const removeSize = (sizeId: string) => {
+    const size = value.sizes.find(item => item.id === sizeId)
+    if (!size) return
+    const remove = () => onChange({
+      ...value,
+      sizes: value.sizes.filter(item => item.id !== sizeId),
+      nodes: value.nodes.map(node => ({
+        ...node,
+        sizeMeasurements: node.sizeMeasurements?.filter(item => item.sizeId !== sizeId),
+      })),
+    })
+    const configured = value.nodes.some(node => node.sizeMeasurements?.some(item => item.sizeId === sizeId && (item.widthMm || item.heightMm)))
+    if (!configured) {
+      remove()
+      return
+    }
+    Modal.confirm({ title: `删除尺码“${size.name}”？`, content: '这个尺码在所有印花位置中填写的实际尺寸也会一起移除。', okText: '删除尺码', cancelText: '取消', okButtonProps: { danger: true }, onOk: remove })
+  }
+
   const addStep = () => {
     if (!selectedImage) return
     const output = chain.find(node => node.type === 'OUTPUT')
@@ -76,8 +127,9 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
     if (!previous || !print || !output) return
     const step: PodTemplateWorkflowNode = {
       id: nodeId('step'), type: 'PRINT', imageId: selectedImage.id, inputNodeId: previous.id, printId: print.id,
-      name: `${print.name}融合`, finalOutput: false,
+      name: `印花位置${chain.filter(node => node.type === 'PRINT').length + 1}`, finalOutput: false,
       area: { x: .32, y: .28, width: .36, height: .42, rotationDegrees: 0, mirrorArtwork: false },
+      sizeMeasurements: value.sizes.map(size => ({ sizeId: size.id })),
     }
     onChange({ ...value, nodes: value.nodes.flatMap(node => node.id === output.id ? [step, { ...node, inputNodeId: step.id }] : node) })
     setSelectedNodeId(step.id)
@@ -98,7 +150,31 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
     setSelectedNodeId(output?.id)
   }
 
-  if (!template.images.length) return <div className="pod-flow-empty"><Empty description="先上传一张商品底图，再开始编排生成流程" /></div>
+  const sizeEditor = <div className="pod-template-sizes">
+    <div className="pod-template-sizes__copy"><Typography.Text strong>模板尺码</Typography.Text><Typography.Text type="secondary">输入尺码后按回车添加；所有印花位置按同一尺码顺序填写。</Typography.Text></div>
+    <Select
+      mode="tags"
+      value={value.sizes.map(size => size.name)}
+      options={value.sizes.map(size => ({ value: size.name, label: size.name }))}
+      searchValue={sizeDraft}
+      maxLength={32}
+      placeholder="例如 90、100、110"
+      aria-label="模板尺码"
+      suffixIcon={<span className="pod-enter-hint">回车添加</span>}
+      onSearch={setSizeDraft}
+      onChange={names => {
+        const added = names.find(name => !value.sizes.some(size => size.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase()))
+        if (added) {
+          addSize(added)
+          return
+        }
+        const removed = value.sizes.find(size => !names.includes(size.name))
+        if (removed) removeSize(removed.id)
+      }}
+    />
+  </div>
+
+  if (!template.images.length) return <div className="pod-flow-empty-state">{sizeEditor}<div className="pod-flow-empty"><Empty description="先上传一张商品底图，再开始编排生成流程" /></div></div>
 
   return <div className="pod-flow-workspace">
     <aside className="pod-flow-assets">
@@ -127,6 +203,7 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
         <div><Typography.Title level={4}>{selectedImage?.imageName}</Typography.Title><Typography.Text type="secondary">按顺序从左向右生成</Typography.Text></div>
         <div className="pod-flow-toolbar__actions"><Button icon={<PlusOutlined />} onClick={addPrint}>新建印花</Button><Button type="primary" icon={<PlusOutlined />} onClick={addStep}>添加步骤</Button></div>
       </div>
+      {sizeEditor}
       <div className="pod-print-library">
         {value.prints.map(print => <Tag key={print.id} color={print.color}><span className="pod-print-dot" style={{ background: print.color }} />{print.name}</Tag>)}
         {!value.prints.length && <Typography.Text type="secondary">先新建一个印花</Typography.Text>}
@@ -135,12 +212,14 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
         <div className="pod-flow-chain">
           {chain.map((node, index) => {
             const print = node.printId ? printById.get(node.printId) : undefined
+            const completedSizes = value.sizes.filter(size => node.sizeMeasurements?.some(item => item.sizeId === size.id && item.widthMm && item.heightMm)).length
             return <div className="pod-flow-segment" key={node.id}>
               {node.type === 'OUTPUT' && <><span className="pod-flow-arrow">→</span><button className="pod-flow-add-node" onClick={addStep}><PlusOutlined /><span>添加印花</span></button></>}
               {index > 0 && <span className="pod-flow-arrow">→</span>}<button className={`pod-flow-node ${selectedNodeId === node.id ? 'is-selected' : ''} ${node.type === 'OUTPUT' ? 'is-output' : ''}`} style={{ '--node-color': print?.color } as CSSProperties} onClick={() => setSelectedNodeId(node.id)}>
               <span className="pod-flow-node__index">{index + 1}</span>
-              <span className="pod-flow-node__kind">{node.type === 'INPUT' ? '商品底图' : node.type === 'OUTPUT' ? '商品效果图' : 'AI 融合'}</span>
-              <strong>{node.type === 'INPUT' ? selectedImage?.imageName : node.type === 'OUTPUT' ? '最终输出' : print?.name ?? node.name}</strong>
+              <span className="pod-flow-node__kind">{node.type === 'INPUT' ? '商品底图' : node.type === 'OUTPUT' ? '商品效果图' : `AI 融合 · ${print?.name ?? '印花'}`}</span>
+              <strong>{node.type === 'INPUT' ? selectedImage?.imageName : node.type === 'OUTPUT' ? '最终输出' : node.name}</strong>
+              {node.type === 'PRINT' && <span className={`pod-flow-node__sizes ${completedSizes === value.sizes.length && value.sizes.length ? 'is-complete' : ''}`}>实际尺寸 {completedSizes}/{value.sizes.length}</span>}
               {node.type === 'OUTPUT' && <span className="pod-flow-node__output"><CheckCircleFilled /> 固定节点</span>}
             </button></div>
           })}
@@ -156,13 +235,14 @@ const TemplateWorkflowEditor = ({ template, value, sizeHistory, onChange, onDele
           {selectedNode.type === 'PRINT' && <Button size="small" danger type="text" onClick={() => Modal.confirm({ title: '删除这个印花步骤？', content: '这个步骤之后的步骤也会一起移除。', okText: '删除', okButtonProps: { danger: true }, onOk: () => removeStep(selectedNode.id) })}>删除</Button>}
         </div>
         <div className="pod-flow-inspector__actions">
-          {selectedNode.type === 'PRINT' && <Select aria-label="选择印花" value={selectedNode.printId} options={value.prints.map(print => ({ value: print.id, label: print.name }))} onChange={printId => updateNode(selectedNode.id, { printId, name: `${printById.get(printId)?.name ?? '印花'}融合` })} />}
+          {selectedNode.type === 'PRINT' && <><label><span>位置名称</span><Input value={selectedNode.name} maxLength={40} placeholder="例如 左胸、右袖" aria-label="印花位置名称" onChange={event => updateNode(selectedNode.id, { name: event.target.value })} /></label><label><span>使用印花</span><Select aria-label="选择印花" value={selectedNode.printId} options={value.prints.map(print => ({ value: print.id, label: print.name }))} onChange={printId => updateNode(selectedNode.id, { printId })} /></label></>}
         </div>
         {selectedNode.type === 'INPUT' ? <img className="pod-flow-input-preview" src={selectedImage.deliveryUrl} alt={selectedImage.imageName} /> : selectedNode.type === 'OUTPUT' ? (() => {
           const printNodes = chain.filter(node => node.type === 'PRINT' && node.area)
           const lastPrint = printNodes.at(-1)
-          return lastPrint ? <PrintAreaMarker image={selectedImage} value={lastPrint.area} drawing={false} readOnly contextAreasSolid accentColor={printById.get(lastPrint.printId ?? '')?.color} label={printById.get(lastPrint.printId ?? '')?.name} contextAreas={printNodes.slice(0, -1).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: printById.get(node.printId ?? '')?.name ?? node.name }))} onDrawingChange={() => undefined} onChange={() => undefined} /> : <img className="pod-flow-input-preview" src={selectedImage.deliveryUrl} alt={selectedImage.imageName} />
-        })() : <PrintAreaMarker image={selectedImage} value={selectedNode.area} drawing={drawingNodeId === selectedNode.id} sizeHistory={sizeHistory} accentColor={printById.get(selectedNode.printId ?? '')?.color} label={printById.get(selectedNode.printId ?? '')?.name} contextAreas={chain.slice(0, selectedNodeIndex).filter(node => node.type === 'PRINT' && node.area).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: printById.get(node.printId ?? '')?.name ?? node.name }))} onDrawingChange={drawing => setDrawingNodeId(drawing ? selectedNode.id : undefined)} onChange={area => updateNode(selectedNode.id, { area })} />}
+          return lastPrint ? <PrintAreaMarker image={selectedImage} value={lastPrint.area} drawing={false} readOnly contextAreasSolid accentColor={printById.get(lastPrint.printId ?? '')?.color} label={lastPrint.name} contextAreas={printNodes.slice(0, -1).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: node.name }))} onDrawingChange={() => undefined} onChange={() => undefined} /> : <img className="pod-flow-input-preview" src={selectedImage.deliveryUrl} alt={selectedImage.imageName} />
+        })() : <PrintAreaMarker image={selectedImage} value={selectedNode.area} drawing={drawingNodeId === selectedNode.id} accentColor={printById.get(selectedNode.printId ?? '')?.color} label={selectedNode.name} contextAreas={chain.slice(0, selectedNodeIndex).filter(node => node.type === 'PRINT' && node.area).map(node => ({ id: node.id, area: node.area!, color: printById.get(node.printId ?? '')?.color ?? '#64748b', label: node.name }))} onDrawingChange={drawing => setDrawingNodeId(drawing ? selectedNode.id : undefined)} onChange={area => updateNode(selectedNode.id, { area })} />}
+        {selectedNode.type === 'PRINT' && <PrintSizeMatrix sizes={value.sizes} value={selectedNode.sizeMeasurements} sizeHistory={sizeHistory} onChange={sizeMeasurements => updateNode(selectedNode.id, { sizeMeasurements })} />}
       </>}
     </aside>
   </div>

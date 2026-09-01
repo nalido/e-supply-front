@@ -139,6 +139,8 @@ body.pod-workspace-body { min-width: 320px; }
 .pod-template-settings-grid .ant-form-item-label > label { white-space: nowrap; }
 .pod-template-settings-grid .ant-input-number-group-wrapper { width: 100%; }
 .pod-flow-empty { height: 100%; display: grid; place-items: center; }
+.pod-flow-empty-state { min-width: 1080px; min-height: 0; flex: 1; display: flex; flex-direction: column; background: #fff; }
+.pod-flow-empty-state .pod-flow-empty { flex: 1; }
 .pod-flow-workspace { min-width: 1080px; min-height: 0; flex: 1; display: grid; grid-template-columns: 210px minmax(430px, 1fr) 430px; background: #f8fafc; }
 .pod-flow-assets, .pod-flow-main, .pod-flow-inspector { min-width: 0; min-height: 0; }
 .pod-flow-assets { padding: 14px 12px; display: flex; flex-direction: column; border-right: 1px solid #e2e8f0; background: #fff; }
@@ -159,6 +161,14 @@ body.pod-workspace-body { min-width: 320px; }
 .pod-flow-toolbar h4 { margin: 0 !important; }
 .pod-flow-toolbar > div:first-child { display: grid; gap: 1px; }
 .pod-flow-toolbar__actions { display: flex; gap: 8px; }
+.pod-template-sizes { flex: 0 0 auto; display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1fr); gap: 7px 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; background: #fff; }
+.pod-template-sizes__copy { display: grid; gap: 1px; }
+.pod-template-sizes__copy .ant-typography-secondary { font-size: 11px; }
+.pod-enter-hint { color: #94a3b8; font-size: 10px; white-space: nowrap; }
+.pod-template-sizes > .ant-select { width: 100%; }
+.pod-template-sizes > .ant-select .ant-select-selector { min-height: 40px; padding-block: 3px; align-items: center; }
+.pod-template-sizes > .ant-select .ant-select-selection-overflow { gap: 3px 0; }
+.pod-template-sizes > .ant-select .ant-select-selection-item { border-color: #dbe3ef; background: #f8fafc; }
 .pod-print-library { flex: 0 0 auto; min-height: 46px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; padding: 9px 16px; border-bottom: 1px solid #e2e8f0; background: #fff; }
 .pod-print-dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; }
 .pod-flow-canvas { min-width: 0; flex: 1; overflow: auto; padding: 28px 24px; display: flex; align-items: center; background-color: #f8fafc; background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 18px 18px; }
@@ -171,6 +181,8 @@ body.pod-workspace-body { min-width: 320px; }
 .pod-flow-node.is-output { border-color: #86efac; border-top-color: #16a34a; background: #f0fdf4; }
 .pod-flow-node__index { position: absolute; right: 9px; top: 8px; color: #94a3b8; font-size: 11px; }
 .pod-flow-node__kind { color: #64748b; font-size: 11px; }
+.pod-flow-node__sizes { color: #b45309; font-size: 11px; font-weight: 600; }
+.pod-flow-node__sizes.is-complete { color: #15803d; }
 .pod-flow-node__output { color: #15803d; font-size: 11px; font-weight: 600; }
 .pod-flow-add-node { width: 104px; min-height: 82px; display: grid; place-items: center; align-content: center; gap: 5px; color: #64748b; border: 1px dashed #94a3b8; border-radius: 12px; background: rgba(255,255,255,.7); cursor: pointer; }
 .pod-flow-add-node:hover { color: #2563eb; border-color: #60a5fa; background: #eff6ff; }
@@ -179,15 +191,37 @@ body.pod-workspace-body { min-width: 320px; }
 .pod-flow-inspector__heading { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
 .pod-flow-inspector__heading > div:first-child { display: grid; }
 .pod-flow-inspector__heading h4 { margin: 0 !important; }
-.pod-flow-inspector__actions { margin: 12px 0; display: flex; gap: 8px; }
-.pod-flow-inspector__actions .ant-select { min-width: 140px; flex: 1; }
+.pod-flow-inspector__actions { margin: 12px 0; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 8px; }
+.pod-flow-inspector__actions label { min-width: 0; display: grid; gap: 4px; color: #64748b; font-size: 11px; font-weight: 600; }
+.pod-flow-inspector__actions .ant-select { min-width: 0; width: 100%; }
 .pod-flow-inspector__empty { height: 100%; display: grid; place-content: center; gap: 5px; color: #64748b; text-align: center; }
 .pod-flow-inspector__empty strong { color: #334155; }
 .pod-flow-input-preview { display: block; width: 100%; max-height: 500px; object-fit: contain; border-radius: 12px; background: #f1f5f9; }
 .pod-flow-inspector .pod-print-marker { width: min(100%, calc(380px * var(--image-ratio, 1))); }
 .pod-flow-inspector .pod-print-area-controls { padding: 10px; margin-top: 10px; }
 .pod-flow-inspector .pod-print-size-controls { gap: 8px; padding-bottom: 9px; }
-.pod-flow-inspector .pod-print-rotation-controls { gap: 8px; padding-top: 9px; }
+.pod-flow-inspector .pod-print-rotation-controls { gap: 8px; padding-top: 0; }
+.pod-size-matrix { margin: 0 0 12px; overflow: hidden; border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; }
+.pod-size-matrix__heading { min-height: 48px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.pod-size-matrix__heading > div:first-child { display: grid; gap: 1px; }
+.pod-size-matrix__heading .ant-typography { font-size: 12px; }
+.pod-size-matrix__heading .ant-btn { padding-inline: 5px; font-size: 11px; }
+.pod-size-matrix__empty { padding: 15px 12px; color: #64748b; font-size: 12px; line-height: 1.6; }
+.pod-size-matrix__table { display: grid; }
+.pod-size-matrix__header, .pod-size-matrix__row { display: grid; grid-template-columns: minmax(62px, .7fr) minmax(0, 1fr) minmax(0, 1fr); }
+.pod-size-matrix__header { min-height: 30px; align-items: center; color: #64748b; background: #f8fafc; font-size: 11px; }
+.pod-size-matrix__header span { padding: 0 9px; }
+.pod-size-matrix__header span + span { border-left: 1px solid #e2e8f0; }
+.pod-size-matrix__row { min-height: 38px; align-items: stretch; border-top: 1px solid #e2e8f0; background: #fff; }
+.pod-size-matrix__row > strong { padding: 0 9px; display: flex; align-items: center; color: #334155; font-size: 12px; }
+.pod-size-matrix__row.is-active > strong { color: #3730a3; background: #eef2ff; }
+.pod-size-matrix__row.is-missing > strong::after { width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: #f59e0b; content: ''; }
+.pod-size-matrix__row .ant-input-number, .pod-size-matrix__row .ant-input-number-affix-wrapper { width: 100%; height: 100%; border: 0; border-left: 1px solid #e2e8f0; border-radius: 0; background: transparent; box-shadow: none; }
+.pod-size-matrix__row .ant-input-number-affix-wrapper .ant-input-number { border-left: 0; }
+.pod-size-matrix__row .ant-input-number-input-wrap, .pod-size-matrix__row .ant-input-number-input { height: 100%; }
+.pod-size-matrix__row .ant-input-number-input { padding: 0 8px; }
+.pod-size-matrix__row .ant-input-number-affix-wrapper:focus, .pod-size-matrix__row .ant-input-number-affix-wrapper-focused, .pod-size-matrix__row .ant-input-number:focus, .pod-size-matrix__row .ant-input-number-focused { position: relative; z-index: 1; box-shadow: inset 0 0 0 2px #6366f1; }
+.pod-size-matrix > .pod-print-size-history { padding: 7px 10px 8px; border-top: 1px solid #e2e8f0; background: #fafbff; }
 .pod-ai-design-page > .ant-steps { margin-bottom: 20px; }
 .pod-selected-template { display: grid; gap: 12px; margin-top: 8px; padding: 14px; border-radius: 14px; background: #f8fafc; }
 .pod-selected-template > div:first-child { display: flex; flex-direction: column; }
@@ -197,6 +231,8 @@ body.pod-workspace-body { min-width: 320px; }
 .pod-print-uploader .ant-upload { min-height: 150px; padding: 14px !important; text-align: left; }
 .pod-print-uploader__heading { display: flex; align-items: center; gap: 8px; }
 .pod-print-uploader__heading .ant-tag { margin-left: auto; margin-right: 0; }
+.pod-print-uploader__usage-help { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; background: transparent; color: #94a3b8; cursor: help; }
+.pod-print-uploader__usage-help:hover, .pod-print-uploader__usage-help:focus-visible { color: #2563eb; outline: none; }
 .pod-print-number { display: inline-grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: #fff; font-weight: 700; }
 .pod-print-uploader img { display: block; width: 84px; height: 72px; margin: 10px auto 4px; object-fit: contain; }
 .pod-print-upload-icon { display: block; margin: 18px auto 8px; color: #94a3b8; font-size: 30px; }

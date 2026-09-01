@@ -118,6 +118,14 @@ export type PodProductTemplate = {
 
 export type PodTemplatePrint = { id: string; name: string; color: string }
 
+export type PodTemplateSize = { id: string; name: string }
+
+export type PodPrintSizeMeasurement = {
+  sizeId: string
+  widthMm?: number
+  heightMm?: number
+}
+
 export type PodTemplateWorkflowNode = {
   id: string
   type: 'INPUT' | 'PRINT' | 'OUTPUT'
@@ -128,11 +136,13 @@ export type PodTemplateWorkflowNode = {
   finalOutput: boolean
   outputRole?: PodTemplateImageRole
   area?: PodPrintArea
+  sizeMeasurements?: PodPrintSizeMeasurement[]
 }
 
 export type PodTemplateWorkflow = {
   version: 1
   prints: PodTemplatePrint[]
+  sizes: PodTemplateSize[]
   nodes: PodTemplateWorkflowNode[]
 }
 
