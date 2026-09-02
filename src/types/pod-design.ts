@@ -85,7 +85,7 @@ export type PodFactoryStyleBindingDraft = {
   colorName: string
 }
 
-export type PodTemplateImageRole = 'FRONT' | 'BACK' | 'SIDE' | 'MODEL' | 'MATERIAL' | 'DETAIL'
+export type PodTemplateImageRole = 'PRODUCT_MAIN' | 'SIZE_CHART' | 'FRONT' | 'BACK' | 'SIDE' | 'MODEL' | 'MATERIAL' | 'DETAIL'
 
 export type PodTemplateImage = {
   id: number

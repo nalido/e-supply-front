@@ -35,6 +35,8 @@ import TemplateWorkflowEditor from "./TemplateWorkflowEditor";
 import { emptyWorkflow, parseWorkflow } from "./template-workflow";
 
 const roleOptions = [
+  { value: "PRODUCT_MAIN", label: "商品主图" },
+  { value: "SIZE_CHART", label: "尺寸图" },
   { value: "FRONT", label: "正面图" },
   { value: "BACK", label: "背面图" },
   { value: "SIDE", label: "侧面图" },
