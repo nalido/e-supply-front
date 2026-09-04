@@ -11,7 +11,7 @@ type Props = {
   open: boolean;
   initialValue?: StyleBomLineDraft;
   initialMaterialType?: MaterialBasicType;
-  color: string;
+  colors: string[];
   sizes: string[];
   onClose: () => void;
   onApply: (value: StyleBomLineDraft) => void;
@@ -20,34 +20,44 @@ type Props = {
 const createUid = () => `bom-editor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const emptySpecification: MaterialMinimumSpecification = { label: '', active: true };
 
+const expandAverageConsumption = (sizes: string[], averageConsumption: number | null) => (
+  sizes.map((size) => ({ size, consumption: averageConsumption }))
+);
+
 const buildEmptyDraft = (
   materialType: MaterialBasicType,
   sizes: string[],
-  color: string,
-): StyleBomLineDraft => ({
-  uid: createUid(),
-  materialId: '',
-  materialName: '',
-  materialSku: '',
-  materialType,
-  unit: '',
-  materialMinimumSpecificationId: '',
-  minimumSpecification: emptySpecification,
-  applyToAllColors: false,
-  applicableColors: color ? [color] : [],
-  sizeConsumptions: sizes.map((size) => ({ size, consumption: null })),
-  lossRate: 0,
-  remark: '',
-});
+  colors: string[],
+): StyleBomLineDraft => {
+  const applyToAllColors = materialType === 'accessory';
+  return {
+    uid: createUid(),
+    materialId: '',
+    materialName: '',
+    materialSku: '',
+    materialType,
+    unit: '',
+    materialMinimumSpecificationId: '',
+    minimumSpecification: emptySpecification,
+    applyToAllColors,
+    applicableColors: applyToAllColors ? [] : colors.slice(0, 1),
+    averageConsumption: null,
+    sizeConsumptions: expandAverageConsumption(sizes, null),
+    lossRate: 0,
+    remark: '',
+  };
+};
 
-const cloneDraft = (value: StyleBomLineDraft, sizes: string[], color: string): StyleBomLineDraft => ({
+const cloneDraft = (
+  value: StyleBomLineDraft,
+  sizes: string[],
+): StyleBomLineDraft => ({
   ...value,
-  applyToAllColors: false,
-  applicableColors: color ? [color] : [],
-  sizeConsumptions: sizes.map((size) => ({
-    size,
-    consumption: value.sizeConsumptions.find((item) => item.size === size)?.consumption ?? null,
-  })),
+  applyToAllColors: value.materialType === 'accessory' ? true : value.applyToAllColors,
+  applicableColors: value.materialType === 'accessory' || value.applyToAllColors
+    ? []
+    : [...value.applicableColors],
+  sizeConsumptions: expandAverageConsumption(sizes, value.averageConsumption),
   minimumSpecification: { ...value.minimumSpecification },
 });
 
@@ -55,13 +65,13 @@ export default function StyleBomEditorDrawer({
   open,
   initialValue,
   initialMaterialType = 'fabric',
-  color,
+  colors,
   sizes,
   onClose,
   onApply,
 }: Props) {
   const { message } = AntdApp.useApp();
-  const [draft, setDraft] = useState<StyleBomLineDraft>(() => buildEmptyDraft(initialMaterialType, sizes, color));
+  const [draft, setDraft] = useState<StyleBomLineDraft>(() => buildEmptyDraft(initialMaterialType, sizes, colors));
   const [materialType, setMaterialType] = useState<MaterialBasicType>(initialMaterialType);
   const [keyword, setKeyword] = useState('');
   const [materialOptions, setMaterialOptions] = useState<MaterialItem[]>([]);
@@ -77,11 +87,13 @@ export default function StyleBomEditorDrawer({
     }
     const nextType = initialValue?.materialType ?? initialMaterialType;
     setMaterialType(nextType);
-    const nextDraft = initialValue ? cloneDraft(initialValue, sizes, color) : buildEmptyDraft(nextType, sizes, color);
+    const nextDraft = initialValue
+      ? cloneDraft(initialValue, sizes)
+      : buildEmptyDraft(nextType, sizes, colors);
     setDraft(nextDraft);
     initialDraftRef.current = JSON.stringify(nextDraft);
     setKeyword('');
-  }, [color, initialMaterialType, initialValue, open, sizes]);
+  }, [colors, initialMaterialType, initialValue, open, sizes]);
 
   const loadMaterials = useCallback(async (page: number, append: boolean) => {
     const requestSequence = ++requestSequenceRef.current;
@@ -164,26 +176,34 @@ export default function StyleBomEditorDrawer({
       return;
     }
     const { material, specification } = selected;
-    setDraft((previous) => ({
-      ...previous,
-      materialId: material.id,
-      materialName: material.name,
-      materialSku: material.sku,
-      materialType: material.materialType,
-      unit: material.unit,
-      imageUrl: material.imageUrl,
-      materialMinimumSpecificationId: specification.id as string,
-      minimumSpecification: specification,
-      sizeConsumptions: previous.unit && previous.unit !== material.unit
-        ? previous.sizeConsumptions.map((item) => ({ ...item, consumption: null }))
-        : previous.sizeConsumptions,
-    }));
+    setDraft((previous) => {
+      const unitChanged = Boolean(previous.unit && previous.unit !== material.unit);
+      const averageConsumption = unitChanged ? null : previous.averageConsumption;
+      return {
+        ...previous,
+        materialId: material.id,
+        materialName: material.name,
+        materialSku: material.sku,
+        materialType: material.materialType,
+        unit: material.unit,
+        imageUrl: material.imageUrl,
+        materialMinimumSpecificationId: specification.id as string,
+        minimumSpecification: specification,
+        averageConsumption,
+        sizeConsumptions: expandAverageConsumption(sizes, averageConsumption),
+      };
+    });
   };
 
   const localErrors = useMemo(() => {
     const errors: string[] = [];
     if (!draft.materialId || !draft.materialMinimumSpecificationId) errors.push('请选择物料规格');
-    if (!draft.applicableColors.length) errors.push('当前用料缺少款式颜色');
+    if (draft.materialType === 'fabric' && !draft.applyToAllColors && !draft.applicableColors.length) {
+      errors.push('请选择适用颜色');
+    }
+    if (draft.averageConsumption == null || !Number.isFinite(draft.averageConsumption) || draft.averageConsumption < 0) {
+      errors.push('请填写平均单件用量');
+    }
     return errors;
   }, [draft]);
 
@@ -201,20 +221,34 @@ export default function StyleBomEditorDrawer({
     });
   };
 
+  const switchMaterialType = (value: string | number) => {
+    const nextType = value as MaterialBasicType;
+    setMaterialType(nextType);
+    setKeyword('');
+    setDraft((previous) => ({
+      ...buildEmptyDraft(nextType, sizes, colors),
+      uid: previous.uid,
+      averageConsumption: previous.averageConsumption,
+      sizeConsumptions: expandAverageConsumption(sizes, previous.averageConsumption),
+      lossRate: previous.lossRate,
+      remark: previous.remark,
+    }));
+  };
+
   return (
     <Drawer
       rootClassName="style-bom-editor-drawer-root"
       className="style-bom-editor-drawer"
       title={(
         <Space size={6}>
-          <span>{color} · {initialValue ? '设置物料' : '添加物料'}</span>
-          <Tooltip title={`本次编辑只作用于 ${color}，不会改变其他颜色的物料清单。`}>
+          <span>{initialValue ? '设置款式用料' : '添加款式用料'}</span>
+          <Tooltip title="填写一次平均单耗，保存后会应用到所选颜色的全部尺码。">
             <QuestionCircleOutlined className="style-bom-help-icon" aria-label="物料编辑说明" />
           </Tooltip>
         </Space>
       )}
       open={open}
-      styles={{ wrapper: { width: 'min(760px, 100vw)', maxWidth: '100vw' } }}
+      styles={{ wrapper: { width: 'min(720px, 100vw)', maxWidth: '100vw' } }}
       destroyOnHidden
       onClose={requestClose}
       extra={(
@@ -228,7 +262,7 @@ export default function StyleBomEditorDrawer({
         {localErrors.length ? <Alert type="warning" showIcon message={`还需完成：${localErrors.join('、')}`} /> : null}
 
         <section className="style-bom-editor-section">
-          <Title level={5}>选择物料规格</Title>
+          <Title level={5}>物料规格</Title>
           <div className="style-bom-editor-grid">
             <label>
               <Text strong>物料类型</Text>
@@ -236,18 +270,7 @@ export default function StyleBomEditorDrawer({
                 block
                 value={materialType}
                 options={[{ label: '面料', value: 'fabric' }, { label: '辅料/包材', value: 'accessory' }]}
-                onChange={(value) => {
-                  const nextType = value as MaterialBasicType;
-                  setMaterialType(nextType);
-                  setKeyword('');
-                  setDraft((previous) => ({
-                    ...buildEmptyDraft(nextType, sizes, color),
-                    uid: previous.uid,
-                    sizeConsumptions: previous.sizeConsumptions.map((item) => ({ ...item, consumption: null })),
-                    lossRate: previous.lossRate,
-                    remark: previous.remark,
-                  }));
-                }}
+                onChange={switchMaterialType}
               />
             </label>
             <label className="style-bom-specification-field">
@@ -279,18 +302,77 @@ export default function StyleBomEditorDrawer({
         </section>
 
         <section className="style-bom-editor-section">
+          <Title level={5}>适用颜色</Title>
+          {draft.materialType === 'accessory' ? (
+            <Alert type="info" showIcon message="辅料/包材统一用于该款式的全部颜色。" />
+          ) : (
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <Segmented
+                value={draft.applyToAllColors ? 'all' : 'selected'}
+                options={[{ label: '指定颜色', value: 'selected' }, { label: '全部颜色', value: 'all' }]}
+                onChange={(scope) => setDraft((previous) => ({
+                  ...previous,
+                  applyToAllColors: scope === 'all',
+                  applicableColors: scope === 'all'
+                    ? []
+                    : previous.applicableColors.length ? previous.applicableColors : colors.slice(0, 1),
+                }))}
+              />
+              {!draft.applyToAllColors ? (
+                <Select
+                  mode="multiple"
+                  value={draft.applicableColors}
+                  options={colors.map((color) => ({ label: color, value: color }))}
+                  placeholder="选择一个或多个颜色"
+                  onChange={(applicableColors) => setDraft((previous) => ({ ...previous, applicableColors }))}
+                />
+              ) : null}
+            </Space>
+          )}
+        </section>
+
+        <section className="style-bom-editor-section">
+          <Title level={5}>用量</Title>
           <div className="style-bom-editor-grid">
             <label>
-              <Text strong>损耗率</Text>
-              <InputNumber min={0} max={100} precision={2} controls={false} suffix="%" value={draft.lossRate} onChange={(lossRate) => setDraft((previous) => ({ ...previous, lossRate: Number(lossRate ?? 0) }))} />
+              <Text strong>平均单件用量</Text>
+              <InputNumber
+                aria-label="平均单件用量"
+                min={0}
+                precision={4}
+                controls={false}
+                suffix={draft.unit || undefined}
+                value={draft.averageConsumption}
+                placeholder="必填"
+                status={draft.averageConsumption == null ? 'error' : undefined}
+                onChange={(averageConsumption) => setDraft((previous) => ({
+                  ...previous,
+                  averageConsumption: averageConsumption == null ? null : Number(averageConsumption),
+                  sizeConsumptions: expandAverageConsumption(
+                    sizes,
+                    averageConsumption == null ? null : Number(averageConsumption),
+                  ),
+                }))}
+              />
             </label>
             <label>
+              <Text strong>损耗率</Text>
+              <InputNumber
+                min={0}
+                max={100}
+                precision={2}
+                controls={false}
+                suffix="%"
+                value={draft.lossRate}
+                onChange={(lossRate) => setDraft((previous) => ({ ...previous, lossRate: Number(lossRate ?? 0) }))}
+              />
+            </label>
+            <label className="style-bom-editor-remark-field">
               <Text strong>备注</Text>
               <Input value={draft.remark} placeholder="可选" maxLength={500} onChange={(event) => setDraft((previous) => ({ ...previous, remark: event.target.value }))} />
             </label>
           </div>
         </section>
-
       </Space>
     </Drawer>
   );

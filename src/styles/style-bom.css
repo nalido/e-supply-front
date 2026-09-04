@@ -45,6 +45,47 @@
   margin-bottom: 2px;
 }
 
+.style-bom-summary-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.style-bom-summary-panel {
+  overflow: hidden;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.style-bom-summary-table .ant-table-container {
+  border: 0;
+  border-radius: 0;
+}
+
+.style-bom-summary-table .ant-table-tbody > tr > td:first-child {
+  padding: 0;
+}
+
+.style-bom-color-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.style-bom-color-scope .ant-tag {
+  margin-inline-end: 0;
+}
+
+.style-bom-summary-row--error > td {
+  background: #fffafa !important;
+}
+
+.style-bom-editor-remark-field {
+  grid-column: 1 / -1;
+}
+
 .style-bom-color-workspace {
   overflow: hidden;
   border: 1px solid #dfe7f2;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   StyleBomConfiguration,
   StyleBomLineDraft,
+  StyleBomSizeConsumption,
   StyleBomValidationIssue,
 } from '../types/style';
 
@@ -19,31 +20,41 @@ const normalizeForCompare = (lines: StyleBomLineDraft[]) => lines.map(({ uid, ..
 
 const serialize = (lines: StyleBomLineDraft[]) => JSON.stringify(normalizeForCompare(lines));
 
-const resolveSizeConsumption = (
-  sizeConsumptions: StyleBomLineDraft['sizeConsumptions'],
-  size: string,
-) => sizeConsumptions.find((entry) => entry.size === size)?.consumption
-  ?? sizeConsumptions.find((entry) => entry.size === '全部尺码')?.consumption
-  ?? null;
+const resolveAverageConsumption = (line: {
+  averageConsumption: number | null;
+  sizeConsumptions: StyleBomSizeConsumption[];
+}): number | null => {
+  if (line.averageConsumption != null) {
+    return line.averageConsumption;
+  }
+  const values = line.sizeConsumptions
+    .map((item) => item.consumption)
+    .filter((value): value is number => value != null);
+  if (!values.length || values.some((value) => value !== values[0])) {
+    return null;
+  }
+  return values[0];
+};
+
+const expandAverageConsumption = (
+  sizes: string[],
+  averageConsumption: number | null,
+): StyleBomSizeConsumption[] => sizes.map((size) => ({ size, consumption: averageConsumption }));
 
 const toDrafts = (
   configuration: StyleBomConfiguration,
   sizes: string[],
-  colors: string[],
-): StyleBomLineDraft[] => configuration.items.flatMap((item, index) => {
-  const scopedColors = item.applyToAllColors ? colors : item.applicableColors;
-  const preservedColors = scopedColors.length ? scopedColors : [''];
-  return preservedColors.map((color, colorIndex) => ({
+): StyleBomLineDraft[] => configuration.items.map((item, index) => {
+  const averageConsumption = resolveAverageConsumption(item);
+  return {
     ...item,
-    id: colorIndex === 0 ? item.id : undefined,
-    uid: item.id ? `bom-id-${item.id}-${colorIndex}` : `bom-${index}-${colorIndex}-${createUid()}`,
-    applyToAllColors: false,
-    applicableColors: color ? [color] : [],
-    sizeConsumptions: sizes.map((size) => ({
-      size,
-      consumption: resolveSizeConsumption(item.sizeConsumptions, size),
-    })),
-  }));
+    uid: item.id ? `bom-id-${item.id}` : `bom-${index}-${createUid()}`,
+    applicableColors: item.applyToAllColors ? [] : [...item.applicableColors],
+    averageConsumption,
+    sizeConsumptions: averageConsumption == null
+      ? item.sizeConsumptions.map((entry) => ({ ...entry }))
+      : expandAverageConsumption(sizes, averageConsumption),
+  };
 });
 
 export default function useStyleBomDraft(colors: string[], sizes: string[]) {
@@ -59,7 +70,7 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
     targetSizes: string[],
     targetColors: string[],
   ) => {
-    const next = toDrafts(configuration, targetSizes, targetColors);
+    const next = toDrafts(configuration, targetSizes);
     setLines(next);
     setBomVersionId(configuration.bomVersionId);
     setRevision(configuration.revision);
@@ -71,10 +82,7 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
   useEffect(() => {
     setLines((previous) => previous.map((line) => ({
       ...line,
-      sizeConsumptions: sizes.map((size) => ({
-        size,
-        consumption: resolveSizeConsumption(line.sizeConsumptions, size),
-      })),
+      sizeConsumptions: expandAverageConsumption(sizes, line.averageConsumption),
     })));
   }, [sizes]);
 
@@ -85,61 +93,32 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
   }, []);
 
   const updateLine = useCallback((uid: string, line: StyleBomLineDraft) => {
-    setLines((previous) => previous.map((item) => (item.uid === uid ? { ...line, uid } : item)));
-  }, []);
+    setLines((previous) => previous.map((item) => (
+      item.uid === uid
+        ? {
+            ...line,
+            uid,
+            applicableColors: line.applyToAllColors ? [] : line.applicableColors,
+            sizeConsumptions: expandAverageConsumption(sizes, line.averageConsumption),
+          }
+        : item
+    )));
+  }, [sizes]);
 
-  const updateSizeConsumption = useCallback((uid: string, size: string, consumption: number | null) => {
+  const updateAverageConsumption = useCallback((uid: string, averageConsumption: number | null) => {
     setLines((previous) => previous.map((line) => (
       line.uid === uid
         ? {
             ...line,
-            sizeConsumptions: line.sizeConsumptions.map((item) => (
-              item.size === size ? { ...item, consumption } : item
-            )),
+            averageConsumption,
+            sizeConsumptions: expandAverageConsumption(sizes, averageConsumption),
           }
         : line
     )));
-  }, []);
-
-  const copySizeConsumptions = useCallback((sourceSize: string, targetSize: string, color: string) => {
-    if (sourceSize === targetSize) {
-      return;
-    }
-    setLines((previous) => previous.map((line) => {
-      if (!line.applicableColors.includes(color)) {
-        return line;
-      }
-      const sourceConsumption = line.sizeConsumptions.find((item) => item.size === sourceSize)?.consumption ?? null;
-      return {
-        ...line,
-        sizeConsumptions: line.sizeConsumptions.map((item) => (
-          item.size === targetSize ? { ...item, consumption: sourceConsumption } : item
-        )),
-      };
-    }));
-  }, []);
+  }, [sizes]);
 
   const removeLine = useCallback((uid: string) => {
     setLines((previous) => previous.filter((item) => item.uid !== uid));
-  }, []);
-
-  const duplicateLine = useCallback((uid: string) => {
-    setLines((previous) => {
-      const index = previous.findIndex((item) => item.uid === uid);
-      if (index < 0) {
-        return previous;
-      }
-      const source = previous[index];
-      const copy: StyleBomLineDraft = {
-        ...source,
-        id: undefined,
-        uid: createUid(),
-        applicableColors: [...source.applicableColors],
-        sizeConsumptions: source.sizeConsumptions.map((item) => ({ ...item })),
-        remark: source.remark,
-      };
-      return [...previous.slice(0, index + 1), copy, ...previous.slice(index + 1)];
-    });
   }, []);
 
   const validationIssues = useMemo(() => {
@@ -156,37 +135,39 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
       } else if (!line.minimumSpecification.active) {
         issues.push({ uid: line.uid, code: 'SPECIFICATION_INACTIVE', message: '所选最小规格已停用' });
       }
-      const lineColor = line.applicableColors[0];
-      if (line.applyToAllColors || line.applicableColors.length !== 1) {
-        issues.push({ uid: line.uid, code: 'COLOR_REQUIRED', message: '每条用料必须归属一个款式颜色', color: lineColor });
+      if (line.materialType === 'accessory' && !line.applyToAllColors) {
+        issues.push({ uid: line.uid, code: 'COLOR_REQUIRED', message: '辅料/包材统一适用全部款式颜色' });
+      } else if (!line.applyToAllColors && line.applicableColors.length === 0) {
+        issues.push({ uid: line.uid, code: 'COLOR_REQUIRED', message: '请选择适用的款式颜色' });
       }
       const invalidColors = line.applicableColors.filter((color) => !colors.includes(color));
       if (invalidColors.length) {
-        issues.push({ uid: line.uid, code: 'COLOR_INVALID', message: `款式已不包含：${invalidColors.join('、')}`, color: lineColor });
+        issues.push({ uid: line.uid, code: 'COLOR_INVALID', message: `款式已不包含：${invalidColors.join('、')}` });
       }
-      sizes.forEach((size) => {
-        const value = line.sizeConsumptions.find((item) => item.size === size)?.consumption;
-        if (value == null || !Number.isFinite(value) || value < 0) {
-          issues.push({ uid: line.uid, code: 'CONSUMPTION_REQUIRED', message: `${size} 尺码用量未填写`, color: lineColor, size });
-        }
-      });
+      if (
+        line.averageConsumption == null
+        || !Number.isFinite(line.averageConsumption)
+        || line.averageConsumption < 0
+      ) {
+        issues.push({ uid: line.uid, code: 'AVERAGE_CONSUMPTION_REQUIRED', message: '请填写平均单件用量' });
+      }
     });
 
     lines.forEach((line, index) => {
-      const lineColors = line.applicableColors;
+      const lineColors = line.applyToAllColors ? colors : line.applicableColors;
       const duplicate = lines.slice(0, index).some((other) => {
         if (other.materialMinimumSpecificationId !== line.materialMinimumSpecificationId) {
           return false;
         }
-        const otherColors = other.applicableColors;
+        const otherColors = other.applyToAllColors ? colors : other.applicableColors;
         return lineColors.some((color) => otherColors.includes(color));
       });
       if (duplicate) {
-        issues.push({ uid: line.uid, code: 'DUPLICATE_SCOPE', message: '同一颜色下不能重复绑定相同物料规格', color: line.applicableColors[0] });
+        issues.push({ uid: line.uid, code: 'DUPLICATE_SCOPE', message: '同一物料规格的适用颜色不能重复' });
       }
     });
     return issues;
-  }, [colors, lines, sizes]);
+  }, [colors, lines]);
 
   const isDirty = useMemo(() => (
     serialize(lines) !== originalSerializedRef.current
@@ -205,9 +186,7 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
     reset,
     addLine,
     updateLine,
-    updateSizeConsumption,
-    copySizeConsumptions,
+    updateAverageConsumption,
     removeLine,
-    duplicateLine,
   };
 }

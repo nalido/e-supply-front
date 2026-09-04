@@ -8,7 +8,7 @@ const baseUrl = process.env.ESUPPLY_BASE_URL || 'http://127.0.0.1:5176';
 const styleId = process.env.ESUPPLY_STYLE_ID;
 const outputDir = process.env.ESUPPLY_OUTPUT_DIR || path.resolve(
   appRoot,
-  '../docs/e-supply/04-verification/style-bom-material-spec-20260827',
+  '../docs/e-supply/04-verification/style-bom-average-consumption-20260904',
 );
 const backendEnvPath = process.env.ESUPPLY_BACKEND_ENV
   || '/Users/jambin/codes/supply-and-sale/e-supply-back/src/main/resources/.env';
@@ -32,8 +32,8 @@ const username = process.env.ESUPPLY_ADMIN_EMAIL || backendEnv.ESUPPLY_ADMIN_EMA
 const password = process.env.ESUPPLY_ADMIN_PASSWORD || backendEnv.ESUPPLY_ADMIN_PASSWORD;
 fs.mkdirSync(outputDir, { recursive: true });
 for (const name of [
-  '01-style-bom-grouped-list-1440.png',
-  '02-style-bom-editor-size-grid.png',
+  '01-style-bom-average-list-1440.png',
+  '02-style-bom-average-input.png',
   '03-style-bom-impact-preview.png',
   '04-style-bom-editor-mobile-390.png',
   '99-style-bom-failure.png',
@@ -118,21 +118,23 @@ try {
   await section.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
-  const colorTabs = section.locator('.style-bom-color-tabs');
-  check('款式用料先按颜色（SKC）分层', await colorTabs.getByRole('tab').count() === 2);
-  await colorTabs.getByRole('tab', { name: /黑色/ }).click();
-  check('当前颜色拥有独立物料清单', await section.locator('.style-bom-binding-table .ant-table-tbody > .ant-table-row').count() === 1);
-  check('颜色层不再使用物料适用颜色字段',
-    await section.getByRole('columnheader', { name: '适用颜色' }).count() === 0
-      && !(await section.innerText()).includes('全部颜色'));
-  check('物料清单外层只有一个添加面辅料入口',
-    await section.locator('.style-bom-binding-panel').getByRole('button', { name: '添加面辅料' }).count() === 1
-      && await section.locator('.style-bom-binding-panel').getByRole('button', { name: '添加面料', exact: true }).count() === 0
-      && await section.locator('.style-bom-binding-panel').getByRole('button', { name: '添加辅料/包材', exact: true }).count() === 0);
-  const paddingLayout = await section.evaluate((node) => {
+  check('页面不再按颜色拆成多个页签', await section.locator('.style-bom-color-tabs').count() === 0);
+  check('页面不再展示尺码用量矩阵', await section.locator('.style-bom-size-material-table').count() === 0);
+  check('面料和辅料按两类汇总展示', await section.locator('.style-bom-summary-panel').count() === 2);
+  check('汇总表显示平均单件用量和适用颜色',
+    await section.getByRole('columnheader', { name: '平均单件用量' }).count() === 2
+      && await section.getByRole('columnheader', { name: '适用颜色' }).count() === 2);
+  check('面料按自身颜色维护且辅料统一适用全部颜色',
+    (await section.innerText()).includes('黑色')
+      && (await section.innerText()).includes('白色')
+      && (await section.innerText()).includes('全部颜色'));
+  check('提供按类型添加用料入口',
+    await section.getByText('添加面料', { exact: true }).count() === 1
+      && await section.getByText('添加辅料/包材', { exact: true }).count() === 1);
+  const tableLayout = await section.evaluate((node) => {
     const cardBody = node.closest('.style-detail-bom-card')?.querySelector('.ant-card-body');
-    const bindingCell = node.querySelector('.style-bom-binding-table .ant-table-tbody > .ant-table-row > td:first-child');
-    const sizeCell = node.querySelector('.style-bom-size-material-table .ant-table-tbody > .ant-table-row > td:first-child');
+    const firstCell = node.querySelector('.style-bom-summary-table .ant-table-tbody > .ant-table-row > td:first-child');
+    const suffix = node.querySelector('.style-bom-average-input .ant-input-number-suffix');
     const readPadding = (element) => {
       if (!element) return undefined;
       const style = window.getComputedStyle(element);
@@ -140,52 +142,46 @@ try {
     };
     return {
       cardPadding: readPadding(cardBody),
-      bindingCellPadding: readPadding(bindingCell),
-      sizeCellPadding: readPadding(sizeCell),
+      firstCellPadding: readPadding(firstCell),
+      suffixBorder: suffix ? window.getComputedStyle(suffix).borderStyle : undefined,
+      suffixBackground: suffix ? window.getComputedStyle(suffix).backgroundColor : undefined,
     };
   });
-  check('款式用料卡片使用统一紧凑内边距', paddingLayout.cardPadding === '8px 14px 8px 14px', paddingLayout);
-  check('物料清单与尺码用量的物料列内边距一致',
-    paddingLayout.bindingCellPadding === '3px 10px 3px 10px'
-      && paddingLayout.sizeCellPadding === paddingLayout.bindingCellPadding,
-    paddingLayout);
-  check('二维用量矩阵没有物料设置入口',
-    await section.locator('.style-bom-size-workspace').getByRole('button', { name: '设置' }).count() === 0);
-  check('黑色清单直接显示自己的物料规格', (await section.innerText()).includes('红色 / 150cm / 180g'));
-  await colorTabs.getByRole('tab', { name: /白色/ }).click();
-  check('切换颜色后显示另一套物料规格', (await section.innerText()).includes('蓝色 / 150cm / 180g'));
-  await colorTabs.getByRole('tab', { name: /黑色/ }).click();
-  check('提供复制尺码用量入口', await section.getByRole('button', { name: /复制尺码用量/ }).count() === 1);
-  check('清单不要求填写用料部位', !(await section.innerText()).includes('用料部位'));
-  await capture(page, '01-style-bom-grouped-list-1440.png', section);
+  check('款式用料卡片保持紧凑内边距', tableLayout.cardPadding === '8px 14px 8px 14px', tableLayout);
+  check('汇总表使用单元格输入语义', tableLayout.firstCellPadding === '0px 0px 0px 0px', tableLayout);
+  check('平均单耗单位是无独立边框的输入后缀',
+    tableLayout.suffixBorder === 'none'
+      && ['rgba(0, 0, 0, 0)', 'transparent'].includes(tableLayout.suffixBackground),
+    tableLayout);
+  check('页面不出现逐尺码和三面用量',
+    !(await section.innerText()).includes('复制尺码用量')
+      && !(await section.innerText()).includes('面 A')
+      && !(await section.innerText()).includes('面A'));
+  await capture(page, '01-style-bom-average-list-1440.png', section);
 
   await section.getByRole('button', { name: '设置' }).first().click();
   const drawer = page.locator('.style-bom-editor-drawer');
   await drawer.waitFor({ state: 'visible', timeout: 10_000 });
-  const blackScope = await drawer.innerText();
-  check('抽屉标题明确当前颜色', /黑色 · 设置物料/.test(blackScope));
-  check('抽屉只设置当前颜色的物料信息', /物料规格/.test(blackScope) && !/适用款式颜色|全部颜色|各尺码整件用量/.test(blackScope));
-  check('抽屉没有会串改其他颜色的开关', await drawer.getByRole('switch').count() === 0);
-  check('抽屉不再出现用料部位输入', !/用料部位/.test(blackScope));
+  const fabricDrawerText = await drawer.innerText();
+  check('面料抽屉只维护汇总规则',
+    /设置款式用料/.test(fabricDrawerText)
+      && /平均单件用量/.test(fabricDrawerText)
+      && /指定颜色/.test(fabricDrawerText)
+      && !/各尺码/.test(fabricDrawerText));
+  const drawerAverageInput = drawer.getByLabel('平均单件用量');
+  check('平均单耗按汇总值回显', Number(await drawerAverageInput.inputValue()) === 1.75, { value: await drawerAverageInput.inputValue() });
   const lossInput = drawer.locator('label').filter({ hasText: '损耗率' }).locator('input').first();
   check('损耗率按百分比正确回显', Number(await lossInput.inputValue()) === 2.5, { value: await lossInput.inputValue() });
   await page.locator('.ant-drawer:visible .ant-drawer-extra button').first().click();
   await drawer.waitFor({ state: 'hidden', timeout: 10_000 });
 
-  const sizeRows = section.locator('.style-bom-size-material-table .ant-table-tbody > .ant-table-row');
-  check('用量区域以物料乘尺码二维矩阵展示',
-    await section.locator('.style-bom-size-material-table .ant-table-thead').getByText('S 码', { exact: true }).count() === 1
-      && await section.locator('.style-bom-size-material-table .ant-table-thead').getByText('M 码', { exact: true }).count() === 1
-      && await section.locator('.style-bom-size-tabs').count() === 0);
-  const inputS = sizeRows.first().getByLabel('黑色 S 码单件用量');
-  check('显式 0 与空白可区分', Number(await inputS.inputValue()) === 0, { value: await inputS.inputValue() });
-  const inputM = sizeRows.first().getByLabel('黑色 M 码单件用量');
-  const initialMValue = Number(await inputM.inputValue());
-  check('同一行可同时查看 S/M 尺码用量', Number.isFinite(initialMValue) && initialMValue > 0, { value: await inputM.inputValue() });
-  const savedMValue = initialMValue === 1.8 ? 1.81 : 1.8;
-  await capture(page, '02-style-bom-editor-size-grid.png', section);
+  const blackAverageInput = section.getByLabel(/BOM规格测试面料.*平均单件用量/).first();
+  const initialAverageValue = Number(await blackAverageInput.inputValue());
+  check('表格只显示一个平均单耗输入', Number.isFinite(initialAverageValue) && initialAverageValue > 0, { value: await blackAverageInput.inputValue() });
+  const savedAverageValue = initialAverageValue === 1.8 ? 1.81 : 1.8;
+  await capture(page, '02-style-bom-average-input.png', section);
 
-  await inputM.fill(String(savedMValue));
+  await blackAverageInput.fill(String(savedAverageValue));
 
   const previewResponse = page.waitForResponse(
     (response) => response.url().includes(`/api/v1/styles/${styleId}/bom-configuration/impact-preview`) && response.status() === 200,
@@ -210,13 +206,13 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByTestId('style-bom-section').waitFor({ state: 'visible', timeout: 30_000 });
   const reloadedSection = page.getByTestId('style-bom-section');
-  await reloadedSection.locator('.style-bom-color-tabs').getByRole('tab', { name: /黑色/ }).click();
-  const reloadedM = reloadedSection.getByLabel('黑色 M 码单件用量').first();
-  check('保存重载后 M 尺码用量保持', Number(await reloadedM.inputValue()) === savedMValue, { value: await reloadedM.inputValue() });
+  const reloadedAverage = reloadedSection.getByLabel(/BOM规格测试面料.*平均单件用量/).first();
+  check('保存重载后平均单耗保持', Number(await reloadedAverage.inputValue()) === savedAverageValue, { value: await reloadedAverage.inputValue() });
 
-  await reloadedSection.getByRole('button', { name: '设置' }).first().click();
+  await reloadedSection.locator('.style-bom-summary-panel').nth(1).getByRole('button', { name: '设置' }).first().click();
   const reloadedDrawer = page.locator('.style-bom-editor-drawer');
   await reloadedDrawer.waitFor({ state: 'visible', timeout: 10_000 });
+  check('辅料抽屉明确全部颜色统一使用', (await reloadedDrawer.innerText()).includes('辅料/包材统一用于该款式的全部颜色'));
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(800);

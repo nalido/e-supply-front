@@ -59,6 +59,7 @@ type BackendStyleBomConfigurationItem = {
   minimumSpecification?: BackendMinimumSpecification;
   applyToAllColors?: boolean;
   applicableColors?: string[];
+  averageConsumption?: number | null;
   sizeConsumptions?: Array<{ size: string; consumption?: number | null }>;
   lossRate?: number;
   remark?: string;
@@ -97,6 +98,7 @@ type ConfigurationMaterialRequest = {
   materialMinimumSpecificationId: number;
   applyToAllColors: boolean;
   applicableColors: string[];
+  averageConsumption: number;
   sizeConsumptions: Array<{ size: string; consumption: number }>;
   lossRate: number;
   remark?: string;
@@ -144,6 +146,20 @@ const adaptMinimumSpecification = (
   active: item?.active !== false,
 });
 
+const resolveAverageConsumption = (item: BackendStyleBomConfigurationItem): number | null => {
+  if (item.averageConsumption != null) {
+    return Number(item.averageConsumption);
+  }
+  const values = (item.sizeConsumptions ?? [])
+    .map((entry) => entry.consumption)
+    .filter((value): value is number => value != null)
+    .map(Number);
+  if (!values.length || values.some((value) => value !== values[0])) {
+    return null;
+  }
+  return values[0];
+};
+
 const adaptConfigurationItem = (item: BackendStyleBomConfigurationItem): StyleBomConfigurationItem => ({
   id: item.id == null ? undefined : String(item.id),
   materialId: String(item.materialId),
@@ -156,6 +172,7 @@ const adaptConfigurationItem = (item: BackendStyleBomConfigurationItem): StyleBo
   minimumSpecification: adaptMinimumSpecification(item.minimumSpecification, item.materialMinimumSpecificationId),
   applyToAllColors: item.applyToAllColors !== false,
   applicableColors: item.applicableColors ?? [],
+  averageConsumption: resolveAverageConsumption(item),
   sizeConsumptions: (item.sizeConsumptions ?? []).map((entry) => ({
     size: entry.size,
     consumption: entry.consumption == null ? null : Number(entry.consumption),
@@ -177,6 +194,7 @@ const buildConfigurationMaterials = (items: StyleBomLineDraft[]): ConfigurationM
     materialMinimumSpecificationId: Number(item.materialMinimumSpecificationId),
     applyToAllColors: item.applyToAllColors,
     applicableColors: item.applyToAllColors ? [] : item.applicableColors,
+    averageConsumption: Number(item.averageConsumption),
     sizeConsumptions: item.sizeConsumptions.map((entry) => ({
       size: entry.size,
       consumption: Number(entry.consumption),
@@ -310,7 +328,7 @@ export const styleBomApi = {
         materialType: item.materialType === 'fabric' ? 'FABRIC' : 'ACCESSORY',
         unit: item.unit,
         imageUrl: item.imageUrl,
-        consumption: item.sizeConsumptions[0]?.consumption ?? 0,
+        consumption: item.averageConsumption ?? item.sizeConsumptions[0]?.consumption ?? 0,
         lossRate: item.lossRate / 100,
         remark: item.remark,
         minimumSpecificationLabel: item.minimumSpecification.label,

@@ -195,6 +195,7 @@ export interface StyleBomConfigurationItem {
   minimumSpecification: MaterialMinimumSpecification;
   applyToAllColors: boolean;
   applicableColors: string[];
+  averageConsumption: number | null;
   sizeConsumptions: StyleBomSizeConsumption[];
   lossRate: number;
   remark?: string;
@@ -217,6 +218,7 @@ export type StyleBomValidationIssueCode =
   | 'SPECIFICATION_INACTIVE'
   | 'COLOR_REQUIRED'
   | 'COLOR_INVALID'
+  | 'AVERAGE_CONSUMPTION_REQUIRED'
   | 'CONSUMPTION_REQUIRED'
   | 'DUPLICATE_SCOPE';
 

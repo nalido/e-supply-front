@@ -203,9 +203,7 @@ export default function CreateOrderModal({
                               {item.applyToAllColors
                                 ? ' · 全部款式颜色'
                                 : item.applicableColors?.length ? ` · ${item.applicableColors.join('、')}` : ''}
-                              {item.sizeConsumptions?.length
-                                ? ` · 按尺码配置（${item.sizeConsumptions.map((entry) => `${entry.size} ${entry.consumption ?? '-'}${item.unit || '件'}`).join('、')}）`
-                                : ` · 单耗 ${item.consumption || 0}${item.unit || '件'}`}
+                              {` · 平均单耗 ${item.consumption ?? 0}${item.unit || '件'}`}
                               {item.lossRate ? ` · 损耗 ${(item.lossRate * 100).toFixed(1)}%` : ''}
                             </div>
                           </div>

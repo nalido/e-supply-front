@@ -795,8 +795,7 @@ const StyleDetail = () => {
               onAdd={bomDraft.addLine}
               onUpdate={bomDraft.updateLine}
               onRemove={bomDraft.removeLine}
-              onUpdateSizeConsumption={bomDraft.updateSizeConsumption}
-              onCopySizeConsumptions={bomDraft.copySizeConsumptions}
+              onUpdateAverageConsumption={bomDraft.updateAverageConsumption}
             />
           </PageSection>
         </Form>
