@@ -297,6 +297,8 @@ type CuttingSheetMaterialUsagePayload = Partial<{
   warehouseId: number;
   warehouseName: string;
   materialId: number;
+  materialMinimumSpecificationId: number;
+  materialMinimumSpecificationLabel: string;
   materialCode: string;
   materialName: string;
   materialUnit: string;
@@ -430,6 +432,10 @@ const adaptCuttingSheetMaterialUsage = (payload: CuttingSheetMaterialUsagePayloa
   warehouseId: Number.isFinite(Number(payload.warehouseId)) ? Number(payload.warehouseId) : undefined,
   warehouseName: payload.warehouseName,
   materialId: Number.isFinite(Number(payload.materialId)) ? Number(payload.materialId) : undefined,
+  materialMinimumSpecificationId: Number.isFinite(Number(payload.materialMinimumSpecificationId))
+    ? Number(payload.materialMinimumSpecificationId)
+    : undefined,
+  materialMinimumSpecificationLabel: payload.materialMinimumSpecificationLabel,
   materialCode: payload.materialCode,
   materialName: payload.materialName,
   materialUnit: payload.materialUnit,
@@ -793,6 +799,8 @@ export const pieceworkService = {
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
@@ -802,6 +810,8 @@ export const pieceworkService = {
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
@@ -839,6 +849,8 @@ export const pieceworkService = {
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
@@ -848,6 +860,8 @@ export const pieceworkService = {
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
@@ -862,6 +876,8 @@ export const pieceworkService = {
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;

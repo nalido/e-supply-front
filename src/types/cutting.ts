@@ -56,6 +56,8 @@ export type CuttingSheetMaterialUsage = {
   warehouseId?: number;
   warehouseName?: string;
   materialId?: number;
+  materialMinimumSpecificationId?: number;
+  materialMinimumSpecificationLabel?: string;
   materialCode?: string;
   materialName?: string;
   materialUnit?: string;

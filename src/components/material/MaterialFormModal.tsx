@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Col, Form, Input, InputNumber, Modal, Row, Select } from 'antd';
+import { Alert, Col, Form, Input, InputNumber, Modal, Row, Select } from 'antd';
 import type { CreateMaterialPayload, MaterialBasicType, MaterialItem, MaterialMinimumSpecification, MaterialUnit } from '../../types';
 import ImageUploader from '../upload/ImageUploader';
 import MaterialSpecificationEditor from './MaterialSpecificationEditor';
@@ -95,8 +95,10 @@ const MaterialFormModal = ({
       }
       duplicateKeys.add(key);
     }
-    const colors = Array.from(new Set(values.minimumSpecifications.map((item) => item.color?.trim()).filter((item): item is string => Boolean(item))));
-    const specifications = Array.from(new Set(values.minimumSpecifications.map((item) => item.specification?.trim()).filter((item): item is string => Boolean(item))));
+    const specificationColors = values.minimumSpecifications.map((item) => item.color?.trim()).filter((item): item is string => Boolean(item));
+    const specificationValues = values.minimumSpecifications.map((item) => item.specification?.trim()).filter((item): item is string => Boolean(item));
+    const colors = Array.from(new Set(initialValues?.legacyUnmappedDimensions ? [...(values.colors ?? []), ...specificationColors] : specificationColors));
+    const specifications = Array.from(new Set(initialValues?.legacyUnmappedDimensions ? [...(values.specifications ?? []), ...specificationValues] : specificationValues));
     const firstSpecification = values.minimumSpecifications[0];
     onSubmit({
       ...values,
@@ -170,6 +172,29 @@ const MaterialFormModal = ({
               </Form.Item>
             </Col>
           </Row>
+        ) : null}
+        {initialValues?.legacyUnmappedDimensions ? (
+          <>
+            <Alert
+              type="warning"
+              showIcon
+              message="请确认颜色与规格的实际组合"
+              description="原有颜色和规格已保留。请在下方按实际可单独采购、入库和领用的组合逐行整理。"
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item label="原有颜色" name="colors">
+                  <Select mode="tags" tokenSeparators={[',', '，', '、']} placeholder="请输入颜色" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="原有规格" name="specifications">
+                  <Select mode="tags" tokenSeparators={[',', '，', '、']} placeholder="请输入规格" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </>
         ) : null}
         <Form.Item label="最小规格" name="minimumSpecifications" required>
           <MaterialSpecificationEditor materialType={materialType} />

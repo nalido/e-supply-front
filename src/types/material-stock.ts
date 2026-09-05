@@ -13,6 +13,9 @@ export type MaterialStockWarehouse = {
 export type MaterialStockListItem = {
   id: string;
   materialId: string;
+  materialMinimumSpecificationId?: string;
+  materialMinimumSpecificationLabel?: string;
+  materialMinimumSpecificationColor?: string;
   imageUrl?: string;
   materialCode: string;
   materialName: string;

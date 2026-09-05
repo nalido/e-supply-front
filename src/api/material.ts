@@ -32,6 +32,7 @@ type BackendMaterialResponse = {
     width?: string;
     grammage?: string;
     active?: boolean;
+    legacyDefault?: boolean;
   }>;
   createdAt?: string;
   updatedAt?: string;
@@ -158,35 +159,22 @@ const buildSpecificationLabel = (
   item: Pick<MaterialMinimumSpecification, 'color' | 'specification' | 'width' | 'grammage'>,
 ) => [item.color, item.specification, item.width, item.grammage].filter(Boolean).join(' · ') || '通用规格';
 
-const adaptMinimumSpecifications = (
+const buildLegacyMinimumSpecifications = (
   item: BackendMaterialResponse,
   colors: string[],
   specifications: string[],
   attributes: Record<string, unknown>,
-): MaterialMinimumSpecification[] => {
-  if (item.minimumSpecifications?.length) {
-    return item.minimumSpecifications.map((spec) => {
-      const normalized = {
-        id: spec.id == null ? undefined : String(spec.id),
-        code: spec.code?.trim() || undefined,
-        color: spec.color?.trim() || undefined,
-        specification: spec.specification?.trim() || undefined,
-        width: spec.width?.trim() || undefined,
-        grammage: spec.grammage?.trim() || undefined,
-        active: spec.active !== false,
-      };
-      return { ...normalized, label: spec.label?.trim() || buildSpecificationLabel(normalized) };
-    });
-  }
-
+): MaterialMinimumSpecification[] | undefined => {
   const width = toStringValue(attributes.width);
   const grammage = toStringValue(attributes.grammage ?? attributes.weight);
   if (item.materialType === 'FABRIC') {
-    const legacyColors = colors.length ? colors : [undefined];
-    return legacyColors.map((color) => {
+    return colors.map((color) => {
       const spec = { color, width, grammage, active: true };
       return { ...spec, label: buildSpecificationLabel(spec) };
     });
+  }
+  if (colors.length > 1 && specifications.length > 1) {
+    return undefined;
   }
   if (colors.length === 1 && specifications.length) {
     return specifications.map((specification) => {
@@ -202,10 +190,49 @@ const adaptMinimumSpecifications = (
   }
   const legacyValues = specifications.length
     ? specifications.map((specification) => ({ specification }))
-    : colors.length
-      ? colors.map((color) => ({ color }))
-      : [{}];
+    : colors.map((color) => ({ color }));
   return legacyValues.map((value) => ({ ...value, label: buildSpecificationLabel(value), active: true }));
+};
+
+const adaptMinimumSpecifications = (
+  item: BackendMaterialResponse,
+  colors: string[],
+  specifications: string[],
+  attributes: Record<string, unknown>,
+): MaterialMinimumSpecification[] => {
+  if (item.minimumSpecifications?.length) {
+    const normalizedSpecifications = item.minimumSpecifications.map((spec) => {
+      const normalized = {
+        id: spec.id == null ? undefined : String(spec.id),
+        code: spec.code?.trim() || undefined,
+        color: spec.color?.trim() || undefined,
+        specification: spec.specification?.trim() || undefined,
+        width: spec.width?.trim() || undefined,
+        grammage: spec.grammage?.trim() || undefined,
+        active: spec.active !== false,
+        legacyDefault: spec.legacyDefault === true,
+      };
+      const fallbackLabel = normalized.legacyDefault ? '历史未指定规格' : buildSpecificationLabel(normalized);
+      const label = normalized.legacyDefault && !normalized.color && !normalized.specification
+        ? fallbackLabel
+        : spec.label?.trim() || fallbackLabel;
+      return { ...normalized, label };
+    });
+    const activeSpecifications = normalizedSpecifications.filter((specification) => specification.active);
+    const onlyLegacyDefault = activeSpecifications.length === 1 && activeSpecifications[0].legacyDefault;
+    if (onlyLegacyDefault && (colors.length || specifications.length)) {
+      const legacySpecifications = buildLegacyMinimumSpecifications(item, colors, specifications, attributes);
+      if (legacySpecifications?.length) {
+        return [...normalizedSpecifications, ...legacySpecifications];
+      }
+    }
+    return normalizedSpecifications;
+  }
+
+  const legacySpecifications = buildLegacyMinimumSpecifications(item, colors, specifications, attributes);
+  return legacySpecifications?.length
+    ? legacySpecifications
+    : [{ label: '通用规格', active: true }];
 };
 
 const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
@@ -213,6 +240,12 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
   const colors = toStringArray(attributes.colors) ?? toStringArray(attributes.color) ?? [];
   const specifications = toStringArray(attributes.specifications) ?? toStringArray(attributes.specification) ?? [];
   const minimumSpecifications = adaptMinimumSpecifications(item, colors, specifications, attributes);
+  const activeBackendSpecifications = (item.minimumSpecifications ?? []).filter((specification) => specification.active !== false);
+  const legacyUnmappedDimensions = item.materialType === 'ACCESSORY'
+    && colors.length > 1
+    && specifications.length > 1
+    && activeBackendSpecifications.length === 1
+    && activeBackendSpecifications[0].legacyDefault === true;
   return {
     id: String(item.id),
     tenantId: item.tenantId ? String(item.tenantId) : undefined,
@@ -228,6 +261,7 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
     colors,
     specifications,
     minimumSpecifications,
+    legacyUnmappedDimensions,
     remarks: toStringValue(attributes.remarks),
     status: adaptStatus(item.status),
     createdAt: item.createdAt,
@@ -258,14 +292,14 @@ const buildAttributesPayload = (payload: CreateMaterialPayload): Record<string, 
   const specificationColors = payload.minimumSpecifications
     ?.map((item) => item.color?.trim())
     .filter((item): item is string => Boolean(item));
-  const colors = Array.from(new Set(specificationColors?.length ? specificationColors : payload.colors));
+  const colors = Array.from(new Set(payload.colors?.length ? payload.colors : specificationColors));
   if (colors.length > 0) {
     attributes.colors = colors;
   }
   const specificationValues = payload.minimumSpecifications
     ?.map((item) => item.specification?.trim())
     .filter((item): item is string => Boolean(item));
-  const specifications = Array.from(new Set(specificationValues?.length ? specificationValues : payload.specifications));
+  const specifications = Array.from(new Set(payload.specifications?.length ? payload.specifications : specificationValues));
   if (payload.materialType === 'accessory' && specifications.length > 0) {
     attributes.specifications = specifications;
   }

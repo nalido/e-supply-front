@@ -11,6 +11,7 @@ export type MaterialMinimumSpecification = {
   width?: string;
   grammage?: string;
   active: boolean;
+  legacyDefault?: boolean;
 };
 
 export type MaterialItem = {
@@ -28,6 +29,7 @@ export type MaterialItem = {
   colors: string[];
   specifications: string[];
   minimumSpecifications: MaterialMinimumSpecification[];
+  legacyUnmappedDimensions?: boolean;
   remarks?: string;
   status?: 'active' | 'inactive';
   updatedAt?: string;

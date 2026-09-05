@@ -1,6 +1,7 @@
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Table, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
+import type { MaterialStockListItem } from '../types/material-stock';
 import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
@@ -15,6 +16,7 @@ type Props = {
   form: FormInstance;
   submitting: boolean;
   stockAvailabilityMap: Record<string, number>;
+  materialStockItems: MaterialStockListItem[];
   warehouseOptions: Array<{ label: string; value: number }>;
   zIndex?: number;
   onQtyChange: (key: string, value: number | null) => void;
@@ -24,7 +26,11 @@ type Props = {
 };
 
 const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
-const buildMaterialStockKey = (warehouseId?: number, materialId?: number) => `${Number(warehouseId) || 0}::${Number(materialId) || 0}`;
+const buildMaterialStockKey = (
+  warehouseId?: number,
+  materialId?: number,
+  materialMinimumSpecificationId?: number,
+) => `${Number(warehouseId) || 0}::${Number(materialId) || 0}::${Number(materialMinimumSpecificationId) || 0}`;
 
 export default function CuttingBedRecordModal({
   open,
@@ -34,6 +40,7 @@ export default function CuttingBedRecordModal({
   form,
   submitting,
   stockAvailabilityMap,
+  materialStockItems,
   warehouseOptions,
   zIndex,
   onQtyChange,
@@ -50,6 +57,37 @@ export default function CuttingBedRecordModal({
     return sortedLeft === left.color ? -1 : 1;
   });
 
+  const getSpecificationOptions = (warehouseId?: number, materialId?: number) => {
+    const options = materialStockItems
+      .filter((item) => (
+        Number(item.warehouseId) === Number(warehouseId)
+        && Number(item.materialId) === Number(materialId)
+        && Number(item.availableQty ?? 0) > 0
+        && Number.isFinite(Number(item.materialMinimumSpecificationId))
+      ))
+      .map((item) => ({
+        label: `${item.materialMinimumSpecificationLabel || '未命名规格'}（可用 ${Number(item.availableQty ?? 0)}${item.unit ?? ''}）`,
+        value: Number(item.materialMinimumSpecificationId),
+      }));
+    return [...new Map(options.map((item) => [item.value, item])).values()];
+  };
+
+  const applyWarehouseToUsage = (item: Record<string, unknown>, warehouseId: number) => {
+    const materialId = Number(item.materialId);
+    const specificationOptions = getSpecificationOptions(warehouseId, materialId);
+    const currentSpecificationId = Number(item.materialMinimumSpecificationId);
+    const currentStillAvailable = specificationOptions.some((option) => option.value === currentSpecificationId);
+    return {
+      ...item,
+      warehouseId,
+      materialMinimumSpecificationId: currentStillAvailable
+        ? currentSpecificationId
+        : specificationOptions.length === 1
+          ? specificationOptions[0].value
+          : undefined,
+    };
+  };
+
   const applyBatchWarehouse = () => {
     const targetWarehouseId = Number(form.getFieldValue('batchWarehouseId'));
     if (!Number.isFinite(targetWarehouseId) || targetWarehouseId <= 0) {
@@ -58,8 +96,7 @@ export default function CuttingBedRecordModal({
     const currentValues = (form.getFieldValue('materialUsages') ?? []) as Array<Record<string, unknown>>;
     form.setFieldsValue({
       materialUsages: currentValues.map((item) => ({
-        ...item,
-        warehouseId: targetWarehouseId,
+        ...applyWarehouseToUsage(item, targetWarehouseId),
       })),
     });
   };
@@ -139,7 +176,40 @@ export default function CuttingBedRecordModal({
                             options={warehouseOptions}
                             showSearch
                             optionFilterProp="label"
+                            onChange={(warehouseId: number) => {
+                              const currentUsage = form.getFieldValue(['materialUsages', field.name]) ?? {};
+                              const nextUsage = applyWarehouseToUsage(currentUsage, warehouseId);
+                              form.setFieldValue(['materialUsages', field.name], nextUsage);
+                            }}
                           />
+                        </Form.Item>
+                      ),
+                    },
+                    {
+                      title: '最小规格',
+                      width: 240,
+                      render: (_value, field) => (
+                        <Form.Item noStyle shouldUpdate>
+                          {() => {
+                            const selectedWarehouseId = Number(form.getFieldValue(['materialUsages', field.name, 'warehouseId']));
+                            const selectedMaterialId = Number(form.getFieldValue(['materialUsages', field.name, 'materialId']));
+                            const options = getSpecificationOptions(selectedWarehouseId, selectedMaterialId);
+                            return (
+                              <Form.Item
+                                name={[field.name, 'materialMinimumSpecificationId']}
+                                style={{ marginBottom: 0 }}
+                                rules={[{ required: true, message: '请选择最小规格' }]}
+                              >
+                                <Select
+                                  placeholder={selectedWarehouseId ? '请选择最小规格' : '请先选择仓库'}
+                                  options={options}
+                                  disabled={!selectedWarehouseId}
+                                  showSearch
+                                  optionFilterProp="label"
+                                />
+                              </Form.Item>
+                            );
+                          }}
                         </Form.Item>
                       ),
                     },
@@ -157,6 +227,7 @@ export default function CuttingBedRecordModal({
                             dependencies={[
                               ['materialUsages', field.name, 'warehouseId'],
                               ['materialUsages', field.name, 'materialId'],
+                              ['materialUsages', field.name, 'materialMinimumSpecificationId'],
                             ]}
                             rules={[
                               {
@@ -167,10 +238,15 @@ export default function CuttingBedRecordModal({
                                   }
                                   const selectedWarehouseId = Number(form.getFieldValue(['materialUsages', field.name, 'warehouseId']));
                                   const selectedMaterialId = Number(form.getFieldValue(['materialUsages', field.name, 'materialId']));
-                                  if (!Number.isFinite(selectedWarehouseId) || selectedWarehouseId <= 0 || !Number.isFinite(selectedMaterialId) || selectedMaterialId <= 0) {
+                                  const selectedSpecificationId = Number(form.getFieldValue(['materialUsages', field.name, 'materialMinimumSpecificationId']));
+                                  if (!Number.isFinite(selectedWarehouseId) || selectedWarehouseId <= 0 || !Number.isFinite(selectedMaterialId) || selectedMaterialId <= 0 || !Number.isFinite(selectedSpecificationId) || selectedSpecificationId <= 0) {
                                     return;
                                   }
-                                  const currentAvailableQty = stockAvailabilityMap[buildMaterialStockKey(selectedWarehouseId, selectedMaterialId)] ?? 0;
+                                  const currentAvailableQty = stockAvailabilityMap[buildMaterialStockKey(
+                                    selectedWarehouseId,
+                                    selectedMaterialId,
+                                    selectedSpecificationId,
+                                  )] ?? 0;
                                   if (qty > currentAvailableQty) {
                                     throw new Error(`超过仓库可用库存，当前最多可录入 ${currentAvailableQty}${usage?.materialUnit ?? ''}`);
                                   }

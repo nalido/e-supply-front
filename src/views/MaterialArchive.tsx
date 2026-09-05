@@ -412,6 +412,7 @@ const MaterialArchive = () => {
             {(specifications ?? []).slice(0, 2).map((specification) => <Tag key={specification.id ?? specification.label}>{specification.label}</Tag>)}
             {(specifications?.length ?? 0) > 2 ? <span>等 {specifications.length} 种</span> : null}
             {!specifications?.length && record.colors.length ? <span>{record.colors.join('、')}</span> : null}
+            {record.legacyUnmappedDimensions && record.colors.length ? <span>原有颜色：{record.colors.join('、')}</span> : null}
           </Space>
         ),
       },
