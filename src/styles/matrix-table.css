@@ -391,7 +391,8 @@
 
 .oc-excel-entry-table .ant-table-tbody > tr > td:has(.oc-excel-cell-input.ant-input-number-status-error),
 .oc-excel-entry-table .ant-table-tbody > tr > td:has(.oc-excel-cell-input.ant-input-number-affix-wrapper-status-error),
-.oc-excel-entry-table .ant-table-tbody > tr > td:has(.oc-excel-cell-input.ant-input-number-group-wrapper-status-error) {
+.oc-excel-entry-table .ant-table-tbody > tr > td:has(.oc-excel-cell-input.ant-input-number-group-wrapper-status-error),
+.oc-excel-entry-table .ant-table-tbody > tr > td:has(.oc-excel-cell-select.ant-select-status-error) {
   box-shadow: inset 0 0 0 1px var(--ant-color-error, #ff4d4f);
 }
 

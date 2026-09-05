@@ -80,6 +80,7 @@ export type StockingPurchaseExportParams = StockingPurchaseListParams;
 export type StockingPurchaseCreateLine = {
   lineId?: string;
   materialId: string;
+  materialMinimumSpecificationId?: string;
   quantity: number;
   unit: string;
   unitPrice?: number;
@@ -112,6 +113,7 @@ export type ProcurementOrderSummary = {
 export type StockingPurchaseOrderLineDetail = {
   lineId: string;
   materialId: string;
+  materialMinimumSpecificationId?: string;
   materialCode?: string;
   materialName: string;
   unit: string;

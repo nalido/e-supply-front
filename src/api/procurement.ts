@@ -25,6 +25,20 @@ type BackendProcurementOrderSummary = {
   statusTagColor: string;
 };
 
+const toBackendOrderLine = (line: StockingPurchaseCreatePayload['lines'][number]) => ({
+  lineId: line.lineId ? Number(line.lineId) : undefined,
+  materialId: line.materialMinimumSpecificationId ? undefined : Number(line.materialId),
+  materialMinimumSpecificationId: line.materialMinimumSpecificationId
+    ? Number(line.materialMinimumSpecificationId)
+    : undefined,
+  orderQty: line.quantity,
+  color: line.color,
+  size: line.specification,
+  unit: line.unit,
+  unitPrice: line.unitPrice,
+  remark: line.remark,
+});
+
 const adaptOrderSummary = (data: BackendProcurementOrderSummary): ProcurementOrderSummary => ({
   id: data.id,
   orderNo: data.orderNo,
@@ -117,15 +131,7 @@ export const stockingPurchaseInboundService = {
         orderDate: payload.orderDate,
         expectedArrival: payload.expectedArrival,
         remarks: payload.remark,
-        lines: payload.lines.map((line) => ({
-          materialId: Number(line.materialId),
-          orderQty: line.quantity,
-          color: line.color,
-          size: line.specification,
-          unit: line.unit,
-          unitPrice: line.unitPrice,
-          remark: line.remark,
-        })),
+        lines: payload.lines.map(toBackendOrderLine),
       },
       { params: { tenantId } },
     );
@@ -143,16 +149,7 @@ export const stockingPurchaseInboundService = {
         orderDate: payload.orderDate,
         expectedArrival: payload.expectedArrival,
         remarks: payload.remark,
-        lines: payload.lines.map((line) => ({
-          lineId: line.lineId ? Number(line.lineId) : undefined,
-          materialId: Number(line.materialId),
-          orderQty: line.quantity,
-          color: line.color,
-          size: line.specification,
-          unit: line.unit,
-          unitPrice: line.unitPrice,
-          remark: line.remark,
-        })),
+        lines: payload.lines.map(toBackendOrderLine),
       },
       { params: { tenantId } },
     );
@@ -173,16 +170,7 @@ export const stockingPurchaseInboundService = {
             orderDate: item.order.orderDate,
             expectedArrival: item.order.expectedArrival,
             remarks: item.order.remark,
-            lines: item.order.lines.map((line) => ({
-              lineId: line.lineId ? Number(line.lineId) : undefined,
-              materialId: Number(line.materialId),
-              orderQty: line.quantity,
-              color: line.color,
-              size: line.specification,
-              unit: line.unit,
-              unitPrice: line.unitPrice,
-              remark: line.remark,
-            })),
+            lines: item.order.lines.map(toBackendOrderLine),
           },
         })),
       },

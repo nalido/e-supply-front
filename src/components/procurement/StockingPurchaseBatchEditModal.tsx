@@ -9,6 +9,13 @@ import { materialApi } from '../../api/material';
 import type { MaterialItem } from '../../types/material';
 import type { Partner } from '../../types/partners';
 import type { Warehouse } from '../../types/warehouse';
+import {
+  findMinimumSpecification,
+  formatOrderLineSpecification,
+  getActiveMinimumSpecifications,
+  getDefaultMinimumSpecificationId,
+  resolveOrderLineMinimumSpecificationId,
+} from '../../utils/material-minimum-specification';
 import type {
   StockingMaterialType,
   StockingPurchaseCreatePayload,
@@ -37,6 +44,7 @@ type BatchEditRow = {
   quantity: number;
   actualReceivedQty: number;
   unitPrice?: number;
+  materialMinimumSpecificationId?: string;
   color?: string;
   specification?: string;
   lineRemark?: string;
@@ -81,7 +89,8 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
           const result = await materialApi.list({ page: 1, pageSize: 10, materialType, keyword: line.materialCode || line.materialName });
           return result.list.find((item) => item.id === line.materialId);
         }));
-        setMaterialsById(Object.fromEntries(currentMaterials.filter((item): item is MaterialItem => Boolean(item)).map((item) => [item.id, item])));
+        const nextMaterialsById = Object.fromEntries(currentMaterials.filter((item): item is MaterialItem => Boolean(item)).map((item) => [item.id, item]));
+        setMaterialsById(nextMaterialsById);
         setDetails(loadedDetails);
         setSuppliers(supplierResult.list);
         setWarehouses(warehouseResult.list);
@@ -106,6 +115,9 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
           quantity: Number(line.quantity ?? 0),
           actualReceivedQty: Number(line.actualReceivedQty ?? 0),
           unitPrice: line.unitPrice,
+          materialMinimumSpecificationId: nextMaterialsById[line.materialId]
+            ? resolveOrderLineMinimumSpecificationId(nextMaterialsById[line.materialId], line)
+            : line.materialMinimumSpecificationId,
           color: line.color,
           specification: line.specification,
           lineRemark: line.remark,
@@ -142,7 +154,18 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
         onFocus={() => void searchMaterials(row.materialName)} onSearch={(text) => void searchMaterials(text)}
         onChange={(id) => {
           const material = materialOptions.find((item) => item.id === id);
-          if (material) updateRow(row.key, { materialId: material.id, materialName: material.name, unit: material.unit, color: undefined, specification: undefined });
+          if (material) {
+            const defaultSpecificationId = getDefaultMinimumSpecificationId(material);
+            const defaultSpecification = findMinimumSpecification(material, defaultSpecificationId);
+            updateRow(row.key, {
+              materialId: material.id,
+              materialName: material.name,
+              unit: material.unit,
+              materialMinimumSpecificationId: defaultSpecificationId,
+              color: defaultSpecification?.color,
+              specification: defaultSpecification?.specification,
+            });
+          }
         }}
         options={[{ value: row.materialId, label: row.materialName }, ...materialOptions.filter((item) => item.id !== row.materialId).map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` / ${item.sku}` : ''}` }))]} />
     ) },
@@ -150,16 +173,20 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
     { title: '仓库', dataIndex: 'warehouseId', width: 145, render: (value, row) => <Select className="oc-excel-cell-select" size="small" style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)} onChange={(warehouseId) => updateOrderRows(row.orderId, { warehouseId })} options={warehouses.map((item) => ({ value: item.id, label: item.name }))} /> },
     { title: '采购日期', dataIndex: 'orderDate', width: 124, render: (value, row) => <DatePicker className="oc-excel-cell-picker" size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { orderDate: date?.format('YYYY-MM-DD') ?? '' })} /> },
     { title: '预计到货', dataIndex: 'expectedArrival', width: 124, render: (value, row) => <DatePicker className="oc-excel-cell-picker" size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { expectedArrival: date?.format('YYYY-MM-DD') })} /> },
-    { title: '颜色', dataIndex: 'color', width: 115, render: (value, row) => {
-      const colors = materialsById[row.materialId]?.colors ?? [];
-      const options = Array.from(new Set([value, ...colors].filter(Boolean))).map((item) => ({ value: item, label: item }));
-      return <Select className="oc-excel-cell-select" size="small" allowClear placeholder={options.length ? '选择颜色' : '未维护颜色'} value={value} disabled={!canEditAll(row.editableScope)} onChange={(color) => updateRow(row.key, { color })} options={options} />;
+    { title: '最小规格', dataIndex: 'materialMinimumSpecificationId', width: 160, render: (value, row) => {
+      const material = materialsById[row.materialId];
+      const specifications = getActiveMinimumSpecifications(material);
+      const options = specifications.map((item) => ({ value: item.id as string, label: item.label }));
+      const legacyLabel = formatOrderLineSpecification(row);
+      return <Select className="oc-excel-cell-select" size="small" showSearch optionFilterProp="label" allowClear={options.length > 1} placeholder={value ? '请选择最小规格' : legacyLabel} value={value} disabled={!canEditAll(row.editableScope)} onChange={(materialMinimumSpecificationId) => {
+        const selected = findMinimumSpecification(material, materialMinimumSpecificationId);
+        updateRow(row.key, {
+          materialMinimumSpecificationId,
+          color: selected?.color,
+          specification: selected?.specification,
+        });
+      }} options={options} />;
     } },
-    ...(materialType === 'accessory' ? [{ title: '规格', dataIndex: 'specification', width: 115, render: (value: string, row: BatchEditRow) => {
-      const specifications = materialsById[row.materialId]?.specifications ?? [];
-      const options = Array.from(new Set([value, ...specifications].filter(Boolean))).map((item) => ({ value: item, label: item }));
-      return <Select className="oc-excel-cell-select" size="small" allowClear placeholder={options.length ? '选择规格' : '未维护规格'} value={value} disabled={!canEditAll(row.editableScope)} onChange={(specification) => updateRow(row.key, { specification })} options={options} />;
-    } }] : []),
     { title: '采购数量', dataIndex: 'quantity', width: 150, render: (value, row) => {
       const quantityInvalid = row.quantity < row.actualReceivedQty;
       return (
@@ -172,12 +199,20 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
     { title: '采购单价', dataIndex: 'unitPrice', width: 112, render: (value, row) => <InputNumber className="oc-excel-cell-input" size="small" min={0} precision={2} value={value} disabled={!canEditAll(row.editableScope)} onChange={(unitPrice) => updateRow(row.key, { unitPrice: unitPrice == null ? undefined : Number(unitPrice) })} prefix="¥" /> },
     { title: '明细备注', dataIndex: 'lineRemark', width: 145, render: (value, row) => <Input className="oc-excel-cell-text-input" size="small" value={value} onChange={(event) => updateRow(row.key, { lineRemark: event.target.value })} /> },
     { title: '整单备注', dataIndex: 'orderRemark', width: 145, render: (value, row) => <Input className="oc-excel-cell-text-input" size="small" value={value} onChange={(event) => updateOrderRows(row.orderId, { orderRemark: event.target.value })} /> },
-  ], [materialOptions, materialsById, materialType, searchMaterials, suppliers, updateOrderRows, updateRow, warehouses]);
+  ], [materialOptions, materialsById, searchMaterials, suppliers, updateOrderRows, updateRow, warehouses]);
 
   const handleSubmit = async () => {
     const invalid = rows.find((row) => !row.supplierId || !row.warehouseId || !row.orderDate || !row.materialId || row.quantity <= 0);
     if (invalid) {
       message.warning(`请补全采购单 ${invalid.orderNo} 的必填字段`);
+      return;
+    }
+    const missingSpecification = rows.find((row) => canEditAll(row.editableScope) && !row.materialMinimumSpecificationId);
+    if (missingSpecification) {
+      const hasActiveSpecifications = getActiveMinimumSpecifications(materialsById[missingSpecification.materialId]).length > 0;
+      message.warning(hasActiveSpecifications
+        ? `请选择采购单 ${missingSpecification.orderNo} 中“${missingSpecification.materialName}”的最小规格`
+        : `采购单 ${missingSpecification.orderNo} 中“${missingSpecification.materialName}”未维护启用的最小规格`);
       return;
     }
     const belowReceived = rows.find((row) => row.quantity < row.actualReceivedQty);
@@ -197,8 +232,8 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
         lines: detail.lines.map((line) => {
           const edited = orderRows.find((row) => row.lineId === line.lineId);
           return edited
-            ? { lineId: edited.lineId, materialId: edited.materialId, quantity: edited.quantity, unit: edited.unit, unitPrice: edited.unitPrice, color: edited.color, specification: edited.specification, remark: edited.lineRemark }
-            : { lineId: line.lineId, materialId: line.materialId, quantity: line.quantity, unit: line.unit, unitPrice: line.unitPrice, color: line.color, specification: line.specification, remark: line.remark };
+            ? { lineId: edited.lineId, materialId: edited.materialId, materialMinimumSpecificationId: edited.materialMinimumSpecificationId, quantity: edited.quantity, unit: edited.unit, unitPrice: edited.unitPrice, color: edited.color, specification: edited.specification, remark: edited.lineRemark }
+            : { lineId: line.lineId, materialId: line.materialId, materialMinimumSpecificationId: line.materialMinimumSpecificationId, quantity: line.quantity, unit: line.unit, unitPrice: line.unitPrice, color: line.color, specification: line.specification, remark: line.remark };
         }),
       };
       return { orderId: detail.id, order };

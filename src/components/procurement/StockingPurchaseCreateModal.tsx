@@ -32,6 +32,12 @@ import type { MaterialItem } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
 import ListImage from '../common/ListImage';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
+import {
+  findMinimumSpecification,
+  getActiveMinimumSpecifications,
+  getDefaultMinimumSpecificationId,
+  resolveOrderLineMinimumSpecificationId,
+} from '../../utils/material-minimum-specification';
 import '../../styles/matrix-table.css';
 
 const { Text } = Typography;
@@ -138,6 +144,8 @@ const StockingPurchaseCreateModal = ({
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterialRow[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [unitPrices, setUnitPrices] = useState<Record<string, number | null>>({});
+  const [selectedMinimumSpecificationIds, setSelectedMinimumSpecificationIds] = useState<Record<string, string | undefined>>({});
+  const [minimumSpecificationErrors, setMinimumSpecificationErrors] = useState<Record<string, boolean>>({});
   const [selectedColors, setSelectedColors] = useState<Record<string, string | undefined>>({});
   const [selectedSpecifications, setSelectedSpecifications] = useState<Record<string, string | undefined>>({});
   const [lineRemarks, setLineRemarks] = useState<Record<string, string | undefined>>({});
@@ -197,6 +205,8 @@ const StockingPurchaseCreateModal = ({
     setSelectedMaterials([]);
     setQuantities({});
     setUnitPrices({});
+    setSelectedMinimumSpecificationIds({});
+    setMinimumSpecificationErrors({});
     setSelectedColors({});
     setSelectedSpecifications({});
     setLineRemarks({});
@@ -216,6 +226,7 @@ const StockingPurchaseCreateModal = ({
     setSelectedMaterials([row]);
     setQuantities({ [row.rowId]: 0 });
     setUnitPrices({ [row.rowId]: null });
+    setSelectedMinimumSpecificationIds({});
     setSelectedColors({});
     setSelectedSpecifications({});
     setLineRemarks({});
@@ -339,6 +350,7 @@ const StockingPurchaseCreateModal = ({
       try {
         const matchedMaterials: SelectedMaterialRow[] = [];
         const nextQuantities: Record<string, number> = {};
+        const nextMinimumSpecificationIds: Record<string, string | undefined> = {};
         const nextColors: Record<string, string | undefined> = {};
         const nextSpecifications: Record<string, string | undefined> = {};
         const nextLineRemarks: Record<string, string | undefined> = {};
@@ -356,6 +368,7 @@ const StockingPurchaseCreateModal = ({
           };
           matchedMaterials.push(row);
           nextQuantities[row.rowId] = Number(line.quantity ?? 0);
+          nextMinimumSpecificationIds[row.rowId] = resolveOrderLineMinimumSpecificationId(matchedMaterial, line);
           nextColors[row.rowId] = line.color;
           nextSpecifications[row.rowId] = line.specification;
           nextLineRemarks[row.rowId] = line.remark;
@@ -366,6 +379,7 @@ const StockingPurchaseCreateModal = ({
         if (!matchedMaterials.length) return;
         setSelectedMaterials(matchedMaterials);
         setQuantities(nextQuantities);
+        setSelectedMinimumSpecificationIds(nextMinimumSpecificationIds);
         setSelectedColors(nextColors);
         setSelectedSpecifications(nextSpecifications);
         setLineRemarks(nextLineRemarks);
@@ -395,6 +409,7 @@ const StockingPurchaseCreateModal = ({
       try {
         const matchedMaterials: SelectedMaterialRow[] = [];
         const nextQuantities: Record<string, number> = {};
+        const nextMinimumSpecificationIds: Record<string, string | undefined> = {};
         const nextColors: Record<string, string | undefined> = {};
         const nextSpecifications: Record<string, string | undefined> = {};
         for (const draftItem of draftItems) {
@@ -419,10 +434,13 @@ const StockingPurchaseCreateModal = ({
             continue;
           }
           const row = buildSelectedMaterialRow(matchedMaterial);
+          const defaultSpecificationId = getDefaultMinimumSpecificationId(matchedMaterial);
+          const defaultSpecification = findMinimumSpecification(matchedMaterial, defaultSpecificationId);
           matchedMaterials.push(row);
           nextQuantities[row.rowId] = Math.max(0, Number(draftItem.quantity ?? 0));
-          nextColors[row.rowId] = matchedMaterial.colors?.length === 1 ? matchedMaterial.colors[0] : undefined;
-          nextSpecifications[row.rowId] = matchedMaterial.specifications?.length === 1 ? matchedMaterial.specifications[0] : undefined;
+          nextMinimumSpecificationIds[row.rowId] = defaultSpecificationId;
+          nextColors[row.rowId] = defaultSpecification?.color;
+          nextSpecifications[row.rowId] = defaultSpecification?.specification;
         }
         if (!matchedMaterials.length) {
           ensureInitialEmptyRow();
@@ -430,6 +448,7 @@ const StockingPurchaseCreateModal = ({
         }
         setSelectedMaterials(matchedMaterials);
         setQuantities(nextQuantities);
+        setSelectedMinimumSpecificationIds(nextMinimumSpecificationIds);
         setSelectedColors(nextColors);
         setSelectedSpecifications(nextSpecifications);
       } catch (error) {
@@ -448,12 +467,12 @@ const StockingPurchaseCreateModal = ({
     setUnitPrices((prev) => ({ ...prev, [recordId]: value }));
   }, []);
 
-  const handleColorChange = useCallback((recordId: string, value?: string) => {
-    setSelectedColors((prev) => ({ ...prev, [recordId]: value }));
-  }, []);
-
-  const handleSpecificationChange = useCallback((recordId: string, value?: string) => {
-    setSelectedSpecifications((prev) => ({ ...prev, [recordId]: value }));
+  const handleMinimumSpecificationChange = useCallback((record: SelectedMaterialRow, value?: string) => {
+    const specification = findMinimumSpecification(record.material, value);
+    setSelectedMinimumSpecificationIds((prev) => ({ ...prev, [record.rowId]: value }));
+    setSelectedColors((prev) => ({ ...prev, [record.rowId]: specification?.color }));
+    setSelectedSpecifications((prev) => ({ ...prev, [record.rowId]: specification?.specification }));
+    setMinimumSpecificationErrors((prev) => ({ ...prev, [record.rowId]: false }));
   }, []);
 
   const handleLineRemarkChange = useCallback((recordId: string, value?: string) => {
@@ -482,6 +501,11 @@ const StockingPurchaseCreateModal = ({
         ? prev[record.rowId]
         : getDefaultUnitPrice(record.material?.referencePrice),
     }));
+    setSelectedMinimumSpecificationIds((prev) => ({
+      ...prev,
+      [duplicatedRow.rowId]: prev[record.rowId] ?? getDefaultMinimumSpecificationId(record.material),
+    }));
+    setMinimumSpecificationErrors((prev) => ({ ...prev, [duplicatedRow.rowId]: false }));
     setSelectedColors((prev) => ({
       ...prev,
       [duplicatedRow.rowId]: prev[record.rowId] ?? (record.material?.colors?.length === 1 ? record.material.colors[0] : undefined),
@@ -517,6 +541,8 @@ const StockingPurchaseCreateModal = ({
 
   const handleSelectMaterial = useCallback((recordId: string, materialId?: string) => {
     const material = materialOptions.find((item) => item.id === materialId);
+    const defaultSpecificationId = getDefaultMinimumSpecificationId(material);
+    const defaultSpecification = findMinimumSpecification(material, defaultSpecificationId);
     setSelectedMaterials((prev) => prev.map((item) => (
       item.rowId === recordId ? { ...item, material } : item
     )));
@@ -524,13 +550,18 @@ const StockingPurchaseCreateModal = ({
       ...prev,
       [recordId]: getDefaultUnitPrice(material?.referencePrice),
     }));
+    setSelectedMinimumSpecificationIds((prev) => ({
+      ...prev,
+      [recordId]: defaultSpecificationId,
+    }));
+    setMinimumSpecificationErrors((prev) => ({ ...prev, [recordId]: false }));
     setSelectedColors((prev) => ({
       ...prev,
-      [recordId]: material?.colors?.length === 1 ? material.colors[0] : undefined,
+      [recordId]: defaultSpecification?.color,
     }));
     setSelectedSpecifications((prev) => ({
       ...prev,
-      [recordId]: material?.specifications?.length === 1 ? material.specifications[0] : undefined,
+      [recordId]: defaultSpecification?.specification,
     }));
   }, [materialOptions]);
 
@@ -542,6 +573,16 @@ const StockingPurchaseCreateModal = ({
       return next;
     });
     setUnitPrices((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+    setSelectedMinimumSpecificationIds((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+    setMinimumSpecificationErrors((prev) => {
       const next = { ...prev };
       delete next[recordId];
       return next;
@@ -700,63 +741,38 @@ const StockingPurchaseCreateModal = ({
         },
       },
       {
-        title: '颜色',
-        dataIndex: ['material', 'colors'],
-        key: 'colors',
-        width: 140,
-        render: (_value: string[], record) => {
+        title: '最小规格',
+        dataIndex: ['material', 'minimumSpecifications'],
+        key: 'minimumSpecification',
+        width: 180,
+        render: (_value: unknown, record) => {
           if (record.kind === 'bulk') {
             return <Text type="secondary">逐行维护</Text>;
           }
-          const colorOptions = (record.material?.colors ?? []).map((color) => ({ label: color, value: color }));
           if (!record.material) {
             return <Text className="oc-excel-cell-placeholder">请先选物料</Text>;
           }
-          if (!colorOptions.length) {
-            return <Text className="oc-excel-cell-placeholder">未维护颜色</Text>;
+          const specificationOptions = getActiveMinimumSpecifications(record.material)
+            .map((specification) => ({ label: specification.label, value: specification.id as string }));
+          if (!specificationOptions.length) {
+            return <Text className="oc-excel-cell-placeholder">未维护启用的最小规格</Text>;
           }
           return (
             <Select
               className="oc-excel-cell-select"
-              allowClear
-              placeholder="请选择颜色"
-              value={selectedColors[record.rowId]}
+              allowClear={specificationOptions.length > 1}
+              placeholder="请选择最小规格"
+              value={selectedMinimumSpecificationIds[record.rowId]}
+              status={minimumSpecificationErrors[record.rowId] ? 'error' : undefined}
               disabled={lockNonRemarkFields}
-              onChange={(value) => handleColorChange(record.rowId, value)}
-              options={colorOptions}
+              onChange={(value) => handleMinimumSpecificationChange(record, value)}
+              options={specificationOptions}
+              optionFilterProp="label"
+              showSearch
             />
           );
         },
       },
-      ...(materialType === 'accessory' ? [{
-        title: '规格',
-        dataIndex: ['material', 'specifications'],
-        key: 'specifications',
-        width: 140,
-        render: (_value: string[], record: MaterialTableRow) => {
-          if (record.kind === 'bulk') {
-            return <Text type="secondary">逐行维护</Text>;
-          }
-          const specificationOptions = (record.material?.specifications ?? []).map((spec) => ({ label: spec, value: spec }));
-          if (!record.material) {
-            return <Text className="oc-excel-cell-placeholder">请先选物料</Text>;
-          }
-          if (!specificationOptions.length) {
-            return <Text className="oc-excel-cell-placeholder">未维护规格</Text>;
-          }
-          return (
-            <Select
-              className="oc-excel-cell-select"
-              allowClear
-              placeholder="请选择规格"
-              value={selectedSpecifications[record.rowId]}
-              disabled={lockNonRemarkFields}
-              onChange={(value) => handleSpecificationChange(record.rowId, value)}
-              options={specificationOptions}
-            />
-          );
-        },
-      }] : []),
       {
         title: '采购数量',
         dataIndex: 'orderQty',
@@ -906,26 +922,25 @@ const StockingPurchaseCreateModal = ({
       bulkUnitPriceValue,
       handleApplyBulkValues,
       handleClearBulkValues,
-      handleColorChange,
       handleDuplicateMaterial,
       handleAddMaterialRow,
       handleSelectMaterial,
       handleQuantityChange,
       handleRemoveMaterial,
       handleLineRemarkChange,
-      handleSpecificationChange,
+      handleMinimumSpecificationChange,
       handleUnitPriceChange,
       lineRemarks,
       loadMaterialOptions,
+      isQuantityAndRemark,
       lockNonRemarkFields,
       lockQuantity,
-      materialType,
       materialOptions.length,
       materialOptionsLoading,
       materialSelectOptions,
+      minimumSpecificationErrors,
       quantities,
-      selectedColors,
-      selectedSpecifications,
+      selectedMinimumSpecificationIds,
       unitPrices,
     ],
   );
@@ -984,6 +999,7 @@ const StockingPurchaseCreateModal = ({
         ? initialOrder.lines.map((line) => ({
             lineId: line.lineId,
             materialId: line.materialId,
+            materialMinimumSpecificationId: line.materialMinimumSpecificationId,
             quantity: Number(line.quantity ?? 0),
             unit: line.unit,
             unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
@@ -997,6 +1013,7 @@ const StockingPurchaseCreateModal = ({
             .map((item) => ({
               lineId: item.lineId,
               materialId: item.material.id,
+              materialMinimumSpecificationId: selectedMinimumSpecificationIds[item.rowId],
               quantity: quantities[item.rowId] ?? 0,
               unit: item.material.unit,
               unitPrice: getSubmitUnitPrice(unitPrices, item.rowId, item.material.referencePrice),
@@ -1015,6 +1032,21 @@ const StockingPurchaseCreateModal = ({
           message.warning('请为每一行选择物料');
           return;
         }
+        const missingSpecificationRow = selectedMaterials.find((item) => (
+          item.material
+          && !selectedMinimumSpecificationIds[item.rowId]
+        ));
+        if (missingSpecificationRow?.material) {
+          setMinimumSpecificationErrors((prev) => ({
+            ...prev,
+            [missingSpecificationRow.rowId]: true,
+          }));
+          const hasActiveSpecifications = getActiveMinimumSpecifications(missingSpecificationRow.material).length > 0;
+          message.warning(hasActiveSpecifications
+            ? `请选择“${missingSpecificationRow.material.name}”的最小规格`
+            : `“${missingSpecificationRow.material.name}”未维护启用的最小规格`);
+          return;
+        }
         if (!selectedLines.length) {
           message.warning('请为勾选的物料填写采购数量');
           return;
@@ -1029,6 +1061,7 @@ const StockingPurchaseCreateModal = ({
         lines: selectedLines.map((line) => ({
           lineId: line.lineId,
           materialId: line.materialId,
+          materialMinimumSpecificationId: line.materialMinimumSpecificationId,
           quantity: line.quantity,
           unit: line.unit,
           unitPrice: line.unitPrice,
@@ -1191,7 +1224,7 @@ const StockingPurchaseCreateModal = ({
           locale={{
             emptyText: '请新增一行后，在物料列搜索选择物料档案',
           }}
-          scroll={{ y: 360, x: materialType === 'accessory' ? 1306 : 1166 }}
+          scroll={{ y: 360, x: 1206 }}
           footer={() => (
             <div className="oc-excel-table-footer">
               <Button type="dashed" block disabled={lockNonRemarkFields} onClick={() => handleAddMaterialRow()}>
