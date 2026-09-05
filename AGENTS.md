@@ -84,6 +84,7 @@ Otherwise, continue editing, regenerating, testing, or refining.
 - 不要新增 Java 集成测试用例。
 - 测试账号与 JWT 生成参考：`docs/测试账号信息.md` 与 `scripts/account_api_tests.py`。
 - 每次修改完代码后，必须在本地运行与本次改动范围直接相关的集成测试用例，并在开发文档中记录测试命令与结果；不得仅以单元测试、代码检查或构建通过替代集成测试。若现有集成测试未覆盖本次改动，应先补充或扩展 `e-supply-back/scripts` 下的 Python 集成测试，再在本地运行验证。
+- 会触达 Clerk 或外部销售平台写操作的测试用例默认不运行，只有用户在当前对话中显式要求时才允许执行；默认全集应将其标记为手工外部写测试并跳过。
 
 ## Process Rules
 - 严格遵循：调研 -> 计划 -> 开发 -> 测试。
