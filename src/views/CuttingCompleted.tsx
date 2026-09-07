@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Card,
   Empty,
+  Form,
   Modal,
   Pagination,
   Skeleton,
@@ -10,7 +11,13 @@ import {
   message,
 } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import type { CuttingSheetDetail, CuttingTask, CuttingTaskDataset, CuttingTaskMetric } from '../types';
+import type {
+  CuttingSheetDetail,
+  CuttingSheetMaterialCalculation,
+  CuttingTask,
+  CuttingTaskDataset,
+  CuttingTaskMetric,
+} from '../types';
 import { pieceworkService } from '../api/piecework';
 import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
@@ -18,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 import CuttingTaskCard from '../components/CuttingTaskCard';
 import ListImage from '../components/common/ListImage';
+import CuttingBedRecordModal from '../components/CuttingBedRecordModal';
 
 const { Text } = Typography;
 
@@ -39,6 +47,13 @@ type DetailModalState = {
   task?: CuttingTask;
 };
 
+type BedUsageEditState = {
+  open: boolean;
+  submitting: boolean;
+  calculating: boolean;
+  record?: NonNullable<CuttingSheetDetail['bedRecords']>[number];
+};
+
 const CuttingCompletedPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,6 +69,13 @@ const CuttingCompletedPage = () => {
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
   const [deletingBedKey, setDeletingBedKey] = useState<string | null>(null);
+  const [bedUsageEditState, setBedUsageEditState] = useState<BedUsageEditState>({
+    open: false,
+    submitting: false,
+    calculating: false,
+  });
+  const [bedUsageCalculations, setBedUsageCalculations] = useState<CuttingSheetMaterialCalculation[]>([]);
+  const [bedUsageForm] = Form.useForm();
 
   const navigateToFactoryOrder = (orderCode?: string) => {
     const normalized = orderCode?.trim();
@@ -170,6 +192,89 @@ const CuttingCompletedPage = () => {
       message.error(error instanceof Error ? error.message : '删除床次失败');
     } finally {
       setDeletingBedKey(null);
+    }
+  };
+
+  const openBedUsageEditor = async (
+    record: NonNullable<CuttingSheetDetail['bedRecords']>[number],
+  ) => {
+    if (!detailState.task?.workOrderId || !record.bedId) return;
+    if (!record.materialUsageEditable) {
+      message.info('该床次为历史记录，不纳入本次用量调整范围');
+      return;
+    }
+    setBedUsageEditState({ open: true, submitting: false, calculating: true, record });
+    bedUsageForm.setFieldsValue({ bedNumber: record.bedNumber, materialUsages: [] });
+    try {
+      const calculations = await pieceworkService.calculateCuttingSheetBedMaterials(
+        detailState.task.workOrderId,
+        record.items.filter((item) => Number(item.quantity) > 0),
+      );
+      setBedUsageCalculations(calculations);
+      const existingUsages = record.materialUsages ?? record.fabricUsages ?? [];
+      bedUsageForm.setFieldValue('materialUsages', calculations.map((material) => {
+        const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
+        const option = material.stockOptions.find((candidate) => (
+          Number(candidate.warehouseId) === Number(existing?.warehouseId)
+          && Number(candidate.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0)
+        ));
+        return {
+          calculationKey: material.calculationKey,
+          stockOptionKey: option
+            ? `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}`
+            : undefined,
+          actualQty: existing?.actualQty,
+        };
+      }));
+    } catch (error) {
+      console.error('failed to load completed cutting bed material usages', error);
+      message.error(error instanceof Error ? error.message : '加载床次用量失败');
+      setBedUsageEditState((prev) => ({ ...prev, open: false }));
+    } finally {
+      setBedUsageEditState((prev) => ({ ...prev, calculating: false }));
+    }
+  };
+
+  const submitBedUsageUpdate = async () => {
+    if (!detailState.task?.workOrderId || !bedUsageEditState.record?.bedId) return;
+    try {
+      const values = await bedUsageForm.validateFields();
+      const formUsages = (values.materialUsages ?? []) as Array<{ stockOptionKey?: string; actualQty?: number }>;
+      const materialUsages = bedUsageCalculations.map((material, index) => {
+        const formUsage = formUsages[index] ?? {};
+        const option = material.stockOptions.find((candidate) => (
+          `${candidate.warehouseId}::${Number(candidate.materialMinimumSpecificationId) || 0}` === formUsage.stockOptionKey
+        ));
+        return {
+          calculationKey: material.calculationKey,
+          materialType: material.materialType,
+          applicableColors: material.applicableColors,
+          warehouseId: option?.warehouseId,
+          materialId: material.materialId,
+          materialMinimumSpecificationId: option?.materialMinimumSpecificationId
+            ?? material.materialMinimumSpecificationId,
+          materialUnit: material.materialUnit,
+          plannedQty: material.plannedQty,
+          actualQty: Number(formUsage.actualQty),
+        };
+      });
+      setBedUsageEditState((prev) => ({ ...prev, submitting: true }));
+      await pieceworkService.updateCuttingSheetBedMaterialUsage(detailState.task.workOrderId, {
+        bedId: bedUsageEditState.record.bedId,
+        materialUsages,
+      });
+      message.success('床次用量与库存已同步调整');
+      setBedUsageEditState({ open: false, submitting: false, calculating: false });
+      bedUsageForm.resetFields();
+      setBedUsageCalculations([]);
+      await loadSheetDetail(detailState.task, { silent: true });
+      await loadCompletedTasks();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) return;
+      console.error('failed to update completed cutting bed material usages', error);
+      message.error(error instanceof Error ? error.message : '调整床次用量失败');
+    } finally {
+      setBedUsageEditState((prev) => ({ ...prev, submitting: false }));
     }
   };
 
@@ -315,6 +420,7 @@ const CuttingCompletedPage = () => {
         loading={detailLoading}
         task={detailState.task}
         detail={sheetDetail}
+        zIndex={bedUsageEditState.open ? 1000 : undefined}
         onClose={() => {
           setDetailState({ open: false });
           setSheetDetail(null);
@@ -323,7 +429,30 @@ const CuttingCompletedPage = () => {
         onNavigateToFactoryOrder={navigateToFactoryOrder}
         onNavigate={navigate}
         onDeleteBed={handleDeleteBed}
+        onEditBedMaterialUsage={(record) => void openBedUsageEditor(record)}
         deletingBedKey={deletingBedKey}
+      />
+
+      <CuttingBedRecordModal
+        open={bedUsageEditState.open}
+        mode="edit"
+        task={detailState.task}
+        detail={sheetDetail}
+        qtyMap={{}}
+        form={bedUsageForm}
+        submitting={bedUsageEditState.submitting}
+        calculating={bedUsageEditState.calculating}
+        calculations={bedUsageCalculations}
+        existingUsages={bedUsageEditState.record?.materialUsages ?? bedUsageEditState.record?.fabricUsages}
+        zIndex={1100}
+        onQtyChange={() => undefined}
+        onFillPendingQty={() => undefined}
+        onCancel={() => {
+          bedUsageForm.resetFields();
+          setBedUsageCalculations([]);
+          setBedUsageEditState({ open: false, submitting: false, calculating: false });
+        }}
+        onSubmit={() => void submitBedUsageUpdate()}
       />
     </div>
   );

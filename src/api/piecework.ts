@@ -6,6 +6,7 @@ import type {
   PieceworkDashboardDataset,
   CuttingTaskDataset,
   CuttingSheetDetail,
+  CuttingSheetMaterialCalculation,
   CuttingReportDataset,
   WorkshopProgressDataset,
 } from '../types';
@@ -294,6 +295,9 @@ type CuttingTaskCreateItem = {
 };
 
 type CuttingSheetMaterialUsagePayload = Partial<{
+  calculationKey: string;
+  materialType: string;
+  applicableColors: string[];
   warehouseId: number;
   warehouseName: string;
   materialId: number;
@@ -367,6 +371,7 @@ type CuttingSheetDetailPayload = Partial<{
     actualFabricQty?: number;
     materialUsages?: CuttingSheetMaterialUsagePayload[];
     fabricUsages?: CuttingSheetMaterialUsagePayload[];
+    materialUsageEditable?: boolean;
     deletable?: boolean;
     deleteBlockedReason?: string;
     totalQty?: number;
@@ -429,6 +434,9 @@ const adaptCuttingReport = (payload: CuttingReportPayload): CuttingReportDataset
 });
 
 const adaptCuttingSheetMaterialUsage = (payload: CuttingSheetMaterialUsagePayload) => ({
+  calculationKey: payload.calculationKey,
+  materialType: payload.materialType,
+  applicableColors: payload.applicableColors ?? [],
   warehouseId: Number.isFinite(Number(payload.warehouseId)) ? Number(payload.warehouseId) : undefined,
   warehouseName: payload.warehouseName,
   materialId: Number.isFinite(Number(payload.materialId)) ? Number(payload.materialId) : undefined,
@@ -570,6 +578,7 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
         : undefined,
       materialUsages: (record.materialUsages ?? []).map(adaptCuttingSheetMaterialUsage),
       fabricUsages: (record.fabricUsages ?? []).map(adaptCuttingSheetMaterialUsage),
+      materialUsageEditable: record.materialUsageEditable === true,
       deletable: typeof record.deletable === 'boolean' ? record.deletable : undefined,
       deleteBlockedReason: typeof record.deleteBlockedReason === 'string' ? record.deleteBlockedReason : undefined,
       totalQty: Number(record.totalQty ?? 0),
@@ -844,8 +853,12 @@ export const pieceworkService = {
     workOrderId: number,
     payload: {
       bedNumber: string;
+      cutterId?: number;
       actualFabricQty?: number;
       materialUsages?: Array<{
+        calculationKey?: string;
+        materialType?: string;
+        applicableColors?: string[];
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
@@ -854,9 +867,13 @@ export const pieceworkService = {
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
+        plannedQty?: number;
         actualQty?: number;
       }>;
       fabricUsages?: Array<{
+        calculationKey?: string;
+        materialType?: string;
+        applicableColors?: string[];
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
@@ -865,6 +882,7 @@ export const pieceworkService = {
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
+        plannedQty?: number;
         actualQty?: number;
       }>;
       items: Array<{ color: string; size: string; quantity: number }>;
@@ -873,6 +891,9 @@ export const pieceworkService = {
     const tenantId = requireNumericTenantId();
     const normalizeUsage = (
       usage: {
+        calculationKey?: string;
+        materialType?: string;
+        applicableColors?: string[];
         warehouseId?: number;
         warehouseName?: string;
         materialId?: number;
@@ -881,6 +902,7 @@ export const pieceworkService = {
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
+        plannedQty?: number;
         actualQty?: number;
       },
     ) => ({
@@ -891,6 +913,73 @@ export const pieceworkService = {
       ...payload,
       materialUsages: payload.materialUsages?.map(normalizeUsage),
       fabricUsages: payload.fabricUsages?.map(normalizeUsage),
+    }, {
+      params: { tenantId },
+    });
+  },
+
+  async calculateCuttingSheetBedMaterials(
+    workOrderId: number,
+    items: Array<{ color: string; size: string; quantity: number }>,
+  ): Promise<CuttingSheetMaterialCalculation[]> {
+    const tenantId = requireNumericTenantId();
+    const { data } = await http.post<{
+      materials?: Array<Partial<CuttingSheetMaterialCalculation> & { plannedQty?: number | string }>;
+    }>(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/materials/calculate`, { items }, {
+      params: { tenantId },
+    });
+    return (data.materials ?? []).map((item) => ({
+      calculationKey: item.calculationKey ?? '',
+      materialType: item.materialType ?? 'FABRIC',
+      applicableColors: item.applicableColors ?? [],
+      materialId: Number(item.materialId ?? 0),
+      materialMinimumSpecificationId: Number.isFinite(Number(item.materialMinimumSpecificationId))
+        ? Number(item.materialMinimumSpecificationId)
+        : undefined,
+      materialMinimumSpecificationLabel: item.materialMinimumSpecificationLabel,
+      materialCode: item.materialCode,
+      materialName: item.materialName,
+      imageUrl: item.imageUrl,
+      materialUnit: item.materialUnit,
+      plannedQty: Number(item.plannedQty ?? 0),
+      stockOptions: (item.stockOptions ?? []).map((option) => ({
+        warehouseId: Number(option.warehouseId ?? 0),
+        warehouseName: option.warehouseName ?? '',
+        materialMinimumSpecificationId: Number.isFinite(Number(option.materialMinimumSpecificationId))
+          ? Number(option.materialMinimumSpecificationId)
+          : undefined,
+        materialMinimumSpecificationLabel: option.materialMinimumSpecificationLabel,
+        materialMinimumSpecificationColor: option.materialMinimumSpecificationColor,
+        availableQty: Number(option.availableQty ?? 0),
+      })),
+    }));
+  },
+
+  async updateCuttingSheetBedMaterialUsage(
+    workOrderId: number,
+    payload: {
+      bedId: string;
+      materialUsages: Array<{
+        calculationKey?: string;
+        materialType?: string;
+        applicableColors?: string[];
+        warehouseId?: number;
+        materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialUnit?: string;
+        plannedQty?: number;
+        actualQty: number;
+      }>;
+    },
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/material-usage/update`, {
+      bedId: payload.bedId,
+      materialUsages: payload.materialUsages.map((usage) => ({
+        ...usage,
+        plannedFabricQty: usage.plannedQty,
+        actualFabricQty: usage.actualQty,
+      })),
     }, {
       params: { tenantId },
     });

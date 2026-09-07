@@ -52,6 +52,9 @@ export type CuttingSheetColorRow = {
 };
 
 export type CuttingSheetMaterialUsage = {
+  calculationKey?: string;
+  materialType?: 'FABRIC' | 'ACCESSORY' | string;
+  applicableColors?: string[];
   imageUrl?: string;
   warehouseId?: number;
   warehouseName?: string;
@@ -65,6 +68,30 @@ export type CuttingSheetMaterialUsage = {
   startActualQty?: number;
   completeActualQty?: number;
   actualQty?: number;
+};
+
+export type CuttingSheetMaterialStockOption = {
+  warehouseId: number;
+  warehouseName: string;
+  materialMinimumSpecificationId?: number;
+  materialMinimumSpecificationLabel?: string;
+  materialMinimumSpecificationColor?: string;
+  availableQty: number;
+};
+
+export type CuttingSheetMaterialCalculation = {
+  calculationKey: string;
+  materialType: 'FABRIC' | 'ACCESSORY' | string;
+  applicableColors: string[];
+  materialId: number;
+  materialMinimumSpecificationId?: number;
+  materialMinimumSpecificationLabel?: string;
+  materialCode?: string;
+  materialName?: string;
+  imageUrl?: string;
+  materialUnit?: string;
+  plannedQty: number;
+  stockOptions: CuttingSheetMaterialStockOption[];
 };
 
 export type CuttingSheetDetail = {
@@ -111,6 +138,7 @@ export type CuttingSheetDetail = {
     actualFabricQty?: number;
     materialUsages?: CuttingSheetMaterialUsage[];
     fabricUsages?: CuttingSheetMaterialUsage[];
+    materialUsageEditable?: boolean;
     deletable?: boolean;
     deleteBlockedReason?: string;
     totalQty: number;

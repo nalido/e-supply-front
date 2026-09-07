@@ -10,7 +10,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import { DeleteOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
 import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
@@ -114,6 +114,7 @@ type Props = {
   onRecordBed?: () => void;
   onComplete?: () => void;
   onDeleteBed?: (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => Promise<void> | void;
+  onEditBedMaterialUsage?: (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => void;
   deletingBedKey?: string | null;
 };
 
@@ -129,6 +130,7 @@ export default function CuttingSheetDetailModal({
   onRecordBed,
   onComplete,
   onDeleteBed,
+  onEditBedMaterialUsage,
   deletingBedKey,
 }: Props) {
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
@@ -303,6 +305,16 @@ export default function CuttingSheetDetailModal({
                           extra={(
                             <Space size={12}>
                               <Text type="secondary">{record.recordedAt ?? '-'}</Text>
+                              {onEditBedMaterialUsage && record.materialUsageEditable ? (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  icon={<EditOutlined />}
+                                  onClick={() => onEditBedMaterialUsage(record)}
+                                >
+                                  修改用量
+                                </Button>
+                              ) : null}
                               {onDeleteBed ? (
                                 record.deletable === false ? (
                                   <Tooltip title={getCuttingDeleteBlockedTooltip(record.deleteBlockedReason)} placement="topRight">
