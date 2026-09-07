@@ -5,10 +5,17 @@ import { chromium } from 'playwright';
 
 const appRoot = process.cwd();
 const baseUrl = process.env.ESUPPLY_BASE_URL || 'http://127.0.0.1:5176';
+const apiBaseUrl = process.env.ESUPPLY_API_BASE_URL;
 const styleId = process.env.ESUPPLY_STYLE_ID;
+const authToken = process.env.ESUPPLY_AUTH_TOKEN;
+const tenantId = process.env.ESUPPLY_TENANT_ID || '1';
+const storageStatePath = process.env.ESUPPLY_STORAGE_STATE || path.resolve(
+  appRoot,
+  'logs/route-sweep-auth-dev.json',
+);
 const outputDir = process.env.ESUPPLY_OUTPUT_DIR || path.resolve(
   appRoot,
-  '../docs/e-supply/04-verification/style-bom-average-consumption-20260904',
+  '../docs/e-supply/04-verification/style-bom-inline-entry-20260907',
 );
 const backendEnvPath = process.env.ESUPPLY_BACKEND_ENV
   || '/Users/jambin/codes/supply-and-sale/e-supply-back/src/main/resources/.env';
@@ -32,10 +39,10 @@ const username = process.env.ESUPPLY_ADMIN_EMAIL || backendEnv.ESUPPLY_ADMIN_EMA
 const password = process.env.ESUPPLY_ADMIN_PASSWORD || backendEnv.ESUPPLY_ADMIN_PASSWORD;
 fs.mkdirSync(outputDir, { recursive: true });
 for (const name of [
-  '01-style-bom-average-list-1440.png',
-  '02-style-bom-average-input.png',
+  '01-style-bom-inline-entry-desktop.png',
+  '02-style-bom-inline-entry-mobile.png',
   '03-style-bom-impact-preview.png',
-  '04-style-bom-editor-mobile-390.png',
+  '04-style-bom-save-warning.png',
   '99-style-bom-failure.png',
   'result.json',
 ]) {
@@ -48,12 +55,14 @@ if (!styleId) {
 const result = {
   ok: false,
   baseUrl,
+  apiBaseUrl,
   styleId,
   checks: [],
   screenshots: [],
   consoleErrors: [],
   failedRequests: [],
   failedApiResponses: [],
+  materialRequests: [],
 };
 
 function check(name, condition, detail = undefined) {
@@ -72,6 +81,17 @@ async function ensureLogin(page) {
   await page.goto(`${baseUrl}/welcome`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForTimeout(1_000);
   if (!/sign-in|accounts|clerk/i.test(page.url()) && await page.getByText('工作台').count()) return;
+  if (authToken) {
+    const existingSessionButton = page.getByRole('button', { name: '登录系统' }).first();
+    if (await existingSessionButton.count()) {
+      await existingSessionButton.click();
+      await page.waitForTimeout(1_000);
+    }
+    if (/sign-in|accounts|clerk/i.test(page.url())) {
+      throw new Error(`本地 API 令牌模式需要有效的页面登录态：${storageStatePath}`);
+    }
+    return;
+  }
   check('本地验收账号配置存在', Boolean(username && password));
   const loginButton = page.getByRole('button', { name: /登录系统|登录|Sign in|Login/i }).first();
   if (await loginButton.count()) {
@@ -89,9 +109,151 @@ async function ensureLogin(page) {
   await page.waitForURL((url) => !/sign-in|accounts|clerk/i.test(url.href), { timeout: 40_000 });
 }
 
+async function chooseMaterial(page, row, type) {
+  const isFabric = type === 'FABRIC';
+  const materialSelect = row.getByRole('combobox', { name: isFabric ? '面料物料' : '辅料/包材物料' });
+  const initialResponse = page.waitForResponse((response) => (
+    response.request().method() === 'GET'
+    && response.url().includes('/api/v1/materials?')
+    && response.url().includes(`materialType=${type}`)
+  ));
+  await materialSelect.click();
+  const initialPayload = await (await initialResponse).json();
+  const candidates = (initialPayload.items ?? []).filter((item) => (
+    item.minimumSpecifications?.some((specification) => specification.active !== false && specification.id)
+  ));
+  const selectedMaterialLabels = await page.locator(
+    '.style-bom-inline-material-cell .ant-select-selection-item',
+  ).allTextContents();
+  const unselectedCandidates = candidates.filter((item) => (
+    !selectedMaterialLabels.some((label) => label.includes(item.name))
+  ));
+  const material = unselectedCandidates[0];
+  const staleMaterial = unselectedCandidates[1];
+  check(`${isFabric ? '面料' : '辅料'}搜索返回可选物料`, Boolean(material));
+  check(`${isFabric ? '面料' : '辅料'}具备并发搜索验收数据`, Boolean(staleMaterial));
+  delayedMaterialKeyword = staleMaterial.name;
+  const staleRequest = page.waitForRequest((request) => (
+    request.method() === 'GET'
+    && request.url().includes('/api/v1/materials?')
+    && request.url().includes(`materialType=${type}`)
+    && request.url().includes(`keyword=${encodeURIComponent(staleMaterial.name)}`)
+  ));
+  await materialSelect.fill(staleMaterial.name);
+  await staleRequest;
+  await materialSelect.fill(material.name);
+  const searchResponse = await page.waitForResponse((response) => (
+    response.request().method() === 'GET'
+    && response.url().includes('/api/v1/materials?')
+    && response.url().includes(`materialType=${type}`)
+    && response.url().includes('keyword=')
+  ));
+  check(`${isFabric ? '面料' : '辅料'}关键词由后端搜索`, searchResponse.ok(), searchResponse.url());
+  await page.waitForTimeout(800);
+  const option = page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({
+    hasText: material.name,
+  }).first();
+  await option.waitFor({ state: 'visible', timeout: 10_000 });
+  check(
+    `${isFabric ? '面料' : '辅料'}旧搜索响应不会覆盖最新结果`,
+    await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({
+      hasText: staleMaterial.name,
+    }).count() === 0,
+  );
+  delayedMaterialKeyword = undefined;
+  await option.click();
+  return material;
+}
+
+async function completeInlineRow(page, row, type) {
+  const material = await chooseMaterial(page, row, type);
+  const isFabric = type === 'FABRIC';
+  const specificationSelect = row.getByRole('combobox', { name: /最小规格$/ });
+  const activeSpecifications = (material.minimumSpecifications ?? []).filter((item) => (
+    item.active !== false && item.id
+  ));
+  check('物料与最小规格使用两个独立下拉单元格', await specificationSelect.count() === 1);
+  if (activeSpecifications.length > 1) {
+    await specificationSelect.click();
+    const listboxId = await specificationSelect.getAttribute('aria-controls');
+    check('最小规格下拉具备独立列表语义', Boolean(listboxId));
+    const specificationDropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
+      .filter({ hasText: activeSpecifications[0].label })
+      .last();
+    await specificationDropdown.waitFor({ state: 'visible', timeout: 10_000 });
+    const specificationOptions = specificationDropdown.locator(
+      '.ant-select-item-option:not(.ant-select-item-option-disabled)',
+    );
+    await specificationOptions.first().waitFor({ state: 'visible', timeout: 10_000 });
+    check(
+      '最小规格下拉展示所选物料的全部启用规格',
+      await specificationOptions.count() === activeSpecifications.length,
+      { expected: activeSpecifications.length, actual: await specificationOptions.count() },
+    );
+    await specificationOptions.first().click();
+  } else {
+    check(
+      '单一启用规格自动选中',
+      await row.locator('.ant-select-selection-item').filter({ hasText: activeSpecifications[0].label }).count() === 1,
+    );
+  }
+  if (isFabric) {
+    check('面料可在行内维护适用颜色', await row.getByRole('combobox', { name: /适用颜色$/ }).count() === 1);
+  } else {
+    check('辅料行固定适用全部颜色', await row.getByText('全部颜色', { exact: true }).count() === 1);
+  }
+  await row.getByRole('spinbutton', { name: /平均单件用量$/ }).fill('1.25');
+  await row.getByRole('spinbutton', { name: /损耗率$/ }).fill('2.5');
+  await row.getByPlaceholder('可选').fill(`${isFabric ? '面料' : '辅料'}行内录入验收`);
+  check(
+    '平均单耗、损耗率和备注可在同一行填写',
+    Number(await row.getByRole('spinbutton', { name: /平均单件用量$/ }).inputValue()) === 1.25
+      && Number(await row.getByRole('spinbutton', { name: /损耗率$/ }).inputValue()) === 2.5
+      && Boolean(await row.getByPlaceholder('可选').inputValue()),
+  );
+}
+
+async function removeInlineRow(page, row) {
+  const rowKey = await row.getAttribute('data-row-key');
+  check('新增用料行具备稳定行标识', Boolean(rowKey));
+  await row.getByRole('button', { name: '移除用料' }).click();
+  const confirm = page.locator('.ant-popconfirm:visible');
+  await confirm.waitFor({ state: 'visible', timeout: 10_000 });
+  await confirm.locator('.ant-popconfirm-buttons .ant-btn-primary').click();
+  await page.locator(`tr[data-row-key="${rowKey}"]`).waitFor({ state: 'detached', timeout: 10_000 });
+}
+
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 1050 },
+  ...(fs.existsSync(storageStatePath) ? { storageState: storageStatePath } : {}),
+});
 const page = await context.newPage();
+let delayedMaterialKeyword;
+
+await page.route('**/api/**', async (route) => {
+  const requestUrl = new URL(route.request().url());
+  if (!requestUrl.pathname.startsWith('/api/')) {
+    await route.continue();
+    return;
+  }
+  const keyword = requestUrl.searchParams.get('keyword');
+  if (delayedMaterialKeyword && keyword === delayedMaterialKeyword) {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+  }
+  const headers = { ...route.request().headers() };
+  if (authToken) {
+    headers.authorization = `Bearer ${authToken}`;
+    headers['x-tenant-id'] = tenantId;
+  }
+  if (apiBaseUrl) {
+    const upstreamUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, apiBaseUrl);
+    const response = await route.fetch({ url: upstreamUrl.href, headers });
+    await route.fulfill({ response });
+    return;
+  }
+  await route.continue({ headers });
+});
 
 page.on('console', (message) => {
   if (message.type() === 'error') result.consoleErrors.push(message.text());
@@ -103,6 +265,9 @@ page.on('requestfailed', (request) => {
   }
 });
 page.on('response', (response) => {
+  if (response.request().method() === 'GET' && response.url().includes('/api/v1/materials?')) {
+    result.materialRequests.push(response.url().replace(/tenantId=[^&]+/, 'tenantId=<tenant>'));
+  }
   if (response.url().includes('/api/') && response.status() >= 400) {
     result.failedApiResponses.push({ url: response.url().replace(/tenantId=[^&]+/, 'tenantId=<tenant>'), status: response.status() });
   }
@@ -118,19 +283,35 @@ try {
   await section.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
+  check('页面不再挂载款式用料编辑抽屉', await page.locator('.style-bom-editor-drawer-root').count() === 0);
   check('页面不再按颜色拆成多个页签', await section.locator('.style-bom-color-tabs').count() === 0);
   check('页面不再展示尺码用量矩阵', await section.locator('.style-bom-size-material-table').count() === 0);
   check('面料和辅料按两类汇总展示', await section.locator('.style-bom-summary-panel').count() === 2);
   check('汇总表显示平均单件用量和适用颜色',
     await section.getByRole('columnheader', { name: '平均单件用量' }).count() === 2
       && await section.getByRole('columnheader', { name: '适用颜色' }).count() === 2);
-  check('面料按自身颜色维护且辅料统一适用全部颜色',
-    (await section.innerText()).includes('黑色')
-      && (await section.innerText()).includes('白色')
-      && (await section.innerText()).includes('全部颜色'));
   check('提供按类型添加用料入口',
     await section.getByText('添加面料', { exact: true }).count() === 1
       && await section.getByText('添加辅料/包材', { exact: true }).count() === 1);
+
+  const fabricPanel = section.locator('.style-bom-summary-panel').nth(0);
+  const accessoryPanel = section.locator('.style-bom-summary-panel').nth(1);
+  const initialFabricCount = await fabricPanel.locator('tbody tr.ant-table-row').count();
+  const initialAccessoryCount = await accessoryPanel.locator('tbody tr.ant-table-row').count();
+  check('验收款式至少保留一项可保存面料', initialFabricCount > 0);
+
+  await section.getByRole('button', { name: '添加面料' }).click();
+  const addedFabricRow = fabricPanel.locator('tbody tr.ant-table-row').last();
+  check('点击添加面料直接新增表格行', await fabricPanel.locator('tbody tr.ant-table-row').count() === initialFabricCount + 1);
+  await completeInlineRow(page, addedFabricRow, 'FABRIC');
+
+  await section.getByRole('button', { name: '添加辅料/包材' }).click();
+  const addedAccessoryRow = accessoryPanel.locator('tbody tr.ant-table-row').last();
+  check('点击添加辅料直接新增表格行', await accessoryPanel.locator('tbody tr.ant-table-row').count() === initialAccessoryCount + 1);
+  await completeInlineRow(page, addedAccessoryRow, 'ACCESSORY');
+  check('新增和填写过程中没有打开弹窗或抽屉',
+    await page.locator('.ant-modal:visible, .ant-drawer:visible').count() === 0);
+
   const tableLayout = await section.evaluate((node) => {
     const cardBody = node.closest('.style-detail-bom-card')?.querySelector('.ant-card-body');
     const firstCell = node.querySelector('.style-bom-summary-table .ant-table-tbody > .ant-table-row > td:first-child');
@@ -157,31 +338,42 @@ try {
     !(await section.innerText()).includes('复制尺码用量')
       && !(await section.innerText()).includes('面 A')
       && !(await section.innerText()).includes('面A'));
-  await capture(page, '01-style-bom-average-list-1440.png', section);
+  await capture(page, '01-style-bom-inline-entry-desktop.png', section);
 
-  await section.getByRole('button', { name: '设置' }).first().click();
-  const drawer = page.locator('.style-bom-editor-drawer');
-  await drawer.waitFor({ state: 'visible', timeout: 10_000 });
-  const fabricDrawerText = await drawer.innerText();
-  check('面料抽屉只维护汇总规则',
-    /设置款式用料/.test(fabricDrawerText)
-      && /平均单件用量/.test(fabricDrawerText)
-      && /指定颜色/.test(fabricDrawerText)
-      && !/各尺码/.test(fabricDrawerText));
-  const drawerAverageInput = drawer.getByLabel('平均单件用量');
-  check('平均单耗按汇总值回显', Number(await drawerAverageInput.inputValue()) === 1.75, { value: await drawerAverageInput.inputValue() });
-  const lossInput = drawer.locator('label').filter({ hasText: '损耗率' }).locator('input').first();
-  check('损耗率按百分比正确回显', Number(await lossInput.inputValue()) === 2.5, { value: await lossInput.inputValue() });
-  await page.locator('.ant-drawer:visible .ant-drawer-extra button').first().click();
-  await drawer.waitFor({ state: 'hidden', timeout: 10_000 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await section.scrollIntoViewIfNeeded();
+  const mobileLayout = await section.evaluate((node) => {
+    const pageWidth = document.documentElement.scrollWidth;
+    const overflowingDescendants = [...node.querySelectorAll('*')]
+      .map((element) => ({ className: String(element.className), rect: element.getBoundingClientRect() }))
+      .filter((item) => item.rect.right > pageWidth + 1)
+      .slice(0, 10)
+      .map((item) => ({ className: item.className, right: item.rect.right }));
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      pageWidth,
+      sectionWidth: node.getBoundingClientRect().width,
+      overflowingDescendants,
+    };
+  });
+  await capture(page, '02-style-bom-inline-entry-mobile.png', section);
+  check('390 宽页面内款式用料没有新增横向溢出', mobileLayout.overflowingDescendants.length === 0, mobileLayout);
+  await page.setViewportSize({ width: 1440, height: 1050 });
 
-  const blackAverageInput = section.getByLabel(/BOM规格测试面料.*平均单件用量/).first();
-  const initialAverageValue = Number(await blackAverageInput.inputValue());
-  check('表格只显示一个平均单耗输入', Number.isFinite(initialAverageValue) && initialAverageValue > 0, { value: await blackAverageInput.inputValue() });
-  const savedAverageValue = initialAverageValue === 1.8 ? 1.81 : 1.8;
-  await capture(page, '02-style-bom-average-input.png', section);
+  await removeInlineRow(page, addedAccessoryRow);
+  await removeInlineRow(page, addedFabricRow);
+  check('验收临时行可删除且不进入保存',
+    await fabricPanel.locator('tbody tr.ant-table-row').count() === initialFabricCount
+      && await accessoryPanel.locator('tbody tr.ant-table-row').count() === initialAccessoryCount);
 
-  await blackAverageInput.fill(String(savedAverageValue));
+  const persistedFabricRow = fabricPanel.locator('tbody tr.ant-table-row').first();
+  const averageInput = persistedFabricRow.getByRole('spinbutton', { name: /平均单件用量$/ });
+  const initialAverageValue = Number(await averageInput.inputValue());
+  check('已发布用料按平均单耗回显', Number.isFinite(initialAverageValue) && initialAverageValue > 0, {
+    value: await averageInput.inputValue(),
+  });
+  const savedAverageValue = initialAverageValue === 1.26 ? 1.27 : 1.26;
+  await averageInput.fill(String(savedAverageValue));
 
   const previewResponse = page.waitForResponse(
     (response) => response.url().includes(`/api/v1/styles/${styleId}/bom-configuration/impact-preview`) && response.status() === 200,
@@ -192,66 +384,39 @@ try {
   const impactModal = page.locator('.style-bom-impact-modal');
   await impactModal.waitFor({ state: 'visible', timeout: 10_000 });
   check('保存影响默认只作用于新订单', await impactModal.getByText('仅用于之后的新订单').count() === 1);
+  check('存在尚未领料订单可验证未配置规格告警',
+    Number(await impactModal.locator('.ant-statistic-content-value').first().innerText()) > 0);
   check('历史选项明确不覆盖原出库', (await impactModal.innerText()).includes('不覆盖原有出库记录'));
   await capture(page, '03-style-bom-impact-preview.png', impactModal);
 
-  const updateResponse = page.waitForResponse(
+  await impactModal.getByText('同步尚未领料的订单', { exact: true }).click();
+  const updateResponsePromise = page.waitForResponse(
     (response) => response.url().includes(`/api/v1/styles/${styleId}/bom-configuration/update`) && response.status() === 200,
     { timeout: 30_000 },
   );
-  await impactModal.getByRole('button', { name: '保存并用于之后订单' }).click();
-  await updateResponse;
+  await impactModal.getByRole('button', { name: /保存并同步 \d+ 个订单/ }).click();
+  const updateResponse = await updateResponsePromise;
+  const updatePayload = await updateResponse.json();
+  check('保存响应返回未配置订单规格', (updatePayload.unconfiguredOrderLines ?? []).length > 0, updatePayload.unconfiguredOrderLines);
   await impactModal.waitFor({ state: 'hidden', timeout: 20_000 });
+  const warning = page.locator('.ant-message-notice-content').filter({ hasText: '用料已保存，但' }).last();
+  await warning.waitFor({ state: 'visible', timeout: 10_000 });
+  const warningText = await warning.innerText();
+  check('页面展示未配置规格但不阻断保存的业务告警',
+    warningText.includes('未生成自动用料需求') && warningText.includes('不影响后续裁床'),
+    warningText);
+  await capture(page, '04-style-bom-save-warning.png');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByTestId('style-bom-section').waitFor({ state: 'visible', timeout: 30_000 });
   const reloadedSection = page.getByTestId('style-bom-section');
-  const reloadedAverage = reloadedSection.getByLabel(/BOM规格测试面料.*平均单件用量/).first();
+  const reloadedAverage = reloadedSection.getByRole('spinbutton', { name: /平均单件用量$/ }).first();
   check('保存重载后平均单耗保持', Number(await reloadedAverage.inputValue()) === savedAverageValue, { value: await reloadedAverage.inputValue() });
-
-  await reloadedSection.locator('.style-bom-summary-panel').nth(1).getByRole('button', { name: '设置' }).first().click();
-  const reloadedDrawer = page.locator('.style-bom-editor-drawer');
-  await reloadedDrawer.waitFor({ state: 'visible', timeout: 10_000 });
-  check('辅料抽屉明确全部颜色统一使用', (await reloadedDrawer.innerText()).includes('辅料/包材统一用于该款式的全部颜色'));
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(800);
-  const mobileDrawer = page.locator('.style-bom-editor-drawer-root .ant-drawer-content-wrapper');
-  await mobileDrawer.scrollIntoViewIfNeeded();
-  const mobileLayout = await mobileDrawer.evaluate((node) => {
-    const rect = node.getBoundingClientRect();
-    const overflowingDescendants = [...node.querySelectorAll('*')]
-      .map((element) => {
-        const childRect = element.getBoundingClientRect();
-        return {
-          className: element.className,
-          left: childRect.left,
-          right: childRect.right,
-          width: childRect.width,
-        };
-      })
-      .filter((child) => child.width > 0 && (child.left < -1 || child.right > window.innerWidth + 1))
-      .slice(0, 10);
-    return {
-      viewportWidth: window.innerWidth,
-      drawerWidth: rect.width,
-      clientWidth: node.clientWidth,
-      scrollWidth: node.scrollWidth,
-      inlineStyle: node.getAttribute('style'),
-      computedWidth: window.getComputedStyle(node).width,
-      parentClass: node.parentElement?.className,
-      className: node.className,
-      overflowingDescendants,
-    };
-  });
-  await capture(page, '04-style-bom-editor-mobile-390.png', mobileDrawer);
-  check(
-    '390 宽抽屉不产生自身横向溢出',
-    mobileLayout.drawerWidth <= mobileLayout.viewportWidth + 1
-      && mobileLayout.scrollWidth <= mobileLayout.clientWidth + 1
-      && mobileLayout.overflowingDescendants.length === 0,
-    mobileLayout,
-  );
+  check('保存后仍不再出现旧侧边抽屉', await page.locator('.style-bom-editor-drawer-root').count() === 0);
+  check('面料和辅料关键词请求均由后端处理',
+    result.materialRequests.some((url) => url.includes('materialType=FABRIC') && url.includes('keyword='))
+      && result.materialRequests.some((url) => url.includes('materialType=ACCESSORY') && url.includes('keyword=')),
+    result.materialRequests);
 
   check('无失败 API 响应', result.failedApiResponses.length === 0, result.failedApiResponses);
   check('无请求失败', result.failedRequests.length === 0, result.failedRequests);

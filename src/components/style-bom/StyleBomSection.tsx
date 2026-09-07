@@ -1,11 +1,30 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import { Alert, Button, Empty, InputNumber, Popconfirm, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import {
+  Alert,
+  App as AntdApp,
+  Button,
+  Empty,
+  Input,
+  InputNumber,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState } from 'react';
-import type { MaterialBasicType } from '../../types/material';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import materialApi from '../../api/material';
+import type { MaterialBasicType, MaterialItem, MaterialMinimumSpecification } from '../../types/material';
 import type { StyleBomLineDraft, StyleBomValidationIssue } from '../../types/style';
+import {
+  findMinimumSpecification,
+  getActiveMinimumSpecifications,
+  getDefaultMinimumSpecificationId,
+} from '../../utils/material-minimum-specification';
 import ListImage from '../common/ListImage';
-import StyleBomEditorDrawer from './StyleBomEditorDrawer';
 import '../../styles/matrix-table.css';
 
 const { Text, Title } = Typography;
@@ -15,11 +34,29 @@ type Props = {
   colors: string[];
   sizes: string[];
   validationIssues: StyleBomValidationIssue[];
-  onAdd: (line: Omit<StyleBomLineDraft, 'uid' | 'id'>) => void;
+  onAdd: (line: Omit<StyleBomLineDraft, 'uid' | 'id'>) => string;
   onUpdate: (uid: string, line: StyleBomLineDraft) => void;
   onRemove: (uid: string) => void;
   onUpdateAverageConsumption: (uid: string, consumption: number | null) => void;
 };
+
+const emptySpecification: MaterialMinimumSpecification = { label: '', active: true };
+
+const expandAverageConsumption = (sizes: string[], averageConsumption: number | null) => (
+  sizes.map((size) => ({ size, consumption: averageConsumption }))
+);
+
+const toMaterialItem = (line: StyleBomLineDraft): MaterialItem => ({
+  id: line.materialId,
+  sku: line.materialSku,
+  name: line.materialName,
+  materialType: line.materialType,
+  unit: line.unit as MaterialItem['unit'],
+  imageUrl: line.imageUrl,
+  colors: [],
+  specifications: [],
+  minimumSpecifications: line.materialMinimumSpecificationId ? [line.minimumSpecification] : [],
+});
 
 export default function StyleBomSection({
   lines,
@@ -31,10 +68,17 @@ export default function StyleBomSection({
   onRemove,
   onUpdateAverageConsumption,
 }: Props) {
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingUid, setEditingUid] = useState<string>();
-  const [initialMaterialType, setInitialMaterialType] = useState<MaterialBasicType>('fabric');
-  const editingLine = lines.find((item) => item.uid === editingUid);
+  const { message } = AntdApp.useApp();
+  const [materialOptions, setMaterialOptions] = useState<Record<MaterialBasicType, MaterialItem[]>>({
+    fabric: [],
+    accessory: [],
+  });
+  const [materialLoading, setMaterialLoading] = useState<Record<MaterialBasicType, boolean>>({
+    fabric: false,
+    accessory: false,
+  });
+  const requestSequenceRef = useRef<Record<MaterialBasicType, number>>({ fabric: 0, accessory: 0 });
+  const searchTimerRef = useRef<Partial<Record<MaterialBasicType, number>>>({});
   const fabricLines = useMemo(() => lines.filter((line) => line.materialType === 'fabric'), [lines]);
   const accessoryLines = useMemo(() => lines.filter((line) => line.materialType === 'accessory'), [lines]);
 
@@ -43,63 +87,231 @@ export default function StyleBomSection({
     return acc;
   }, {}), [validationIssues]);
 
-  const openNew = (materialType: MaterialBasicType) => {
-    setEditingUid(undefined);
-    setInitialMaterialType(materialType);
-    setEditorOpen(true);
-  };
+  const loadMaterials = useCallback(async (materialType: MaterialBasicType, keyword?: string) => {
+    const requestSequence = ++requestSequenceRef.current[materialType];
+    setMaterialLoading((previous) => ({ ...previous, [materialType]: true }));
+    try {
+      const response = await materialApi.list({
+        page: 1,
+        pageSize: 30,
+        materialType,
+        keyword: keyword?.trim() || undefined,
+      });
+      if (requestSequence === requestSequenceRef.current[materialType]) {
+        setMaterialOptions((previous) => ({ ...previous, [materialType]: response.list }));
+      }
+    } catch (error) {
+      if (requestSequence === requestSequenceRef.current[materialType]) {
+        console.error('加载物料档案失败', error);
+        message.error('加载物料档案失败，请稍后重试');
+      }
+    } finally {
+      if (requestSequence === requestSequenceRef.current[materialType]) {
+        setMaterialLoading((previous) => ({ ...previous, [materialType]: false }));
+      }
+    }
+  }, [message]);
 
-  const openEdit = (uid: string) => {
-    const line = lines.find((item) => item.uid === uid);
-    setEditingUid(uid);
-    setInitialMaterialType(line?.materialType ?? 'fabric');
-    setEditorOpen(true);
-  };
+  const searchMaterials = useCallback((materialType: MaterialBasicType, keyword: string) => {
+    const activeTimer = searchTimerRef.current[materialType];
+    if (activeTimer) {
+      window.clearTimeout(activeTimer);
+    }
+    searchTimerRef.current[materialType] = window.setTimeout(() => {
+      void loadMaterials(materialType, keyword);
+    }, 250);
+  }, [loadMaterials]);
 
-  const renderMaterial = (line: StyleBomLineDraft) => (
-    <div className="oc-excel-cell-readonly">
-      <div className="style-bom-material-cell">
-        <ListImage src={line.imageUrl} alt={line.materialName} width={36} height={36} borderRadius={6} />
-        <div className="style-bom-list-main">
-          <div className="style-bom-list-title">
-            <Text strong>{line.materialName || '未选择物料'}</Text>
-            <Tag color={line.materialType === 'fabric' ? 'blue' : 'purple'}>
-              {line.materialType === 'fabric' ? '面料' : '辅料/包材'}
-            </Tag>
-          </div>
-          <Text type="secondary">{line.minimumSpecification.label || '未选择规格'} · {line.materialSku || '未配置编号'}</Text>
-        </div>
-      </div>
-    </div>
-  );
+  useEffect(() => () => {
+    Object.values(searchTimerRef.current).forEach((timer) => {
+      if (timer) window.clearTimeout(timer);
+    });
+  }, []);
+
+  const mergedMaterials = useMemo(() => {
+    const result: Record<MaterialBasicType, MaterialItem[]> = { fabric: [], accessory: [] };
+    (['fabric', 'accessory'] as const).forEach((materialType) => {
+      const merged = new Map(materialOptions[materialType].map((material) => [material.id, material]));
+      lines.filter((line) => line.materialType === materialType && line.materialId).forEach((line) => {
+        if (!merged.has(line.materialId)) merged.set(line.materialId, toMaterialItem(line));
+      });
+      result[materialType] = Array.from(merged.values());
+    });
+    return result;
+  }, [lines, materialOptions]);
+
+  const updateLine = useCallback((line: StyleBomLineDraft, patch: Partial<StyleBomLineDraft>) => {
+    const nextAverageConsumption = Object.prototype.hasOwnProperty.call(patch, 'averageConsumption')
+      ? patch.averageConsumption ?? null
+      : line.averageConsumption;
+    onUpdate(line.uid, {
+      ...line,
+      ...patch,
+      sizeConsumptions: expandAverageConsumption(sizes, nextAverageConsumption),
+    });
+  }, [onUpdate, sizes]);
+
+  const handleMaterialChange = useCallback((line: StyleBomLineDraft, materialId?: string) => {
+    const selected = mergedMaterials[line.materialType].find((material) => material.id === materialId);
+    if (!selected) {
+      updateLine(line, {
+        materialId: '',
+        materialName: '',
+        materialSku: '',
+        unit: '',
+        imageUrl: undefined,
+        materialMinimumSpecificationId: '',
+        minimumSpecification: emptySpecification,
+      });
+      return;
+    }
+    const defaultSpecificationId = getDefaultMinimumSpecificationId(selected);
+    const defaultSpecification = findMinimumSpecification(selected, defaultSpecificationId);
+    updateLine(line, {
+      materialId: selected.id,
+      materialName: selected.name,
+      materialSku: selected.sku,
+      unit: selected.unit,
+      imageUrl: selected.imageUrl,
+      materialMinimumSpecificationId: defaultSpecificationId ?? '',
+      minimumSpecification: defaultSpecification ?? emptySpecification,
+      averageConsumption: line.unit && line.unit !== selected.unit ? null : line.averageConsumption,
+    });
+  }, [mergedMaterials, updateLine]);
+
+  const handleSpecificationChange = useCallback((line: StyleBomLineDraft, specificationId?: string) => {
+    const material = mergedMaterials[line.materialType].find((item) => item.id === line.materialId);
+    const specification = findMinimumSpecification(material, specificationId);
+    updateLine(line, {
+      materialMinimumSpecificationId: specificationId ?? '',
+      minimumSpecification: specification ?? emptySpecification,
+    });
+  }, [mergedMaterials, updateLine]);
+
+  const addEmptyLine = useCallback((materialType: MaterialBasicType) => {
+    const applyToAllColors = materialType === 'accessory';
+    onAdd({
+      materialId: '',
+      materialName: '',
+      materialSku: '',
+      materialType,
+      unit: '',
+      materialMinimumSpecificationId: '',
+      minimumSpecification: emptySpecification,
+      applyToAllColors,
+      applicableColors: applyToAllColors ? [] : colors.slice(0, 1),
+      averageConsumption: null,
+      sizeConsumptions: expandAverageConsumption(sizes, null),
+      lossRate: 0,
+      remark: '',
+    });
+  }, [colors, onAdd, sizes]);
 
   const columns: ColumnsType<StyleBomLineDraft> = [
     {
-      title: '物料规格',
+      title: '物料',
       key: 'material',
-      width: 360,
-      render: (_, line) => renderMaterial(line),
+      width: 250,
+      render: (_, line) => (
+        <div className="style-bom-inline-material-cell">
+          <ListImage
+            src={line.imageUrl}
+            alt={line.materialName}
+            width={36}
+            height={36}
+            borderRadius={5}
+            fallbackText=""
+          />
+          <Select
+            aria-label={`${line.materialType === 'fabric' ? '面料' : '辅料/包材'}物料`}
+            className="oc-excel-cell-select"
+            showSearch
+            allowClear
+            filterOption={false}
+            loading={materialLoading[line.materialType]}
+            value={line.materialId || undefined}
+            status={!line.materialId ? 'error' : undefined}
+            placeholder="搜索物料名称/编号"
+            onFocus={() => void loadMaterials(line.materialType)}
+            onSearch={(keyword) => searchMaterials(line.materialType, keyword)}
+            onChange={(value) => handleMaterialChange(line, value)}
+            options={mergedMaterials[line.materialType].map((material) => ({
+              value: material.id,
+              label: [material.name, material.sku].filter(Boolean).join(' / '),
+            }))}
+            notFoundContent={materialLoading[line.materialType] ? '搜索中…' : '未找到匹配物料'}
+          />
+        </div>
+      ),
+    },
+    {
+      title: '最小规格',
+      key: 'minimumSpecification',
+      width: 180,
+      render: (_, line) => {
+        if (!line.materialId) {
+          return <Text className="oc-excel-cell-placeholder">请先选物料</Text>;
+        }
+        const material = mergedMaterials[line.materialType].find((item) => item.id === line.materialId);
+        const specifications = material?.minimumSpecifications ?? [];
+        const options = specifications.map((specification) => ({
+          value: specification.id as string,
+          label: `${specification.label}${specification.active === false ? '（已停用）' : ''}`,
+          disabled: !specification.id || specification.active === false,
+        }));
+        return (
+          <Select
+            aria-label={`${line.materialName || '物料'}最小规格`}
+            className="oc-excel-cell-select"
+            showSearch
+            optionFilterProp="label"
+            allowClear={getActiveMinimumSpecifications(material).length > 1}
+            value={line.materialMinimumSpecificationId || undefined}
+            status={!line.materialMinimumSpecificationId || line.minimumSpecification.active === false ? 'error' : undefined}
+            placeholder="选择规格"
+            onOpenChange={(open) => {
+              const loadedMaterial = materialOptions[line.materialType].find((item) => item.id === line.materialId);
+              if (open && !loadedMaterial) void loadMaterials(line.materialType, line.materialName);
+            }}
+            onChange={(value) => handleSpecificationChange(line, value)}
+            options={options}
+            notFoundContent="该物料未维护启用规格"
+          />
+        );
+      },
     },
     {
       title: '适用颜色',
       key: 'colors',
-      width: 260,
+      width: 210,
       render: (_, line) => (
-        <div className="style-bom-color-scope oc-excel-cell-readonly">
-          {line.applyToAllColors ? (
-            <Tag color="success">全部颜色</Tag>
-          ) : line.applicableColors.length ? (
-            line.applicableColors.map((color) => <Tag key={color}>{color}</Tag>)
-          ) : (
-            <Text type="danger">请选择颜色</Text>
-          )}
-        </div>
+        line.materialType === 'accessory' ? (
+          <div className="style-bom-color-scope oc-excel-cell-readonly"><Tag color="success">全部颜色</Tag></div>
+        ) : (
+          <Select
+            aria-label={`${line.materialName || '面料'}适用颜色`}
+            className="oc-excel-cell-select"
+            mode="multiple"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={line.applyToAllColors ? colors : line.applicableColors}
+            status={!line.applyToAllColors && !line.applicableColors.length ? 'error' : undefined}
+            placeholder="选择适用颜色"
+            maxTagCount="responsive"
+            options={colors.map((color) => ({ value: color, label: color }))}
+            onChange={(applicableColors) => updateLine(line, {
+              applyToAllColors: applicableColors.length === colors.length,
+              applicableColors: applicableColors.length === colors.length ? [] : applicableColors,
+            })}
+          />
+        )
       ),
     },
     {
       title: '平均单件用量',
       key: 'averageConsumption',
-      width: 190,
+      width: 160,
       render: (_, line) => (
         <InputNumber
           aria-label={`${line.materialName || '物料'} 平均单件用量`}
@@ -122,21 +334,47 @@ export default function StyleBomSection({
       title: '损耗率',
       key: 'lossRate',
       width: 100,
-      render: (_, line) => <span className="oc-excel-cell-readonly">{line.lossRate}%</span>,
+      render: (_, line) => (
+        <InputNumber
+          aria-label={`${line.materialName || '物料'} 损耗率`}
+          className="oc-excel-cell-input"
+          min={0}
+          max={100}
+          precision={2}
+          controls={false}
+          suffix="%"
+          value={line.lossRate}
+          onChange={(lossRate) => updateLine(line, { lossRate: Number(lossRate ?? 0) })}
+        />
+      ),
+    },
+    {
+      title: '备注',
+      key: 'remark',
+      width: 150,
+      render: (_, line) => (
+        <Input
+          className="oc-excel-cell-text-input"
+          value={line.remark}
+          maxLength={500}
+          placeholder="可选"
+          onChange={(event) => updateLine(line, { remark: event.target.value })}
+        />
+      ),
     },
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 64,
+      fixed: 'right',
       render: (_, line) => (
         <Space className="oc-excel-row-actions" size={0}>
-          <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(line.uid)}>设置</Button>
           <Popconfirm
             title="移除这项款式用料？"
             description="移除后，所选颜色和尺码将不再使用这项物料。"
             onConfirm={() => onRemove(line.uid)}
           >
-            <Button type="text" danger icon={<DeleteOutlined />}>移除</Button>
+            <Button type="text" danger icon={<DeleteOutlined />} aria-label="移除用料" />
           </Popconfirm>
         </Space>
       ),
@@ -155,24 +393,21 @@ export default function StyleBomSection({
           <Text strong>{title}</Text>
           <Tag>{dataSource.length} 项</Tag>
         </div>
-        <Button icon={<PlusOutlined />} onClick={() => openNew(materialType)}>
+        <Button icon={<PlusOutlined />} onClick={() => addEmptyLine(materialType)}>
           {materialType === 'fabric' ? '添加面料' : '添加辅料/包材'}
         </Button>
       </div>
-      {dataSource.length === 0 ? (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />
-      ) : (
-        <Table<StyleBomLineDraft>
-          className="oc-excel-entry-table style-bom-summary-table"
-          rowKey="uid"
-          columns={columns}
-          dataSource={dataSource}
-          pagination={false}
-          size="small"
-          scroll={{ x: 1050 }}
-          rowClassName={(line) => (issueMap[line.uid]?.length ? 'style-bom-summary-row--error' : '')}
-        />
-      )}
+      <Table<StyleBomLineDraft>
+        className="oc-excel-entry-table style-bom-summary-table"
+        rowKey="uid"
+        columns={columns}
+        dataSource={dataSource}
+        pagination={false}
+        size="small"
+        scroll={{ x: 1114 }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} /> }}
+        rowClassName={(line) => (issueMap[line.uid]?.length ? 'style-bom-summary-row--error' : '')}
+      />
     </div>
   );
 
@@ -194,9 +429,6 @@ export default function StyleBomSection({
           type="warning"
           showIcon
           message={`还有 ${validationIssues.length} 项用料信息需要处理`}
-          action={validationIssues[0]?.uid !== '__bom__' ? (
-            <Button size="small" onClick={() => openEdit(validationIssues[0].uid)}>定位处理</Button>
-          ) : undefined}
         />
       ) : null}
 
@@ -208,26 +440,6 @@ export default function StyleBomSection({
           {renderPanel('辅料/包材', 'accessory', accessoryLines, '暂无辅料/包材')}
         </div>
       )}
-
-      <StyleBomEditorDrawer
-        open={editorOpen}
-        initialValue={editingLine}
-        initialMaterialType={initialMaterialType}
-        colors={colors}
-        sizes={sizes}
-        onClose={() => setEditorOpen(false)}
-        onApply={(line) => {
-          if (editingUid) {
-            onUpdate(editingUid, line);
-          } else {
-            const { uid, id, ...newLine } = line;
-            void uid;
-            void id;
-            onAdd(newLine);
-          }
-          setEditorOpen(false);
-        }}
-      />
     </div>
   );
 }

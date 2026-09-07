@@ -63,10 +63,6 @@
   border-radius: 0;
 }
 
-.style-bom-summary-table .ant-table-tbody > tr > td:first-child {
-  padding: 0;
-}
-
 .style-bom-color-scope {
   display: flex;
   align-items: center;
@@ -80,6 +76,27 @@
 
 .style-bom-summary-row--error > td {
   background: #fffafa !important;
+}
+
+.style-bom-inline-material-cell {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  min-height: 42px;
+  padding-left: 4px;
+}
+
+.style-bom-inline-material-cell .ant-image,
+.style-bom-inline-material-cell .oc-list-image {
+  justify-self: center;
+}
+
+.style-bom-inline-material-cell .ant-select {
+  min-width: 0;
+}
+
+.style-bom-summary-table .ant-select-multiple .ant-select-selection-overflow {
+  flex-wrap: nowrap;
 }
 
 .style-bom-editor-remark-field {
