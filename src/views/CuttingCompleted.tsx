@@ -14,6 +14,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetUnconfiguredItem,
   CuttingTask,
   CuttingTaskDataset,
   CuttingTaskMetric,
@@ -75,6 +76,7 @@ const CuttingCompletedPage = () => {
     calculating: false,
   });
   const [bedUsageCalculations, setBedUsageCalculations] = useState<CuttingSheetMaterialCalculation[]>([]);
+  const [bedUsageUnconfiguredItems, setBedUsageUnconfiguredItems] = useState<CuttingSheetUnconfiguredItem[]>([]);
   const [bedUsageForm] = Form.useForm();
 
   const navigateToFactoryOrder = (orderCode?: string) => {
@@ -204,15 +206,17 @@ const CuttingCompletedPage = () => {
       return;
     }
     setBedUsageEditState({ open: true, submitting: false, calculating: true, record });
+    setBedUsageUnconfiguredItems([]);
     bedUsageForm.setFieldsValue({ bedNumber: record.bedNumber, materialUsages: [] });
     try {
-      const calculations = await pieceworkService.calculateCuttingSheetBedMaterials(
+      const result = await pieceworkService.calculateCuttingSheetBedMaterials(
         detailState.task.workOrderId,
         record.items.filter((item) => Number(item.quantity) > 0),
       );
-      setBedUsageCalculations(calculations);
+      setBedUsageCalculations(result.materials);
+      setBedUsageUnconfiguredItems(result.unconfiguredItems);
       const existingUsages = record.materialUsages ?? record.fabricUsages ?? [];
-      bedUsageForm.setFieldValue('materialUsages', calculations.map((material) => {
+      bedUsageForm.setFieldValue('materialUsages', result.materials.map((material) => {
         const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
         const option = material.stockOptions.find((candidate) => (
           Number(candidate.warehouseId) === Number(existing?.warehouseId)
@@ -229,6 +233,7 @@ const CuttingCompletedPage = () => {
     } catch (error) {
       console.error('failed to load completed cutting bed material usages', error);
       message.error(error instanceof Error ? error.message : '加载床次用量失败');
+      setBedUsageUnconfiguredItems([]);
       setBedUsageEditState((prev) => ({ ...prev, open: false }));
     } finally {
       setBedUsageEditState((prev) => ({ ...prev, calculating: false }));
@@ -443,6 +448,7 @@ const CuttingCompletedPage = () => {
         submitting={bedUsageEditState.submitting}
         calculating={bedUsageEditState.calculating}
         calculations={bedUsageCalculations}
+        unconfiguredItems={bedUsageUnconfiguredItems}
         existingUsages={bedUsageEditState.record?.materialUsages ?? bedUsageEditState.record?.fabricUsages}
         zIndex={1100}
         onQtyChange={() => undefined}
@@ -450,6 +456,7 @@ const CuttingCompletedPage = () => {
         onCancel={() => {
           bedUsageForm.resetFields();
           setBedUsageCalculations([]);
+          setBedUsageUnconfiguredItems([]);
           setBedUsageEditState({ open: false, submitting: false, calculating: false });
         }}
         onSubmit={() => void submitBedUsageUpdate()}

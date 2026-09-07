@@ -7,6 +7,7 @@ import type {
   CuttingTaskDataset,
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetMaterialCalculationResult,
   CuttingReportDataset,
   WorkshopProgressDataset,
 } from '../types';
@@ -921,14 +922,15 @@ export const pieceworkService = {
   async calculateCuttingSheetBedMaterials(
     workOrderId: number,
     items: Array<{ color: string; size: string; quantity: number }>,
-  ): Promise<CuttingSheetMaterialCalculation[]> {
+  ): Promise<CuttingSheetMaterialCalculationResult> {
     const tenantId = requireNumericTenantId();
     const { data } = await http.post<{
       materials?: Array<Partial<CuttingSheetMaterialCalculation> & { plannedQty?: number | string }>;
+      unconfiguredItems?: Array<{ color?: string; size?: string }>;
     }>(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/materials/calculate`, { items }, {
       params: { tenantId },
     });
-    return (data.materials ?? []).map((item) => ({
+    const materials = (data.materials ?? []).map((item) => ({
       calculationKey: item.calculationKey ?? '',
       materialType: item.materialType ?? 'FABRIC',
       applicableColors: item.applicableColors ?? [],
@@ -953,6 +955,13 @@ export const pieceworkService = {
         availableQty: Number(option.availableQty ?? 0),
       })),
     }));
+    return {
+      materials,
+      unconfiguredItems: (data.unconfiguredItems ?? []).map((item) => ({
+        color: item.color?.trim() || '-',
+        size: item.size?.trim() || '-',
+      })),
+    };
   },
 
   async updateCuttingSheetBedMaterialUsage(

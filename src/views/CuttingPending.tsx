@@ -20,6 +20,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetUnconfiguredItem,
   CuttingSheetMaterialUsage,
   CuttingTask,
   CuttingTaskDataset,
@@ -166,7 +167,9 @@ const CuttingPendingPage = () => {
   const [bedRecordForm] = Form.useForm();
   const [cutterOptions, setCutterOptions] = useState<Array<{ label: string; value: number }>>([]);
   const [bedMaterialCalculations, setBedMaterialCalculations] = useState<CuttingSheetMaterialCalculation[]>([]);
+  const [bedUnconfiguredItems, setBedUnconfiguredItems] = useState<CuttingSheetUnconfiguredItem[]>([]);
   const bedMaterialCalculationRequestRef = useRef(0);
+  const bedMaterialWarningKeyRef = useRef('');
   const [cutterLoading, setCutterLoading] = useState(false);
   const completeOverCutSpecs = (sheetDetail?.rows ?? []).reduce<Array<{
     color: string;
@@ -444,6 +447,8 @@ const CuttingPendingPage = () => {
       setBedRecordQtyMap({});
       setBedRecordState({ open: true, task, submitting: false, calculating: false, mode: 'create' });
       setBedMaterialCalculations([]);
+      setBedUnconfiguredItems([]);
+      bedMaterialWarningKeyRef.current = '';
       setSheetDetail(detail);
       bedRecordForm.setFieldsValue({
         bedNumber: `BED-${task.orderCode}-${(detail.bedRecords?.length ?? 0) + 1}`,
@@ -511,6 +516,7 @@ const CuttingPendingPage = () => {
     const items = buildBedItemsFromQtyMap(bedRecordQtyMap);
     if (items.length === 0) {
       setBedMaterialCalculations([]);
+      setBedUnconfiguredItems([]);
       bedRecordForm.setFieldValue('materialUsages', []);
       setBedRecordState((prev) => ({ ...prev, calculating: false }));
       return undefined;
@@ -521,14 +527,24 @@ const CuttingPendingPage = () => {
       void pieceworkService.calculateCuttingSheetBedMaterials(
         workOrderId,
         items,
-      ).then((calculations) => {
+      ).then((result) => {
         if (bedMaterialCalculationRequestRef.current !== requestId) return;
-        setBedMaterialCalculations(calculations);
-        setCalculatedMaterialFormValues(calculations, [], true);
+        setBedMaterialCalculations(result.materials);
+        setBedUnconfiguredItems(result.unconfiguredItems);
+        setCalculatedMaterialFormValues(result.materials, [], true);
+        const warningKey = result.unconfiguredItems
+          .map((item) => `${item.color}/${item.size}`)
+          .sort()
+          .join('|');
+        if (warningKey && warningKey !== bedMaterialWarningKeyRef.current) {
+          message.warning('部分颜色尺码未配置面辅料用量，本床仍可保存，后续可在物料库存中手工领料出库');
+        }
+        bedMaterialWarningKeyRef.current = warningKey;
       }).catch((error) => {
         if (bedMaterialCalculationRequestRef.current !== requestId) return;
         console.error('failed to calculate cutting bed materials', error);
         setBedMaterialCalculations([]);
+        setBedUnconfiguredItems([]);
         bedRecordForm.setFieldValue('materialUsages', []);
         message.error(error instanceof Error ? error.message : '计算面辅料失败');
       }).finally(() => {
@@ -564,12 +580,13 @@ const CuttingPendingPage = () => {
     });
     bedRecordForm.setFieldsValue({ bedNumber: record.bedNumber, materialUsages: [] });
     try {
-      const calculations = await pieceworkService.calculateCuttingSheetBedMaterials(
+      const result = await pieceworkService.calculateCuttingSheetBedMaterials(
         detailState.task.workOrderId,
         record.items.filter((item) => Number(item.quantity) > 0),
       );
-      setBedMaterialCalculations(calculations);
-      setCalculatedMaterialFormValues(calculations, record.materialUsages ?? record.fabricUsages ?? []);
+      setBedMaterialCalculations(result.materials);
+      setBedUnconfiguredItems(result.unconfiguredItems);
+      setCalculatedMaterialFormValues(result.materials, record.materialUsages ?? record.fabricUsages ?? []);
     } catch (error) {
       console.error('failed to load cutting bed material usages', error);
       message.error(error instanceof Error ? error.message : '加载床次用量失败');
@@ -624,12 +641,15 @@ const CuttingPendingPage = () => {
           fabricUsages: materialUsages,
           items,
         });
-        message.success('床次裁剪数据已录入，库存已按实际用量出库');
+        message.success(bedUnconfiguredItems.length
+          ? '床次裁剪数据已录入；未配置用量的规格未自动出库，可后续手工领料'
+          : '床次裁剪数据已录入，库存已按实际用量出库');
       }
       setBedRecordState({ open: false, submitting: false, calculating: false, mode: 'create' });
       bedRecordForm.resetFields();
       setBedRecordQtyMap({});
       setBedMaterialCalculations([]);
+      setBedUnconfiguredItems([]);
       setReloadToken((prev) => prev + 1);
       if (detailState.task?.workOrderId === bedRecordState.task.workOrderId) {
         handleViewDetail(detailState.task);
@@ -851,6 +871,7 @@ const CuttingPendingPage = () => {
         submitting={bedRecordState.submitting}
         calculating={bedRecordState.calculating}
         calculations={bedMaterialCalculations}
+        unconfiguredItems={bedUnconfiguredItems}
         existingUsages={bedRecordState.record?.materialUsages ?? bedRecordState.record?.fabricUsages}
         cutterOptions={cutterOptions}
         cutterLoading={cutterLoading}
@@ -876,6 +897,8 @@ const CuttingPendingPage = () => {
           bedRecordForm.resetFields();
           setBedRecordQtyMap({});
           setBedMaterialCalculations([]);
+          setBedUnconfiguredItems([]);
+          bedMaterialWarningKeyRef.current = '';
           setBedRecordState({ open: false, submitting: false, calculating: false, mode: 'create' });
         }}
         onSubmit={handleSubmitBedRecord}

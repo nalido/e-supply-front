@@ -145,7 +145,9 @@ const page = await context.newPage();
 const errors = [];
 let recordPayload;
 let updatePayload;
+let manualIssuePayload;
 const calculationPayloads = [];
+const cuttingSearchUrls = [];
 
 page.on('console', (message) => {
   if (message.type() === 'error') errors.push(`console:${message.text()}`);
@@ -184,9 +186,12 @@ const ensureSignedIn = async () => {
   await page.waitForTimeout(1_000);
 };
 
-await page.route('**/api/v1/workshop/cutting/pending?**', (route) => fulfillJson(route, {
-  summary: [], list: [task], total: 1, page: 1, pageSize: 4,
-}));
+await page.route('**/api/v1/workshop/cutting/pending?**', (route) => {
+  cuttingSearchUrls.push(route.request().url());
+  return fulfillJson(route, {
+    summary: [], list: [task], total: 1, page: 1, pageSize: 20,
+  });
+});
 await page.route('**/api/v1/workshop/cutting/sheets/9001/beds/materials/calculate?**', async (route) => {
   const payload = route.request().postDataJSON();
   calculationPayloads.push(payload);
@@ -196,6 +201,9 @@ await page.route('**/api/v1/workshop/cutting/sheets/9001/beds/materials/calculat
       ...material,
       plannedQty: Number((material.materialType === 'FABRIC' ? totalQty * 1.25 : totalQty * 0.05).toFixed(4)),
     })),
+    unconfiguredItems: (payload?.items ?? [])
+      .filter((item) => item.color === '白色' && Number(item.quantity ?? 0) > 0)
+      .map((item) => ({ color: item.color, size: item.size })),
   });
 });
 await page.route('**/api/v1/workshop/cutting/sheets/9001/beds/material-usage/update?**', async (route) => {
@@ -214,6 +222,80 @@ await page.route('**/api/v1/production-orders/8001/progress?**', (route) => fulf
 await page.route('**/api/v1/settings/users?**', (route) => fulfillJson(route, {
   items: [{ id: 301, username: 'cutting-ui', displayName: '张裁剪', status: 'ACTIVE' }],
   total: 1,
+}));
+await page.route('**/api/v1/inventory/materials/meta?**', (route) => fulfillJson(route, {
+  materialTabs: [{ value: 'fabric', label: '面料' }, { value: 'accessory', label: '辅料/包材' }],
+  warehouses: [{ id: '101', name: '面辅料一仓' }],
+}));
+await page.route('**/api/v1/inventory/materials/summary?**', (route) => fulfillJson(route, {
+  stockQtyTotal: 28,
+  availableQtyTotal: 28,
+  inTransitQtyTotal: 0,
+  stockAmountTotal: 280,
+}));
+await page.route('**/api/v1/inventory/materials?**', (route) => fulfillJson(route, {
+  list: [{
+    id: 'stock-201-501',
+    materialId: '201',
+    materialMinimumSpecificationId: '501',
+    materialMinimumSpecificationLabel: '黑色 / 150cm',
+    materialMinimumSpecificationColor: '黑色',
+    materialType: 'fabric',
+    materialCode: 'FAB-UI-001',
+    materialName: '黑色主面料',
+    color: '黑色',
+    colorStocks: [{ color: '黑色', quantity: 28 }],
+    specification: '150cm',
+    unit: '米',
+    warehouseId: '101',
+    warehouseName: '面辅料一仓',
+    stockQty: 28,
+    availableQty: 28,
+    inTransitQty: 0,
+  }],
+  total: 1,
+}));
+await page.route('**/api/v1/inventory/material-issues?**', async (route) => {
+  if (route.request().method() === 'GET') {
+    await fulfillJson(route, {
+      list: [{
+        id: '8001',
+        workOrderId: '9001',
+        cuttingBedId: 'ui-bed-editable-01',
+        cuttingBedNumber: 'UI-BED-01',
+        poNumber: 'MI-UI-7001',
+        warehouseName: '面辅料一仓',
+        materialName: '黑色主面料',
+        materialType: 'fabric',
+        color: '黑色',
+        specification: '150cm',
+        unit: '米',
+        issueQty: 1,
+        unitPrice: 10,
+        amount: 10,
+        issueType: '生产领料',
+        recipient: '-',
+        issueDate: '2026-09-07 12:00:00',
+        status: 'issued',
+        statusLabel: '已出库',
+      }],
+      total: 1,
+      summary: { issueQtyTotal: 1, amountTotal: 10 },
+    });
+    return;
+  }
+  manualIssuePayload = route.request().postDataJSON();
+  await fulfillJson(route, {
+    issueId: '7001',
+    issueNo: 'MI-UI-7001',
+    status: 'issued',
+    statusLabel: '已出库',
+    lineCount: 1,
+  });
+});
+await page.route('**/api/v1/inventory/material-issues/meta', (route) => fulfillJson(route, {
+  tabs: [{ value: 'fabric', label: '面料' }, { value: 'accessory', label: '辅料/包材' }],
+  statusOptions: [{ value: 'issued', label: '已出库' }],
 }));
 
 const result = {
@@ -266,15 +348,27 @@ try {
     && calculationPayloads.length === 2
     && Number(calculationPayloads[1]?.items?.[0]?.quantity) === 6;
 
+  await activeModal.locator('.factory-matrix-cell-input input').nth(2).fill('2');
+  await activeModal.getByText('部分颜色尺码未配置面辅料用量', { exact: true }).waitFor({ timeout: 10_000 });
+  for (let attempt = 0; attempt < 50 && await activeModal.getByRole('button', { name: '确认并出库' }).isDisabled(); attempt += 1) {
+    await page.waitForTimeout(100);
+  }
+  result.assertions.unconfiguredWarningVisible = await activeModal.getByText(/白色\/M 不会自动出库/).isVisible()
+    && !(await activeModal.getByRole('button', { name: '确认并出库' }).isDisabled());
+  const warningScreenshot = path.join(outputDir, '03-unconfigured-material-nonblocking.png');
+  await page.screenshot({ path: warningScreenshot, fullPage: true });
+  result.screenshots.push(warningScreenshot);
+
   const linkedScreenshot = path.join(outputDir, '01-live-linked-entry.png');
   await page.screenshot({ path: linkedScreenshot, fullPage: true });
   result.screenshots.push(linkedScreenshot);
   await activeModal.getByRole('button', { name: '确认并出库' }).click();
-  await page.getByText('床次裁剪数据已录入，库存已按实际用量出库').waitFor({ timeout: 10_000 });
+  await page.getByText('床次裁剪数据已录入；未配置用量的规格未自动出库，可后续手工领料').waitFor({ timeout: 10_000 });
   result.assertions.zeroUsageSubmitted = recordPayload?.materialUsages?.length === 2
     && Number(recordPayload.materialUsages[1]?.actualFabricQty) === 0;
-  result.assertions.quantitySubmitted = recordPayload?.items?.length === 1
-    && Number(recordPayload.items[0]?.quantity) === 6;
+  result.assertions.quantitySubmitted = recordPayload?.items?.length === 2
+    && Number(recordPayload.items[0]?.quantity) === 6
+    && Number(recordPayload.items[1]?.quantity) === 2;
   result.assertions.bedCutterSubmitted = Number(recordPayload?.cutterId) === 301;
 
   await page.locator('[data-testid="cutting-task-detail-UI-ORDER-001"]').click();
@@ -290,6 +384,57 @@ try {
   await page.getByText('床次用量与库存已同步调整').waitFor({ timeout: 10_000 });
   result.assertions.editUsageSubmitted = updatePayload?.bedId === 'ui-bed-editable-01'
     && Number(updatePayload.materialUsages?.[0]?.actualFabricQty) === 6;
+
+  await page.goto(`${baseUrl}/material/stock`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  const materialRow = page.locator('.ant-table-row').filter({ hasText: '黑色主面料' });
+  await materialRow.waitFor({ timeout: 30_000 });
+  await materialRow.getByRole('checkbox').click();
+  await page.getByRole('button', { name: /领料出库/ }).click();
+  const issueModal = page.locator('.ant-modal').filter({ hasText: '领料出库' });
+  await issueModal.getByText('关联裁床单（可选）', { exact: true }).waitFor();
+  const cuttingSelect = issueModal.locator('.ant-select').filter({ hasText: '输入订单号、款号或款名搜索' });
+  await cuttingSelect.click();
+  await cuttingSelect.locator('input').fill('UI-ORDER');
+  await page.waitForTimeout(500);
+  const cuttingDropdown = page.locator('.ant-select-dropdown:visible');
+  await cuttingDropdown.getByText('UI-ORDER-001 · UI-ST-001 · 实时联动录床用料验收款', { exact: true }).click();
+  await cuttingDropdown.waitFor({ state: 'hidden' });
+  const bedField = issueModal.getByText('关联床次（可选）', { exact: true }).locator('xpath=../..');
+  const bedSelect = bedField.locator('.ant-select').first();
+  await bedSelect.waitFor({ timeout: 10_000 });
+  await bedSelect.click();
+  const bedDropdown = page.locator('.ant-select-dropdown:visible');
+  await bedDropdown.getByText('UI-BED-01 · 4 件', { exact: true }).click();
+  await bedDropdown.waitFor({ state: 'hidden' });
+  await issueModal.locator('.material-issue-entry-table .ant-input-number-input').fill('1');
+  await issueModal.getByText('请填写各物料的出库数量，出库后库存将实时扣减。', { exact: true }).click();
+  for (let attempt = 0; attempt < 50 && await issueModal.locator('.ant-modal-footer .ant-btn-primary').isDisabled(); attempt += 1) {
+    await page.waitForTimeout(100);
+  }
+  result.assertions.remoteCuttingSheetSearch = cuttingSearchUrls.some((url) => (
+    url.includes('includeCompleted=true') && url.includes('keyword=UI-ORDER')
+  ));
+  result.assertions.cuttingSheetOptional = await issueModal.getByText('关联裁床单（可选）', { exact: true }).isVisible();
+  result.assertions.bedCascadeLoaded = await issueModal.getByText('关联床次（可选）', { exact: true }).isVisible()
+    && (await bedSelect.locator('.ant-select-selection-item').textContent())?.includes('UI-BED-01');
+  const manualIssueScreenshot = path.join(outputDir, '04-manual-issue-cutting-link.png');
+  await page.screenshot({ path: manualIssueScreenshot, fullPage: true });
+  result.screenshots.push(manualIssueScreenshot);
+  await issueModal.locator('.ant-modal-footer .ant-btn-primary').click();
+  await page.getByText('出库成功，单号 MI-UI-7001').waitFor({ timeout: 10_000 });
+  result.assertions.manualIssueLinkSubmitted = Number(manualIssuePayload?.workOrderId) === 9001
+    && manualIssuePayload?.cuttingBedId === 'ui-bed-editable-01'
+    && manualIssuePayload?.cuttingBedNumber === 'UI-BED-01'
+    && Number(manualIssuePayload?.lines?.[0]?.materialMinimumSpecificationId) === 501;
+
+  await page.goto(`${baseUrl}/material/issue`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  const issueBedLabel = page.getByText('床次：UI-BED-01', { exact: true });
+  await issueBedLabel.waitFor({ timeout: 30_000 });
+  await issueBedLabel.scrollIntoViewIfNeeded();
+  result.assertions.issueDetailShowsBed = await page.getByRole('columnheader', { name: '裁床单 / 床次' }).isVisible();
+  const issueDetailScreenshot = path.join(outputDir, '05-manual-issue-bed-detail.png');
+  await page.screenshot({ path: issueDetailScreenshot, fullPage: true });
+  result.screenshots.push(issueDetailScreenshot);
 
   const relevantErrors = errors.filter((item) => (
     !item.includes('Static function can not consume context')

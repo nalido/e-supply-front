@@ -3,6 +3,7 @@ import type { FormInstance } from 'antd/es/form';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetUnconfiguredItem,
   CuttingSheetMaterialUsage,
   CuttingTask,
 } from '../types';
@@ -22,6 +23,7 @@ type Props = {
   submitting: boolean;
   calculating: boolean;
   calculations: CuttingSheetMaterialCalculation[];
+  unconfiguredItems: CuttingSheetUnconfiguredItem[];
   existingUsages?: CuttingSheetMaterialUsage[];
   cutterOptions?: Array<{ label: string; value: number }>;
   cutterLoading?: boolean;
@@ -47,6 +49,7 @@ export default function CuttingBedRecordModal({
   submitting,
   calculating,
   calculations,
+  unconfiguredItems,
   existingUsages = [],
   cutterOptions = [],
   cutterLoading = false,
@@ -70,7 +73,7 @@ export default function CuttingBedRecordModal({
     0,
   );
   const submitDisabled = mode === 'create'
-    && (totalQty <= 0 || calculating || calculations.length === 0);
+    && (totalQty <= 0 || calculating);
   const footer = (
     <Space>
       <Button onClick={onCancel}>取消</Button>
@@ -185,6 +188,15 @@ export default function CuttingBedRecordModal({
             style={{ marginTop: mode === 'create' ? 16 : 0 }}
             extra={calculating ? <Text type="secondary">正在重新计算…</Text> : null}
           >
+            {unconfiguredItems.length > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="部分颜色尺码未配置面辅料用量"
+                description={`${unconfiguredItems.map((item) => `${item.color}/${item.size}`).join('、')} 不会自动出库，本床仍可保存；后续可在物料库存中手工领料并关联本裁床单。`}
+              />
+            ) : null}
             {mode === 'create' && totalQty <= 0 ? (
               <Alert type="info" showIcon message="填写颜色尺码数量后，这里会自动显示本床需要的面料和辅料。" />
             ) : calculations.length > 0 ? (
@@ -332,7 +344,7 @@ export default function CuttingBedRecordModal({
             ) : calculating ? (
               <Alert type="info" showIcon message="正在根据本床颜色尺码数量计算面辅料…" />
             ) : (
-              <Alert type="warning" showIcon message="未计算到面料或辅料，请检查生产单的冻结用料配置。" />
+              <Alert type="info" showIcon message="当前填写的颜色尺码没有自动出库项，可直接保存床次。" />
             )}
           </Card>
         </Form>

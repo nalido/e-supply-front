@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, Button, Input, Modal, Space, Table, Typography, InputNumber, message } from 'antd';
+import { Alert, Button, Input, Modal, Select, Space, Table, Typography, InputNumber, message } from 'antd';
 import type { MaterialStockListItem, MaterialStockType } from '../../types/material-stock';
 import { materialIssueService } from '../../api/material-inventory';
+import { pieceworkService } from '../../api/piecework';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
 import '../../styles/matrix-table.css';
 
@@ -20,15 +21,104 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [bulkQuantity, setBulkQuantity] = useState<number | null>(null);
   const [remark, setRemark] = useState('');
+  const [workOrderId, setWorkOrderId] = useState<string>();
+  const [cuttingBedId, setCuttingBedId] = useState<string>();
+  const [cuttingKeyword, setCuttingKeyword] = useState('');
+  const [cuttingOptions, setCuttingOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [cuttingLoading, setCuttingLoading] = useState(false);
+  const [bedOptions, setBedOptions] = useState<Array<{ label: string; value: string; bedNumber: string }>>([]);
+  const [bedLoading, setBedLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const cuttingRequestRef = useRef(0);
+  const bedRequestRef = useRef(0);
 
   useEffect(() => {
     if (!open) {
       setQuantities({});
       setBulkQuantity(null);
       setRemark('');
+      setWorkOrderId(undefined);
+      setCuttingBedId(undefined);
+      setCuttingKeyword('');
+      setCuttingOptions([]);
+      setBedOptions([]);
     }
   }, [open, materials]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const requestId = cuttingRequestRef.current + 1;
+    cuttingRequestRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      setCuttingLoading(true);
+      void pieceworkService.getCuttingPending({
+        page: 1,
+        pageSize: 20,
+        keyword: cuttingKeyword.trim() || undefined,
+        includeCompleted: true,
+        includeSummary: false,
+      }).then((result) => {
+        if (cuttingRequestRef.current !== requestId) return;
+        setCuttingOptions(result.list
+          .filter((task) => task.workOrderId)
+          .map((task) => ({
+            value: String(task.workOrderId),
+            label: [task.orderCode, task.styleCode, task.styleName].filter(Boolean).join(' · '),
+          })));
+      }).catch((error) => {
+        if (cuttingRequestRef.current !== requestId) return;
+        console.error('failed to search cutting sheets', error);
+        setCuttingOptions([]);
+      }).finally(() => {
+        if (cuttingRequestRef.current === requestId) {
+          setCuttingLoading(false);
+        }
+      });
+    }, cuttingKeyword ? 300 : 0);
+    return () => {
+      window.clearTimeout(timer);
+      if (cuttingRequestRef.current === requestId) {
+        cuttingRequestRef.current += 1;
+      }
+    };
+  }, [cuttingKeyword, open]);
+
+  useEffect(() => {
+    if (!open || !workOrderId) {
+      setBedLoading(false);
+      setBedOptions([]);
+      return undefined;
+    }
+    const requestId = bedRequestRef.current + 1;
+    bedRequestRef.current = requestId;
+    setBedLoading(true);
+    void pieceworkService.getCuttingSheetDetail(Number(workOrderId)).then((detail) => {
+      if (bedRequestRef.current !== requestId) return;
+      setBedOptions((detail.bedRecords ?? [])
+        .filter((record) => Boolean(record.bedId))
+        .map((record) => ({
+          value: record.bedId!,
+          bedNumber: record.bedNumber,
+          label: `${record.bedNumber} · ${record.totalQty.toLocaleString('zh-CN')} 件`,
+        })));
+    }).catch((error) => {
+      if (bedRequestRef.current !== requestId) return;
+      console.error('failed to load cutting beds', error);
+      setBedOptions([]);
+      message.error('加载床次失败，请重新选择裁床单');
+    }).finally(() => {
+      if (bedRequestRef.current === requestId) {
+        setBedLoading(false);
+      }
+    });
+    return () => {
+      if (bedRequestRef.current === requestId) {
+        bedRequestRef.current += 1;
+      }
+    };
+  }, [open, workOrderId]);
 
   const handleQuantityChange = (materialId: string, value: number | null) => {
     setQuantities((prev) => ({
@@ -160,9 +250,13 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
     const payload: MaterialIssueCreatePayload = {
       warehouseId,
       materialType,
+      workOrderId,
+      cuttingBedId,
+      cuttingBedNumber: bedOptions.find((option) => option.value === cuttingBedId)?.bedNumber,
       remark: remark.trim() || undefined,
       lines: rowsWithQuantity.map((item) => ({
         materialId: item.materialId,
+        materialMinimumSpecificationId: item.materialMinimumSpecificationId,
         quantity: quantities[item.id],
         unit: item.unit,
         color: item.color,
@@ -231,6 +325,44 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         <Text type="secondary">
           已填写数量的物料：<Text strong>{rowsWithQuantity.length}</Text> 项
         </Text>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Text type="secondary">关联裁床单（可选）</Text>
+          <Select
+            allowClear
+            showSearch
+            filterOption={false}
+            value={workOrderId}
+            options={cuttingOptions}
+            loading={cuttingLoading}
+            onSearch={setCuttingKeyword}
+            onChange={(value) => {
+              setWorkOrderId(value);
+              setCuttingBedId(undefined);
+              setBedOptions([]);
+            }}
+            placeholder="输入订单号、款号或款名搜索"
+            notFoundContent={cuttingLoading ? '正在搜索…' : '未找到可关联的裁床单'}
+            style={{ width: '100%' }}
+          />
+          <Text type="secondary">不选择也可直接出库；选择裁床单后可继续关联具体床次。</Text>
+        </Space>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Text type="secondary">关联床次（可选）</Text>
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={cuttingBedId}
+            options={bedOptions}
+            loading={bedLoading}
+            disabled={!workOrderId}
+            onChange={setCuttingBedId}
+            placeholder={workOrderId ? '选择该裁床单下的床次' : '请先选择裁床单'}
+            notFoundContent={bedLoading ? '正在加载…' : '该裁床单暂无可关联床次'}
+            style={{ width: '100%' }}
+          />
+          <Text type="secondary">床次不是必填项；关联后可在出库明细中核对具体床次。</Text>
+        </Space>
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
           <Text type="secondary">备注</Text>
           <Input.TextArea

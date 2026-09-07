@@ -7,6 +7,7 @@ import type {
   StyleBomLineDraft,
   StyleBomMaterialDraft,
   StyleBomUpdatePayload,
+  StyleBomUnconfiguredOrderLine,
   StyleMaterialData,
 } from '../types/style';
 import type { MaterialMinimumSpecification } from '../types/material';
@@ -90,6 +91,12 @@ type BackendStyleBomUpdateResponse = {
   configuration: BackendStyleBomConfiguration;
   correctionTaskId?: number;
   synchronizedOrderCount?: number;
+  unconfiguredOrderLines?: Array<{
+    productionOrderId?: number;
+    orderNo?: string;
+    color?: string;
+    size?: string;
+  }>;
   idempotentReplay?: boolean;
 };
 
@@ -293,6 +300,7 @@ export const styleBomApi = {
     configuration: StyleBomConfiguration;
     correctionTaskId?: string;
     synchronizedOrderCount: number;
+    unconfiguredOrderLines: StyleBomUnconfiguredOrderLine[];
     idempotentReplay: boolean;
   }> {
     const tenantId = requireNumericTenantId();
@@ -312,6 +320,12 @@ export const styleBomApi = {
       configuration: adaptConfiguration(response.data.configuration),
       correctionTaskId: response.data.correctionTaskId == null ? undefined : String(response.data.correctionTaskId),
       synchronizedOrderCount: Number(response.data.synchronizedOrderCount ?? 0),
+      unconfiguredOrderLines: (response.data.unconfiguredOrderLines ?? []).map((item) => ({
+        productionOrderId: String(item.productionOrderId ?? ''),
+        orderNo: item.orderNo?.trim() || String(item.productionOrderId ?? ''),
+        color: item.color?.trim() || undefined,
+        size: item.size?.trim() || undefined,
+      })),
       idempotentReplay: response.data.idempotentReplay === true,
     };
   },

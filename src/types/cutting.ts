@@ -94,6 +94,16 @@ export type CuttingSheetMaterialCalculation = {
   stockOptions: CuttingSheetMaterialStockOption[];
 };
 
+export type CuttingSheetUnconfiguredItem = {
+  color: string;
+  size: string;
+};
+
+export type CuttingSheetMaterialCalculationResult = {
+  materials: CuttingSheetMaterialCalculation[];
+  unconfiguredItems: CuttingSheetUnconfiguredItem[];
+};
+
 export type CuttingSheetDetail = {
   workOrderId: number;
   productionOrderId: number;

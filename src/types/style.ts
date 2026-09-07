@@ -239,6 +239,13 @@ export interface StyleBomImpactPreview {
   lockedCount: number;
 }
 
+export interface StyleBomUnconfiguredOrderLine {
+  productionOrderId: string;
+  orderNo: string;
+  color?: string;
+  size?: string;
+}
+
 export interface StyleBomUpdateConfigurationPayload {
   baseBomVersionId?: string;
   previewToken: string;

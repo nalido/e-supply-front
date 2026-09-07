@@ -33,6 +33,7 @@ import type {
   StyleFormMeta,
   StyleVariantImpact,
   StyleBomImpactPreview,
+  StyleBomUnconfiguredOrderLine,
 } from '../types/style';
 import '../styles/style-detail.css';
 import '../styles/style-bom.css';
@@ -337,6 +338,7 @@ const StyleDetail = () => {
   ) => {
     setSaving(true);
     let stylePersisted = false;
+    let unconfiguredOrderLines: StyleBomUnconfiguredOrderLine[] = [];
     try {
       const savedDetail = isPersisted && effectiveStyleId
         ? isDirty
@@ -384,6 +386,7 @@ const StyleDetail = () => {
             candidateSizes: payload.sizes,
           });
           bomDraft.reset(updateResult.configuration, payload.sizes, payload.colors);
+          unconfiguredOrderLines = updateResult.unconfiguredOrderLines;
           bomSaveIdempotencyRef.current = undefined;
           if (updateResult.correctionTaskId) {
             message.success(`历史用料差异核对任务 #${updateResult.correctionTaskId} 已生成，原出库记录未改动`);
@@ -420,6 +423,19 @@ const StyleDetail = () => {
         message.success(createdStyleId ? '款式资料和用料已更新' : '款式资料已创建');
         setDetail(savedDetail);
         setDetailImages(savedDetail.detailImageUrls ?? detailImages);
+      }
+      if (unconfiguredOrderLines.length > 0) {
+        const preview = unconfiguredOrderLines
+          .slice(0, 6)
+          .map((item) => `${item.orderNo} ${[item.color, item.size].filter(Boolean).join('/')}`)
+          .join('、');
+        const remaining = unconfiguredOrderLines.length > 6
+          ? `等 ${unconfiguredOrderLines.length} 个规格`
+          : '';
+        message.warning({
+          content: `用料已保存，但 ${preview}${remaining} 未生成自动用料需求；不影响后续裁床，可在物料库存中手工领料出库并关联裁床单。`,
+          duration: 10,
+        });
       }
     } catch (error) {
       console.error('保存款式资料失败', error);

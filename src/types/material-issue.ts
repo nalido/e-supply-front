@@ -14,6 +14,8 @@ export type MaterialIssueStatusOption = {
 export type MaterialIssueRecord = {
   id: string;
   workOrderId?: string;
+  cuttingBedId?: string;
+  cuttingBedNumber?: string;
   poNumber: string;
   warehouseName: string;
   materialName: string;
@@ -67,6 +69,7 @@ export type MaterialIssueMeta = {
 
 export type MaterialIssueCreateLine = {
   materialId: string;
+  materialMinimumSpecificationId?: string;
   quantity: number;
   unit?: string;
   color?: string;
@@ -79,6 +82,8 @@ export type MaterialIssueCreatePayload = {
   issueType?: string;
   materialType?: MaterialIssueType;
   workOrderId?: string;
+  cuttingBedId?: string;
+  cuttingBedNumber?: string;
   recipientId?: string;
   issuedAt?: string;
   remark?: string;

@@ -363,13 +363,18 @@ const MaterialIssueDetails = () => {
         render: (value?: string) => value || <Text type="secondary">-</Text>,
       },
       {
-        title: '裁床单',
+        title: '裁床单 / 床次',
         dataIndex: 'workOrderId',
-        width: 140,
+        width: 180,
         render: (_value: string | undefined, record) => record.workOrderId ? (
-          <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
-            查看裁床单
-          </Button>
+          <Space direction="vertical" size={0}>
+            <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
+              查看裁床单
+            </Button>
+            {record.cuttingBedNumber ? (
+              <Text type="secondary">床次：{record.cuttingBedNumber}</Text>
+            ) : null}
+          </Space>
         ) : <Text type="secondary">-</Text>,
       },
       {

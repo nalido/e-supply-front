@@ -155,11 +155,16 @@ export const materialIssueService = {
         issueType: payload.issueType ?? 'production',
         materialType: toBackendMaterialType(payload.materialType),
         workOrderId: payload.workOrderId ? Number(payload.workOrderId) : undefined,
+        cuttingBedId: payload.cuttingBedId,
+        cuttingBedNumber: payload.cuttingBedNumber,
         recipientId: payload.recipientId ? Number(payload.recipientId) : undefined,
         issuedAt: payload.issuedAt,
         remark: payload.remark,
         lines: payload.lines.map((line) => ({
           materialId: Number(line.materialId),
+          materialMinimumSpecificationId: line.materialMinimumSpecificationId
+            ? Number(line.materialMinimumSpecificationId)
+            : undefined,
           quantity: line.quantity,
           unit: line.unit,
           color: line.color,
