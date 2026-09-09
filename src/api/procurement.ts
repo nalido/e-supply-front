@@ -5,6 +5,7 @@ import type {
   StockingPurchaseListResponse,
   StockingPurchaseMeta,
   StockingStatusUpdatePayload,
+  StockingStatusUpdateResult,
   StockingPurchaseExportParams,
   ProcurementOrderSummary,
   StockingReceivePayload,
@@ -82,16 +83,17 @@ export const stockingPurchaseInboundService = {
     return response.data;
   },
 
-  async setStatus(payload: StockingStatusUpdatePayload): Promise<{ success: boolean }> {
+  async setStatus(payload: StockingStatusUpdatePayload): Promise<StockingStatusUpdateResult> {
     const tenantId = requireTenantId();
     const orderIds = payload.orderIds
       .map((id) => Number(id))
       .filter((value) => !Number.isNaN(value));
-    const response = await http.post<{ success: boolean }>(
+    const response = await http.post<StockingStatusUpdateResult>(
       '/api/v1/procurement/stocking/status/update',
       {
         orderIds,
         status: payload.status,
+        confirmQuantityMismatch: payload.confirmQuantityMismatch,
       },
       { params: { tenantId } },
     );

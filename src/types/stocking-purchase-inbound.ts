@@ -1,6 +1,6 @@
 export type StockingMaterialType = 'fabric' | 'accessory';
 
-export type StockingPurchaseStatus = 'pending' | 'partial' | 'completed' | 'void';
+export type StockingPurchaseStatus = 'pending' | 'partial' | 'completed' | 'forceCompleted' | 'void';
 
 export type StockingPurchaseEditableScope = 'full' | 'quantity_and_remark' | 'remark_only';
 
@@ -73,6 +73,29 @@ export type StockingBatchReceivePayload = {
 export type StockingStatusUpdatePayload = {
   orderIds: string[];
   status: Extract<StockingPurchaseStatus, 'completed' | 'void'>;
+  confirmQuantityMismatch?: boolean;
+};
+
+export type StockingCompletionMismatch = {
+  orderId: string;
+  orderNo: string;
+  lineId: string;
+  materialName: string;
+  color?: string;
+  specification?: string;
+  unit?: string;
+  orderedQty: number;
+  actualReceivedQty: number;
+  differenceQty: number;
+  differenceType: 'SHORTAGE' | 'OVER_RECEIPT';
+};
+
+export type StockingStatusUpdateResult = {
+  success: boolean;
+  processedCount: number;
+  affectedLines: number;
+  confirmationRequired?: boolean;
+  mismatchLines?: StockingCompletionMismatch[];
 };
 
 export type StockingPurchaseExportParams = StockingPurchaseListParams;

@@ -3,6 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import {
   Alert,
+  App as AntdApp,
   Button,
   Card,
   DatePicker,
@@ -18,7 +19,6 @@ import {
   Tabs,
   Tag,
   Typography,
-  message,
 } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -39,6 +39,7 @@ import type {
   StockingPurchaseRecord,
   StockingPurchaseStatusFilter,
   StockingStatusUpdatePayload,
+  StockingCompletionMismatch,
   StockingReceiptRecord,
   StockingReceivePayload,
   StockingPurchaseOrderDetail,
@@ -53,7 +54,7 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const isStockingMaterialType = (value: string | null): value is 'fabric' | 'accessory' =>
   value === 'fabric' || value === 'accessory';
 
-const quantityFormatter = new Intl.NumberFormat('zh-CN');
+const quantityFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 4 });
 const currencyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
   currency: 'CNY',
@@ -86,6 +87,7 @@ const statusColorMap: Record<StockingPurchaseRecord['status'], string> = {
   pending: 'orange',
   partial: 'blue',
   completed: 'green',
+  forceCompleted: 'purple',
   void: 'default',
 };
 
@@ -146,6 +148,7 @@ type StockingCreateDraft = {
 };
 
 const StockingPurchaseInbound = () => {
+  const { message, modal } = AntdApp.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [receiveForm] = Form.useForm<ReceiveFormValues>();
   const [batchReceiveForm] = Form.useForm<BatchReceiveFormValues>();
@@ -165,6 +168,7 @@ const StockingPurchaseInbound = () => {
   const [editingOrder, setEditingOrder] = useState<StockingPurchaseOrderDetail | null>(null);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({
     open: false,
     submitting: false,
@@ -237,7 +241,7 @@ const StockingPurchaseInbound = () => {
     };
 
     void loadMeta();
-  }, [searchParams]);
+  }, [message, searchParams]);
 
   useEffect(() => {
     const nextOpen = searchParams.get('openCreate') === 'true';
@@ -265,7 +269,7 @@ const StockingPurchaseInbound = () => {
     } finally {
       setTableLoading(false);
     }
-  }, [appliedKeyword, materialType, page, pageSize, statusFilter]);
+  }, [appliedKeyword, materialType, message, page, pageSize, statusFilter]);
 
   useEffect(() => {
     void loadList();
@@ -309,7 +313,7 @@ const StockingPurchaseInbound = () => {
     } finally {
       setEditLoading(false);
     }
-  }, []);
+  }, [message]);
 
   const openReceiveModal = useCallback(
     async (record: StockingPurchaseRecord) => {
@@ -333,7 +337,7 @@ const StockingPurchaseInbound = () => {
         remark: undefined,
       });
     },
-    [receiveForm],
+    [message, receiveForm],
   );
 
   const handleReceiveSubmit = useCallback(async () => {
@@ -377,7 +381,7 @@ const StockingPurchaseInbound = () => {
     } finally {
       setReceiveModalState((prev) => ({ ...prev, submitting: false }));
     }
-  }, [closeReceiveModal, loadList, receiveForm, receiveModalState.record, setSelectedRowKeys]);
+  }, [closeReceiveModal, loadList, message, receiveForm, receiveModalState.record, setSelectedRowKeys]);
 
   const closeReceiptDrawer = () => {
     setReceiptDrawerState((prev) => ({ ...prev, open: false }));
@@ -402,7 +406,7 @@ const StockingPurchaseInbound = () => {
         setReceiptDrawerState((prev) => ({ ...prev, loading: false }));
       }
     },
-    [],
+    [message],
   );
 
   const handleSearch = () => {
@@ -445,7 +449,9 @@ const StockingPurchaseInbound = () => {
       message.warning('请先选择需要修改的备料采购单');
       return;
     }
-    const locked = selectedRecords.find((record) => record.status === 'completed' || record.status === 'void');
+    const locked = selectedRecords.find(
+      (record) => record.status === 'completed' || record.status === 'forceCompleted' || record.status === 'void',
+    );
     if (locked) {
       message.warning(`采购单 ${locked.purchaseOrderNo} 已完成或已作废，不能参与批量修改`);
       return;
@@ -560,6 +566,7 @@ const StockingPurchaseInbound = () => {
     batchReceiveModalState.records,
     closeBatchReceiveModal,
     loadList,
+    message,
   ]);
 
   const handleStatusUpdate = async (nextStatus: StockingStatusUpdatePayload['status']) => {
@@ -577,13 +584,100 @@ const StockingPurchaseInbound = () => {
       status: nextStatus,
     };
     try {
-      await stockingPurchaseInboundService.setStatus(payload);
+      setStatusUpdating(true);
+      const result = await stockingPurchaseInboundService.setStatus(payload);
+      if (nextStatus === 'completed' && result.confirmationRequired) {
+        const mismatchLines = result.mismatchLines ?? [];
+        modal.confirm({
+          title: '实收数量与采购数量不一致',
+          width: 820,
+          content: (
+            <div className="oc-section-stack-tight">
+              <Alert
+                type="warning"
+                showIcon
+                message="所选采购单仍有未收齐或超收的物料"
+                description="请先核对并完成收料。若仍要手工完成，系统只更新采购单状态，不会改写实收数量或库存。"
+              />
+              <Table<StockingCompletionMismatch>
+                rowKey={(record) => `${record.orderId}-${record.lineId}`}
+                size="small"
+                pagination={false}
+                dataSource={mismatchLines}
+                scroll={{ y: 320 }}
+                columns={[
+                  { title: '采购单', dataIndex: 'orderNo', width: 150 },
+                  {
+                    title: '物料 / 规格',
+                    key: 'material',
+                    render: (_, record) => (
+                      <Space direction="vertical" size={0}>
+                        <Text>{record.materialName}</Text>
+                        <Text type="secondary">
+                          {[record.color, record.specification].filter(Boolean).join(' · ') || '未指定规格'}
+                        </Text>
+                      </Space>
+                    ),
+                  },
+                  {
+                    title: '采购数量',
+                    dataIndex: 'orderedQty',
+                    align: 'right',
+                    width: 110,
+                    render: (value, record) => `${formatQuantity(Number(value))}${record.unit ?? ''}`,
+                  },
+                  {
+                    title: '实际收料',
+                    dataIndex: 'actualReceivedQty',
+                    align: 'right',
+                    width: 110,
+                    render: (value, record) => `${formatQuantity(Number(value))}${record.unit ?? ''}`,
+                  },
+                  {
+                    title: '差异',
+                    dataIndex: 'differenceQty',
+                    align: 'right',
+                    width: 110,
+                    render: (value, record) => (
+                      <Text type="danger">
+                        {record.differenceType === 'SHORTAGE' ? '少收' : '超收'}{' '}
+                        {formatQuantity(Number(value))}{record.unit ?? ''}
+                      </Text>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          ),
+          okText: '仍要完成',
+          okButtonProps: { danger: true },
+          cancelText: '返回收料',
+          onOk: async () => {
+            try {
+              await stockingPurchaseInboundService.setStatus({
+                ...payload,
+                confirmQuantityMismatch: true,
+              });
+              message.success('采购单已手工完成，实收数量和库存保持不变');
+              setSelectedRowKeys([]);
+              await loadList();
+            } catch (error) {
+              console.error('failed to confirm stocking purchase completion', error);
+              message.error('手工完成失败，请重新核对后再试');
+              throw error;
+            }
+          },
+        });
+        return;
+      }
       message.success('状态更新成功');
       setSelectedRowKeys([]);
       void loadList();
     } catch (error) {
       console.error('failed to update stocking purchase status', error);
       message.error('状态更新失败，请稍后重试');
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -797,7 +891,8 @@ const StockingPurchaseInbound = () => {
         fixed: 'right',
         width: 240,
         render: (_value, record) => {
-          const disableReceive = !record.orderId || record.status === 'void';
+          const disableReceive =
+            !record.orderId || record.status === 'forceCompleted' || record.status === 'void';
           return (
             <Space size={8}>
               <Button size="small" type="link" loading={editLoading && editingOrder?.id === record.orderId} onClick={() => openEditModal(record)}>
@@ -941,8 +1036,8 @@ const StockingPurchaseInbound = () => {
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>备料采购</Button>
                 <Button icon={<EditOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchEdit}>批量修改</Button>
                 <Button icon={<InboxOutlined />} disabled={!selectedRowKeys.length} onClick={handleBatchReceive}>批量收料</Button>
-                <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('completed')}>设置完成</Button>
-                <Button icon={<SettingOutlined />} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('void')}>设置作废</Button>
+                <Button icon={<SettingOutlined />} loading={statusUpdating} disabled={!selectedRowKeys.length} onClick={() => handleStatusUpdate('completed')}>设置完成</Button>
+                <Button icon={<SettingOutlined />} disabled={statusUpdating || !selectedRowKeys.length} onClick={() => handleStatusUpdate('void')}>设置作废</Button>
               </div>
             }
             right={
