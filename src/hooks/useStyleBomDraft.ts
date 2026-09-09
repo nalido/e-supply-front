@@ -135,9 +135,7 @@ export default function useStyleBomDraft(colors: string[], sizes: string[]) {
       } else if (!line.minimumSpecification.active) {
         issues.push({ uid: line.uid, code: 'SPECIFICATION_INACTIVE', message: '所选最小规格已停用' });
       }
-      if (line.materialType === 'accessory' && !line.applyToAllColors) {
-        issues.push({ uid: line.uid, code: 'COLOR_REQUIRED', message: '辅料/包材统一适用全部款式颜色' });
-      } else if (!line.applyToAllColors && line.applicableColors.length === 0) {
+      if (!line.applyToAllColors && line.applicableColors.length === 0) {
         issues.push({ uid: line.uid, code: 'COLOR_REQUIRED', message: '请选择适用的款式颜色' });
       }
       const invalidColors = line.applicableColors.filter((color) => !colors.includes(color));

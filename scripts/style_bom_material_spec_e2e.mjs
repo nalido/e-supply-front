@@ -197,11 +197,15 @@ async function completeInlineRow(page, row, type) {
       await row.locator('.ant-select-selection-item').filter({ hasText: activeSpecifications[0].label }).count() === 1,
     );
   }
-  if (isFabric) {
-    check('面料可在行内维护适用颜色', await row.getByRole('combobox', { name: /适用颜色$/ }).count() === 1);
-  } else {
-    check('辅料行固定适用全部颜色', await row.getByText('全部颜色', { exact: true }).count() === 1);
-  }
+  const colorSelect = row.getByRole('combobox', { name: /适用颜色$/ });
+  check(
+    `${isFabric ? '面料' : '辅料'}可在行内维护适用颜色`,
+    await colorSelect.count() === 1,
+  );
+  check(
+    `${isFabric ? '面料' : '辅料'}新增行默认选中一个适用颜色`,
+    await row.locator('.ant-select-selection-item').filter({ hasText: /黑色|白色/ }).count() === 1,
+  );
   await row.getByRole('spinbutton', { name: /平均单件用量$/ }).fill('1.25');
   await row.getByRole('spinbutton', { name: /损耗率$/ }).fill('2.5');
   await row.getByPlaceholder('可选').fill(`${isFabric ? '面料' : '辅料'}行内录入验收`);
@@ -367,6 +371,27 @@ try {
       && await accessoryPanel.locator('tbody tr.ant-table-row').count() === initialAccessoryCount);
 
   const persistedFabricRow = fabricPanel.locator('tbody tr.ant-table-row').first();
+  const persistedAccessoryRow = accessoryPanel.locator('tbody tr.ant-table-row').first();
+  const persistedAccessoryColorSelect = persistedAccessoryRow.getByRole('combobox', { name: /适用颜色$/ });
+  const persistedAccessoryColorCell = persistedAccessoryColorSelect.locator('xpath=ancestor::td[1]');
+  check('已发布辅料适用颜色可以继续编辑', await persistedAccessoryColorSelect.count() === 1);
+  const persistedAccessoryColors = (await persistedAccessoryColorCell.locator('.ant-select-selection-item').allTextContents())
+    .map((value) => value.trim())
+    .filter((value) => value === '黑色' || value === '白色');
+  check('已发布辅料按限定颜色回显', persistedAccessoryColors.length === 1, persistedAccessoryColors);
+  const currentAccessoryColor = persistedAccessoryColors[0];
+  const targetAccessoryColor = currentAccessoryColor === '黑色' ? '白色' : '黑色';
+  await persistedAccessoryColorSelect.click();
+  await persistedAccessoryColorSelect.fill(targetAccessoryColor);
+  await page.keyboard.press('Enter');
+  await persistedAccessoryColorSelect.fill(currentAccessoryColor);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  check('辅料适用颜色可按款式颜色重新选择',
+    await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: targetAccessoryColor }).count() === 1
+      && await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: currentAccessoryColor }).count() === 0);
+  await persistedAccessoryRow.getByPlaceholder('可选').fill(`仅${targetAccessoryColor}使用辅料`);
+
   const averageInput = persistedFabricRow.getByRole('spinbutton', { name: /平均单件用量$/ });
   const initialAverageValue = Number(await averageInput.inputValue());
   check('已发布用料按平均单耗回显', Number.isFinite(initialAverageValue) && initialAverageValue > 0, {
@@ -397,14 +422,20 @@ try {
   await impactModal.getByRole('button', { name: /保存并同步 \d+ 个订单/ }).click();
   const updateResponse = await updateResponsePromise;
   const updatePayload = await updateResponse.json();
-  check('保存响应返回未配置订单规格', (updatePayload.unconfiguredOrderLines ?? []).length > 0, updatePayload.unconfiguredOrderLines);
   await impactModal.waitFor({ state: 'hidden', timeout: 20_000 });
-  const warning = page.locator('.ant-message-notice-content').filter({ hasText: '用料已保存，但' }).last();
-  await warning.waitFor({ state: 'visible', timeout: 10_000 });
-  const warningText = await warning.innerText();
-  check('页面展示未配置规格但不阻断保存的业务告警',
-    warningText.includes('未生成自动用料需求') && warningText.includes('不影响后续裁床'),
-    warningText);
+  const unconfiguredOrderLines = updatePayload.unconfiguredOrderLines ?? [];
+  if (unconfiguredOrderLines.length > 0) {
+    const warning = page.locator('.ant-message-notice-content').filter({ hasText: '用料已保存，但' }).last();
+    await warning.waitFor({ state: 'visible', timeout: 10_000 });
+    const warningText = await warning.innerText();
+    check('页面展示未配置规格但不阻断保存的业务告警',
+      warningText.includes('未生成自动用料需求') && warningText.includes('不影响后续裁床'),
+      warningText);
+  } else {
+    const success = page.locator('.ant-message-notice-content').filter({ hasText: '款式资料和用料已更新' }).last();
+    await success.waitFor({ state: 'visible', timeout: 10_000 });
+    check('全部订单规格可配置时页面展示保存成功反馈', await success.count() === 1);
+  }
   await capture(page, '04-style-bom-save-warning.png');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -412,6 +443,13 @@ try {
   const reloadedSection = page.getByTestId('style-bom-section');
   const reloadedAverage = reloadedSection.getByRole('spinbutton', { name: /平均单件用量$/ }).first();
   check('保存重载后平均单耗保持', Number(await reloadedAverage.inputValue()) === savedAverageValue, { value: await reloadedAverage.inputValue() });
+  const reloadedAccessoryRow = reloadedSection.locator('.style-bom-summary-panel').nth(1)
+    .locator('tbody tr.ant-table-row').first();
+  const reloadedAccessoryColorCell = reloadedAccessoryRow.getByRole('combobox', { name: /适用颜色$/ })
+    .locator('xpath=ancestor::td[1]');
+  check('辅料适用颜色保存重载后保持',
+    await reloadedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: targetAccessoryColor }).count() === 1
+      && await reloadedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: currentAccessoryColor }).count() === 0);
   check('保存后仍不再出现旧侧边抽屉', await page.locator('.style-bom-editor-drawer-root').count() === 0);
   check('面料和辅料关键词请求均由后端处理',
     result.materialRequests.some((url) => url.includes('materialType=FABRIC') && url.includes('keyword='))

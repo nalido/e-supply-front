@@ -189,7 +189,6 @@ export default function StyleBomSection({
   }, [mergedMaterials, updateLine]);
 
   const addEmptyLine = useCallback((materialType: MaterialBasicType) => {
-    const applyToAllColors = materialType === 'accessory';
     onAdd({
       materialId: '',
       materialName: '',
@@ -198,8 +197,8 @@ export default function StyleBomSection({
       unit: '',
       materialMinimumSpecificationId: '',
       minimumSpecification: emptySpecification,
-      applyToAllColors,
-      applicableColors: applyToAllColors ? [] : colors.slice(0, 1),
+      applyToAllColors: false,
+      applicableColors: colors.slice(0, 1),
       averageConsumption: null,
       sizeConsumptions: expandAverageConsumption(sizes, null),
       lossRate: 0,
@@ -285,27 +284,23 @@ export default function StyleBomSection({
       key: 'colors',
       width: 210,
       render: (_, line) => (
-        line.materialType === 'accessory' ? (
-          <div className="style-bom-color-scope oc-excel-cell-readonly"><Tag color="success">全部颜色</Tag></div>
-        ) : (
-          <Select
-            aria-label={`${line.materialName || '面料'}适用颜色`}
-            className="oc-excel-cell-select"
-            mode="multiple"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            value={line.applyToAllColors ? colors : line.applicableColors}
-            status={!line.applyToAllColors && !line.applicableColors.length ? 'error' : undefined}
-            placeholder="选择适用颜色"
-            maxTagCount="responsive"
-            options={colors.map((color) => ({ value: color, label: color }))}
-            onChange={(applicableColors) => updateLine(line, {
-              applyToAllColors: applicableColors.length === colors.length,
-              applicableColors: applicableColors.length === colors.length ? [] : applicableColors,
-            })}
-          />
-        )
+        <Select
+          aria-label={`${line.materialName || (line.materialType === 'fabric' ? '面料' : '辅料/包材')}适用颜色`}
+          className="oc-excel-cell-select"
+          mode="multiple"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          value={line.applyToAllColors ? colors : line.applicableColors}
+          status={!line.applyToAllColors && !line.applicableColors.length ? 'error' : undefined}
+          placeholder="选择适用颜色"
+          maxTagCount="responsive"
+          options={colors.map((color) => ({ value: color, label: color }))}
+          onChange={(applicableColors) => updateLine(line, {
+            applyToAllColors: applicableColors.length === colors.length,
+            applicableColors: applicableColors.length === colors.length ? [] : applicableColors,
+          })}
+        />
       ),
     },
     {
