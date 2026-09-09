@@ -34,27 +34,12 @@ const DEFAULT_TABS: MaterialStockMeta['materialTabs'] = [
 const formatQuantity = (value: number): string => value.toLocaleString('zh-CN');
 const formatCurrency = (value: number): string => currencyFormatter.format(value ?? 0);
 const MATERIAL_TYPES: MaterialStockType[] = ['fabric', 'accessory'];
-const expandMaterialStockRows = (items: MaterialStockListItem[]): MaterialStockListItem[] =>
-  items.flatMap((item) => {
-    const validColorStocks = item.colorStocks.filter((colorItem) => colorItem.quantity > 0);
-    if (!validColorStocks.length) {
-      return [item];
-    }
-    let remainingAvailableQty = item.availableQty;
-    return validColorStocks.map((colorItem, index) => {
-      const availableQty = Math.min(remainingAvailableQty, colorItem.quantity);
-      remainingAvailableQty -= availableQty;
-      return {
-        ...item,
-        id: `${item.id}-${index}`,
-        color: colorItem.color,
-        colorStocks: [],
-        stockQty: colorItem.quantity,
-        availableQty,
-        inTransitQty: index === 0 ? item.inTransitQty : 0,
-      };
-    });
-  });
+const normalizeMaterialStockRows = (items: MaterialStockListItem[]): MaterialStockListItem[] =>
+  items.map((item) => ({
+    ...item,
+    color: item.materialMinimumSpecificationColor || item.color,
+    specification: item.specification || item.materialMinimumSpecificationLabel,
+  }));
 
 const sortTabs = (tabs?: MaterialStockMeta['materialTabs']): MaterialStockMeta['materialTabs'] => {
   const source = tabs?.length ? tabs : DEFAULT_TABS;
@@ -145,7 +130,7 @@ const MaterialStock = () => {
         keywordOrderStyle: appliedOrderKeyword,
       };
       const response = await materialStockService.getList(params);
-      const displayList = expandMaterialStockRows(response.list);
+      const displayList = normalizeMaterialStockRows(response.list);
       setMaterials(displayList);
       setTotal(response.total);
       const validIds = new Set(displayList.map((item) => item.id));
