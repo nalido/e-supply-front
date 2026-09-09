@@ -21,6 +21,7 @@ export interface StyleListParams {
   page: number;
   pageSize: number;
   keyword?: string;
+  status?: StyleStatus;
 }
 
 export interface PaginatedStyleData {
@@ -86,6 +87,7 @@ export interface StyleDetailData {
   materials?: StyleMaterialData[];
   variants?: Array<{
     id: string;
+    styleSkcId?: string;
     color?: string;
     size?: string;
     skcNo?: string;

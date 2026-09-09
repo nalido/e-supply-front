@@ -74,6 +74,12 @@ const PreferencesPage = lazy(() => import('./views/settings').then((module) => (
 const UsageAnalyticsPage = lazy(() => import('./views/settings').then((module) => ({ default: module.UsageAnalyticsPage })));
 const AIAgentPoC = lazy(() => import('./views/AIAgentPoC'));
 const SaleCenterWorkspace = lazy(() => import('./views/sale/SaleCenterWorkspace'));
+const CustomizationShell = lazy(() => import('./views/customization/CustomizationShell'));
+const CustomizationDashboard = lazy(() => import('./views/customization/CustomizationDashboard'));
+const DesignStyleList = lazy(() => import('./views/customization/DesignStyleList'));
+const DesignStyleWorkspace = lazy(() => import('./views/customization/DesignStyleWorkspace'));
+const ProductTemplateList = lazy(() => import('./views/customization/ProductTemplateList'));
+const ProductTemplateWorkspace = lazy(() => import('./views/customization/ProductTemplateWorkspace'));
 
 const pageFallback = React.createElement(Spin, { size: 'large', tip: '页面加载中...', fullscreen: true });
 
@@ -297,6 +303,24 @@ const router = createBrowserRouter([
       { path: 'sync-logs', element: React.createElement(Navigate, { to: '/sale/governance/sync', replace: true }) },
       { path: 'fulfillments', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
       { path: 'fulfillment-workbench/temu-full-managed', element: React.createElement(Navigate, { to: '/sale/orders/issues', replace: true }) },
+    ],
+  },
+  {
+    path: '/customization',
+    element: React.createElement(ProtectedTenantOutlet),
+    children: [
+      {
+        element: createLazyPageElement(CustomizationShell),
+        children: [
+          { index: true, element: React.createElement(Navigate, { to: '/customization/workbench', replace: true }) },
+          { path: 'workbench', element: createLazyPageElement(CustomizationDashboard) },
+          { path: 'templates', element: createLazyPageElement(ProductTemplateList) },
+          { path: 'templates/:id', element: createLazyPageElement(ProductTemplateWorkspace) },
+          { path: 'styles', element: createLazyPageElement(DesignStyleList) },
+          { path: 'styles/new', element: createLazyPageElement(DesignStyleWorkspace) },
+          { path: 'styles/:id', element: createLazyPageElement(DesignStyleWorkspace) },
+        ],
+      },
     ],
   },
 ]);
