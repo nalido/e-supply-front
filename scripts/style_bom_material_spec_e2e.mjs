@@ -43,6 +43,8 @@ for (const name of [
   '02-style-bom-inline-entry-mobile.png',
   '03-style-bom-impact-preview.png',
   '04-style-bom-save-warning.png',
+  '05-style-bom-all-colors-option.png',
+  '06-style-bom-all-colors-dropdown.png',
   '99-style-bom-failure.png',
   'result.json',
 ]) {
@@ -80,7 +82,9 @@ async function capture(page, name, locator = undefined) {
 async function ensureLogin(page) {
   await page.goto(`${baseUrl}/welcome`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForTimeout(1_000);
-  if (!/sign-in|accounts|clerk/i.test(page.url()) && await page.getByText('工作台').count()) return;
+  const workspaceHeading = page.getByRole('heading', { name: '工作台', exact: true }).first();
+  await workspaceHeading.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+  if (await workspaceHeading.isVisible().catch(() => false)) return;
   if (authToken) {
     const existingSessionButton = page.getByRole('button', { name: '登录系统' }).first();
     if (await existingSessionButton.count()) {
@@ -191,6 +195,7 @@ async function completeInlineRow(page, row, type) {
       { expected: activeSpecifications.length, actual: await specificationOptions.count() },
     );
     await specificationOptions.first().click();
+    await page.keyboard.press('Escape');
   } else {
     check(
       '单一启用规格自动选中',
@@ -198,6 +203,7 @@ async function completeInlineRow(page, row, type) {
     );
   }
   const colorSelect = row.getByRole('combobox', { name: /适用颜色$/ });
+  const averageConsumptionInput = row.getByRole('spinbutton', { name: /平均单件用量$/ });
   check(
     `${isFabric ? '面料' : '辅料'}可在行内维护适用颜色`,
     await colorSelect.count() === 1,
@@ -206,7 +212,45 @@ async function completeInlineRow(page, row, type) {
     `${isFabric ? '面料' : '辅料'}新增行默认选中一个适用颜色`,
     await row.locator('.ant-select-selection-item').filter({ hasText: /黑色|白色/ }).count() === 1,
   );
-  await row.getByRole('spinbutton', { name: /平均单件用量$/ }).fill('1.25');
+  const colorSelectRoot = colorSelect.locator(
+    'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]',
+  );
+  await page.keyboard.press('Escape');
+  await colorSelectRoot.locator('.ant-select-selector').click();
+  const colorListboxId = await colorSelect.getAttribute('aria-controls');
+  check(`${isFabric ? '面料' : '辅料'}适用颜色下拉具备独立列表语义`, Boolean(colorListboxId));
+  const colorDropdown = page.locator(`#${colorListboxId}`).locator(
+    'xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " ant-select-dropdown ")][1]',
+  );
+  await colorDropdown.waitFor({ state: 'visible', timeout: 10_000 });
+  const allColorsOption = colorDropdown.locator('.ant-select-item-option').filter({ hasText: '全部颜色' });
+  await allColorsOption.first().waitFor({ state: 'visible', timeout: 10_000 });
+  check(
+    `${isFabric ? '面料' : '辅料'}适用颜色提供独立的全部颜色选项`,
+    await allColorsOption.count() >= 1,
+  );
+  await allColorsOption.first().click();
+  check(
+    '选择全部颜色后只显示一个范围标签',
+    await row.locator('.ant-select-selection-item').filter({ hasText: '全部颜色' }).count() === 1
+      && await row.locator('.ant-select-selection-item').filter({ hasText: /黑色|白色/ }).count() === 0,
+  );
+  await colorDropdown.locator('.ant-select-item-option').filter({ hasText: '黑色' }).first().click();
+  await page.keyboard.press('Escape');
+  check(
+    '从全部颜色选择具体颜色时自动退出全部颜色范围',
+    await row.locator('.ant-select-selection-item').filter({ hasText: '黑色' }).count() === 1
+      && await row.locator('.ant-select-selection-item').filter({ hasText: '全部颜色' }).count() === 0,
+  );
+  await colorSelect.click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: '白色' }).first().click();
+  await page.keyboard.press('Escape');
+  check(
+    '逐个选择当前全部颜色仍保持具体颜色范围',
+    await row.locator('.ant-select-selection-item').filter({ hasText: /黑色|白色/ }).count() === 2
+      && await row.locator('.ant-select-selection-item').filter({ hasText: '全部颜色' }).count() === 0,
+  );
+  await averageConsumptionInput.fill('1.25');
   await row.getByRole('spinbutton', { name: /损耗率$/ }).fill('2.5');
   await row.getByPlaceholder('可选').fill(`${isFabric ? '面料' : '辅料'}行内录入验收`);
   check(
@@ -382,14 +426,45 @@ try {
   const currentAccessoryColor = persistedAccessoryColors[0];
   const targetAccessoryColor = currentAccessoryColor === '黑色' ? '白色' : '黑色';
   await persistedAccessoryColorSelect.click();
-  await persistedAccessoryColorSelect.fill(targetAccessoryColor);
-  await page.keyboard.press('Enter');
-  await persistedAccessoryColorSelect.fill(currentAccessoryColor);
-  await page.keyboard.press('Enter');
+  const persistedColorDropdown = page.locator('.ant-select-dropdown:visible').filter({ hasText: '全部颜色' }).last();
+  await persistedColorDropdown.locator('.ant-select-item-option').filter({ hasText: '全部颜色' }).click();
+  await page.keyboard.press('Escape');
+  check('已有辅料可显式切换为全部颜色',
+    await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: '全部颜色' }).count() === 1
+      && await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: /黑色|白色/ }).count() === 0);
+  await persistedAccessoryColorSelect.click();
+  await capture(page, '05-style-bom-all-colors-option.png');
+  const allColorsDropdown = page.locator('.ant-select-dropdown:visible').filter({ hasText: '全部颜色' }).last();
+  await capture(page, '06-style-bom-all-colors-dropdown.png', allColorsDropdown);
+  await page.keyboard.press('Escape');
+  await persistedAccessoryRow.getByPlaceholder('可选').fill('全部颜色选项验收');
+
+  const allColorsPreviewResponsePromise = page.waitForResponse(
+    (response) => response.url().includes(`/api/v1/styles/${styleId}/bom-configuration/impact-preview`) && response.status() === 200,
+    { timeout: 30_000 },
+  );
+  await page.getByTestId('style-detail-save-button').click();
+  const allColorsPreviewResponse = await allColorsPreviewResponsePromise;
+  const allColorsPreviewPayload = allColorsPreviewResponse.request().postDataJSON();
+  const allColorsAccessoryPayload = allColorsPreviewPayload.items.find((item) => item.remark === '全部颜色选项验收');
+  check('全部颜色只通过范围标识提交且不进入颜色数组',
+    allColorsAccessoryPayload?.applyToAllColors === true
+      && Array.isArray(allColorsAccessoryPayload?.applicableColors)
+      && allColorsAccessoryPayload.applicableColors.length === 0
+      && allColorsPreviewPayload.items.every((item) => !(item.applicableColors ?? []).includes('全部颜色')),
+    allColorsAccessoryPayload);
+  const allColorsImpactModal = page.locator('.style-bom-impact-modal');
+  await allColorsImpactModal.waitFor({ state: 'visible', timeout: 10_000 });
+  await allColorsImpactModal.getByRole('button', { name: '继续检查' }).click();
+  await allColorsImpactModal.waitFor({ state: 'hidden', timeout: 10_000 });
+
+  await persistedAccessoryColorSelect.click();
+  const allToSpecificDropdown = page.locator('.ant-select-dropdown:visible').filter({ hasText: targetAccessoryColor }).last();
+  await allToSpecificDropdown.locator('.ant-select-item-option').filter({ hasText: targetAccessoryColor }).click();
   await page.keyboard.press('Escape');
   check('辅料适用颜色可按款式颜色重新选择',
     await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: targetAccessoryColor }).count() === 1
-      && await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: currentAccessoryColor }).count() === 0);
+      && await persistedAccessoryColorCell.locator('.ant-select-selection-item').filter({ hasText: '全部颜色' }).count() === 0);
   await persistedAccessoryRow.getByPlaceholder('可选').fill(`仅${targetAccessoryColor}使用辅料`);
 
   const averageInput = persistedFabricRow.getByRole('spinbutton', { name: /平均单件用量$/ });
@@ -405,7 +480,15 @@ try {
     { timeout: 30_000 },
   );
   await page.getByTestId('style-detail-save-button').click();
-  await previewResponse;
+  const preview = await previewResponse;
+  const scopedPreviewPayload = preview.request().postDataJSON();
+  const scopedAccessoryPayload = scopedPreviewPayload.items.find((item) => item.remark === `仅${targetAccessoryColor}使用辅料`);
+  check('从全部颜色退回具体颜色时只提交真实款式颜色',
+    scopedAccessoryPayload?.applyToAllColors === false
+      && scopedAccessoryPayload?.applicableColors?.length === 1
+      && scopedAccessoryPayload.applicableColors[0] === targetAccessoryColor
+      && !scopedAccessoryPayload.applicableColors.includes('全部颜色'),
+    scopedAccessoryPayload);
   const impactModal = page.locator('.style-bom-impact-modal');
   await impactModal.waitFor({ state: 'visible', timeout: 10_000 });
   check('保存影响默认只作用于新订单', await impactModal.getByText('仅用于之后的新订单').count() === 1);

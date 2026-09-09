@@ -41,6 +41,7 @@ type Props = {
 };
 
 const emptySpecification: MaterialMinimumSpecification = { label: '', active: true };
+const allColorsOptionValue = '__STYLE_BOM_ALL_COLORS__';
 
 const expandAverageConsumption = (sizes: string[], averageConsumption: number | null) => (
   sizes.map((size) => ({ size, consumption: averageConsumption }))
@@ -57,6 +58,21 @@ const toMaterialItem = (line: StyleBomLineDraft): MaterialItem => ({
   specifications: [],
   minimumSpecifications: line.materialMinimumSpecificationId ? [line.minimumSpecification] : [],
 });
+
+const resolveApplicableColorSelection = (
+  line: StyleBomLineDraft,
+  values: string[],
+): Pick<StyleBomLineDraft, 'applyToAllColors' | 'applicableColors'> => {
+  const selectedAllColors = values.includes(allColorsOptionValue);
+  const selectedColors = values.filter((value) => value !== allColorsOptionValue);
+  if (line.applyToAllColors && selectedColors.length > 0) {
+    return { applyToAllColors: false, applicableColors: selectedColors };
+  }
+  if (selectedAllColors) {
+    return { applyToAllColors: true, applicableColors: [] };
+  }
+  return { applyToAllColors: false, applicableColors: selectedColors };
+};
 
 export default function StyleBomSection({
   lines,
@@ -291,15 +307,15 @@ export default function StyleBomSection({
           allowClear
           showSearch
           optionFilterProp="label"
-          value={line.applyToAllColors ? colors : line.applicableColors}
+          value={line.applyToAllColors ? [allColorsOptionValue] : line.applicableColors}
           status={!line.applyToAllColors && !line.applicableColors.length ? 'error' : undefined}
           placeholder="选择适用颜色"
           maxTagCount="responsive"
-          options={colors.map((color) => ({ value: color, label: color }))}
-          onChange={(applicableColors) => updateLine(line, {
-            applyToAllColors: applicableColors.length === colors.length,
-            applicableColors: applicableColors.length === colors.length ? [] : applicableColors,
-          })}
+          options={[
+            { value: allColorsOptionValue, label: '全部颜色' },
+            ...colors.map((color) => ({ value: color, label: color })),
+          ]}
+          onChange={(values) => updateLine(line, resolveApplicableColorSelection(line, values))}
         />
       ),
     },
