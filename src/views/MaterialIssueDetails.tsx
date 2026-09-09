@@ -363,21 +363,6 @@ const MaterialIssueDetails = () => {
         render: (value?: string) => value || <Text type="secondary">-</Text>,
       },
       {
-        title: '裁床单 / 床次',
-        dataIndex: 'workOrderId',
-        width: 180,
-        render: (_value: string | undefined, record) => record.workOrderId ? (
-          <Space direction="vertical" size={0}>
-            <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
-              查看裁床单
-            </Button>
-            {record.cuttingBedNumber ? (
-              <Text type="secondary">床次：{record.cuttingBedNumber}</Text>
-            ) : null}
-          </Space>
-        ) : <Text type="secondary">-</Text>,
-      },
-      {
         title: '出库类型',
         dataIndex: 'issueType',
         width: 120,
@@ -396,9 +381,24 @@ const MaterialIssueDetails = () => {
         title: '备注',
         dataIndex: 'remark',
         width: 220,
-        fixed: 'right',
         ellipsis: true,
         render: (value?: string) => value || <Text type="secondary">无备注</Text>,
+      },
+      {
+        title: '裁床单 / 床次',
+        dataIndex: 'workOrderId',
+        width: 180,
+        fixed: 'right',
+        render: (_value: string | undefined, record) => record.workOrderId ? (
+          <Space direction="vertical" size={0}>
+            <Button type="link" style={{ padding: 0 }} onClick={() => void handleOpenCuttingSheet(record)}>
+              查看裁床单
+            </Button>
+            {record.cuttingBedNumber ? (
+              <Text type="secondary">床次：{record.cuttingBedNumber}</Text>
+            ) : null}
+          </Space>
+        ) : <Text type="secondary">-</Text>,
       },
     ],
     [handleOpenCuttingSheet, page, pageSize],
@@ -487,18 +487,18 @@ const MaterialIssueDetails = () => {
           scroll={{ x: 2000 }}
           summary={() => (
             <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={9}>
+              <Table.Summary.Cell index={0} colSpan={10}>
                 合计
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
+              <Table.Summary.Cell index={10} align="right">
                 {formatQuantity(summary.issueQtyTotal)}
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} colSpan={3} />
-              <Table.Summary.Cell index={3} align="right" />
-              <Table.Summary.Cell index={4} align="right">
+              <Table.Summary.Cell index={11} colSpan={3} />
+              <Table.Summary.Cell index={14} align="right" />
+              <Table.Summary.Cell index={15} align="right">
                 {formatCurrency(summary.amountTotal)}
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={5} colSpan={10} />
+              <Table.Summary.Cell index={16} colSpan={12} />
             </Table.Summary.Row>
           )}
         />
