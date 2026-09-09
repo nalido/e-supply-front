@@ -25,6 +25,7 @@ import type {
   MaterialDataset,
   MaterialItem,
   MaterialMinimumSpecification,
+  MaterialSpecificationRecoveryPreview,
   MaterialUnit,
 } from '../types';
 import '../styles/material-archive.css';
@@ -41,6 +42,8 @@ type FormModalState = {
   open: boolean;
   submitting: boolean;
   record?: MaterialItem;
+  recoveryLoading?: boolean;
+  recoveryPreview?: MaterialSpecificationRecoveryPreview;
 };
 
 type ImportModalState = {
@@ -129,8 +132,28 @@ const MaterialArchive = () => {
     setFormModal({ open: true, submitting: false });
   };
 
-  const openEditModal = useCallback((record: MaterialItem) => {
-    setFormModal({ open: true, submitting: false, record });
+  const openEditModal = useCallback(async (record: MaterialItem) => {
+    setFormModal({
+      open: true,
+      submitting: false,
+      record,
+      recoveryLoading: record.legacyUnmappedDimensions === true,
+    });
+    if (!record.legacyUnmappedDimensions) {
+      return;
+    }
+    try {
+      const recoveryPreview = await materialApi.specificationRecoveryPreview(record.id);
+      setFormModal((current) => current.record?.id === record.id
+        ? { ...current, recoveryLoading: false, recoveryPreview }
+        : current);
+    } catch (error) {
+      console.error('Failed to load material recovery suggestions', error);
+      setFormModal((current) => current.record?.id === record.id
+        ? { ...current, recoveryLoading: false }
+        : current);
+      message.warning('原有资料已保留，但组合建议暂时加载失败，请稍后再试');
+    }
   }, []);
 
   const closeFormModal = () => {
@@ -406,15 +429,21 @@ const MaterialArchive = () => {
         title: '最小规格',
         dataIndex: 'minimumSpecifications',
         width: 300,
-        render: (specifications: MaterialMinimumSpecification[], record: MaterialItem) => (
-          <Space size={[4, 4]} wrap>
-            <Tag color="blue">{specifications?.length ?? 0} 种</Tag>
-            {(specifications ?? []).slice(0, 2).map((specification) => <Tag key={specification.id ?? specification.label}>{specification.label}</Tag>)}
-            {(specifications?.length ?? 0) > 2 ? <span>等 {specifications.length} 种</span> : null}
-            {!specifications?.length && record.colors.length ? <span>{record.colors.join('、')}</span> : null}
-            {record.legacyUnmappedDimensions && record.colors.length ? <span>原有颜色：{record.colors.join('、')}</span> : null}
-          </Space>
-        ),
+        render: (specifications: MaterialMinimumSpecification[], record: MaterialItem) => {
+          const activeSpecifications = (specifications ?? []).filter(
+            (specification) => specification.active && !specification.legacyDefault,
+          );
+          return (
+            <Space size={[4, 4]} wrap>
+              <Tag color="blue">{activeSpecifications.length} 种</Tag>
+              {activeSpecifications.slice(0, 2).map((specification) => (
+                <Tag key={specification.id ?? specification.label}>{specification.label}</Tag>
+              ))}
+              {activeSpecifications.length > 2 ? <span>等 {activeSpecifications.length} 种</span> : null}
+              {record.legacyUnmappedDimensions ? <Tag color="gold">原资料待确认</Tag> : null}
+            </Space>
+          );
+        },
       },
       {
         title: '操作',
@@ -482,6 +511,8 @@ const MaterialArchive = () => {
         title={formModal.record ? '编辑物料' : '新建物料'}
         materialType={formModal.record?.materialType ?? activeTab}
         initialValues={formModal.record}
+        recoveryLoading={formModal.recoveryLoading}
+        recoveryPreview={formModal.recoveryPreview}
         onCancel={closeFormModal}
         onSubmit={handleSubmitForm}
       />

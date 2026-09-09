@@ -438,3 +438,72 @@
   background: #fff;
   border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
 }
+
+.material-specification-editor__bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.material-specification-editor .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
+.material-specification-editor .ant-table-tbody > tr > td:has(.ant-tag),
+.material-specification-editor .ant-table-tbody > tr > td:has(.ant-switch),
+.material-specification-editor .ant-table-tbody > tr > td:has(.oc-excel-row-actions) {
+  padding-inline: 8px;
+}
+
+.material-specification-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.material-specification-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container, #fff);
+}
+
+.material-specification-card__field {
+  display: grid;
+  gap: 4px;
+}
+
+.material-specification-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 767px) {
+  body:has(.material-form-modal) {
+    min-width: 0;
+  }
+
+  .ant-modal-wrap:has(.material-form-modal) {
+    overflow-x: hidden;
+  }
+
+  .material-form-modal {
+    max-width: calc(100vw - 24px);
+    margin: 12px auto;
+    padding-bottom: 12px;
+    top: 0;
+  }
+
+  .material-form-modal .ant-modal-content {
+    padding: 16px;
+  }
+
+  .material-specification-editor__bulk-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

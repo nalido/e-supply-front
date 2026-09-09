@@ -12,6 +12,26 @@ export type MaterialMinimumSpecification = {
   grammage?: string;
   active: boolean;
   legacyDefault?: boolean;
+  recoveryCandidate?: boolean;
+  recoveryBasis?: 'business-record' | 'original-data';
+  recoveryEvidenceCount?: number;
+};
+
+export type MaterialSpecificationRecoverySuggestion = {
+  minimumSpecificationId?: string;
+  color: string;
+  specification: string;
+  selected: boolean;
+  basis: 'business-record' | 'original-data';
+  evidenceCount: number;
+};
+
+export type MaterialSpecificationRecoveryPreview = {
+  materialId: string;
+  originalColors: string[];
+  originalSpecifications: string[];
+  historicalPlaceholderRetained: boolean;
+  suggestions: MaterialSpecificationRecoverySuggestion[];
 };
 
 export type MaterialItem = {

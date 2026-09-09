@@ -5,6 +5,7 @@ import type {
   MaterialItem,
   MaterialListParams,
   MaterialMinimumSpecification,
+  MaterialSpecificationRecoveryPreview,
   MaterialUnit,
 } from '../types';
 import http from './http';
@@ -93,6 +94,21 @@ export type MaterialImportResponse = {
 type MaterialExportResponse = {
   exportedAt: string;
   list: BackendMaterialResponse[];
+};
+
+type BackendMaterialSpecificationRecoveryPreview = {
+  materialId: number;
+  originalColors: string[];
+  originalSpecifications: string[];
+  historicalPlaceholderRetained: boolean;
+  suggestions: Array<{
+    minimumSpecificationId?: number;
+    color: string;
+    specification: string;
+    selected: boolean;
+    basis: 'BUSINESS_RECORD' | 'ORIGINAL_DATA';
+    evidenceCount: number;
+  }>;
 };
 
 const adaptMaterialType = (type: BackendMaterialType): MaterialBasicType =>
@@ -244,8 +260,7 @@ const adaptMaterial = (item: BackendMaterialResponse): MaterialItem => {
   const legacyUnmappedDimensions = item.materialType === 'ACCESSORY'
     && colors.length > 1
     && specifications.length > 1
-    && activeBackendSpecifications.length === 1
-    && activeBackendSpecifications[0].legacyDefault === true;
+    && activeBackendSpecifications.some((specification) => specification.legacyDefault === true);
   return {
     id: String(item.id),
     tenantId: item.tenantId ? String(item.tenantId) : undefined,
@@ -421,6 +436,31 @@ export const materialApi = {
       buildRequestPayload(tenantId, payload, { includeStatus: false }),
     );
     return adaptMaterial(response.data);
+  },
+  specificationRecoveryPreview: async (
+    id: string,
+  ): Promise<MaterialSpecificationRecoveryPreview> => {
+    const tenantId = requireNumericTenantId();
+    const response = await http.get<BackendMaterialSpecificationRecoveryPreview>(
+      `/api/v1/materials/${id}/specification-recovery-preview`,
+      { params: { tenantId } },
+    );
+    return {
+      materialId: String(response.data.materialId),
+      originalColors: response.data.originalColors,
+      originalSpecifications: response.data.originalSpecifications,
+      historicalPlaceholderRetained: response.data.historicalPlaceholderRetained,
+      suggestions: response.data.suggestions.map((suggestion) => ({
+        minimumSpecificationId: suggestion.minimumSpecificationId == null
+          ? undefined
+          : String(suggestion.minimumSpecificationId),
+        color: suggestion.color,
+        specification: suggestion.specification,
+        selected: suggestion.selected,
+        basis: suggestion.basis === 'BUSINESS_RECORD' ? 'business-record' : 'original-data',
+        evidenceCount: suggestion.evidenceCount,
+      })),
+    };
   },
   remove: async (id: string): Promise<boolean> => {
     const tenantId = requireNumericTenantId();
