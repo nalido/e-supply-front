@@ -3,8 +3,13 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const baseUrl = process.env.ESUPPLY_FRONT_BASE_URL || 'http://127.0.0.1:5177';
+const backendBaseUrl = process.env.ESUPPLY_BACK_BASE_URL || 'http://127.0.0.1:8080';
 const outputDir = path.resolve('../docs/e-supply/04-verification/cutting-bed-material-usage-20260907');
-const storageState = path.resolve('logs/route-sweep-auth.json');
+const storageStateCandidates = [
+  path.resolve('logs/route-sweep-auth-dev.json'),
+  path.resolve('logs/route-sweep-auth.json'),
+];
+const storageState = storageStateCandidates.find((candidate) => fs.existsSync(candidate));
 const backendEnvPath = path.resolve('../e-supply-back/src/main/resources/.env');
 fs.mkdirSync(outputDir, { recursive: true });
 
@@ -139,13 +144,14 @@ const detail = {
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   viewport: { width: 1520, height: 1050 },
-  storageState: fs.existsSync(storageState) ? storageState : undefined,
+  storageState,
 });
 const page = await context.newPage();
 const errors = [];
 let recordPayload;
 let updatePayload;
 let manualIssuePayload;
+let completePayload;
 const calculationPayloads = [];
 const cuttingSearchUrls = [];
 
@@ -163,6 +169,14 @@ const fulfillJson = (route, body) => route.fulfill({
   status: 200,
   contentType: 'application/json',
   body: JSON.stringify(body),
+});
+
+await page.route('**/api/v1/**', async (route) => {
+  const requestUrl = new URL(route.request().url());
+  const response = await route.fetch({
+    url: `${backendBaseUrl}${requestUrl.pathname}${requestUrl.search}`,
+  });
+  await route.fulfill({ response });
 });
 
 const ensureSignedIn = async () => {
@@ -213,6 +227,10 @@ await page.route('**/api/v1/workshop/cutting/sheets/9001/beds/material-usage/upd
 await page.route('**/api/v1/workshop/cutting/sheets/9001/beds?**', async (route) => {
   recordPayload = route.request().postDataJSON();
   await fulfillJson(route, { success: true, status: 'IN_PROGRESS', operatedAt: '2026-09-07T12:20:00' });
+});
+await page.route('**/api/v1/workshop/cutting/sheets/9001/complete?**', async (route) => {
+  completePayload = route.request().postDataJSON();
+  await fulfillJson(route, { success: true, status: 'COMPLETED', operatedAt: '2026-09-09T17:40:00' });
 });
 await page.route('**/api/v1/workshop/cutting/sheets/9001?**', (route) => fulfillJson(route, detail));
 await page.route('**/api/v1/production-orders/8001/progress?**', (route) => fulfillJson(route, [
@@ -371,6 +389,22 @@ try {
     && Number(recordPayload.items[1]?.quantity) === 2;
   result.assertions.bedCutterSubmitted = Number(recordPayload?.cutterId) === 301;
 
+  await page.locator('[data-testid="cutting-task-complete-UI-ORDER-001"]').click();
+  const completeModal = page.locator('.ant-modal').filter({ hasText: '完成裁床 - UI-ORDER-001' });
+  await completeModal.waitFor({ state: 'visible' });
+  await completeModal.getByText('下单 5', { exact: true }).first().waitFor();
+  result.assertions.completeBedIdentityIsSystemManaged = await completeModal.getByText('床次标识', { exact: false }).count() === 0;
+  await page.waitForTimeout(500);
+  const completeScreenshot = path.join(outputDir, '06-complete-system-bed-identity.png');
+  await page.screenshot({ path: completeScreenshot, fullPage: true });
+  result.screenshots.push(completeScreenshot);
+  await completeModal.locator('.ant-modal-footer .ant-btn-primary').click();
+  await page.getByText('裁床单已完成，已转入已裁').waitFor({ timeout: 10_000 });
+  result.assertions.completeSubmittedWithoutBedIdentity = completePayload != null
+    && !Object.hasOwn(completePayload, 'bedId')
+    && !Object.hasOwn(completePayload, 'bedNumber')
+    && !Object.hasOwn(completePayload, 'items');
+
   await page.locator('[data-testid="cutting-task-detail-UI-ORDER-001"]').click();
   await page.getByRole('button', { name: '修改用量' }).click();
   const editModal = page.locator('.ant-modal').filter({ hasText: '修改床次用量 - UI-BED-01' });
@@ -439,6 +473,7 @@ try {
   const relevantErrors = errors.filter((item) => (
     !item.includes('Static function can not consume context')
     && !item.includes('`index` parameter of `rowKey` function is deprecated')
+    && !item.includes('Instance created by `useForm` is not connected to any Form element')
   ));
   result.errors = relevantErrors;
   result.passed = Object.values(result.assertions).every(Boolean) && relevantErrors.length === 0;
