@@ -32,6 +32,7 @@ import type {
   PodTemplateWorkflow,
 } from "../../types/pod-design";
 import TemplateWorkflowEditor from "./TemplateWorkflowEditor";
+import ProductTemplateStatusTag from "./ProductTemplateStatusTag";
 import { emptyWorkflow, parseWorkflow } from "./template-workflow";
 
 const roleOptions = [
@@ -219,21 +220,10 @@ const ProductTemplateWorkspace = () => {
               <Typography.Title level={2}>
                 {template.templateName}
               </Typography.Title>
-              <Tag
-                color={
-                  template.status === "ACTIVE"
-                    ? "green"
-                    : template.status === "INACTIVE"
-                      ? "default"
-                      : "orange"
-                }
-              >
-                {template.status === "ACTIVE"
-                  ? "已启用"
-                  : template.status === "INACTIVE"
-                    ? "已停用"
-                    : "待完善"}
-              </Tag>
+              <ProductTemplateStatusTag
+                status={template.status}
+                readinessBlockers={template.readinessBlockers}
+              />
               <Tag>配置版本 V{template.configVersion}</Tag>
               {hasUnsavedChanges && <Tag color="orange">有未保存修改</Tag>}
             </Space>

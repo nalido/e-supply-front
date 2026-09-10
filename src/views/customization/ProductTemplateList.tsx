@@ -1,10 +1,11 @@
 import { EditOutlined, PlusOutlined } from '@ant-design/icons'
-import { App, Button, Card, Empty, Form, Image, Input, Modal, Table, Tag, Typography } from 'antd'
+import { App, Button, Card, Empty, Form, Image, Input, Modal, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { podProductTemplateApi } from '../../api/pod-design'
 import type { PodProductTemplate, PodProductTemplateDraft } from '../../types/pod-design'
+import ProductTemplateStatusTag from './ProductTemplateStatusTag'
 
 const ProductTemplateList = () => {
   const { message } = App.useApp()
@@ -40,7 +41,7 @@ const ProductTemplateList = () => {
     { title: '模板预览', width: 100, render: (_, record) => record.images[0] ? <Image src={record.images[0].deliveryUrl} width={64} height={64} className="pod-list-image" preview={false} /> : <div className="pod-list-image pod-list-image--empty">待上传</div> },
     { title: '模板编号', dataIndex: 'templateNo', width: 180, render: (value) => <Typography.Text strong>{value}</Typography.Text> },
     { title: '款式模板', dataIndex: 'templateName', render: (value, record) => <div><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary" className="pod-table-subtitle">{record.categoryName || '未设置品类'} · {record.images.length} 张商品底图</Typography.Text></div> },
-    { title: '状态', dataIndex: 'status', width: 100, render: (status: PodProductTemplate['status']) => <Tag color={status === 'ACTIVE' ? 'green' : status === 'DRAFT' ? 'orange' : 'default'}>{status === 'ACTIVE' ? '已启用' : status === 'DRAFT' ? '待完善' : '已停用'}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <ProductTemplateStatusTag status={record.status} readinessBlockers={record.readinessBlockers} /> },
     { title: '图片构成', width: 240, render: (_, record) => record.images.length ? record.images.map(image => image.imageName).join('、') : '尚未上传商品底图' },
     { title: '操作', width: 140, render: (_, record) => <Button type="link" icon={<EditOutlined />} onClick={() => navigate(`/customization/templates/${record.id}`)}>配置模板</Button> },
   ]

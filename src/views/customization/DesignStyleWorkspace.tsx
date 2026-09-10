@@ -12,6 +12,8 @@ import { formatDuration, generationResultDuration } from './pod-generation-time'
 
 type FormValues = Pick<PodDesignDraft, 'productTemplateId' | 'styleNo' | 'styleName' | 'categoryName' | 'description'>
 type FactoryFormValues = PodFactoryStyleBindingDraft
+const MAX_ARTWORK_FILE_BYTES = 10 * 1024 * 1024
+const ARTWORK_FILE_TOO_LARGE_MESSAGE = '透明设计图不能超过 10MB，请压缩后重新上传'
 
 const uploadErrorMessage = (caught: unknown) => {
   const responseMessage = (caught as { response?: { data?: { message?: unknown } } })?.response?.data?.message
@@ -113,6 +115,10 @@ const DesignStyleWorkspace = () => {
   }
 
   const upload = async (printId: string, file: File) => {
+    if (file.size > MAX_ARTWORK_FILE_BYTES) {
+      message.error(ARTWORK_FILE_TOO_LARGE_MESSAGE)
+      return Upload.LIST_IGNORE
+    }
     const target = await save()
     if (!target) return Upload.LIST_IGNORE
     setUploadingPrintId(printId)
@@ -282,7 +288,7 @@ const DesignStyleWorkspace = () => {
         : <Alert className="pod-factory-binding-alert" type="success" showIcon icon={<ApartmentOutlined />} message="审核已完成，可以生成工厂款式" description="选择新建工厂款式，或连接已有款式并创建一个全新的颜色 SKC；图片和尺码 SKU 会一次同步完成。" action={<Button type="primary" icon={<ApartmentOutlined />} onClick={openFactoryBinding}>生成工厂款式</Button>} />)}
       </Card></Col>
       <Col xs={24} xl={7}><Card className="pod-panel" title="印花设计图">
-        {!selectedTemplate ? <Empty description="选择模板后显示需要上传的印花" /> : requiredPrints.length === 0 ? <Empty description="这个模板尚未配置印花步骤" /> : <div className="pod-print-upload-list">{requiredPrints.map((print, index) => { const asset = artworks[print.id]; const uploading = uploadingPrintId === print.id; const usages = workflow.nodes.filter(node => node.type === 'PRINT' && node.printId === print.id).map(node => `${selectedTemplate.images.find(image => image.id === node.imageId)?.imageName ?? '商品图'} · ${node.name}`); return <Upload.Dragger key={print.id} showUploadList={false} disabled={readOnly || Boolean(uploadingPrintId)} accept="image/png" beforeUpload={file => upload(print.id, file)} className="pod-print-uploader" style={{ borderColor: print.color }}><div className="pod-print-uploader__heading"><span className="pod-print-number" style={{ background: print.color }}>{index + 1}</span><strong>{print.name}</strong><Tooltip trigger={['hover', 'click']} title={`使用位置：${usages.join('、')}`}><button type="button" className="pod-print-uploader__usage-help" aria-label={`查看${print.name}使用位置`} onClick={event => { event.preventDefault(); event.stopPropagation() }}><QuestionCircleOutlined /></button></Tooltip><Tag color={asset ? 'success' : 'default'}>{asset ? '已上传' : '待上传'}</Tag></div>{asset ? <img src={asset.deliveryUrl} alt={`${print.name}设计图`} /> : <CloudUploadOutlined className="pod-print-upload-icon" />}<p>{uploading ? '上传中…' : asset ? '点击更换设计图' : `上传${print.name}的透明 PNG`}</p></Upload.Dragger>})}</div>}
+        {!selectedTemplate ? <Empty description="选择模板后显示需要上传的印花" /> : requiredPrints.length === 0 ? <Empty description="这个模板尚未配置印花步骤" /> : <div className="pod-print-upload-list">{requiredPrints.map((print, index) => { const asset = artworks[print.id]; const uploading = uploadingPrintId === print.id; const usages = workflow.nodes.filter(node => node.type === 'PRINT' && node.printId === print.id).map(node => `${selectedTemplate.images.find(image => image.id === node.imageId)?.imageName ?? '商品图'} · ${node.name}`); return <Upload.Dragger key={print.id} showUploadList={false} disabled={readOnly || Boolean(uploadingPrintId)} accept="image/png" beforeUpload={file => upload(print.id, file)} className="pod-print-uploader" style={{ borderColor: print.color }}><div className="pod-print-uploader__heading"><span className="pod-print-number" style={{ background: print.color }}>{index + 1}</span><strong>{print.name}</strong><Tooltip trigger={['hover', 'click']} title={`使用位置：${usages.join('、')}`}><button type="button" className="pod-print-uploader__usage-help" aria-label={`查看${print.name}使用位置`} onClick={event => { event.preventDefault(); event.stopPropagation() }}><QuestionCircleOutlined /></button></Tooltip><Tag color={asset ? 'success' : 'default'}>{asset ? '已上传' : '待上传'}</Tag></div>{asset ? <img src={asset.deliveryUrl} alt={`${print.name}设计图`} /> : <CloudUploadOutlined className="pod-print-upload-icon" />}<p>{uploading ? '上传中…' : asset ? '点击更换设计图（透明 PNG，不超过 10MB）' : `上传${print.name}的透明 PNG（不超过 10MB）`}</p></Upload.Dragger>})}</div>}
         <Alert className="pod-ai-note" type="info" showIcon icon={<RobotOutlined />} message="生成任务在后台执行" description="刷新或离开页面不会重复创建任务；返回后可以继续查看每张图的状态。" />
         <Button block size="large" type="primary" icon={<RobotOutlined />} loading={rendering} disabled={readOnly || !selectedTemplate || !allPrintsUploaded || !capability?.available || renderableImages.length === 0 || rendering} onClick={() => void render()}>{rendering ? '生成中' : '生成'}</Button>
         {style && <Card size="small" title="发布准备检查" style={{ marginTop: 16 }}>{style.publishReadiness.ready ? <Alert type="success" showIcon message="资料完整，可提交审核" /> : <Space direction="vertical">{style.publishReadiness.blockers.map(item => <Tag color="orange" key={item}>{item}</Tag>)}</Space>}</Card>}
