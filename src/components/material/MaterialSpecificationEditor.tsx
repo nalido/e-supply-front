@@ -1,7 +1,7 @@
 import { CopyOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, Button, Grid, Input, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { MaterialBasicType, MaterialMinimumSpecification } from '../../types/material';
 import '../../styles/matrix-table.css';
 
@@ -37,19 +37,30 @@ const RecoverySource = ({ row }: { row: SpecificationDraft }) => {
 export default function MaterialSpecificationEditor({ materialType, value = [], onChange }: Props) {
   const screens = Grid.useBreakpoint();
   const compact = screens.md === false;
+  const draftRowKeysRef = useRef<string[]>([]);
   const historicalRows = useMemo(() => value.filter((item) => item.legacyDefault), [value]);
   const rows = useMemo<SpecificationDraft[]>(
-    () => value
-      .filter((item) => !item.legacyDefault)
-      .map((item, index) => ({
-        ...item,
-        rowKey: item.id ? `id-${item.id}` : `draft-${index}-${item.color ?? ''}-${item.specification ?? ''}`,
-      })),
+    () => {
+      let draftIndex = 0;
+      return value
+        .filter((item) => !item.legacyDefault)
+        .map((item) => {
+          if (item.id) {
+            return { ...item, rowKey: `id-${item.id}` };
+          }
+          const rowKey = draftRowKeysRef.current[draftIndex] ?? createRowKey();
+          draftIndex += 1;
+          return { ...item, rowKey };
+        });
+    },
     [value],
   );
   const hasRecoveryCandidates = rows.some((row) => row.recoveryCandidate);
 
   const emit = (next: SpecificationDraft[]) => {
+    draftRowKeysRef.current = next
+      .filter((item) => !item.id)
+      .map((item) => item.rowKey);
     const editableRows = next.map(({ rowKey, ...item }) => {
       void rowKey;
       return { ...item, label: buildLabel(item) };

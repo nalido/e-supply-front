@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload/interface';
 import {
+  App as AntdApp,
   Button,
   Modal,
   Popconfirm,
@@ -9,7 +10,6 @@ import {
   Table,
   Tabs,
   Tag,
-  message,
 } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
@@ -62,6 +62,7 @@ const formatCurrency = (value?: number) => {
 };
 
 const MaterialArchive = () => {
+  const { message } = AntdApp.useApp();
   const [activeTab, setActiveTab] = useState<MaterialBasicType>('fabric');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -105,7 +106,7 @@ const MaterialArchive = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, message]);
 
   useEffect(() => {
     fetchList({ page: 1, pageSize: pageSizeRef.current, keyword: '' });
@@ -154,7 +155,7 @@ const MaterialArchive = () => {
         : current);
       message.warning('原有资料已保留，但组合建议暂时加载失败，请稍后再试');
     }
-  }, []);
+  }, [message]);
 
   const closeFormModal = () => {
     setFormModal({ open: false, submitting: false, record: undefined });
@@ -194,7 +195,7 @@ const MaterialArchive = () => {
     } finally {
       setLoading(false);
     }
-  }, [dataset.list.length, fetchList, keyword, page, pageSize]);
+  }, [dataset.list.length, fetchList, keyword, message, page, pageSize]);
 
   const handleOpenImport = () => {
     setImportModal({ open: true, loading: false, fileList: [], parsed: [], resultRows: [] });
