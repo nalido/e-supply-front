@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type {
   CuttingSheetDetail,
@@ -106,6 +106,21 @@ export default function CuttingBedRecordModal({
               style={{ marginBottom: 16 }}
               message="填写本床次各颜色尺码的实裁件数后，系统会自动刷新所需面料和辅料。"
             />
+            {!detail?.startedAt ? (
+              <Form.Item
+                label="裁剪开始时间"
+                name="startedAt"
+                rules={[{ required: true, message: '请选择裁剪开始时间' }]}
+              >
+                <DatePicker
+                  showTime
+                  style={{ width: '100%' }}
+                  format="YYYY-MM-DD HH:mm:ss"
+                  inputReadOnly={false}
+                  data-testid="cutting-started-at"
+                />
+              </Form.Item>
+            ) : null}
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
               <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
                 <Input maxLength={32} />

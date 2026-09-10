@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
+import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import '../../styles/matrix-table.css';
 import type { AllocationQuantityMatrix, SelectOption } from './types';
@@ -64,6 +64,19 @@ export default function AllocationCreateModal({
       destroyOnHidden
     >
       <Form form={form} layout="vertical">
+        <Form.Item
+          label={isCuttingProgressStage ? '裁剪时间' : '领料时间'}
+          name="completedAt"
+          rules={[{ required: true, message: isCuttingProgressStage ? '请选择裁剪时间' : '请选择领料时间' }]}
+        >
+          <DatePicker
+            showTime
+            style={{ width: '100%' }}
+            format="YYYY-MM-DD HH:mm:ss"
+            inputReadOnly={false}
+            data-testid="factory-allocation-completed-at"
+          />
+        </Form.Item>
         {isCuttingProgressStage ? (
           <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
             <Input maxLength={32} placeholder="请输入床次编号" />

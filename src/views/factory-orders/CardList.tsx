@@ -159,11 +159,20 @@ export default function FactoryOrderCardList({
                         const clickable = Boolean(progressNodeCodeMap[stage.key] && (!isCompleted || repeatOpen) && (!effectiveBlockedStage || alwaysViewable));
                         const orderPlacedTime = stage.date ?? order.orderDate;
                         const [orderPlacedDate, orderPlacedClock] = orderPlacedTime?.split(' ') ?? [];
+                        const [cuttingStartedDate, cuttingStartedClock] = stage.key === 'cutting'
+                          ? stage.date?.split(' ') ?? []
+                          : [];
                         const nodeStatusContent = isOrderPlaced ? (
                           <span className="factory-order-progress-status-grid">
                             <span>{`下单数量：${order.quantityValue}`}</span>
                             {orderPlacedDate ? <span className="date">{orderPlacedDate}</span> : null}
                             {orderPlacedClock ? <span className="date">{orderPlacedClock}</span> : null}
+                          </span>
+                        ) : stage.key === 'cutting' && stage.date ? (
+                          <span className="factory-order-progress-status-grid">
+                            <span>{isCompleted ? '已完成' : '进行中'}</span>
+                            {cuttingStartedDate ? <span className="date">{`开始 ${cuttingStartedDate}`}</span> : null}
+                            {cuttingStartedClock ? <span className="date">{cuttingStartedClock}</span> : null}
                           </span>
                         ) : isCompleted ? (
                           <span>{stage.date ?? '已完成'}</span>

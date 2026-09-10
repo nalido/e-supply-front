@@ -55,6 +55,7 @@ export type FactoryOrderDetailSummary = {
   styleId?: number;
   totalQuantity?: number;
   expectedDelivery?: string;
+  placedAt?: string;
   status?: string;
   materialStatus?: string;
   merchandiserId?: number;

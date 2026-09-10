@@ -117,6 +117,22 @@ export default function CreateOrderModal({
             </Form.Item>
           </Col>
           <Col span={6}>
+            <Form.Item
+              label="下单时间"
+              name="placedAt"
+              rules={[{ required: true, message: '请选择下单时间' }]}
+            >
+              <DatePicker
+                showTime
+                style={{ width: '100%' }}
+                format="YYYY-MM-DD HH:mm:ss"
+                placeholder="请选择下单时间"
+                inputReadOnly={false}
+                data-testid="factory-order-placed-at"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
             <Form.Item label="工厂" name="factoryId">
               <Select
                 showSearch

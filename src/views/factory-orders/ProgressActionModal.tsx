@@ -67,6 +67,7 @@ type Props = {
   onNavigateToCurrentCuttingSheet: () => void;
   onNavigateToCuttingSheet: (record: AllocationHistoryRow) => void | Promise<void>;
   onNavigateToOutsourceOrder: (record: AllocationHistoryRow) => void;
+  onEditAllocationTime: (record: AllocationHistoryRow) => void;
   onDeleteAllocationRecord: (record: AllocationHistoryRow) => void;
 };
 
@@ -127,6 +128,7 @@ export default function ProgressActionModal({
   onNavigateToCurrentCuttingSheet,
   onNavigateToCuttingSheet,
   onNavigateToOutsourceOrder,
+  onEditAllocationTime,
   onDeleteAllocationRecord,
 }: Props) {
   const footer =
@@ -428,6 +430,16 @@ export default function ProgressActionModal({
                             <Text type="secondary" style={{ marginLeft: 12 }}>
                               {isCuttingProgressStage ? '录入时间' : '领取时间'}：{record.completedAt ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
                             </Text>
+                            {isSewingProgressStage && record.completedAt ? (
+                              <Button
+                                type="link"
+                                size="small"
+                                style={{ padding: 0, height: 'auto', marginLeft: 8 }}
+                                onClick={() => onEditAllocationTime(record)}
+                              >
+                                修改时间
+                              </Button>
+                            ) : null}
                             <Text type="secondary" style={{ marginLeft: 12 }}>
                               工价：{typeof record.unitPrice === 'number' ? record.unitPrice : '-'}
                             </Text>

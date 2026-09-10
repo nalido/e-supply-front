@@ -49,6 +49,7 @@ export type FactoryOrderImportRecord = {
   totalQuantity: number;
   unitPrice: number;
   expectedDelivery?: string;
+  placedAt?: string;
   status?: string;
   materialStatus?: string;
   completedQuantity?: number;
@@ -137,6 +138,7 @@ type BackendFactoryOrderDetailSummary = {
   styleId?: number;
   totalQuantity?: number;
   expectedDelivery?: string;
+  placedAt?: string;
   status?: string;
   materialStatus?: string;
   merchandiserId?: number;
@@ -166,6 +168,7 @@ export type FactoryOrderCreatePayload = {
   totalQuantity?: number;
   unitPrice?: number;
   expectedDelivery?: string;
+  placedAt?: string;
   status?: string;
   materialStatus?: string;
   merchandiserId?: number;
@@ -460,6 +463,7 @@ const adaptDetail = (payload: BackendFactoryOrderDetail): FactoryOrderDetail => 
         styleId: payload.order.styleId,
         totalQuantity: payload.order.totalQuantity,
         expectedDelivery: payload.order.expectedDelivery,
+        placedAt: payload.order.placedAt,
         status: payload.order.status,
         materialStatus: payload.order.materialStatus,
         merchandiserId: payload.order.merchandiserId,
@@ -609,6 +613,24 @@ export const factoryOrdersApi = {
     );
   },
 
+  async updateSewingRecordTime(
+    orderId: string | number,
+    payload: {
+      workOrderId?: number;
+      outsourcingOrderId?: number;
+      completedAt: string;
+      newCompletedAt: string;
+      items?: Array<{ color?: string; size?: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(
+      `/api/v1/production-orders/${orderId}/progress/sewing-records/time/update`,
+      payload,
+      { params: { tenantId } },
+    );
+  },
+
   async importOrders(payload: { orders: FactoryOrderImportRecord[] }): Promise<FactoryOrderImportResult> {
     const tenantId = requireNumericTenantId();
     const requestBody = {
@@ -621,6 +643,7 @@ export const factoryOrdersApi = {
         totalQuantity: Number(order.totalQuantity),
         unitPrice: Number(order.unitPrice),
         expectedDelivery: order.expectedDelivery,
+        placedAt: order.placedAt,
         status: order.status,
         materialStatus: normalizeMaterialStatus(order.materialStatus),
         completedQuantity: order.completedQuantity,
@@ -691,6 +714,7 @@ export const factoryOrdersApi = {
       sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
       styleId: Number(payload.styleId),
       expectedDelivery: payload.expectedDelivery,
+      placedAt: payload.placedAt,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),
       completedQuantity: 0,
@@ -736,6 +760,7 @@ export const factoryOrdersApi = {
       sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
       styleId: Number(payload.styleId),
       expectedDelivery: payload.expectedDelivery,
+      placedAt: payload.placedAt,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),
       completedQuantity: 0,

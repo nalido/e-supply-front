@@ -1,6 +1,7 @@
 import {
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Modal,
   Popconfirm,
@@ -11,6 +12,8 @@ import {
   Typography,
 } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { useState } from 'react';
+import dayjs, { type Dayjs } from 'dayjs';
 import type { CuttingSheetDetail, CuttingTask } from '../types';
 import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
@@ -113,6 +116,7 @@ type Props = {
   onNavigate: (path: string) => void;
   onRecordBed?: () => void;
   onComplete?: () => void;
+  onUpdateStartedAt?: (startedAt: string) => Promise<void>;
   onDeleteBed?: (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => Promise<void> | void;
   onEditBedMaterialUsage?: (record: NonNullable<CuttingSheetDetail['bedRecords']>[number]) => void;
   deletingBedKey?: string | null;
@@ -129,10 +133,33 @@ export default function CuttingSheetDetailModal({
   onNavigate,
   onRecordBed,
   onComplete,
+  onUpdateStartedAt,
   onDeleteBed,
   onEditBedMaterialUsage,
   deletingBedKey,
 }: Props) {
+  const [editingStartedAt, setEditingStartedAt] = useState(false);
+  const [startedAtValue, setStartedAtValue] = useState<Dayjs | null>(null);
+  const [updatingStartedAt, setUpdatingStartedAt] = useState(false);
+
+  const submitStartedAt = async () => {
+    if (!startedAtValue || !onUpdateStartedAt) {
+      return;
+    }
+    setUpdatingStartedAt(true);
+    try {
+      await onUpdateStartedAt(startedAtValue.format('YYYY-MM-DDTHH:mm:ss'));
+      setEditingStartedAt(false);
+    } finally {
+      setUpdatingStartedAt(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setEditingStartedAt(false);
+    setStartedAtValue(null);
+    onClose();
+  };
   const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
   const detailActualQtyMap = (detail?.bedRecords ?? []).reduce<Record<string, number>>((acc, record) => {
     (record.items ?? []).forEach((item) => {
@@ -194,7 +221,7 @@ export default function CuttingSheetDetailModal({
       title={task ? `裁床任务详情 - ${task.orderCode}` : '裁床任务详情'}
       open={open}
       zIndex={zIndex}
-      onCancel={onClose}
+      onCancel={closeDetail}
       width={1200}
       footer={(
         <Space>
@@ -208,7 +235,7 @@ export default function CuttingSheetDetailModal({
               手动录入床次
             </Button>
           ) : null}
-          <Button onClick={onClose}>关闭</Button>
+          <Button onClick={closeDetail}>关闭</Button>
         </Space>
       )}
     >
@@ -237,6 +264,54 @@ export default function CuttingSheetDetailModal({
               {detailPendingQty.toLocaleString()} {task.unit}
             </Descriptions.Item>
             <Descriptions.Item label="裁床状态">{getCuttingStatusLabel(detail?.status)}</Descriptions.Item>
+            <Descriptions.Item label="裁剪开始时间" span={2}>
+              {editingStartedAt ? (
+                <Space size={8} wrap>
+                  <DatePicker
+                    showTime
+                    value={startedAtValue}
+                    onChange={setStartedAtValue}
+                    format="YYYY-MM-DD HH:mm:ss"
+                    inputReadOnly={false}
+                    data-testid="cutting-start-time-edit"
+                  />
+                  <Button
+                    type="primary"
+                    size="small"
+                    loading={updatingStartedAt}
+                    disabled={!startedAtValue}
+                    data-testid="cutting-start-time-save"
+                    onClick={() => void submitStartedAt()}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    size="small"
+                    disabled={updatingStartedAt}
+                    onClick={() => setEditingStartedAt(false)}
+                  >
+                    取消
+                  </Button>
+                </Space>
+              ) : (
+                <Space size={8}>
+                  <span>{detail?.startedAt ? dayjs(detail.startedAt).format('YYYY-MM-DD HH:mm:ss') : '-'}</span>
+                  {detail?.startedAt && onUpdateStartedAt ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => {
+                        setStartedAtValue(dayjs(detail.startedAt));
+                        setEditingStartedAt(true);
+                      }}
+                    >
+                      修改
+                    </Button>
+                  ) : null}
+                </Space>
+              )}
+            </Descriptions.Item>
             {hasOverUsage ? (
               <>
                 <Descriptions.Item label="超用原因">

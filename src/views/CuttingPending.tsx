@@ -17,6 +17,7 @@ import {
 import type { MenuProps } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SearchOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
@@ -453,6 +454,7 @@ const CuttingPendingPage = () => {
       bedRecordForm.setFieldsValue({
         bedNumber: `BED-${task.orderCode}-${(detail.bedRecords?.length ?? 0) + 1}`,
         cutterId: undefined,
+        startedAt: detail.startedAt ? undefined : dayjs(),
         materialUsages: [],
       });
       void loadCutterOptions();
@@ -637,6 +639,9 @@ const CuttingPendingPage = () => {
         await pieceworkService.recordCuttingSheetBed(bedRecordState.task.workOrderId, {
           bedNumber: values.bedNumber,
           cutterId: values.cutterId,
+          startedAt: values.startedAt
+            ? values.startedAt.format('YYYY-MM-DDTHH:mm:ss')
+            : undefined,
           materialUsages,
           fabricUsages: materialUsages,
           items,
@@ -846,6 +851,20 @@ const CuttingPendingPage = () => {
         }}
         onNavigateToFactoryOrder={navigateToFactoryOrder}
         onNavigate={navigate}
+        onUpdateStartedAt={detailState.task?.workOrderId && sheetDetail?.startedAt
+          ? async (startedAt) => {
+              try {
+                await pieceworkService.updateCuttingSheetStartTime(detailState.task!.workOrderId!, startedAt);
+                message.success('裁剪开始时间已修改');
+                setReloadToken((prev) => prev + 1);
+                await handleViewDetail(detailState.task!);
+              } catch (error) {
+                console.error('failed to update cutting start time', error);
+                message.error(error instanceof Error ? error.message : '修改裁剪开始时间失败');
+                throw error;
+              }
+            }
+          : undefined}
         onDeleteBed={handleDeleteBed}
         onEditBedMaterialUsage={(record) => void openEditBedMaterialUsage(record)}
         deletingBedKey={deletingBedKey}

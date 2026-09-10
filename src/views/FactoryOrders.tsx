@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Checkbox,
+  DatePicker,
   Empty,
   Form,
   Input,
@@ -182,6 +183,9 @@ const FactoryOrders = () => {
   const [allocationCreateModalOpen, setAllocationCreateModalOpen] = useState(false);
   const [allocationCreateSubmitting, setAllocationCreateSubmitting] = useState(false);
   const [allocationCreateForm] = Form.useForm();
+  const [sewingTimeEditRecord, setSewingTimeEditRecord] = useState<AllocationHistoryRow | null>(null);
+  const [sewingTimeEditSubmitting, setSewingTimeEditSubmitting] = useState(false);
+  const [sewingTimeEditForm] = Form.useForm();
   const [progressTabKey, setProgressTabKey] = useState<'stats' | 'allocation'>('stats');
   const [inOutTabKey, setInOutTabKey] = useState<'pending' | 'detail'>('pending');
   const [inOutData, setInOutData] = useState<InOutDataState>({ loading: false, summaryRows: [], detailRows: [] });
@@ -549,6 +553,7 @@ const FactoryOrders = () => {
     createForm.setFieldsValue({
       overallStatus: 'unfinished',
       materialStatus: 'PENDING',
+      placedAt: dayjs(),
       ...(presetStyleId && Number.isFinite(presetStyleId) ? { styleId: presetStyleId } : {}),
     });
     void loadCreateOptions(presetStyleId);
@@ -718,6 +723,7 @@ const FactoryOrders = () => {
       overallStatus: 'unfinished',
       materialStatus: 'PENDING',
       expectedDelivery: record.expectedDelivery ? dayjs(record.expectedDelivery) : undefined,
+      placedAt: dayjs(),
       remarks: `复制自订单 ${record.orderCode}`,
     });
     message.success(`已打开复制创建弹窗：${record.orderCode}`);
@@ -780,6 +786,7 @@ const FactoryOrders = () => {
         orderNo: order.orderNo,
         styleId,
         expectedDelivery: order.expectedDelivery ? dayjs(order.expectedDelivery) : undefined,
+        placedAt: order.placedAt ? dayjs(order.placedAt) : dayjs(),
         unitPrice: orderUnitPrice,
         factoryId: order.factoryId,
         merchandiserId: order.merchandiserId,
@@ -1613,6 +1620,7 @@ const FactoryOrders = () => {
       }, {}),
     );
     allocationCreateForm.setFieldsValue({
+      completedAt: dayjs(),
       bedNumber: isCuttingProgressStage
         ? `BED-${dayjs().format('MMDD-HHmmss')}`
         : undefined,
@@ -1683,7 +1691,12 @@ const FactoryOrders = () => {
       payload.items = matrixItems;
 
       setAllocationCreateSubmitting(true);
-      await factoryOrdersApi.completeProgress(progressActionModal.order.orderId, nodeCode, { payload });
+      await factoryOrdersApi.completeProgress(progressActionModal.order.orderId, nodeCode, {
+        completedAt: values.completedAt
+          ? values.completedAt.format('YYYY-MM-DDTHH:mm:ss')
+          : dayjs().format('YYYY-MM-DDTHH:mm:ss'),
+        payload,
+      });
       message.success(isCuttingProgressStage ? '裁剪数据已提交' : '车缝领取已提交');
       setAllocationCreateModalOpen(false);
       allocationCreateForm.resetFields();
@@ -1770,10 +1783,51 @@ const FactoryOrders = () => {
     }
   }, [loadProgressStats, progressActionModal.order, progressActionModal.stage, triggerReload]);
 
+  const handleOpenSewingTimeEdit = useCallback((record: AllocationHistoryRow) => {
+    if (!record.completedAt) {
+      message.warning('该条领取记录缺少领取时间，暂时无法修改');
+      return;
+    }
+    setSewingTimeEditRecord(record);
+    sewingTimeEditForm.setFieldsValue({ completedAt: dayjs(record.completedAt) });
+  }, [sewingTimeEditForm]);
+
+  const handleSubmitSewingTimeEdit = useCallback(async () => {
+    if (!progressActionModal.order || !sewingTimeEditRecord?.completedAt) {
+      return;
+    }
+    try {
+      const values = await sewingTimeEditForm.validateFields();
+      setSewingTimeEditSubmitting(true);
+      await factoryOrdersApi.updateSewingRecordTime(progressActionModal.order.orderId, {
+        workOrderId: sewingTimeEditRecord.workOrderId,
+        outsourcingOrderId: sewingTimeEditRecord.outsourcingOrderId,
+        completedAt: sewingTimeEditRecord.completedAt,
+        newCompletedAt: values.completedAt.format('YYYY-MM-DDTHH:mm:ss'),
+        items: sewingTimeEditRecord.items,
+      });
+      message.success('车缝领料时间已修改');
+      setSewingTimeEditRecord(null);
+      sewingTimeEditForm.resetFields();
+      await loadProgressStats(progressActionModal.order.orderId, 'sewing');
+      triggerReload();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        return;
+      }
+      console.error('failed to update sewing claim time', error);
+      message.error(error instanceof Error ? error.message : '修改车缝领料时间失败');
+    } finally {
+      setSewingTimeEditSubmitting(false);
+    }
+  }, [loadProgressStats, progressActionModal.order, sewingTimeEditForm, sewingTimeEditRecord, triggerReload]);
+
   const handleCloseProgressActionModal = useCallback(() => {
     setProgressActionModal({ open: false, submitting: false });
     setAllocationCreateModalOpen(false);
     setAllocationCreateSubmitting(false);
+    setSewingTimeEditRecord(null);
+    setSewingTimeEditSubmitting(false);
     setProgressTabKey('stats');
     setProgressStats({ loading: false, rows: [] });
     setProgressNodeQuantities({});
@@ -1783,8 +1837,9 @@ const FactoryOrders = () => {
     setAllocationHistoryRows([]);
     setCuttingSheetTarget(null);
     allocationCreateForm.resetFields();
+    sewingTimeEditForm.resetFields();
     progressActionForm.resetFields();
-  }, [allocationCreateForm, progressActionForm]);
+  }, [allocationCreateForm, progressActionForm, sewingTimeEditForm]);
 
   const handleSubmitCreate = async () => {
     try {
@@ -1817,6 +1872,9 @@ const FactoryOrders = () => {
         totalQuantity,
         unitPrice: values.unitPrice,
         expectedDelivery: values.expectedDelivery ? values.expectedDelivery.format('YYYY-MM-DD') : undefined,
+        placedAt: values.placedAt
+          ? values.placedAt.format('YYYY-MM-DDTHH:mm:ss')
+          : dayjs().format('YYYY-MM-DDTHH:mm:ss'),
         status: values.overallStatus === 'completed' ? 'COMPLETED' : 'RELEASED',
         materialStatus: values.materialStatus,
         merchandiserId: values.merchandiserId,
@@ -2661,6 +2719,7 @@ const FactoryOrders = () => {
         onNavigateToCurrentCuttingSheet={handleNavigateToCurrentCuttingSheet}
         onNavigateToCuttingSheet={handleNavigateToCuttingSheet}
         onNavigateToOutsourceOrder={handleNavigateToOutsourceOrder}
+        onEditAllocationTime={handleOpenSewingTimeEdit}
         onDeleteAllocationRecord={handleDeleteAllocationRecord}
       />
 
@@ -2692,6 +2751,35 @@ const FactoryOrders = () => {
         onLoadRemainingAllocation={handleLoadRemainingAllocation}
         onAllocationMatrixQtyChange={handleAllocationMatrixQtyChange}
       />
+
+      <Modal
+        open={Boolean(sewingTimeEditRecord)}
+        title="修改车缝领料时间"
+        onCancel={() => {
+          setSewingTimeEditRecord(null);
+          setSewingTimeEditSubmitting(false);
+          sewingTimeEditForm.resetFields();
+        }}
+        onOk={() => void handleSubmitSewingTimeEdit()}
+        confirmLoading={sewingTimeEditSubmitting}
+        destroyOnHidden
+      >
+        <Form form={sewingTimeEditForm} layout="vertical">
+          <Form.Item
+            label="领料时间"
+            name="completedAt"
+            rules={[{ required: true, message: '请选择领料时间' }]}
+          >
+            <DatePicker
+              showTime
+              style={{ width: '100%' }}
+              format="YYYY-MM-DD HH:mm:ss"
+              inputReadOnly={false}
+              data-testid="sewing-claim-time-edit"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         open={statusModalOpen}

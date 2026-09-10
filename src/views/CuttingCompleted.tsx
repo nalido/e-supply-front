@@ -433,6 +433,20 @@ const CuttingCompletedPage = () => {
         }}
         onNavigateToFactoryOrder={navigateToFactoryOrder}
         onNavigate={navigate}
+        onUpdateStartedAt={detailState.task?.workOrderId && sheetDetail?.startedAt
+          ? async (startedAt) => {
+              try {
+                await pieceworkService.updateCuttingSheetStartTime(detailState.task!.workOrderId!, startedAt);
+                message.success('裁剪开始时间已修改');
+                await loadSheetDetail(detailState.task!, { silent: true });
+                await loadCompletedTasks();
+              } catch (error) {
+                console.error('failed to update completed cutting start time', error);
+                message.error(error instanceof Error ? error.message : '修改裁剪开始时间失败');
+                throw error;
+              }
+            }
+          : undefined}
         onDeleteBed={handleDeleteBed}
         onEditBedMaterialUsage={(record) => void openBedUsageEditor(record)}
         deletingBedKey={deletingBedKey}

@@ -855,6 +855,7 @@ export const pieceworkService = {
     payload: {
       bedNumber: string;
       cutterId?: number;
+      startedAt?: string;
       actualFabricQty?: number;
       materialUsages?: Array<{
         calculationKey?: string;
@@ -989,6 +990,18 @@ export const pieceworkService = {
         plannedFabricQty: usage.plannedQty,
         actualFabricQty: usage.actualQty,
       })),
+    }, {
+      params: { tenantId },
+    });
+  },
+
+  async updateCuttingSheetStartTime(
+    workOrderId: number,
+    startedAt: string,
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/start-time/update`, {
+      startedAt,
     }, {
       params: { tenantId },
     });
