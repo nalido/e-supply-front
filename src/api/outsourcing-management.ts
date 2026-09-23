@@ -439,8 +439,12 @@ export const outsourcingManagementApi = {
 
   async updateStatus(orderId: string, status: string): Promise<void> {
     const tenantId = requireNumericTenantId();
+    const parsedOrderId = Number(orderId);
+    if (!Number.isInteger(parsedOrderId) || parsedOrderId <= 0) {
+      throw new Error('外发单信息无效，请刷新后重试');
+    }
     await http.post(
-      `/api/v1/outsourcing-orders/${Number(orderId)}/update`,
+      `/api/v1/outsourcing-orders/${parsedOrderId}/update`,
       { status },
       { params: { tenantId } },
     );

@@ -119,7 +119,6 @@ type OutsourcingCreateForm = {
 };
 
 type OutsourcingStatusForm = {
-  orderId: string;
   status: string;
 };
 
@@ -451,6 +450,13 @@ const OutsourcingManagement = () => {
     navigate(`/orders/factory?keyword=${encodeURIComponent(keyword)}&status=all`);
   }, [navigate]);
 
+  const handleNavigateToStyle = useCallback((styleNo?: string) => {
+    const keyword = String(styleNo ?? '').trim();
+    if (keyword) {
+      navigate(`/basic/styles?keyword=${encodeURIComponent(keyword)}`);
+    }
+  }, [navigate]);
+
   const handleDeleteReceipt = useCallback(async (receiptId: string) => {
     if (!orderDetail) {
       return;
@@ -535,15 +541,19 @@ const OutsourcingManagement = () => {
 
   const handleOpenStatusModal = useCallback((record: OutsourcingManagementListItem) => {
     setStatusTargetOrder(record);
-    statusForm.setFieldsValue({ orderId: record.id, status: 'DISPATCHED' });
+    statusForm.resetFields();
     setStatusModalOpen(true);
   }, [statusForm]);
 
   const handleStatusSubmit = async () => {
+    if (!statusTargetOrder) {
+      message.error('未找到要更新的外发单，请刷新后重试');
+      return;
+    }
     try {
       const values = await statusForm.validateFields();
       setStatusSubmitting(true);
-      await outsourcingManagementApi.updateStatus(values.orderId, values.status);
+      await outsourcingManagementApi.updateStatus(statusTargetOrder.id, values.status);
       message.success('外发状态更新成功');
       setStatusModalOpen(false);
       setStatusTargetOrder(null);
@@ -618,6 +628,11 @@ const OutsourcingManagement = () => {
         title: '外发单号',
         dataIndex: 'outgoingNo',
         width: 170,
+        render: (value: string, record) => (
+          <Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => void handleViewDetail(record)}>
+            {value || '-'}
+          </Button>
+        ),
       },
       {
         title: '工厂订单号',
@@ -648,7 +663,9 @@ const OutsourcingManagement = () => {
         width: 220,
         render: (_: unknown, record) => (
           <Space direction="vertical" size={0}>
-            <Text strong>{record.styleNo}</Text>
+            <Button type="link" size="small" style={{ padding: 0, height: 'auto', fontWeight: 600, textAlign: 'left' }} onClick={() => handleNavigateToStyle(record.styleNo)}>
+              {record.styleNo || '-'}
+            </Button>
             <Text type="secondary">{record.styleName}</Text>
           </Space>
         ),
@@ -742,7 +759,7 @@ const OutsourcingManagement = () => {
         },
       },
     ],
-    [handleConfirmReceive, handleNavigateToFactoryOrder, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
+    [handleConfirmReceive, handleNavigateToFactoryOrder, handleNavigateToStyle, handleOpenMaterialModal, handleOpenStatusModal, handleViewDetail],
   );
 
   const receiptColumns = useMemo<ColumnsType<OutsourcingOrderReceipt>>(
@@ -971,6 +988,15 @@ const OutsourcingManagement = () => {
 
       <Drawer
         title={orderDetail ? `外发单 ${orderDetail.outgoingNo}` : '外发单详情'}
+        extra={(() => {
+          const record = orderDetail ? records.find((item) => item.id === orderDetail.id) : undefined;
+          return record ? (
+            <Space>
+              <Button onClick={() => handleConfirmReceive(record)}>确认接收</Button>
+              <Button type="primary" onClick={() => handleOpenStatusModal(record)}>更新状态</Button>
+            </Space>
+          ) : null;
+        })()}
         width="min(1080px, 96vw)"
         open={detailDrawerOpen}
         onClose={handleDetailClose}
@@ -1021,7 +1047,11 @@ const OutsourcingManagement = () => {
 
               {orderDetail.workOrder ? (
                 <Descriptions title="工单信息" bordered size="small" column={2}>
-                  <Descriptions.Item label="工单号">{orderDetail.workOrder.id}</Descriptions.Item>
+                  <Descriptions.Item label="工单号">
+                    <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/piecework/cutting/pending?workOrderId=${orderDetail.workOrder?.id}&openDetail=1`)}>
+                      {orderDetail.workOrder.id}
+                    </Button>
+                  </Descriptions.Item>
                   <Descriptions.Item label="工单状态">{orderDetail.workOrder.status ?? '-'}</Descriptions.Item>
                   <Descriptions.Item label="计划数量">{formatQuantity(orderDetail.workOrder.plannedQty)} 件</Descriptions.Item>
                   <Descriptions.Item label="完工数量">{formatQuantity(orderDetail.workOrder.completedQty)} 件</Descriptions.Item>
@@ -1033,7 +1063,11 @@ const OutsourcingManagement = () => {
 
               {orderDetail.productionOrder ? (
                 <Descriptions title="生产订单" bordered size="small" column={2}>
-                  <Descriptions.Item label="订单号">{orderDetail.productionOrder.orderNo}</Descriptions.Item>
+                  <Descriptions.Item label="订单号">
+                    <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => handleNavigateToFactoryOrder(orderDetail.productionOrder?.orderNo)}>
+                      {orderDetail.productionOrder.orderNo}
+                    </Button>
+                  </Descriptions.Item>
                   <Descriptions.Item label="预计交期">
                     {orderDetail.productionOrder.expectedDelivery || '-'}
                   </Descriptions.Item>
@@ -1287,10 +1321,12 @@ const OutsourcingManagement = () => {
         confirmLoading={statusSubmitting}
         destroyOnHidden
       >
-        <Form layout="vertical" form={statusForm} preserve={false}>
-          <Form.Item name="orderId" hidden>
-            <Input />
-          </Form.Item>
+        <Form
+          layout="vertical"
+          form={statusForm}
+          preserve={false}
+          initialValues={{ status: 'DISPATCHED' }}
+        >
           <Form.Item
             label="目标状态"
             name="status"

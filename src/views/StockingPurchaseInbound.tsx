@@ -158,6 +158,14 @@ const StockingPurchaseInbound = () => {
   const [statusFilter, setStatusFilter] = useState<StockingPurchaseStatusFilter>('all');
   const [keywordInput, setKeywordInput] = useState('');
   const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const keyword = searchParams.get('keyword')?.trim();
+    if (keyword) {
+      setKeywordInput(keyword);
+      setAppliedKeyword(keyword);
+    }
+  }, [searchParams]);
   const [records, setRecords] = useState<StockingPurchaseRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -779,7 +787,7 @@ const StockingPurchaseInbound = () => {
         dataIndex: 'purchaseOrderNo',
         key: 'purchaseOrderNo',
         width: 160,
-        render: (value: string) => <Text strong>{value}</Text>,
+        render: (value: string) => <Button type="link" size="small" style={{ padding: 0, height: 'auto', fontWeight: 600 }} onClick={() => { setKeywordInput(value); setAppliedKeyword(value); setPage(1); }}>{value}</Button>,
       },
       {
         title: '供应商',

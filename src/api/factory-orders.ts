@@ -92,6 +92,10 @@ export type FactoryOrderCostEntry = {
   entryType: string;
   costCategory: string;
   amount: number;
+  sourceDomain?: string;
+  sourceId?: number;
+  referenceDomain?: string;
+  referenceId?: number;
   referenceNo?: string;
   recordedAt?: string;
 };
@@ -105,6 +109,12 @@ export type FactoryOrderCostDetail = {
   estimatedUnitCost: FactoryOrderCostSummary;
   actualUnitCost: FactoryOrderCostSummary;
   entries: FactoryOrderCostEntry[];
+};
+
+export type FactoryOrderOtherFeePayload = {
+  feeName: string;
+  amount: number;
+  occurredAt?: string;
 };
 
 export type FactoryOrderProgressNode = {
@@ -279,6 +289,10 @@ type BackendFactoryOrderCostEntry = {
   entryType?: string;
   costCategory?: string;
   amount?: string | number;
+  sourceDomain?: string;
+  sourceId?: number;
+  referenceDomain?: string;
+  referenceId?: number;
   referenceNo?: string;
   recordedAt?: string;
 };
@@ -427,6 +441,10 @@ const adaptCostDetail = (payload: BackendFactoryOrderCostDetail): FactoryOrderCo
     entryType: entry.entryType ?? '',
     costCategory: entry.costCategory ?? '',
     amount: parseAmount(entry.amount),
+    sourceDomain: entry.sourceDomain,
+    sourceId: entry.sourceId,
+    referenceDomain: entry.referenceDomain,
+    referenceId: entry.referenceId,
     referenceNo: entry.referenceNo,
     recordedAt: entry.recordedAt,
   })),
@@ -531,6 +549,16 @@ export const factoryOrdersApi = {
     const { data } = await http.get<BackendFactoryOrderCostDetail>(`/api/v1/production-orders/${orderId}/cost-detail`, {
       params: { tenantId },
     });
+    return adaptCostDetail(data);
+  },
+
+  async createOtherFee(orderId: string | number, payload: FactoryOrderOtherFeePayload): Promise<FactoryOrderCostDetail> {
+    const tenantId = requireNumericTenantId();
+    const { data } = await http.post<BackendFactoryOrderCostDetail>(
+      `/api/v1/production-orders/${orderId}/costs/other-fee`,
+      payload,
+      { params: { tenantId } },
+    );
     return adaptCostDetail(data);
   },
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -173,6 +174,7 @@ const buildPieSlices = (aggregation: BulkCostAggregation | null) => {
 };
 
 const BulkCostReport = () => {
+  const navigate = useNavigate();
   const [aggregation, setAggregation] = useState<BulkCostAggregation | null>(null);
   const [aggregationLoading, setAggregationLoading] = useState<boolean>(false);
   const [orders, setOrders] = useState<BulkCostOrderItem[]>([]);
@@ -463,8 +465,8 @@ const BulkCostReport = () => {
                         <Tag color={getStatusColor(order.orderStatus)}>{order.orderStatus}</Tag>
                       </div>
                       <Space size={12} wrap>
-                        <Text type="secondary">订单号：{order.orderNumber}</Text>
-                        <Text type="secondary">款号：{order.styleCode}</Text>
+                        <Text type="secondary">订单号：<Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/orders/factory?keyword=${encodeURIComponent(order.orderNumber)}`)}>{order.orderNumber}</Button></Text>
+                        <Text type="secondary">款号：<Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/basic/styles?keyword=${encodeURIComponent(order.styleCode)}`)}>{order.styleCode}</Button></Text>
                         <Text type="secondary">客户：{order.customerName}</Text>
                         <Text type="secondary">下单日期：{order.orderDate}</Text>
                         <Text type="secondary">收货日期：{order.receiptDate}</Text>
@@ -491,8 +493,8 @@ const BulkCostReport = () => {
                       <thead>
                         <tr>
                           <th style={{ textAlign: 'left' }}>项目</th>
-                          <th>采购</th>
-                          <th>生产</th>
+                          <th>物料</th>
+                          <th>加工及其他</th>
                         </tr>
                       </thead>
                       <tbody>

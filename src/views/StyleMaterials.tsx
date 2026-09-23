@@ -5,7 +5,7 @@ import StyleCard from '../components/StyleCard';
 import StyleMaterialsActionBar from '../components/StyleMaterialsActionBar';
 import { stylesApi } from '../api/styles';
 import type { PaginatedStyleData, StyleData } from '../types/style';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import SampleOrderFormModal from '../components/sample/SampleOrderFormModal';
 import '../styles/style-materials.css';
 
@@ -34,12 +34,13 @@ const defaultPageState: PageState = {
 
 const StyleMaterials = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [records, setRecords] = useState<StyleData[]>([]);
   const [pageState, setPageState] = useState<PageState>(defaultPageState);
   const currentPage = pageState.current;
   const currentPageSize = pageState.pageSize;
   const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(() => searchParams.get('keyword') ?? '');
   const [sampleModalVisible, setSampleModalVisible] = useState(false);
   const [sampleStyle, setSampleStyle] = useState<StyleData | undefined>(undefined);
 

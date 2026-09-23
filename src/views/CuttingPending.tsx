@@ -639,6 +639,7 @@ const CuttingPendingPage = () => {
         await pieceworkService.recordCuttingSheetBed(bedRecordState.task.workOrderId, {
           bedNumber: values.bedNumber,
           cutterId: values.cutterId,
+          cuttingPieceRate: Number(values.cuttingPieceRate),
           startedAt: values.startedAt
             ? values.startedAt.format('YYYY-MM-DDTHH:mm:ss')
             : undefined,

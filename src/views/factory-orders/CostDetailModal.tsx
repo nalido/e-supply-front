@@ -1,5 +1,6 @@
-import { Descriptions, Modal, Space, Table } from 'antd';
-import type { FactoryOrderCostDetail } from '../../api/factory-orders';
+import { Button, Descriptions, Form, Input, InputNumber, Modal, Space, Table, message } from 'antd';
+import { useState } from 'react';
+import type { FactoryOrderCostDetail, FactoryOrderOtherFeePayload } from '../../api/factory-orders';
 import { getMaterialStatusLabel } from './utils';
 import type { OrderActionSnapshot } from './types';
 
@@ -8,23 +9,52 @@ type Props = {
   data: FactoryOrderCostDetail | null;
   loading: boolean;
   onCancel: () => void;
+  onCreateOtherFee: (payload: FactoryOrderOtherFeePayload) => Promise<void>;
+  onOpenCuttingSheet: () => void;
+  onOpenMaterialIssue: (issueNo: string) => void;
+  onOpenOutsourcingOrder: (orderId: number) => void;
+  onOpenStyle: (styleNo: string) => void;
 };
 
-export default function CostDetailModal({ record, data, loading, onCancel }: Props) {
+export default function CostDetailModal({ record, data, loading, onCancel, onCreateOtherFee, onOpenCuttingSheet, onOpenMaterialIssue, onOpenOutsourcingOrder, onOpenStyle }: Props) {
+  const [feeOpen, setFeeOpen] = useState(false);
+  const [feeSubmitting, setFeeSubmitting] = useState(false);
+  const [feeForm] = Form.useForm<FactoryOrderOtherFeePayload>();
+
+  const submitFee = async () => {
+    const values = await feeForm.validateFields();
+    setFeeSubmitting(true);
+    try {
+      await onCreateOtherFee(values);
+      message.success('实际其他费用已录入');
+      feeForm.resetFields();
+      setFeeOpen(false);
+    } finally {
+      setFeeSubmitting(false);
+    }
+  };
+
   return (
-    <Modal
-      open={Boolean(record)}
-      title={record ? `大货成本明细 - ${record.orderCode}` : '大货成本明细'}
-      footer={null}
-      onCancel={onCancel}
-      destroyOnHidden
-      width={900}
-    >
+    <>
+      <Modal
+        open={Boolean(record)}
+        title={record ? `大货成本明细 - ${record.orderCode}` : '大货成本明细'}
+        footer={<Button onClick={() => setFeeOpen(true)}>录入其他费用</Button>}
+        onCancel={onCancel}
+        destroyOnHidden
+        width={900}
+      >
       {record ? (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="订单号">{record.orderCode}</Descriptions.Item>
-            <Descriptions.Item label="款号">{record.styleCode ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="款号">
+              {record.styleCode ? (
+                <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => onOpenStyle(record.styleCode!)}>
+                  {record.styleCode}
+                </Button>
+              ) : '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="款名">{record.styleName ?? '-'}</Descriptions.Item>
             <Descriptions.Item label="下单数量">
               {typeof record.orderQuantity === 'number' ? `${record.orderQuantity.toLocaleString()} 件` : '-'}
@@ -124,7 +154,19 @@ export default function CostDetailModal({ record, data, loading, onCancel }: Pro
               {
                 title: '引用单号',
                 dataIndex: 'referenceNo',
-                render: (value: string | undefined) => value || '-',
+                render: (value: string | undefined, entry) => {
+                  if (!value) return '-';
+                  if (entry.referenceDomain === 'OUTSOURCING' && entry.referenceId) {
+                    return <Button type="link" size="small" onClick={() => onOpenOutsourcingOrder(entry.referenceId!)}>{value}</Button>;
+                  }
+                  if (entry.costCategory === 'MATERIAL' && value.startsWith('MI-')) {
+                    return <Button type="link" size="small" onClick={() => onOpenMaterialIssue(value)}>{value}</Button>;
+                  }
+                  if (value.startsWith('裁床 ')) {
+                    return <Button type="link" size="small" onClick={onOpenCuttingSheet}>{value}</Button>;
+                  }
+                  return value;
+                },
               },
               {
                 title: '记录时间',
@@ -136,6 +178,29 @@ export default function CostDetailModal({ record, data, loading, onCancel }: Pro
           />
         </Space>
       ) : null}
-    </Modal>
+      </Modal>
+      <Modal
+        open={feeOpen}
+        title="录入其他费用"
+        okText="确认录入"
+        cancelText="取消"
+        confirmLoading={feeSubmitting}
+        onOk={() => void submitFee()}
+        onCancel={() => {
+          feeForm.resetFields();
+          setFeeOpen(false);
+        }}
+        destroyOnHidden
+      >
+        <Form form={feeForm} layout="vertical">
+          <Form.Item label="费用名称" name="feeName" rules={[{ required: true, message: '请输入费用名称' }]}>
+            <Input maxLength={100} placeholder="例如：加急运输费" />
+          </Form.Item>
+          <Form.Item label="金额（元）" name="amount" rules={[{ required: true, message: '请输入金额' }]}>
+            <InputNumber min={0.01} precision={2} prefix="¥" style={{ width: '100%' }} placeholder="请输入实际费用" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 }

@@ -370,6 +370,7 @@ type CuttingSheetDetailPayload = Partial<{
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;
+    cuttingPieceRate?: number;
     materialUsages?: CuttingSheetMaterialUsagePayload[];
     fabricUsages?: CuttingSheetMaterialUsagePayload[];
     materialUsageEditable?: boolean;
@@ -576,6 +577,9 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
       recordedAt: record.recordedAt,
       actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
         ? Number(record.actualFabricQty)
+        : undefined,
+      cuttingPieceRate: Number.isFinite(Number(record.cuttingPieceRate))
+        ? Number(record.cuttingPieceRate)
         : undefined,
       materialUsages: (record.materialUsages ?? []).map(adaptCuttingSheetMaterialUsage),
       fabricUsages: (record.fabricUsages ?? []).map(adaptCuttingSheetMaterialUsage),
@@ -857,6 +861,7 @@ export const pieceworkService = {
       cutterId?: number;
       startedAt?: string;
       actualFabricQty?: number;
+      cuttingPieceRate?: number;
       materialUsages?: Array<{
         calculationKey?: string;
         materialType?: string;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
@@ -166,6 +167,7 @@ const MaterialPurchaseReport = () => {
       title: '采购单号',
       dataIndex: 'purchaseOrderNo',
       width: 160,
+      render: (value: string) => <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(value)}`}>{value || '-'}</Link>,
     },
     {
       title: '物料名称',
@@ -244,6 +246,7 @@ const MaterialPurchaseReport = () => {
       title: '款号',
       dataIndex: 'styleNo',
       width: 120,
+      render: (value?: string) => value ? <Link to={`/basic/styles?keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-',
     },
     {
       title: '款名',

@@ -146,6 +146,7 @@ export type CuttingSheetDetail = {
     bedNumber: string;
     recordedAt?: string;
     actualFabricQty?: number;
+    cuttingPieceRate?: number;
     materialUsages?: CuttingSheetMaterialUsage[];
     fabricUsages?: CuttingSheetMaterialUsage[];
     materialUsageEditable?: boolean;

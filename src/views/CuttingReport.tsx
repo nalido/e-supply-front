@@ -163,8 +163,18 @@ const CuttingReportPage = () => {
       ),
     },
     { title: '日期', dataIndex: 'date', width: 120 },
-    { title: '工厂订单', dataIndex: 'orderCode', width: 160 },
-    { title: '款号', dataIndex: 'styleCode', width: 120 },
+    {
+      title: '工厂订单',
+      dataIndex: 'orderCode',
+      width: 160,
+      render: (value: string) => <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`)}>{value}</Button>,
+    },
+    {
+      title: '款号',
+      dataIndex: 'styleCode',
+      width: 120,
+      render: (value: string) => <Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/basic/styles?keyword=${encodeURIComponent(value)}`)}>{value}</Button>,
+    },
     { title: '款名', dataIndex: 'styleName', width: 180 },
     {
       title: '订单数量',
@@ -275,7 +285,7 @@ const CuttingReportPage = () => {
         </Space>
       ),
     },
-  ], [page, pageSize]);
+  ], [navigate, page, pageSize]);
 
   return (
     <div className="cutting-report-page">
@@ -403,8 +413,8 @@ const CuttingReportPage = () => {
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Descriptions bordered column={2} size="small">
               <Descriptions.Item label="日期">{detailRecord.date}</Descriptions.Item>
-              <Descriptions.Item label="订单号">{detailRecord.orderCode}</Descriptions.Item>
-              <Descriptions.Item label="款号">{detailRecord.styleCode}</Descriptions.Item>
+              <Descriptions.Item label="订单号"><Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/orders/factory?keyword=${encodeURIComponent(detailRecord.orderCode)}&status=all`)}>{detailRecord.orderCode}</Button></Descriptions.Item>
+              <Descriptions.Item label="款号"><Button type="link" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/basic/styles?keyword=${encodeURIComponent(detailRecord.styleCode)}`)}>{detailRecord.styleCode}</Button></Descriptions.Item>
               <Descriptions.Item label="款名">{detailRecord.styleName}</Descriptions.Item>
               <Descriptions.Item label="裁床计划">{toNumber(detailRecord.plannedQuantity)} 件</Descriptions.Item>
               <Descriptions.Item label="床次">{detailRecord.bedNumber}</Descriptions.Item>

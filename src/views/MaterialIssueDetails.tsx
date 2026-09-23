@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import { Button, Card, Form, Input, InputNumber, Modal, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { DeleteOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons';
@@ -243,6 +244,7 @@ const MaterialIssueDetails = () => {
         title: '采购单号',
         dataIndex: 'poNumber',
         width: 160,
+        render: (value?: string) => value ? <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-',
       },
       {
         title: '仓库',
@@ -354,13 +356,13 @@ const MaterialIssueDetails = () => {
         title: '来源订单号',
         dataIndex: 'sourceOrderNo',
         width: 160,
-        render: (value?: string) => value || <Text type="secondary">-</Text>,
+        render: (value?: string) => value ? <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link> : <Text type="secondary">-</Text>,
       },
       {
         title: '发料订单号',
         dataIndex: 'dispatchOrderNo',
         width: 160,
-        render: (value?: string) => value || <Text type="secondary">-</Text>,
+        render: (value?: string) => value ? <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link> : <Text type="secondary">-</Text>,
       },
       {
         title: '出库类型',

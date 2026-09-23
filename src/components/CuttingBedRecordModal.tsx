@@ -125,6 +125,9 @@ export default function CuttingBedRecordModal({
               <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
                 <Input maxLength={32} />
               </Form.Item>
+              <Form.Item label="裁剪工价（元/件）" name="cuttingPieceRate" rules={[{ required: true, message: '请输入裁剪工价' }]}>
+                <InputNumber min={0} precision={2} controls={false} style={{ width: '100%' }} placeholder="请输入本床裁剪工价" />
+              </Form.Item>
               <Form.Item label="裁剪人（可选）" name="cutterId">
                 <Select
                   allowClear
@@ -136,6 +139,9 @@ export default function CuttingBedRecordModal({
                 />
               </Form.Item>
             </div>
+            <Form.Item noStyle shouldUpdate={(previous, current) => previous.cuttingPieceRate !== current.cuttingPieceRate}>
+              {() => <Text type="secondary">本床裁剪费用：¥{(totalQty * Number(form.getFieldValue('cuttingPieceRate') || 0)).toFixed(2)}</Text>}
+            </Form.Item>
             <Card
               title="颜色尺码"
               size="small"

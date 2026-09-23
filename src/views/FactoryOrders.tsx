@@ -2814,6 +2814,36 @@ const FactoryOrders = () => {
           setCostDetailData(null);
           setCostDetailLoading(false);
         }}
+        onCreateOtherFee={async (payload) => {
+          if (!costDetailRecord) {
+            return;
+          }
+          const detail = await factoryOrdersApi.createOtherFee(costDetailRecord.orderId, payload);
+          setCostDetailData(detail);
+        }}
+        onOpenCuttingSheet={() => {
+          if (!costDetailRecord?.orderCode) {
+            return;
+          }
+          navigate(`/piecework/cutting/pending?keyword=${encodeURIComponent(costDetailRecord.orderCode)}`);
+          setCostDetailRecord(null);
+          setCostDetailData(null);
+        }}
+        onOpenMaterialIssue={(issueNo) => {
+          navigate(`/material/issue?keyword=${encodeURIComponent(issueNo)}`);
+          setCostDetailRecord(null);
+          setCostDetailData(null);
+        }}
+        onOpenOutsourcingOrder={(orderId) => {
+          navigate(`/piecework/outsource?orderId=${orderId}&openDetail=1`);
+          setCostDetailRecord(null);
+          setCostDetailData(null);
+        }}
+        onOpenStyle={(styleNo) => {
+          navigate(`/basic/styles?keyword=${encodeURIComponent(styleNo)}`);
+          setCostDetailRecord(null);
+          setCostDetailData(null);
+        }}
       />
 
       <PrintPreviewModal

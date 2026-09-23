@@ -431,6 +431,13 @@ export default function CuttingSheetDetailModal({
                         >
                           <div style={{ display: 'grid', gap: 16 }}>
                             <div>
+                              <Text strong>裁剪工价：</Text>
+                              <Text>{typeof record.cuttingPieceRate === 'number' ? `¥${record.cuttingPieceRate.toFixed(2)}/件` : '未录入'}</Text>
+                              {typeof record.cuttingPieceRate === 'number' ? (
+                                <Text type="secondary" style={{ marginLeft: 16 }}>本床裁剪费用：¥{(record.cuttingPieceRate * record.totalQty).toFixed(2)}</Text>
+                              ) : null}
+                            </div>
+                            <div>
                               <Text strong style={{ display: 'block', marginBottom: 8 }}>物料用量</Text>
                               {getBedMaterialUsages(record).length > 0 ? (
                                 <Table
