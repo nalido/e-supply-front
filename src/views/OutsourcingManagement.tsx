@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { RangeValue } from 'rc-picker/lib/interface';
 import type { Dayjs } from 'dayjs';
 import ListImage from '../components/common/ListImage';
+import { createUuid } from '../utils/uuid';
 import {
   Button,
   Alert,
@@ -389,7 +390,7 @@ const OutsourcingManagement = () => {
 
   const handleConfirmReceive = useCallback((record: OutsourcingManagementListItem) => {
     setReceiveModalState({ visible: true, record });
-    setReceiveRequestId(globalThis.crypto.randomUUID());
+    setReceiveRequestId(createUuid());
     receiveForm.setFieldsValue({
       receivedAt: dayjs(),
       remark: '',

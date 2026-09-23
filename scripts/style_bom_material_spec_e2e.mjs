@@ -276,6 +276,12 @@ const context = await browser.newContext({
   viewport: { width: 1440, height: 1050 },
   ...(fs.existsSync(storageStatePath) ? { storageState: storageStatePath } : {}),
 });
+await context.addInitScript(() => {
+  Object.defineProperty(globalThis.crypto, 'randomUUID', {
+    configurable: true,
+    value: undefined,
+  });
+});
 const page = await context.newPage();
 let delayedMaterialKeyword;
 
@@ -331,6 +337,9 @@ try {
   await section.waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
+  check('缺少浏览器 randomUUID 时页面仍可保存', await page.evaluate(() => (
+    typeof globalThis.crypto.randomUUID === 'undefined'
+  )));
   check('页面不再挂载款式用料编辑抽屉', await page.locator('.style-bom-editor-drawer-root').count() === 0);
   check('页面不再按颜色拆成多个页签', await section.locator('.style-bom-color-tabs').count() === 0);
   check('页面不再展示尺码用量矩阵', await section.locator('.style-bom-size-material-table').count() === 0);

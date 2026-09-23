@@ -1,5 +1,6 @@
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
+import { createUuid } from '../utils/uuid';
 import type {
   OrderShipmentProfitAggregation,
   OrderShipmentProfitListParams,
@@ -22,7 +23,7 @@ type BackendListResponse = {
 };
 
 const adaptRecord = (record: BackendRecord): OrderShipmentProfitRecord => ({
-  id: record.id ? String(record.id) : crypto.randomUUID(),
+  id: record.id ? String(record.id) : createUuid(),
   orderNumber: record.orderNumber ?? '--',
   customer: record.customer ?? '--',
   styleNumber: record.styleNumber ?? '--',

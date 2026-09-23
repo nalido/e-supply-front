@@ -1,5 +1,6 @@
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
+import { createUuid } from '../utils/uuid';
 import type {
   OrderMaterialRequirementListParams,
   OrderMaterialRequirementListResponse,
@@ -46,7 +47,7 @@ const toNumber = (value: unknown, fallback = 0): number => {
 };
 
 const adaptOrderRecord = (record: BackendOrderRecord): OrderMaterialRequirementListItem => ({
-  id: record.id ? String(record.id) : crypto.randomUUID(),
+  id: record.id ? String(record.id) : createUuid(),
   imageUrl: record.imageUrl ?? '',
   name: record.name ?? '--',
   supplier: record.supplier ?? '--',
@@ -68,7 +69,7 @@ const adaptSalesRecord = (record: BackendSalesRecord): SalesStockingSuggestionLi
   const stockInventoryQty = toNumber(record.stockInventoryQty);
   const stockInTransitQty = toNumber(record.stockInTransitQty);
   return {
-    id: record.id ? `${String(record.id)}-${record.styleNo ?? ''}` : crypto.randomUUID(),
+    id: record.id ? `${String(record.id)}-${record.styleNo ?? ''}` : createUuid(),
     imageUrl: record.imageUrl ?? '',
     materialName: record.materialName ?? record.name ?? '--',
     materialCode: record.materialCode ?? record.materialSku ?? '--',

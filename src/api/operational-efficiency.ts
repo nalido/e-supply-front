@@ -1,5 +1,6 @@
 import http from './http';
 import { requireNumericTenantId, toBackendPage } from './request-context';
+import { createUuid } from '../utils/uuid';
 import type {
   OperationalEfficiencyListParams,
   OperationalEfficiencyListResponse,
@@ -38,7 +39,7 @@ const normalizeTimeUnit = (value?: string): OperationalEfficiencyNode['timeUnit'
   value?.toLowerCase() === 'hour' ? 'hour' : 'day';
 
 const adaptNode = (node: BackendNode): OperationalEfficiencyNode => ({
-  id: node.id ? String(node.id) : crypto.randomUUID(),
+  id: node.id ? String(node.id) : createUuid(),
   nodeCode: node.nodeCode ?? '',
   nodeName: node.nodeName ?? '',
   standardDuration: node.standardDuration ?? 0,
@@ -50,7 +51,7 @@ const adaptTemplate = (template: BackendTemplate): OperationalEfficiencyListItem
   const nodes = (template.nodes ?? []).map(adaptNode);
   const nodeSummary = nodes.map((node) => node.nodeName).join(' / ');
   return {
-    id: template.id ? String(template.id) : crypto.randomUUID(),
+    id: template.id ? String(template.id) : createUuid(),
     name: template.name ?? '',
     isDefault: Boolean(template.isDefault),
     createdAt: template.createdAt ?? '',

@@ -22,6 +22,7 @@ import styleBomApi from '../api/style-bom';
 import styleDetailApi from '../api/style-detail';
 import ImageUploader from '../components/upload/ImageUploader';
 import StyleCodeMatrixEditor from '../components/style/StyleCodeMatrixEditor';
+import { createUuid } from '../utils/uuid';
 import StyleBomSection from '../components/style-bom/StyleBomSection';
 import StyleBomSaveImpactModal, { type StyleBomImpactDecision } from '../components/style-bom/StyleBomSaveImpactModal';
 import { PageHeader, PageSection } from '../components/page';
@@ -368,7 +369,7 @@ const StyleDetail = () => {
         if (bomSaveIdempotencyRef.current?.signature !== idempotencySignature) {
           bomSaveIdempotencyRef.current = {
             signature: idempotencySignature,
-            key: crypto.randomUUID(),
+            key: createUuid(),
           };
         }
         const idempotencyKey = bomSaveIdempotencyRef.current.key;
@@ -446,10 +447,10 @@ const StyleDetail = () => {
         : error instanceof Error
           ? error.message
           : '';
+      setImpactOpen(false);
+      setImpactPreview(undefined);
+      setPendingSave(undefined);
       if (axios.isAxiosError(error) && error.response?.status === 409) {
-        setImpactOpen(false);
-        setImpactPreview(undefined);
-        setPendingSave(undefined);
         message.error('款式用料或影响范围已变化，请核对当前内容后重新点击保存');
       } else if (backendMessage.includes('Style number already exists')) {
         message.error('款号已存在，请更换后重试');

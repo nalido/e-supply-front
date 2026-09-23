@@ -1,5 +1,6 @@
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
+import { createUuid } from '../utils/uuid';
 import type {
   SampleCostAggregation,
   SampleCostCard,
@@ -38,7 +39,7 @@ type ExportResponse = {
 };
 
 const adaptCard = (record: BackendCard): SampleCostCard => ({
-  id: record.id ? String(record.id) : crypto.randomUUID(),
+  id: record.id ? String(record.id) : createUuid(),
   imageUrl: record.imageUrl,
   styleNumber: record.styleNumber ?? '--',
   styleName: record.styleName ?? '--',

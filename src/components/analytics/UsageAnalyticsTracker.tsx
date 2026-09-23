@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import settingsApi from '../../api/settings';
 import type { UsageAnalyticsEventPayload } from '../../types/settings';
+import { createUuid } from '../../utils/uuid';
 
 type UsageAnalyticsTrackerProps = {
   labelMap: Map<string, string>;
@@ -19,10 +20,7 @@ const getSessionId = () => {
   if (existing) {
     return existing;
   }
-  const next =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const next = createUuid();
   window.sessionStorage.setItem(SESSION_KEY, next);
   return next;
 };

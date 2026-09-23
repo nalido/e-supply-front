@@ -1,5 +1,6 @@
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
+import { createUuid } from '../utils/uuid';
 import type {
   BulkCostAggregation,
   BulkCostListParams,
@@ -17,7 +18,7 @@ type BackendListResponse = {
 };
 
 const adaptOrderItem = (item: BackendOrderItem): BulkCostOrderItem => ({
-  id: item.id ? String(item.id) : crypto.randomUUID(),
+  id: item.id ? String(item.id) : createUuid(),
   imageUrl: item.imageUrl ?? '',
   styleCode: item.styleCode ?? '--',
   styleName: item.styleName ?? '--',
