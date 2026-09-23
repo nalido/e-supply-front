@@ -80,7 +80,7 @@ jobs:
           OSS_REGION: ${{ secrets.OSS_REGION }}
         run: |
           REGION="${OSS_REGION:-cn-hangzhou}"
-          aliyun configure set --profile akProfile \
+          aliyun configure set \
             --region "$REGION" \
             --mode AK \
             --access-key-id "$ALIYUN_ACCESS_KEY_ID" \
@@ -93,6 +93,6 @@ jobs:
           test -n "$OSS_BUCKET"
           OSS_PATH="oss://${OSS_BUCKET}/deploy/e-supply/${{ steps.meta.outputs.release_id }}/e-supply-front.tgz"
           timeout 2m aliyun oss cp e-supply-front.tgz "$OSS_PATH" -f \
-            --profile akProfile --connect-timeout 15 --read-timeout 60 --retry-count 2
+            --connect-timeout 15 --read-timeout 60 --retry-times 2
           echo "uploaded=$OSS_PATH"
           printf "release_id=%s\n" "${{ steps.meta.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
