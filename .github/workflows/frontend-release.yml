@@ -20,7 +20,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,6 +92,6 @@ jobs:
         run: |
           test -n "$OSS_BUCKET"
           OSS_PATH="oss://${OSS_BUCKET}/deploy/e-supply/${{ steps.meta.outputs.release_id }}/e-supply-front.tgz"
-          aliyun oss cp e-supply-front.tgz "$OSS_PATH" -f
+          timeout 5m aliyun oss cp e-supply-front.tgz "$OSS_PATH" -f
           echo "uploaded=$OSS_PATH"
           printf "release_id=%s\n" "${{ steps.meta.outputs.release_id }}" >> "$GITHUB_STEP_SUMMARY"
