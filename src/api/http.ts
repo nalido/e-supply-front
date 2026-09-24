@@ -8,6 +8,15 @@ const traceHeaderKeys = ['traceid', 'trace-id', 'x-trace-id', 'x-request-id'];
 export type RequestConfigWithDataflow = AxiosRequestConfig & {
   skipPageNormalization?: boolean;
   suppressGlobalError?: boolean;
+  suppressGlobalValidationError?: boolean;
+};
+
+const hasValidationDetails = (payload: unknown): boolean => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const details = (payload as { details?: unknown }).details;
+  return Boolean(details && typeof details === 'object' && Object.keys(details).length > 0);
 };
 
 const findTraceIdFromBody = (payload: unknown): string | undefined => {
@@ -128,7 +137,7 @@ http.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error?.response?.status;
-    const originalRequest = error?.config as (typeof error.config & { __authRetried?: boolean }) | undefined;
+    const originalRequest = error?.config as (RequestConfigWithDataflow & { __authRetried?: boolean }) | undefined;
 
     // Clerk token切换期间可能出现瞬时403，这里做一次静默重试避免打断页面加载。
     if (status === 403 && tokenResolver && originalRequest && !originalRequest.__authRetried) {
@@ -145,12 +154,16 @@ http.interceptors.response.use(
       }
     }
 
-    if (status !== 401 && !originalRequest?.suppressGlobalError) {
+    const suppressValidationError = status === 400
+      && originalRequest?.suppressGlobalValidationError
+      && hasValidationDetails(error?.response?.data);
+    if (status !== 401 && !originalRequest?.suppressGlobalError && !suppressValidationError) {
       const backendMessage = error?.response?.data?.message ?? error.message;
+      const backendDetails = error?.response?.data?.details;
       const traceId = findTraceId(error);
       console.error('API Error:', status, backendMessage, traceId ? `traceId=${traceId}` : '');
 
-      const payload = buildFriendlyError(backendMessage, status);
+      const payload = buildFriendlyError(backendMessage, status, backendDetails);
       if (traceId) {
         const copied = await copyToClipboard(traceId);
         const traceTip = copied
@@ -158,6 +171,7 @@ http.interceptors.response.use(
           : `traceId：${traceId}（自动复制失败，请手动复制）`;
         payload.description = `${payload.description ?? ''}${payload.description ? '\n' : ''}${traceTip}\n请将该 traceId 提供给开发人员排查。`;
       }
+      (error as { __globalErrorShown?: boolean }).__globalErrorShown = true;
       emitGlobalError(payload);
     }
     return Promise.reject(error);

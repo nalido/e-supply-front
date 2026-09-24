@@ -1,4 +1,4 @@
-import http from './http';
+import http, { type RequestConfigWithDataflow } from './http';
 import { normalizeExportDownloadUrl } from '../utils/export-download';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 import { fromBackendPage, requireNumericTenantId, toBackendPage } from './request-context';
@@ -922,7 +922,8 @@ export const pieceworkService = {
       fabricUsages: payload.fabricUsages?.map(normalizeUsage),
     }, {
       params: { tenantId },
-    });
+      suppressGlobalValidationError: true,
+    } as RequestConfigWithDataflow);
   },
 
   async calculateCuttingSheetBedMaterials(

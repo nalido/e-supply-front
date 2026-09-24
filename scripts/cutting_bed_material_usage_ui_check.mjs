@@ -4,7 +4,10 @@ import { chromium } from 'playwright';
 
 const baseUrl = process.env.ESUPPLY_FRONT_BASE_URL || 'http://127.0.0.1:5177';
 const backendBaseUrl = process.env.ESUPPLY_BACK_BASE_URL || 'http://127.0.0.1:8080';
-const outputDir = path.resolve('../docs/e-supply/04-verification/cutting-bed-material-usage-20260907');
+const outputDir = path.resolve(
+  process.env.ESUPPLY_UI_OUTPUT_DIR
+    || '../docs/e-supply/04-verification/cutting-bed-material-usage-20260907',
+);
 const storageStateCandidates = [
   path.resolve('logs/route-sweep-auth-dev.json'),
   path.resolve('logs/route-sweep-auth.json'),
@@ -149,6 +152,7 @@ const context = await browser.newContext({
 const page = await context.newPage();
 const errors = [];
 let recordPayload;
+const recordPayloads = [];
 let updatePayload;
 let manualIssuePayload;
 let completePayload;
@@ -160,6 +164,12 @@ page.on('console', (message) => {
 });
 page.on('pageerror', (error) => errors.push(`page:${error.message}`));
 page.on('response', (response) => {
+  if (
+    response.status() === 400
+    && response.url().includes('/api/v1/workshop/cutting/sheets/9001/beds?')
+  ) {
+    return;
+  }
   if (response.status() >= 400) {
     errors.push(`http:${response.status()}:${response.url()}`);
   }
@@ -225,7 +235,23 @@ await page.route('**/api/v1/workshop/cutting/sheets/9001/beds/material-usage/upd
   await fulfillJson(route, { success: true, status: 'IN_PROGRESS', operatedAt: '2026-09-07T12:30:00' });
 });
 await page.route('**/api/v1/workshop/cutting/sheets/9001/beds?**', async (route) => {
-  recordPayload = route.request().postDataJSON();
+  const payload = route.request().postDataJSON();
+  recordPayloads.push(payload);
+  if (recordPayloads.length === 1) {
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 400,
+        error: 'Bad Request',
+        message: '请填写裁剪工价',
+        traceId: 'ui-cutting-validation-trace',
+        details: { cuttingPieceRate: '请填写裁剪工价' },
+      }),
+    });
+    return;
+  }
+  recordPayload = payload;
   await fulfillJson(route, { success: true, status: 'IN_PROGRESS', operatedAt: '2026-09-07T12:20:00' });
 });
 await page.route('**/api/v1/workshop/cutting/sheets/9001/complete?**', async (route) => {
@@ -380,6 +406,38 @@ try {
   const linkedScreenshot = path.join(outputDir, '01-live-linked-entry.png');
   await page.screenshot({ path: linkedScreenshot, fullPage: true });
   result.screenshots.push(linkedScreenshot);
+
+  await activeModal.getByRole('button', { name: '确认并出库' }).click();
+  await activeModal.getByText('请输入裁剪工价', { exact: true }).waitFor({ timeout: 10_000 });
+  result.assertions.cuttingRateRequiredBeforeRequest = recordPayloads.length === 0
+    && await activeModal.getByText('请输入裁剪工价', { exact: true }).isVisible();
+  const requiredScreenshot = path.join(outputDir, '07-cutting-rate-required-inline.png');
+  await page.screenshot({ path: requiredScreenshot, fullPage: true });
+  result.screenshots.push(requiredScreenshot);
+
+  await activeModal.locator('input[placeholder="请输入本床裁剪工价"]').fill('1.25');
+  await activeModal.getByRole('button', { name: '确认并出库' }).click();
+  await page.getByText('请填写裁剪工价', { exact: true }).last().waitFor({ timeout: 10_000 });
+  const backendRateErrorCount = await activeModal
+    .locator('.ant-form-item-explain-error')
+    .filter({ hasText: '请填写裁剪工价' })
+    .count();
+  const validationFailedCount = await page.getByText('Validation failed', { exact: false }).count();
+  const genericFailureCount = await page.getByText('录入床次裁剪数据失败', { exact: true }).count();
+  result.backendValidationDebug = {
+    requestCount: recordPayloads.length,
+    backendRateErrorCount,
+    validationFailedCount,
+    genericFailureCount,
+  };
+  result.assertions.backendValidationMappedToField = recordPayloads.length === 1
+    && backendRateErrorCount === 1
+    && validationFailedCount === 0
+    && genericFailureCount === 0;
+  const backendValidationScreenshot = path.join(outputDir, '08-backend-validation-inline.png');
+  await page.screenshot({ path: backendValidationScreenshot, fullPage: true });
+  result.screenshots.push(backendValidationScreenshot);
+
   await activeModal.getByRole('button', { name: '确认并出库' }).click();
   await page.getByText('床次裁剪数据已录入；未配置用量的规格未自动出库，可后续手工领料').waitFor({ timeout: 10_000 });
   result.assertions.zeroUsageSubmitted = recordPayload?.materialUsages?.length === 2
@@ -388,6 +446,7 @@ try {
     && Number(recordPayload.items[0]?.quantity) === 6
     && Number(recordPayload.items[1]?.quantity) === 2;
   result.assertions.bedCutterSubmitted = Number(recordPayload?.cutterId) === 301;
+  result.assertions.cuttingRateSubmitted = Number(recordPayload?.cuttingPieceRate) === 1.25;
 
   await page.locator('[data-testid="cutting-task-complete-UI-ORDER-001"]').click();
   const completeModal = page.locator('.ant-modal').filter({ hasText: '完成裁床 - UI-ORDER-001' });
@@ -470,10 +529,31 @@ try {
   await page.screenshot({ path: issueDetailScreenshot, fullPage: true });
   result.screenshots.push(issueDetailScreenshot);
 
+  await page.route('**/version.json?**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: { 'Cache-Control': 'no-store' },
+    body: JSON.stringify({ buildId: 'newer-ui-build' }),
+  }));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const updateModal = page.locator('.ant-modal').filter({ hasText: '系统已更新' });
+  await updateModal.waitFor({ state: 'visible', timeout: 10_000 });
+  result.assertions.outdatedVersionBlocksInteraction = await updateModal.getByText(
+    '当前页面版本已过期。为避免提交不完整的数据，请刷新后继续操作。',
+    { exact: true },
+  ).isVisible()
+    && await updateModal.getByRole('button', { name: '刷新页面' }).isVisible()
+    && await updateModal.locator('.ant-modal-close').count() === 0;
+  await page.waitForTimeout(600);
+  const versionScreenshot = path.join(outputDir, '10-outdated-version-blocked-final.png');
+  await page.screenshot({ path: versionScreenshot, fullPage: true });
+  result.screenshots.push(versionScreenshot);
+
   const relevantErrors = errors.filter((item) => (
     !item.includes('Static function can not consume context')
     && !item.includes('`index` parameter of `rowKey` function is deprecated')
     && !item.includes('Instance created by `useForm` is not connected to any Form element')
+    && !item.includes('Failed to load resource: the server responded with a status of 400')
   ));
   result.errors = relevantErrors;
   result.passed = Object.values(result.assertions).every(Boolean) && relevantErrors.length === 0;

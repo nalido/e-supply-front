@@ -54,8 +54,10 @@ jobs:
       - name: Build
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ inputs.vite_clerk_publishable_key }}
+          VITE_APP_BUILD_ID: ${{ steps.meta.outputs.release_id }}
         run: |
           test -n "$VITE_CLERK_PUBLISHABLE_KEY"
+          test -n "$VITE_APP_BUILD_ID"
           npm run build
 
       - name: Pack dist

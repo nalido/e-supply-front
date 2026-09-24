@@ -36,6 +36,11 @@ import ListImage from '../components/common/ListImage';
 import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 import CuttingBedRecordModal from '../components/CuttingBedRecordModal';
 import CuttingTaskCard from '../components/CuttingTaskCard';
+import {
+  buildFriendlyErrorFromUnknown,
+  extractValidationFieldErrors,
+  wasGlobalErrorShown,
+} from '../utils/http-error';
 
 const { Text, Title } = Typography;
 
@@ -664,8 +669,23 @@ const CuttingPendingPage = () => {
       if (error && typeof error === 'object' && 'errorFields' in error) {
         return;
       }
+      const validationErrors = extractValidationFieldErrors(error);
+      const formFieldNames = new Set(['bedNumber', 'startedAt', 'cuttingPieceRate']);
+      const formErrors = Object.entries(validationErrors)
+        .filter(([field]) => formFieldNames.has(field));
+      if (formErrors.length > 0) {
+        bedRecordForm.setFields(formErrors.map(([name, fieldError]) => ({
+          name,
+          errors: [fieldError],
+        })));
+        message.warning(formErrors[0][1]);
+        return;
+      }
       console.error('failed to record cutting bed data', error);
-      message.error(bedRecordState.mode === 'edit' ? '调整床次用量失败' : '录入床次裁剪数据失败');
+      if (!wasGlobalErrorShown(error)) {
+        const friendlyError = buildFriendlyErrorFromUnknown(error);
+        message.error(friendlyError.description ?? friendlyError.title);
+      }
     } finally {
       setBedRecordState((prev) => ({ ...prev, submitting: false }));
     }

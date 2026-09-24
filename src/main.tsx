@@ -9,6 +9,18 @@ import zhCN from 'antd/locale/zh_CN'
 import 'dayjs/locale/zh-cn'
 import App from './App.tsx'
 
+const PRELOAD_RELOAD_KEY = 'esupply-preload-reload-at'
+const PRELOAD_RELOAD_WINDOW_MS = 60_000
+
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  const lastReloadAt = Number(window.sessionStorage.getItem(PRELOAD_RELOAD_KEY) || 0)
+  if (!Number.isFinite(lastReloadAt) || Date.now() - lastReloadAt > PRELOAD_RELOAD_WINDOW_MS) {
+    window.sessionStorage.setItem(PRELOAD_RELOAD_KEY, String(Date.now()))
+    window.location.reload()
+  }
+})
+
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 if (!publishableKey) {

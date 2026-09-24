@@ -5,6 +5,8 @@ type ErrorRule = {
   build: (message?: string) => GlobalErrorPayload;
 };
 
+export type ErrorDetails = Record<string, unknown> | undefined;
+
 const normalize = (message?: string) => message?.trim().toLowerCase() ?? '';
 
 const looksReadableBusinessMessage = (message?: string): boolean => {
@@ -29,10 +31,31 @@ const looksReadableBusinessMessage = (message?: string): boolean => {
     'axioserror',
     'network error',
     'request failed with status code',
+    'validation failed',
+    'constraint violation',
     '<html',
     'doctype html',
   ];
   return !technicalMarkers.some((marker) => normalized.includes(marker));
+};
+
+const resolveValidationDetailMessage = (details: ErrorDetails): string | null => {
+  if (!details) {
+    return null;
+  }
+  const genericMessages = new Set([
+    '不能为null',
+    '不能为空',
+    'must not be null',
+    'must not be blank',
+  ]);
+  const messages = Array.from(new Set(
+    Object.values(details)
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter((value) => value && value.length <= 120 && !genericMessages.has(value.toLowerCase())),
+  ));
+  return messages.length > 0 ? messages.slice(0, 3).join('；') : null;
 };
 
 const resolveSafeMessage = (message?: string): string | null => {
@@ -145,7 +168,21 @@ const rules: ErrorRule[] = [
   },
 ];
 
-export const buildFriendlyError = (message?: string, status?: number): GlobalErrorPayload => {
+export const buildFriendlyError = (
+  message?: string,
+  status?: number,
+  details?: ErrorDetails,
+): GlobalErrorPayload => {
+  const validationDetailMessage = status === 400
+    ? resolveValidationDetailMessage(details)
+    : null;
+  if (validationDetailMessage) {
+    return {
+      title: '请检查填写内容',
+      description: validationDetailMessage,
+      type: 'warning',
+    };
+  }
   const safeMessage = resolveSafeMessage(message);
   if (safeMessage) {
     const matchedRule = rules.find((rule) => rule.matcher(message, status));

@@ -1,10 +1,11 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
   const localApiTarget = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
+  const appBuildId = env.VITE_APP_BUILD_ID || `local-${Date.now()}`
   const useE2eAuthBypass = mode === 'development' && env.VITE_E2E_AUTH_BYPASS === '1'
   const e2eAuthBypassPlugin = useE2eAuthBypass ? {
     name: 'e2e-auth-bypass',
@@ -46,8 +47,33 @@ export default defineConfig(({ mode }) => {
       `
     },
   } : null
+  const appVersionPlugin: Plugin = {
+    name: 'app-version-manifest',
+    configureServer(server) {
+      server.middlewares.use('/version.json', (_request, response) => {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'application/json; charset=utf-8')
+        response.setHeader('Cache-Control', 'no-store')
+        response.end(JSON.stringify({ buildId: appBuildId }))
+      })
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ buildId: appBuildId }),
+      })
+    },
+  }
   return {
-    plugins: [...(e2eAuthBypassPlugin ? [e2eAuthBypassPlugin] : []), react()],
+    define: {
+      __APP_BUILD_ID__: JSON.stringify(appBuildId),
+    },
+    plugins: [
+      ...(e2eAuthBypassPlugin ? [e2eAuthBypassPlugin] : []),
+      react(),
+      appVersionPlugin,
+    ],
     server: {
       proxy: {
         '/api/actuator': {
