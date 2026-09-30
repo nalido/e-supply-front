@@ -1,5 +1,5 @@
 import { CopyOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Grid, Input, Space, Switch, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Grid, Input, InputNumber, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useRef } from 'react';
 import type { MaterialBasicType, MaterialMinimumSpecification } from '../../types/material';
@@ -11,6 +11,7 @@ type SpecificationDraft = MaterialMinimumSpecification & { rowKey: string };
 
 type Props = {
   materialType: MaterialBasicType;
+  unit?: string;
   value?: MaterialMinimumSpecification[];
   onChange?: (value: MaterialMinimumSpecification[]) => void;
 };
@@ -34,7 +35,7 @@ const RecoverySource = ({ row }: { row: SpecificationDraft }) => {
   return <Text type="secondary">手工维护</Text>;
 };
 
-export default function MaterialSpecificationEditor({ materialType, value = [], onChange }: Props) {
+export default function MaterialSpecificationEditor({ materialType, unit, value = [], onChange }: Props) {
   const screens = Grid.useBreakpoint();
   const compact = screens.md === false;
   const draftRowKeysRef = useRef<string[]>([]);
@@ -116,6 +117,19 @@ export default function MaterialSpecificationEditor({ materialType, value = [], 
       render: (_: unknown, row: SpecificationDraft) => <RecoverySource row={row} />,
     }] : []),
     {
+      title: '安全库存', dataIndex: 'safetyStockQty', width: 150,
+      render: (value, row) => (
+        <InputNumber
+          className="oc-excel-cell-input"
+          min={0}
+          precision={4}
+          suffix={unit}
+          value={value ?? 0}
+          onChange={(nextValue) => patchRow(row.rowKey, { safetyStockQty: Number(nextValue ?? 0) })}
+        />
+      ),
+    },
+    {
       title: hasRecoveryCandidates ? '采用' : '状态', dataIndex: 'active', width: 82, align: 'center',
       render: (active, row) => <Switch size="small" checked={active !== false} checkedChildren={hasRecoveryCandidates ? '采用' : '启用'} unCheckedChildren={hasRecoveryCandidates ? '不用' : '停用'} onChange={(checked) => patchRow(row.rowKey, { active: checked })} />,
     },
@@ -176,6 +190,16 @@ export default function MaterialSpecificationEditor({ materialType, value = [], 
                   {dimensionInput(row, 'grammage', '克重', '如 180g/m²')}
                 </>
               ) : dimensionInput(row, 'specification', '规格', '如 20mm')}
+              <label className="material-specification-card__field">
+                <Text type="secondary">安全库存</Text>
+                <InputNumber
+                  min={0}
+                  precision={4}
+                  suffix={unit}
+                  value={row.safetyStockQty ?? 0}
+                  onChange={(nextValue) => patchRow(row.rowKey, { safetyStockQty: Number(nextValue ?? 0) })}
+                />
+              </label>
               <div className="material-specification-card__footer">
                 {hasRecoveryCandidates ? <RecoverySource row={row} /> : <span />}
                 <Space size={4}>

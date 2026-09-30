@@ -10,6 +10,7 @@ export type MaterialMinimumSpecification = {
   specification?: string;
   width?: string;
   grammage?: string;
+  safetyStockQty?: number;
   active: boolean;
   legacyDefault?: boolean;
   recoveryCandidate?: boolean;

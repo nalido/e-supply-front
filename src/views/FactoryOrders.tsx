@@ -43,7 +43,12 @@ import type {
   FactoryOrderStatusSummary,
   FactoryOrderTableRow,
 } from '../types';
-import { factoryOrdersApi, type FactoryOrderCostDetail, type FactoryOrderProgressNode } from '../api/factory-orders';
+import {
+  factoryOrdersApi,
+  type FactoryOrderCostDetail,
+  type FactoryOrderMaterialDetail,
+  type FactoryOrderProgressNode,
+} from '../api/factory-orders';
 import { finishedGoodsReceivedService } from '../api/finished-goods';
 import materialApi from '../api/material';
 import { outsourcingManagementApi } from '../api/outsourcing-management';
@@ -57,11 +62,15 @@ import { SampleStatus as SampleStatusEnum } from '../types/sample';
 import type { FinishedGoodsReceivedRecord } from '../types/finished-goods-received';
 import dayjs from 'dayjs';
 import { SearchField } from '../components/page';
+import StockingPurchaseCreateModal, {
+  type StockingPurchaseInitialDraft,
+} from '../components/procurement/StockingPurchaseCreateModal';
 import '../styles/factory-orders.css';
 import { sortColorValues, sortSizeValues, sortSpecRows } from '../utils/spec';
 import CreateOrderModal from './factory-orders/CreateOrderModal';
 import ImportOrdersModal from './factory-orders/ImportOrdersModal';
 import CostDetailModal from './factory-orders/CostDetailModal';
+import MaterialDetailModal from './factory-orders/MaterialDetailModal';
 import PrintPreviewModal from './factory-orders/PrintPreviewModal';
 import FactoryOrderCardList from './factory-orders/CardList';
 import AllocationCreateModal from './factory-orders/AllocationCreateModal';
@@ -167,6 +176,14 @@ const FactoryOrders = () => {
   const [costDetailRecord, setCostDetailRecord] = useState<OrderActionSnapshot | null>(null);
   const [costDetailLoading, setCostDetailLoading] = useState(false);
   const [costDetailData, setCostDetailData] = useState<FactoryOrderCostDetail | null>(null);
+  const [materialDetailRecord, setMaterialDetailRecord] = useState<OrderActionSnapshot | null>(null);
+  const [materialDetailLoading, setMaterialDetailLoading] = useState(false);
+  const [materialDetailData, setMaterialDetailData] = useState<FactoryOrderMaterialDetail | null>(null);
+  const [purchaseModal, setPurchaseModal] = useState<{
+    open: boolean;
+    materialType: 'fabric' | 'accessory';
+    draft?: StockingPurchaseInitialDraft;
+  }>({ open: false, materialType: 'fabric' });
   const [printPreviewRecord, setPrintPreviewRecord] = useState<OrderActionSnapshot | null>(null);
   const [progressActionModal, setProgressActionModal] = useState<ProgressActionModalState>({ open: false, submitting: false });
   const [progressStats, setProgressStats] = useState<ProgressStatsState>({
@@ -585,6 +602,51 @@ const FactoryOrders = () => {
       setCostDetailLoading(false);
     }
   }, []);
+
+  const handleOpenMaterialDetail = useCallback(async (record: OrderActionSnapshot) => {
+    setMaterialDetailRecord(record);
+    setMaterialDetailLoading(true);
+    try {
+      const detail = await factoryOrdersApi.getMaterialDetail(record.orderId);
+      setMaterialDetailData(detail);
+    } catch (error) {
+      console.error('failed to fetch factory order material detail', error);
+      setMaterialDetailData(null);
+      message.error('获取面辅料明细失败，请稍后重试');
+    } finally {
+      setMaterialDetailLoading(false);
+    }
+  }, []);
+
+  const handleCreatePurchaseFromShortage = useCallback((materialType: 'fabric' | 'accessory') => {
+    if (!materialDetailData) {
+      return;
+    }
+    const targetType = materialType === 'fabric' ? 'FABRIC' : 'ACCESSORY';
+    const items = materialDetailData.items
+      .filter((item) => item.shortage && item.materialType === targetType)
+      .map((item) => ({
+        materialId: String(item.materialId),
+        materialMinimumSpecificationId: item.materialMinimumSpecificationId == null
+          ? undefined
+          : String(item.materialMinimumSpecificationId),
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        quantity: item.suggestedPurchaseQty,
+      }));
+    if (!items.length) {
+      message.info('当前没有需要采购的面辅料');
+      return;
+    }
+    setPurchaseModal({
+      open: true,
+      materialType,
+      draft: {
+        items,
+        remark: `工厂订单 ${materialDetailData.orderNo} 缺料补货`,
+      },
+    });
+  }, [materialDetailData]);
 
   const handleOpenPrintPreview = useCallback((record: OrderActionSnapshot) => {
     setPrintPreviewRecord(record);
@@ -1882,11 +1944,10 @@ const FactoryOrders = () => {
         remarks: values.remarks,
         lines: lineItems,
       };
-      if (editingOrderId) {
-        await factoryOrdersApi.updateOrder(editingOrderId, payload);
-      } else {
-        await factoryOrdersApi.createOrder(payload);
-      }
+      const wasEditing = Boolean(editingOrderId);
+      const savedDetail = editingOrderId
+        ? await factoryOrdersApi.updateOrder(editingOrderId, payload)
+        : await factoryOrdersApi.createOrder(payload);
       if (
         !editingOrderId
         && pendingSampleProduceContext?.sampleOrderId
@@ -1898,10 +1959,33 @@ const FactoryOrders = () => {
           '转大货生产',
         );
       }
-      message.success(editingOrderId ? '工厂订单更新成功' : '工厂订单创建成功');
+      message.success(wasEditing ? '工厂订单更新成功' : '工厂订单创建成功');
+      const savedOrderId = savedDetail.order?.id || editingOrderId;
+      const savedOrderCode = savedDetail.order?.orderNo || editingOrderCode || payload.orderNo || '';
       setPendingSampleProduceContext(null);
       handleCloseCreate();
       triggerReload();
+      if (savedOrderId) {
+        try {
+          const materialDetail = await factoryOrdersApi.getMaterialDetail(savedOrderId);
+          if (materialDetail.shortage) {
+            setMaterialDetailRecord({
+              orderId: String(savedOrderId),
+              orderCode: savedOrderCode || materialDetail.orderNo,
+              styleName: selectedStyleOption?.label,
+              expectedDelivery: payload.expectedDelivery,
+              materialStatus: payload.materialStatus,
+              orderQuantity: totalQuantity,
+            });
+            setMaterialDetailData(materialDetail);
+          } else if (!materialDetail.fullyConfigured) {
+            message.warning(`订单已保存，但有 ${materialDetail.unconfiguredLineCount} 条颜色尺码尚未配置面辅料，暂时无法完整核算库存`);
+          }
+        } catch (materialError) {
+          console.error('failed to check material stock after saving factory order', materialError);
+          message.warning('订单已保存，但面辅料库存检查失败，请在订单列表中重新查看');
+        }
+      }
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) {
         return;
@@ -1978,6 +2062,22 @@ const FactoryOrders = () => {
       message.success(`导入完成：新增 ${result.created} 条，更新 ${result.updated} 条`);
       handleCloseImport();
       triggerReload();
+      if (result.materialWarnings?.length) {
+        const shortageCount = result.materialWarnings.filter((item) => item.shortage).length;
+        const unconfiguredCount = result.materialWarnings.filter((item) => !item.fullyConfigured).length;
+        Modal.warning({
+          title: '导入订单面辅料检查结果',
+          width: 620,
+          content: (
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {shortageCount ? <div>{shortageCount} 张订单存在面辅料缺口，请在工厂订单列表打开“面辅料明细”处理。</div> : null}
+              {unconfiguredCount ? <div>{unconfiguredCount} 张订单缺少可核算的颜色尺码面辅料配置，系统未猜测用量。</div> : null}
+              <div>涉及订单：{result.materialWarnings.map((item) => item.orderNo).join('、')}</div>
+            </Space>
+          ),
+          okText: '知道了',
+        });
+      }
     } catch (error) {
       console.error('failed to import factory orders', error);
       message.error('导入失败，请稍后重试');
@@ -2127,9 +2227,25 @@ const FactoryOrders = () => {
       title: '操作',
       dataIndex: 'actions',
       fixed: 'right',
-      width: 180,
+      width: 260,
       render: (_value, record) => (
-        <Space size={8}>
+        <Space size={[4, 0]} wrap>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => void handleOpenMaterialDetail({
+              orderId: record.id,
+              orderCode: record.orderCode,
+              styleCode: record.styleCode,
+              styleName: record.styleName,
+              expectedDelivery: record.expectedDelivery,
+              materialStatus: record.materialStatus,
+              orderQuantity: record.orderQuantity,
+              productionStage: record.productionStage,
+            })}
+          >
+            面辅料明细
+          </Button>
           <Button
             type="link"
             size="small"
@@ -2218,7 +2334,7 @@ const FactoryOrders = () => {
         </Space>
       ),
     },
-  ], [handleCopyOrder, handleDeleteOrder, handleEditOrder, handleOpenCostDetail, handleOpenPrintPreview]);
+  ], [handleCopyOrder, handleDeleteOrder, handleEditOrder, handleOpenCostDetail, handleOpenMaterialDetail, handleOpenPrintPreview]);
 
   const rowSelection = useMemo(() => ({
     selectedRowKeys: selectedOrderIds,
@@ -2473,6 +2589,7 @@ const FactoryOrders = () => {
           setCardPageSize(size);
         }
       }}
+      onOpenMaterialDetail={(record) => void handleOpenMaterialDetail(record)}
       onOpenCostDetail={(record) => void handleOpenCostDetail(record)}
       onCopyOrder={(record) => void handleCopyOrder(record)}
       onEditOrder={(record) => void handleEditOrder(record)}
@@ -2804,6 +2921,29 @@ const FactoryOrders = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      <MaterialDetailModal
+        record={materialDetailRecord}
+        data={materialDetailData}
+        loading={materialDetailLoading}
+        onCancel={() => {
+          setMaterialDetailRecord(null);
+          setMaterialDetailData(null);
+          setMaterialDetailLoading(false);
+        }}
+        onCreatePurchase={handleCreatePurchaseFromShortage}
+      />
+
+      <StockingPurchaseCreateModal
+        open={purchaseModal.open}
+        materialType={purchaseModal.materialType}
+        initialDraft={purchaseModal.draft}
+        onClose={() => setPurchaseModal((prev) => ({ ...prev, open: false, draft: undefined }))}
+        onCreated={(summary) => {
+          message.success(`已创建采购单 ${summary.orderNo}`);
+          setPurchaseModal((prev) => ({ ...prev, open: false, draft: undefined }));
+        }}
+      />
 
       <CostDetailModal
         record={costDetailRecord}

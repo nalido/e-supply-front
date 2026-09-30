@@ -32,6 +32,7 @@ type BackendMaterialResponse = {
     specification?: string;
     width?: string;
     grammage?: string;
+    safetyStockQty?: number | string;
     active?: boolean;
     legacyDefault?: boolean;
   }>;
@@ -60,6 +61,7 @@ type MaterialImportItem = {
     specification?: string;
     width?: string;
     grammage?: string;
+    safetyStockQty?: number;
     active: boolean;
   }>;
 };
@@ -225,6 +227,7 @@ const adaptMinimumSpecifications = (
         specification: spec.specification?.trim() || undefined,
         width: spec.width?.trim() || undefined,
         grammage: spec.grammage?.trim() || undefined,
+        safetyStockQty: toNumberValue(spec.safetyStockQty) ?? 0,
         active: spec.active !== false,
         legacyDefault: spec.legacyDefault === true,
       };
@@ -358,6 +361,7 @@ const buildRequestPayload = (
       specification: item.specification?.trim() || undefined,
       width: item.width?.trim() || undefined,
       grammage: item.grammage?.trim() || undefined,
+      safetyStockQty: Number(item.safetyStockQty ?? 0),
       active: item.active !== false,
     })),
   };
@@ -395,6 +399,7 @@ const buildImportPayload = (
         specification: entry.specification?.trim() || undefined,
         width: entry.width?.trim() || undefined,
         grammage: entry.grammage?.trim() || undefined,
+        safetyStockQty: Number(entry.safetyStockQty ?? 0),
         active: entry.active !== false,
       })),
     } satisfies MaterialImportItem;

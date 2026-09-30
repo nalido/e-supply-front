@@ -119,6 +119,7 @@ const MaterialFormModal = ({
   onCancel,
 }: MaterialFormModalProps) => {
   const [form] = Form.useForm<MaterialFormValues>();
+  const materialUnit = Form.useWatch('unit', form) ?? initialValues?.unit ?? '米';
   const isAccessory = materialType === 'accessory';
 
   useEffect(() => {
@@ -279,7 +280,7 @@ const MaterialFormModal = ({
         ) : null}
         <Spin spinning={recoveryLoading === true} tip="正在整理原有组合">
           <Form.Item label="颜色与规格组合" name="minimumSpecifications" required>
-            <MaterialSpecificationEditor materialType={materialType} />
+            <MaterialSpecificationEditor materialType={materialType} unit={materialUnit} />
           </Form.Item>
         </Spin>
         <Form.Item label="备注" name="remarks">

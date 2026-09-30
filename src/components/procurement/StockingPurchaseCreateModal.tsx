@@ -58,23 +58,27 @@ type MaterialTableRow =
   | (SelectedMaterialRow & { kind: 'item' })
   | BulkApplyRow;
 
-export type StockingPurchaseCreateModalProps = {
-  open: boolean;
-  materialType: MaterialStockType;
-  mode?: 'create' | 'edit';
-  initialDraft?: {
+export type StockingPurchaseInitialDraft = {
     materialCode?: string;
     materialName?: string;
     quantity?: number;
     supplierName?: string;
     remark?: string;
     items?: Array<{
+      materialId?: string;
+      materialMinimumSpecificationId?: string;
       materialCode?: string;
       materialName?: string;
       quantity?: number;
       supplierName?: string;
     }>;
-  };
+};
+
+export type StockingPurchaseCreateModalProps = {
+  open: boolean;
+  materialType: MaterialStockType;
+  mode?: 'create' | 'edit';
+  initialDraft?: StockingPurchaseInitialDraft;
   initialOrder?: StockingPurchaseOrderDetail;
   onClose: () => void;
   onCreated?: (summary: ProcurementOrderSummary) => void;
@@ -427,14 +431,19 @@ const StockingPurchaseCreateModal = ({
             keyword: materialKeyword,
           });
           const matchedMaterial =
-            response.list.find((item) => item.sku === draftItem.materialCode)
+            response.list.find((item) => item.id === draftItem.materialId)
+            ?? response.list.find((item) => item.sku === draftItem.materialCode)
             ?? response.list.find((item) => item.name === draftItem.materialName)
             ?? response.list[0];
           if (!matchedMaterial) {
             continue;
           }
           const row = buildSelectedMaterialRow(matchedMaterial);
-          const defaultSpecificationId = getDefaultMinimumSpecificationId(matchedMaterial);
+          const requestedSpecificationId = draftItem.materialMinimumSpecificationId;
+          const defaultSpecificationId = requestedSpecificationId
+            && findMinimumSpecification(matchedMaterial, requestedSpecificationId)?.active !== false
+            ? requestedSpecificationId
+            : getDefaultMinimumSpecificationId(matchedMaterial);
           const defaultSpecification = findMinimumSpecification(matchedMaterial, defaultSpecificationId);
           matchedMaterials.push(row);
           nextQuantities[row.rowId] = Math.max(0, Number(draftItem.quantity ?? 0));

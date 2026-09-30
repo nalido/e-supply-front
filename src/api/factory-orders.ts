@@ -60,6 +60,45 @@ export type FactoryOrderImportResult = {
   created: number;
   updated: number;
   errors?: string[];
+  materialWarnings?: FactoryOrderMaterialDetail[];
+};
+
+export type FactoryOrderMaterialWarehouse = {
+  warehouseId: number;
+  warehouseName: string;
+  stockQty: number;
+  availableQty: number;
+  inTransitQty: number;
+};
+
+export type FactoryOrderMaterialItem = {
+  materialId: number;
+  materialMinimumSpecificationId?: number;
+  materialCode: string;
+  materialName: string;
+  imageUrl?: string;
+  materialType: 'FABRIC' | 'ACCESSORY';
+  unit: string;
+  minimumSpecificationLabel?: string;
+  expectedQty: number;
+  actualQty: number;
+  varianceQty: number;
+  stockQty: number;
+  availableQty: number;
+  inTransitQty: number;
+  safetyStockQty: number;
+  suggestedPurchaseQty: number;
+  shortage: boolean;
+  warehouses: FactoryOrderMaterialWarehouse[];
+};
+
+export type FactoryOrderMaterialDetail = {
+  orderId: number;
+  orderNo: string;
+  fullyConfigured: boolean;
+  unconfiguredLineCount: number;
+  shortage: boolean;
+  items: FactoryOrderMaterialItem[];
 };
 
 export type FactoryOrderBatchUpdatePayload = {
@@ -169,6 +208,28 @@ type BackendFactoryOrderDetailLine = {
 type BackendFactoryOrderDetail = {
   order?: BackendFactoryOrderDetailSummary;
   lines?: BackendFactoryOrderDetailLine[];
+};
+
+type BackendFactoryOrderMaterialWarehouse = Partial<FactoryOrderMaterialWarehouse> & {
+  stockQty?: number | string;
+  availableQty?: number | string;
+  inTransitQty?: number | string;
+};
+
+type BackendFactoryOrderMaterialItem = Omit<Partial<FactoryOrderMaterialItem>, 'warehouses'> & {
+  expectedQty?: number | string;
+  actualQty?: number | string;
+  varianceQty?: number | string;
+  stockQty?: number | string;
+  availableQty?: number | string;
+  inTransitQty?: number | string;
+  safetyStockQty?: number | string;
+  suggestedPurchaseQty?: number | string;
+  warehouses?: BackendFactoryOrderMaterialWarehouse[];
+};
+
+type BackendFactoryOrderMaterialDetail = Omit<Partial<FactoryOrderMaterialDetail>, 'items'> & {
+  items?: BackendFactoryOrderMaterialItem[];
 };
 
 export type FactoryOrderCreatePayload = {
@@ -492,6 +553,44 @@ const adaptDetail = (payload: BackendFactoryOrderDetail): FactoryOrderDetail => 
   lines: (payload.lines ?? []).map(adaptDetailLine),
 });
 
+const adaptMaterialDetail = (
+  payload: BackendFactoryOrderMaterialDetail,
+): FactoryOrderMaterialDetail => ({
+  orderId: Number(payload.orderId ?? 0),
+  orderNo: payload.orderNo ?? '',
+  fullyConfigured: payload.fullyConfigured === true,
+  unconfiguredLineCount: Number(payload.unconfiguredLineCount ?? 0),
+  shortage: payload.shortage === true,
+  items: (payload.items ?? []).map((item) => ({
+    materialId: Number(item.materialId ?? 0),
+    materialMinimumSpecificationId: item.materialMinimumSpecificationId == null
+      ? undefined
+      : Number(item.materialMinimumSpecificationId),
+    materialCode: item.materialCode ?? '',
+    materialName: item.materialName ?? '',
+    imageUrl: item.imageUrl ?? undefined,
+    materialType: item.materialType === 'ACCESSORY' ? 'ACCESSORY' : 'FABRIC',
+    unit: item.unit ?? '',
+    minimumSpecificationLabel: item.minimumSpecificationLabel,
+    expectedQty: parseAmount(item.expectedQty),
+    actualQty: parseAmount(item.actualQty),
+    varianceQty: parseAmount(item.varianceQty),
+    stockQty: parseAmount(item.stockQty),
+    availableQty: parseAmount(item.availableQty),
+    inTransitQty: parseAmount(item.inTransitQty),
+    safetyStockQty: parseAmount(item.safetyStockQty),
+    suggestedPurchaseQty: parseAmount(item.suggestedPurchaseQty),
+    shortage: item.shortage === true,
+    warehouses: (item.warehouses ?? []).map((warehouse) => ({
+      warehouseId: Number(warehouse.warehouseId ?? 0),
+      warehouseName: warehouse.warehouseName ?? '',
+      stockQty: parseAmount(warehouse.stockQty),
+      availableQty: parseAmount(warehouse.availableQty),
+      inTransitQty: parseAmount(warehouse.inTransitQty),
+    })),
+  })),
+});
+
 const buildQueryParams = (params?: FactoryOrdersQuery) => {
   if (!params) {
     return {};
@@ -550,6 +649,15 @@ export const factoryOrdersApi = {
       params: { tenantId },
     });
     return adaptCostDetail(data);
+  },
+
+  async getMaterialDetail(orderId: string | number): Promise<FactoryOrderMaterialDetail> {
+    const tenantId = requireNumericTenantId();
+    const { data } = await http.get<BackendFactoryOrderMaterialDetail>(
+      `/api/v1/production-orders/${orderId}/material-details`,
+      { params: { tenantId } },
+    );
+    return adaptMaterialDetail(data ?? {});
   },
 
   async createOtherFee(orderId: string | number, payload: FactoryOrderOtherFeePayload): Promise<FactoryOrderCostDetail> {
@@ -678,8 +786,18 @@ export const factoryOrdersApi = {
         remarks: order.remarks,
       })),
     };
-    const { data } = await http.post<FactoryOrderImportResult>('/api/v1/production-orders/import', requestBody);
-    return data;
+    const { data } = await http.post<{
+      created?: number;
+      updated?: number;
+      errors?: string[];
+      materialWarnings?: BackendFactoryOrderMaterialDetail[];
+    }>('/api/v1/production-orders/import', requestBody);
+    return {
+      created: Number(data.created ?? 0),
+      updated: Number(data.updated ?? 0),
+      errors: data.errors ?? [],
+      materialWarnings: (data.materialWarnings ?? []).map(adaptMaterialDetail),
+    };
   },
 
   async batchUpdateStatus(payload: FactoryOrderBatchUpdatePayload): Promise<FactoryOrderBatchUpdateResult> {
@@ -714,7 +832,7 @@ export const factoryOrdersApi = {
     return data;
   },
 
-  async createOrder(payload: FactoryOrderCreatePayload): Promise<void> {
+  async createOrder(payload: FactoryOrderCreatePayload): Promise<FactoryOrderDetail> {
     const tenantId = requireNumericTenantId();
     const normalizedLines = (payload.lines ?? [])
       .map((line) => ({
@@ -736,7 +854,7 @@ export const factoryOrdersApi = {
         ? Number(payload.unitPrice)
         : undefined;
 
-    await http.post('/api/v1/production-orders', {
+    const { data } = await http.post<BackendFactoryOrderDetail>('/api/v1/production-orders', {
       tenantId,
       orderNo: payload.orderNo?.trim() || undefined,
       sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
@@ -758,9 +876,10 @@ export const factoryOrdersApi = {
             },
       ],
     });
+    return adaptDetail(data ?? {});
   },
 
-  async updateOrder(orderId: string | number, payload: FactoryOrderCreatePayload): Promise<void> {
+  async updateOrder(orderId: string | number, payload: FactoryOrderCreatePayload): Promise<FactoryOrderDetail> {
     const tenantId = requireNumericTenantId();
     const normalizedLines = (payload.lines ?? [])
       .map((line) => ({
@@ -782,7 +901,7 @@ export const factoryOrdersApi = {
         ? Number(payload.unitPrice)
         : undefined;
 
-    await http.post(`/api/v1/production-orders/${orderId}/update`, {
+    const { data } = await http.post<BackendFactoryOrderDetail>(`/api/v1/production-orders/${orderId}/update`, {
       tenantId,
       orderNo: payload.orderNo?.trim() || undefined,
       sourceSampleOrderId: payload.sourceSampleOrderId ? Number(payload.sourceSampleOrderId) : undefined,
@@ -804,6 +923,7 @@ export const factoryOrdersApi = {
             },
           ],
     });
+    return adaptDetail(data ?? {});
   },
 
   async deleteOrder(orderId: string | number): Promise<void> {

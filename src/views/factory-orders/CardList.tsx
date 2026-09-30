@@ -24,6 +24,7 @@ type Props = {
   selectedOrderIds: string[];
   onToggleOrder: (orderId: string, checked: boolean) => void;
   onPageChange: (page: number, size?: number) => void;
+  onOpenMaterialDetail: (record: OrderActionSnapshot) => void;
   onOpenCostDetail: (record: OrderActionSnapshot) => void;
   onCopyOrder: (record: OrderActionSnapshot) => void;
   onEditOrder: (record: OrderActionSnapshot) => void;
@@ -42,6 +43,7 @@ export default function FactoryOrderCardList({
   selectedOrderIds,
   onToggleOrder,
   onPageChange,
+  onOpenMaterialDetail,
   onOpenCostDetail,
   onCopyOrder,
   onEditOrder,
@@ -121,6 +123,9 @@ export default function FactoryOrderCardList({
                   </div>
                   <div className="factory-order-actions">
                     <Space size={8} wrap>
+                      <Button size="small" type="text" onClick={() => onOpenMaterialDetail({ orderId: order.id, orderCode: order.code, styleCode: order.styleCode, styleName: order.name, expectedDelivery: order.expectedDelivery, materialStatus: order.materialStatus })}>
+                        面辅料明细
+                      </Button>
                       <Button size="small" type="text" onClick={() => onOpenCostDetail({ orderId: order.id, orderCode: order.code, styleCode: order.styleCode, styleName: order.name, expectedDelivery: order.expectedDelivery, materialStatus: order.materialStatus })}>
                         大货成本
                       </Button>
