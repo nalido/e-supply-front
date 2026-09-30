@@ -189,15 +189,24 @@ try {
 
   const detailModal = page.locator('.ant-modal:visible').filter({ hasText: `面辅料明细 - ${orderNo}` });
   await detailModal.getByText('面辅料库存不足', { exact: true }).waitFor({ timeout: 30_000 });
+  const detailHeaders = (await detailModal.locator('.ant-table-thead').first().getByRole('columnheader').allInnerTexts())
+    .map((value) => value.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const availableStockIndex = detailHeaders.indexOf('可用库存');
+  const expectedUsageIndex = detailHeaders.indexOf('预计使用');
+  ensure(
+    availableStockIndex >= 0 && availableStockIndex + 1 === expectedUsageIndex,
+    `available stock should be immediately before expected usage: ${JSON.stringify(detailHeaders)}`,
+  );
   const detailRow = detailModal.locator('.ant-table-tbody tr').filter({ hasText: materialName }).first();
   await detailRow.waitFor();
   const detailCells = (await detailRow.locator('td').allInnerTexts())
     .map((value) => value.replace(/\s+/g, ' ').trim());
   const expectedQuantityCells = [
+    `${expectedAvailableLabel} 米`,
     '10 米',
     '0 米',
     '-10 米',
-    `${expectedAvailableLabel} 米`,
     `${expectedAvailableLabel} 米`,
     '0 米',
     '5 米',
@@ -214,6 +223,7 @@ try {
   ensure((await detailImage.getAttribute('src'))?.startsWith('data:image/svg+xml,'), 'material image was not rendered');
   await detailModal.getByText(/ORDER-MATERIAL-.*-物料仓/).waitFor();
   result.assertions.materialDetail = {
+    columnOrder: detailHeaders,
     expectedUsage: '10 米',
     actualUsage: '0 米',
     availableStock: `${expectedAvailableLabel} 米`,

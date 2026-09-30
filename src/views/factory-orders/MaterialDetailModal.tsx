@@ -73,6 +73,13 @@ const MaterialDetailModal = ({ record, data, loading, onCancel, onCreatePurchase
       render: (value?: string) => value || '历史未指定规格',
     },
     {
+      title: '可用库存',
+      dataIndex: 'availableQty',
+      width: 118,
+      align: 'right',
+      render: (value: number, item) => formatQuantity(value, item.unit),
+    },
+    {
       title: '预计使用',
       dataIndex: 'expectedQty',
       width: 118,
@@ -100,13 +107,6 @@ const MaterialDetailModal = ({ record, data, loading, onCancel, onCreatePurchase
     {
       title: '现存库存',
       dataIndex: 'stockQty',
-      width: 118,
-      align: 'right',
-      render: (value: number, item) => formatQuantity(value, item.unit),
-    },
-    {
-      title: '可用库存',
-      dataIndex: 'availableQty',
       width: 118,
       align: 'right',
       render: (value: number, item) => formatQuantity(value, item.unit),
