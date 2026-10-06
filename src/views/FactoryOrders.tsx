@@ -900,6 +900,7 @@ const FactoryOrders = () => {
     try {
       type AllocationItem = { color: string; size: string; quantity: number };
       type AllocationEntry = {
+        allocationId?: string;
         bedId?: string;
         completedAt?: string;
         bedNumber?: string;
@@ -947,6 +948,7 @@ const FactoryOrders = () => {
         try {
           const payload = JSON.parse(node.payloadJson) as {
             allocations?: Array<{
+              allocationId?: unknown;
               bedId?: unknown;
               completedAt?: unknown;
               bedNumber?: unknown;
@@ -964,8 +966,9 @@ const FactoryOrders = () => {
           const sourceAllocations = Array.isArray(payload.allocations)
             ? payload.allocations.filter((allocation) => !currentStageKey || shouldIncludeAllocation(allocation.source, currentStageKey))
             : [];
-          if (sourceAllocations.length > 0) {
+          if (Array.isArray(payload.allocations)) {
             return sourceAllocations.map((allocation) => ({
+              allocationId: typeof allocation.allocationId === 'string' ? allocation.allocationId : undefined,
               bedId: typeof allocation.bedId === 'string' ? allocation.bedId : undefined,
               completedAt: typeof allocation.completedAt === 'string' ? allocation.completedAt : undefined,
               bedNumber: typeof allocation.bedNumber === 'string' ? allocation.bedNumber : undefined,
@@ -1074,7 +1077,8 @@ const FactoryOrders = () => {
           return;
         }
         historyRows.push({
-          key: `${stageNodeCode}-${index}`,
+          key: allocation.allocationId ?? `${stageNodeCode}-${index}`,
+          allocationId: allocation.allocationId,
           bedId: allocation.bedId,
           completedAt: allocation.completedAt,
           bedNumber: allocation.bedNumber,
@@ -1790,7 +1794,8 @@ const FactoryOrders = () => {
     if (!progressActionModal.order || !progressActionModal.stage) {
       return;
     }
-    if (!record.completedAt) {
+    const canIdentifySewingRecordWithoutTime = progressActionModal.stage.key === 'sewing' && Boolean(record.allocationId);
+    if (!record.completedAt && !canIdentifySewingRecordWithoutTime) {
       message.warning(progressActionModal.stage.key === 'cutting' ? '该条裁剪记录缺少录入时间，暂时无法删除' : '该条车缝领取记录缺少领取时间，暂时无法删除');
       return;
     }
@@ -1798,10 +1803,13 @@ const FactoryOrders = () => {
       message.warning(record.deleteBlockedReason || (progressActionModal.stage.key === 'cutting' ? '该条裁剪记录不允许删除' : '该条车缝领取记录不允许删除'));
       return;
     }
+    const completedAtLabel = record.completedAt
+      ? dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')
+      : '未记录';
     if (progressActionModal.stage.key === 'cutting') {
       Modal.confirm({
         title: '确认删除该条裁剪数据？',
-        content: `床次：${record.bedNumber ?? '-'}；录入时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
+        content: `床次：${record.bedNumber ?? '-'}；录入时间：${completedAtLabel}；数量：${record.totalQty}`,
         okText: '删除',
         okButtonProps: { danger: true },
         cancelText: '取消',
@@ -1824,12 +1832,13 @@ const FactoryOrders = () => {
     if (progressActionModal.stage.key === 'sewing') {
       Modal.confirm({
         title: '确认删除该条车缝领取记录？',
-        content: `领取时间：${dayjs(record.completedAt).format('YYYY-MM-DD HH:mm:ss')}；数量：${record.totalQty}`,
+        content: `领取时间：${completedAtLabel}；数量：${record.totalQty}`,
         okText: '删除',
         okButtonProps: { danger: true },
         cancelText: '取消',
         onOk: async () => {
           await factoryOrdersApi.deleteSewingRecord(progressActionModal.order!.orderId, {
+            allocationId: record.allocationId,
             workOrderId: record.workOrderId,
             outsourcingOrderId: record.outsourcingOrderId,
             completedAt: record.completedAt!,
@@ -1844,12 +1853,12 @@ const FactoryOrders = () => {
   }, [loadProgressStats, progressActionModal.order, progressActionModal.stage, triggerReload]);
 
   const handleOpenSewingTimeEdit = useCallback((record: AllocationHistoryRow) => {
-    if (!record.completedAt) {
+    if (!record.allocationId && !record.completedAt) {
       message.warning('该条领取记录缺少领取时间，暂时无法修改');
       return;
     }
     setSewingTimeEditRecord(record);
-    sewingTimeEditForm.setFieldsValue({ completedAt: dayjs(record.completedAt) });
+    sewingTimeEditForm.setFieldsValue({ completedAt: record.completedAt ? dayjs(record.completedAt) : dayjs() });
   }, [sewingTimeEditForm]);
 
   const handleSubmitSewingTimeEdit = useCallback(async () => {
@@ -1860,6 +1869,7 @@ const FactoryOrders = () => {
       const values = await sewingTimeEditForm.validateFields();
       setSewingTimeEditSubmitting(true);
       await factoryOrdersApi.updateSewingRecordTime(progressActionModal.order.orderId, {
+        allocationId: sewingTimeEditRecord.allocationId,
         workOrderId: sewingTimeEditRecord.workOrderId,
         outsourcingOrderId: sewingTimeEditRecord.outsourcingOrderId,
         completedAt: sewingTimeEditRecord.completedAt,

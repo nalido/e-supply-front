@@ -735,6 +735,7 @@ export const factoryOrdersApi = {
   async deleteSewingRecord(
     orderId: string | number,
     payload: {
+      allocationId?: string;
       workOrderId?: number;
       outsourcingOrderId?: number;
       completedAt?: string;
@@ -752,9 +753,10 @@ export const factoryOrdersApi = {
   async updateSewingRecordTime(
     orderId: string | number,
     payload: {
+      allocationId?: string;
       workOrderId?: number;
       outsourcingOrderId?: number;
-      completedAt: string;
+      completedAt?: string;
       newCompletedAt: string;
       items?: Array<{ color?: string; size?: string; quantity: number }>;
     },
