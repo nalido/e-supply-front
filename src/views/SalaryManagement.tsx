@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType, TableProps } from 'antd/es/table';
+import { Link } from 'react-router-dom';
 import type { TableRowSelection } from 'antd/es/table/interface';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
@@ -872,7 +873,9 @@ const SalaryManagement = () => {
         title: '工单',
         key: 'workOrder',
         width: 160,
-        render: (_value, record) => (record.workOrderId ? `WO-${record.workOrderId}` : '-'),
+        render: (_value, record) => record.workOrderId
+          ? <Link to={`/piecework/cutting/pending?workOrderId=${encodeURIComponent(record.workOrderId)}&openDetail=1`}>WO-{record.workOrderId}</Link>
+          : '-',
       },
     ],
     [ticketPage, ticketPageSize],

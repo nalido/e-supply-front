@@ -8,6 +8,7 @@ import type {
   OutsourcingCuttingDetailListParams,
   OutsourcingCuttingDetailRecord,
 } from '../types/order-outsourcing-cutting-detail-report';
+import { Link } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -246,6 +247,15 @@ const OrderOutsourcingCuttingDetailReport = () => {
         return record[field];
       };
 
+    const renderLinkedText = (
+      field: 'orderNumber' | 'subcontractor' | 'styleNumber',
+      target: (value: string) => string,
+    ) => (_value: string | undefined, record: TableRow) => {
+      const value = record[field];
+      if (!value) return null;
+      return <Link to={target(value)}>{record.rowType === 'aggregate' ? <Text strong>{value}</Text> : value}</Link>;
+    };
+
     const renderUnitPrice = (value: number | undefined, record: TableRow) => {
       if (record.rowType === 'aggregate') {
         if (record.unitPrice !== undefined) {
@@ -276,7 +286,7 @@ const OrderOutsourcingCuttingDetailReport = () => {
         title: '工厂订单',
         dataIndex: 'orderNumber',
         width: 160,
-        render: renderText('orderNumber'),
+        render: renderLinkedText('orderNumber', (value) => `/orders/factory?keyword=${encodeURIComponent(value)}&status=all`),
       });
     }
 
@@ -294,7 +304,7 @@ const OrderOutsourcingCuttingDetailReport = () => {
         title: '加工厂',
         dataIndex: 'subcontractor',
         width: 160,
-        render: renderText('subcontractor'),
+        render: renderLinkedText('subcontractor', (value) => `/basic/partners?type=subcontractor&keyword=${encodeURIComponent(value)}`),
       });
     }
 
@@ -304,7 +314,7 @@ const OrderOutsourcingCuttingDetailReport = () => {
           title: '款号',
           dataIndex: 'styleNumber',
           width: 140,
-          render: renderSkuField('styleNumber'),
+          render: renderLinkedText('styleNumber', (value) => `/basic/styles?keyword=${encodeURIComponent(value)}`),
         },
         {
           title: '款名',

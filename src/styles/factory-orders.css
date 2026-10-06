@@ -876,3 +876,674 @@
     width: 14px;
   }
 }
+
+/* 2026-09-30 工厂订单列表：高密度生产进度视图 */
+.factory-orders-page {
+  min-height: 100%;
+  padding: 0 16px 20px;
+  background: #f3f5f7;
+}
+
+.factory-orders-page-header {
+  padding: 9px 0;
+}
+
+.factory-orders-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 54px;
+}
+
+.factory-orders-page-title {
+  color: #172033;
+  flex: none;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.factory-orders-page-subtitle {
+  margin-top: 6px;
+  color: #7b8496;
+  font-size: 13px;
+}
+
+.factory-orders-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(112px, 1fr));
+  gap: 8px;
+  width: min(680px, 72vw);
+  min-width: 0;
+}
+
+.factory-orders-summary-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 50px;
+  padding: 6px 10px 6px 13px;
+  overflow: hidden;
+  border: 1px solid #dfe5ec;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.factory-orders-summary-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #2f80ed;
+  content: '';
+}
+
+.factory-orders-summary-card.warning::before {
+  background: #ff7a45;
+}
+
+.factory-orders-summary-label {
+  color: #6d7688;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.factory-orders-summary-value {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  color: #172033;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.factory-orders-summary-meta {
+  grid-column: 1;
+  color: #9aa2af;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.factory-orders-panel.ant-card {
+  overflow: hidden;
+  border: 1px solid #e0e5eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(23, 32, 51, 0.04);
+}
+
+.factory-orders-panel > .ant-card-body {
+  padding: 0;
+}
+
+.factory-orders-toolbar {
+  display: block;
+  margin: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid #edf0f3;
+  border-radius: 0;
+  background: #fff;
+}
+
+.factory-orders-action-row,
+.factory-orders-query-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.factory-orders-action-row {
+  justify-content: space-between;
+}
+
+.factory-orders-query-row {
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e6e9ee;
+}
+
+.factory-orders-status-select {
+  width: 170px;
+}
+
+.factory-orders-sort-select {
+  width: 210px;
+}
+
+.factory-orders-search-field {
+  width: min(360px, 34vw);
+  min-width: 240px;
+}
+
+.factory-orders-view-switch {
+  flex: none;
+}
+
+.factory-orders-toolbar .ant-btn,
+.factory-orders-toolbar .ant-input-affix-wrapper,
+.factory-orders-toolbar .ant-select-selector,
+.factory-orders-toolbar .ant-segmented {
+  border-radius: 5px !important;
+}
+
+.factory-orders-toolbar .ant-btn,
+.factory-orders-toolbar .ant-input-affix-wrapper,
+.factory-orders-toolbar .ant-select-selector {
+  min-height: 30px;
+}
+
+.factory-orders-selection-row {
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid #edf0f3;
+  background: #fbfcfd;
+}
+
+.factory-orders-legend {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 0;
+  color: #6d7688;
+  font-size: 12px;
+}
+
+.factory-orders-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.factory-orders-legend i {
+  width: 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: #c5cad2;
+}
+
+.factory-orders-legend i.completed {
+  background: #20a66a;
+}
+
+.factory-orders-legend i.partial {
+  background: #2f80ed;
+}
+
+.factory-orders-legend i.overcut {
+  background: #ee4d5a;
+}
+
+.factory-orders-content {
+  margin: 0;
+  padding: 8px 12px 12px;
+}
+
+.factory-orders-card-list .ant-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.factory-orders-card-list .ant-list-item {
+  padding: 0;
+  margin-bottom: 6px !important;
+  margin-block-end: 6px !important;
+}
+
+.factory-order-card-shell.ant-card {
+  overflow: hidden;
+  border: 1px solid #e3e7ec;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.factory-order-card-shell.ant-card:hover {
+  border-color: #c9d9ee;
+  box-shadow: 0 5px 14px rgba(47, 128, 237, 0.07);
+}
+
+.factory-order-card-orderline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  gap: 10px;
+  padding: 3px 10px;
+  border-bottom: 1px solid #edf0f3;
+  background: #fafbfc;
+}
+
+.factory-order-card-orderline-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.factory-order-card-order-label {
+  color: #8992a3;
+  font-size: 11px;
+}
+
+.factory-order-order-code {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.factory-order-card-due {
+  margin-left: 3px;
+  padding-left: 9px;
+  border-left: 1px solid #dfe4ea;
+  color: #596274;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.factory-order-status-badge {
+  padding: 0 7px;
+  border: 0;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.factory-order-status-badge::before {
+  width: 5px;
+  height: 5px;
+}
+
+.factory-order-status-badge.ongoing {
+  color: #1f6fd1;
+  background: #eaf3ff;
+}
+
+.factory-order-status-badge.completed {
+  color: #168957;
+  background: #eaf8f1;
+}
+
+.factory-order-actions {
+  flex: none;
+}
+
+.factory-order-actions .ant-btn {
+  height: 24px;
+  padding-inline: 6px;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 11px;
+}
+
+.factory-order-card-body {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 100px;
+}
+
+.factory-order-product-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 9px 11px;
+  border-right: 1px solid #edf0f3;
+}
+
+.factory-order-product {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+}
+
+.factory-order-thumbnail {
+  flex: none;
+  width: 48px;
+  height: 56px;
+  border: 1px solid #edf0f3;
+  border-radius: 4px;
+  background: #f5f7f9;
+  box-shadow: none;
+  object-fit: cover;
+}
+
+.factory-order-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #253149;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.factory-order-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.factory-order-meta-row .ant-tag {
+  margin: 0;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 17px;
+}
+
+.factory-order-facts {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 9px;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e9ee;
+}
+
+.factory-order-fact {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+
+.factory-order-fact span {
+  color: #959dac;
+  flex: none;
+  font-size: 10px;
+}
+
+.factory-order-fact-value {
+  overflow: hidden;
+  color: #39445a;
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.factory-order-progress-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+.factory-order-progress-panel-header {
+  margin-bottom: 9px;
+}
+
+.factory-order-progress-panel-title {
+  color: #4b566b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.factory-order-progress-panel-meta {
+  color: #a0a7b3;
+  font-size: 11px;
+}
+
+.factory-order-progress {
+  padding: 0;
+}
+
+.factory-order-progress-track {
+  align-items: flex-start;
+  min-width: 650px;
+  gap: 0;
+}
+
+.factory-order-progress-step {
+  align-items: flex-start;
+  min-width: 0;
+  gap: 0;
+}
+
+.factory-order-progress-node {
+  flex: 0 0 76px;
+  width: 76px;
+  padding: 0 2px;
+  gap: 3px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.factory-order-progress-node.completed,
+.factory-order-progress-node.partial,
+.factory-order-progress-node.overcut {
+  border: 0;
+  background: transparent;
+}
+
+.factory-order-progress-icon,
+.factory-order-progress-icon.has-percent {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #aeb4bd;
+  color: #fff;
+  font-size: 12px;
+  outline: 1.5px solid #d6dae0;
+  box-shadow: none;
+}
+
+.factory-order-progress-icon.completed {
+  background: #20a66a;
+  outline-color: #8dd6b5;
+}
+
+.factory-order-progress-icon.partial {
+  background: #2f80ed;
+  outline-color: #9fc6f7;
+}
+
+.factory-order-progress-icon.overcut {
+  background: #ee4d5a;
+  outline-color: #f6a5ac;
+}
+
+.factory-order-progress-icon-percent {
+  font-size: 9px;
+  letter-spacing: -0.2px;
+}
+
+.factory-order-progress-name {
+  color: #39445a;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.factory-order-progress-status {
+  display: block;
+  min-height: 15px;
+  overflow: visible;
+  color: #9299a6;
+  font-size: 9px;
+  line-height: 13px;
+  white-space: normal;
+}
+
+.factory-order-progress-status > span,
+.factory-order-progress-status > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.factory-order-progress-status > small {
+  color: #a8aeb8;
+  font-size: 8px;
+}
+
+.factory-order-progress-status.completed {
+  color: #168957;
+}
+
+.factory-order-progress-status.partial {
+  color: #1f6fd1;
+}
+
+.factory-order-progress-status.overcut {
+  color: #d93643;
+}
+
+.factory-order-progress-arrow {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 10px;
+  height: 2px;
+  margin: 15px 0 0;
+  border-radius: 0;
+  background: #d8dde4;
+}
+
+.factory-order-progress-arrow::after {
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.factory-order-progress-arrow.completed {
+  background: #5fc697;
+}
+
+.factory-order-progress-arrow.partial {
+  background: #77adf2;
+}
+
+.factory-order-progress-arrow.overcut {
+  background: #f28b94;
+}
+
+.factory-order-progress-node.clickable:hover {
+  border-color: transparent;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.factory-order-progress-node.clickable:hover .factory-order-progress-icon {
+  box-shadow: 0 0 0 4px rgba(47, 128, 237, 0.1);
+}
+
+.factory-orders-pagination {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #edf0f3;
+}
+
+@media (max-width: 1280px) {
+  .factory-order-card-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 980px) {
+  .factory-orders-query-row {
+    align-items: stretch;
+  }
+
+  .factory-orders-search-field {
+    flex: 1 1 280px;
+    width: auto;
+  }
+
+  .factory-order-card-body {
+    grid-template-columns: 1fr;
+  }
+
+  .factory-order-product-column {
+    border-right: 0;
+    border-bottom: 1px solid #edf0f3;
+  }
+
+  .factory-order-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .factory-orders-page {
+    padding: 0 12px 20px;
+  }
+
+  .factory-orders-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .factory-orders-action-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .factory-orders-view-switch,
+  .factory-orders-view-switch .ant-segmented {
+    width: 100%;
+  }
+
+  .factory-orders-status-select,
+  .factory-orders-sort-select {
+    flex: 1 1 calc(50% - 5px);
+    width: auto;
+    min-width: 0;
+  }
+
+  .factory-orders-search-field {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .factory-orders-selection-row,
+  .factory-order-card-orderline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .factory-orders-legend {
+    width: 100%;
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  .factory-order-card-orderline-main {
+    flex-wrap: wrap;
+  }
+
+  .factory-order-card-due {
+    width: 100%;
+    margin-left: 24px;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .factory-order-actions {
+    margin-left: 24px;
+  }
+
+  .factory-order-progress-panel {
+    padding-inline: 12px;
+  }
+}

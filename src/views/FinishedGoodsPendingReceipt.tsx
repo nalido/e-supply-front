@@ -33,6 +33,7 @@ import type {
 } from '../types/finished-goods-pending-receipt';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
 import { BulkActionBar, FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
+import { Link } from 'react-router-dom';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
 const { Text } = Typography;
@@ -309,7 +310,7 @@ const FinishedGoodsPendingReceipt = () => {
           fixed: 'left',
           render: (value: string, record) => (
             <Space direction="vertical" size={0}>
-              <Text>{value}</Text>
+              <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link>
               {record.orderTypeLabel ? <Tag color="blue">{record.orderTypeLabel}</Tag> : null}
               {record.customerName ? <Text type="secondary">{record.customerName}</Text> : null}
             </Space>
@@ -323,13 +324,9 @@ const FinishedGoodsPendingReceipt = () => {
             dataIndex: 'styleNo',
             width: 220,
             render: (_value: string, record) => (
-              <StyleInfo
-                styleNo={record.styleNo}
-                styleName={record.styleName}
-                color={record.color}
-                size={record.size}
-                hideSpecLine
-              />
+              <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo ?? '')}`}>
+                <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} hideSpecLine />
+              </Link>
             ),
           },
           { title: '颜色', dataIndex: 'color', width: 92 },
@@ -357,23 +354,20 @@ const FinishedGoodsPendingReceipt = () => {
         fixed: 'left',
         render: (value: string, record) => (
           <Space direction="vertical" size={0}>
-            <Text>{value}</Text>
+            <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link>
             <Tag color="blue">{record.orderTypeLabel}</Tag>
           </Space>
         ),
       },
-      { title: '客户', dataIndex: 'customerName', width: 188, ellipsis: true },
+      { title: '客户', dataIndex: 'customerName', width: 188, ellipsis: true, render: (value?: string) => value ? <Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-' },
       {
         title: '款式',
         dataIndex: 'styleNo',
         width: 220,
         render: (_value, record) => (
-          <StyleInfo
-            styleNo={record.styleNo}
-            styleName={record.styleName}
-            color={record.color}
-            size={record.size}
-          />
+          <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo ?? '')}`}>
+            <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} />
+          </Link>
         ),
       },
       { title: '颜色', dataIndex: 'color', width: 92 },

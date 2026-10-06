@@ -21,9 +21,10 @@ import type {
   CustomerBusinessDetailRecord,
 } from '../types/settlement-report-customer-details';
 import { customerBusinessDetailReportService } from '../api/settlement';
+import { Link } from 'react-router-dom';
 
 const { RangePicker } = DatePicker;
-const { Link, Text } = Typography;
+const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -187,6 +188,7 @@ const SettlementReportCustomerDetails = () => {
       dataIndex: 'customerName',
       width: 220,
       ellipsis: true,
+      render: (value: string) => <Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(value)}`}>{value}</Link>,
     },
     {
       title: '业务日期',
@@ -202,7 +204,9 @@ const SettlementReportCustomerDetails = () => {
       title: '单据号',
       dataIndex: 'documentNo',
       width: 200,
-      render: (value: string) => <Link>{value}</Link>,
+      render: (value: string, record) => record.documentType === '发货单'
+        ? <Link to={`/product/outbound?keyword=${encodeURIComponent(value)}`}>{value}</Link>
+        : <Link to="/settlement/receivable">{value}</Link>,
     },
     {
       title: '应收',

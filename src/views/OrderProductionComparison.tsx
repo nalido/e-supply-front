@@ -10,6 +10,7 @@ import type {
 } from '../types/order-production-comparison';
 import { productionComparisonService } from '../api/order-production-comparison';
 import ListImage from '../components/common/ListImage';
+import { Link } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -174,7 +175,7 @@ const OrderProductionComparison = () => {
         key: 'orderNumber',
         width: 180,
         fixed: 'left' as const,
-        render: (value: string) => <Text strong>{value}</Text>,
+        render: (value: string) => <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link>,
       },
       {
         title: '订单状态',
@@ -205,7 +206,7 @@ const OrderProductionComparison = () => {
         dataIndex: 'styleNumber',
         key: 'styleNumber',
         width: 140,
-        render: (value: string) => <Text>{value}</Text>,
+        render: (value: string) => <Link to={`/basic/styles?keyword=${encodeURIComponent(value)}`}>{value}</Link>,
       },
       {
         title: '款名',

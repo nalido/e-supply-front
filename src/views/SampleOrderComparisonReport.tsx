@@ -5,7 +5,6 @@ import {
   Input,
   Space,
   Table,
-  Typography,
   message,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
@@ -18,8 +17,7 @@ import type {
   SampleOrderComparisonItem,
   SampleOrderComparisonParams,
 } from '../types/sample-order-comparison-report';
-
-const { Text } = Typography;
+import { Link } from 'react-router-dom';
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -194,7 +192,7 @@ const SampleOrderComparisonReport = () => {
       dataIndex: 'styleNumber',
       key: 'styleNumber',
       width: 140,
-      render: (value: string) => <Text strong>{value}</Text>,
+      render: (value: string) => <Link to={`/basic/styles?keyword=${encodeURIComponent(value)}`}>{value}</Link>,
     },
     {
       title: '款名',

@@ -24,6 +24,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { finishedGoodsDispatchService, finishedGoodsOutboundService, finishedGoodsStockService } from '../api/finished-goods';
 import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 import ListImage from '../components/common/ListImage';
+import FinishedGoodsMovementsModal from '../components/finished-goods/FinishedGoodsMovementsModal';
 import '../styles/matrix-table.css';
 import type {
   FinishedGoodsStockMeta,
@@ -33,6 +34,7 @@ import type {
 } from '../types/finished-goods-stock';
 import type { FinishedGoodsDispatchCreatePayload, FinishedGoodsOutboundMeta } from '../types/finished-goods-outbound';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
+import { useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -166,6 +168,8 @@ const MatrixTable = ({ items, quantities, errors, editable = false, onQuantityCh
 };
 
 const FinishedGoodsStock = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [meta, setMeta] = useState<FinishedGoodsStockMeta | null>(null);
   const [outboundMeta, setOutboundMeta] = useState<FinishedGoodsOutboundMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -174,8 +178,8 @@ const FinishedGoodsStock = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [onlyInStock, setOnlyInStock] = useState(true);
   const [warehouseId, setWarehouseId] = useState<string>();
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState<string>();
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [styles, setStyles] = useState<FinishedGoodsStockStyleRecord[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -184,6 +188,7 @@ const FinishedGoodsStock = () => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([]);
   const [matrixCache, setMatrixCache] = useState<Record<string, FinishedGoodsStockStyleMatrixItem[]>>({});
   const [pendingStyles, setPendingStyles] = useState<PendingStyle[]>([]);
+  const [movementStyle, setMovementStyle] = useState<FinishedGoodsStockStyleRecord | null>(null);
   const [dispatchForm] = Form.useForm<DispatchFormValues>();
 
   useEffect(() => {
@@ -495,7 +500,17 @@ const FinishedGoodsStock = () => {
         align: 'right',
         render: (value: number, record) => (
           <div className="finished-goods-stock-available-cell">
-            <span className="finished-goods-stock-available-cell__value">{quantityFormatter(value)}</span>
+            <Button
+              type="link"
+              size="small"
+              className="finished-goods-stock-available-cell__value"
+              onClick={(event) => {
+                event.stopPropagation();
+                setMovementStyle(record);
+              }}
+            >
+              {quantityFormatter(value)}
+            </Button>
             <span className="finished-goods-stock-available-cell__unit">{record.unit}</span>
           </div>
         ),
@@ -505,37 +520,39 @@ const FinishedGoodsStock = () => {
         dataIndex: 'quantity',
         width: 132,
         align: 'right',
-        render: (value: number, record) => <span className="finished-goods-stock-total-cell">{quantityFormatter(value)} {record.unit}</span>,
+        render: (value: number, record) => (
+          <Button
+            type="link"
+            size="small"
+            className="finished-goods-stock-total-cell"
+            onClick={(event) => {
+              event.stopPropagation();
+              setMovementStyle(record);
+            }}
+          >
+            {quantityFormatter(value)} {record.unit}
+          </Button>
+        ),
       },
       {
         title: '操作',
         key: 'action',
-        width: 160,
+        width: 240,
         fixed: 'right',
         render: (_value, record) => {
           const entryKey = buildStyleEntryKey(record.styleId, record.warehouseId);
-          return pendingStyles.some((item) => item.entryKey === entryKey) ? (
-            <Button
-              type="link"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleRemovePendingStyle(entryKey);
-              }}
-            >
-              移出
-            </Button>
-          ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
-            <Button type="link" disabled>仓库不一致</Button>
-          ) : (
-            <Button
-              type="link"
-              onClick={(event) => {
-                event.stopPropagation();
-                void handleAddPendingStyle(record);
-              }}
-            >
-              加入待出货
-            </Button>
+          const dispatchAction = pendingStyles.some((item) => item.entryKey === entryKey) ? (
+              <Button type="link" onClick={(event) => { event.stopPropagation(); handleRemovePendingStyle(entryKey); }}>移出</Button>
+            ) : pendingStyles.length > 0 && pendingStyles[0].warehouseId !== record.warehouseId ? (
+              <Button type="link" disabled>仓库不一致</Button>
+            ) : (
+              <Button type="link" onClick={(event) => { event.stopPropagation(); void handleAddPendingStyle(record); }}>加入待出货</Button>
+            );
+          return (
+            <Space size={0}>
+              <Button type="link" onClick={(event) => { event.stopPropagation(); setMovementStyle(record); }}>出入库流水</Button>
+              {dispatchAction}
+            </Space>
           );
         },
       },
@@ -678,6 +695,12 @@ const FinishedGoodsStock = () => {
           </div>
         </div>
       </PageSection>
+
+      <FinishedGoodsMovementsModal
+        open={Boolean(movementStyle)}
+        style={movementStyle}
+        onClose={() => setMovementStyle(null)}
+      />
 
       <Drawer
         title={`待出货${selectedStyleCount > 0 ? `（${quantityFormatter(selectedStyleCount)}）` : ''}`}

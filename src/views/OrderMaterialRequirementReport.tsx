@@ -14,7 +14,7 @@ import {
   message,
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type {
   OrderMaterialRequirementListItem,
   OrderMaterialRequirementListParams,
@@ -89,9 +89,11 @@ const OrderMaterialRequirementReport = () => {
         <Space align="start" size={12}>
           <ListImage src={record.imageUrl} alt={record.name} />
           <Space direction="vertical" size={0}>
-            <Text strong>{record.name}</Text>
+            <Link to={`/basic/material?keyword=${encodeURIComponent(record.name)}`}>{record.name}</Link>
             <Text type="secondary">{record.materialCategory || '--'}</Text>
-            <Text type="secondary">供应商：{record.supplier || '--'}</Text>
+            <Text type="secondary">供应商：{record.supplier
+              ? <Link to={`/basic/partners?type=supplier&keyword=${encodeURIComponent(record.supplier)}`}>{record.supplier}</Link>
+              : '--'}</Text>
           </Space>
         </Space>
       ),
@@ -117,21 +119,21 @@ const OrderMaterialRequirementReport = () => {
       dataIndex: 'stockInventoryQty',
       width: 120,
       align: 'right',
-      render: (value) => renderQuantity(value),
+      render: (value, record) => <Link to={`/material/stock?keyword=${encodeURIComponent(record.name)}`}>{renderQuantity(value)}</Link>,
     },
     {
       title: '备料在途',
       dataIndex: 'stockInTransitQty',
       width: 120,
       align: 'right',
-      render: (value) => renderQuantity(value),
+      render: (value, record) => <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(record.name)}`}>{renderQuantity(value)}</Link>,
     },
     {
       title: '备料采购',
       dataIndex: 'stockPurchaseQty',
       width: 120,
       align: 'right',
-      render: (value) => renderQuantity(value),
+      render: (value, record) => <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(record.name)}`}>{renderQuantity(value)}</Link>,
     },
     {
       title: '详情',

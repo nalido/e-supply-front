@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType, TableProps } from 'antd/es/table';
+import { Link } from 'react-router-dom';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import type { ValidateErrorEntity } from 'rc-field-form/lib/interface';
@@ -409,7 +410,7 @@ const QualityControlManagement = () => {
         dataIndex: 'orderNumber',
         key: 'orderNumber',
         width: 160,
-        render: (value: string) => <Text strong>{value}</Text>,
+        render: (value: string) => <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link>,
       },
       {
         title: '款号/款名',
@@ -417,7 +418,7 @@ const QualityControlManagement = () => {
         width: 220,
         render: (_value, record) => (
           <Space direction="vertical" size={4}>
-            <Text>{record.styleNumber}</Text>
+            <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNumber)}`}>{record.styleNumber}</Link>
             <Text type="secondary" style={{ maxWidth: 200 }} ellipsis>
               {record.styleName}
             </Text>
@@ -664,12 +665,14 @@ const QualityControlManagement = () => {
         ) : detailRecord ? (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="订单">{detailRecord.orderNumber}</Descriptions.Item>
+              <Descriptions.Item label="订单"><Link to={`/orders/factory?keyword=${encodeURIComponent(detailRecord.orderNumber)}&status=all`}>{detailRecord.orderNumber}</Link></Descriptions.Item>
               <Descriptions.Item label="工单ID">
-                {detailRecord.workOrderId || '-'}
+                {detailRecord.workOrderId
+                  ? <Link to={`/piecework/cutting/pending?workOrderId=${encodeURIComponent(detailRecord.workOrderId)}&openDetail=1`}>{detailRecord.workOrderId}</Link>
+                  : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="工序">{detailRecord.processName}</Descriptions.Item>
-              <Descriptions.Item label="款号">{detailRecord.styleNumber}</Descriptions.Item>
+              <Descriptions.Item label="款号"><Link to={`/basic/styles?keyword=${encodeURIComponent(detailRecord.styleNumber)}`}>{detailRecord.styleNumber}</Link></Descriptions.Item>
               <Descriptions.Item label="款名">{detailRecord.styleName}</Descriptions.Item>
               <Descriptions.Item label="质检员">{detailRecord.inspector}</Descriptions.Item>
               <Descriptions.Item label="送检员工">{detailRecord.worker}</Descriptions.Item>

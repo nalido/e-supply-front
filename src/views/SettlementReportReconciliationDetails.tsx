@@ -26,9 +26,10 @@ import type {
   ReconciliationStatus,
 } from '../types/settlement-report-reconciliation-details';
 import { reconciliationDetailsReportService } from '../api/settlement';
+import { Link } from 'react-router-dom';
 
 const { RangePicker } = DatePicker;
-const { Link, Text } = Typography;
+const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -224,13 +225,16 @@ const SettlementReportReconciliationDetails = () => {
       title: '对账单号',
       dataIndex: 'statementNo',
       width: 200,
-      render: (value: string) => <Link>{value}</Link>,
+      render: (value: string, record) => <Button type="link" onClick={() => handleViewStatement(record)}>{value}</Button>,
     },
     {
       title: '往来单位',
       dataIndex: 'partnerName',
       width: 220,
       ellipsis: true,
+      render: (value: string, record) => (
+        <Link to={`/basic/partners?type=${record.partnerType}&keyword=${encodeURIComponent(value)}`}>{value}</Link>
+      ),
     },
     {
       title: '单据类型',
@@ -241,7 +245,16 @@ const SettlementReportReconciliationDetails = () => {
       title: '单据号',
       dataIndex: 'documentNo',
       width: 200,
-      render: (value: string) => <Link>{value}</Link>,
+      render: (value: string, record) => {
+        const target = record.documentType === '发货单'
+          ? `/product/outbound?keyword=${encodeURIComponent(value)}`
+          : record.documentType === '采购单'
+            ? `/material/purchase-prep?keyword=${encodeURIComponent(value)}`
+            : record.documentType === '委外单'
+              ? `/orders/outsource?keyword=${encodeURIComponent(value)}`
+              : null;
+        return target ? <Link to={target}>{value}</Link> : <Text>{value}</Text>;
+      },
     },
     {
       title: '金额',

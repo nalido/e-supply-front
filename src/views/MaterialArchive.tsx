@@ -29,6 +29,7 @@ import type {
   MaterialUnit,
 } from '../types';
 import '../styles/material-archive.css';
+import { useSearchParams } from 'react-router-dom';
 
 const MATERIAL_IMPORT_MAX_ROWS = 500;
 const MATERIAL_IMPORT_MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -62,11 +63,13 @@ const formatCurrency = (value?: number) => {
 };
 
 const MaterialArchive = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const { message } = AntdApp.useApp();
   const [activeTab, setActiveTab] = useState<MaterialBasicType>('fabric');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialKeyword);
   const [dataset, setDataset] = useState<MaterialDataset>({ list: [], total: 0 });
   const [loading, setLoading] = useState(false);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false });
@@ -109,8 +112,8 @@ const MaterialArchive = () => {
   }, [activeTab, message]);
 
   useEffect(() => {
-    fetchList({ page: 1, pageSize: pageSizeRef.current, keyword: '' });
-  }, [activeTab, fetchList]);
+    fetchList({ page: 1, pageSize: pageSizeRef.current, keyword: initialKeyword });
+  }, [activeTab, fetchList, initialKeyword]);
 
   const handleTabChange = (key: string) => {
     setActiveTab(key === 'accessory' ? 'accessory' : 'fabric');

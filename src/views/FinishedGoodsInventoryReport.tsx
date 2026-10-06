@@ -9,6 +9,7 @@ import StatCard from '../components/report/StatCard';
 import { finishedGoodsInventoryReportService } from '../api/finished-goods';
 import StyleInfo from '../components/common/StyleInfo';
 import ListImage from '../components/common/ListImage';
+import { Link } from 'react-router-dom';
 import type {
   FinishedGoodsInventoryAggregation,
   FinishedGoodsInventoryListItem,
@@ -175,12 +176,14 @@ const FinishedGoodsInventoryReport = () => {
       dataIndex: 'styleNo',
       width: 240,
       render: (_value, record) => (
-        <StyleInfo
-          styleNo={record.styleNo}
-          styleName={record.styleName}
-          color={record.color}
-          size={record.size}
-        />
+        <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo)}`}>
+          <StyleInfo
+            styleNo={record.styleNo}
+            styleName={record.styleName}
+            color={record.color}
+            size={record.size}
+          />
+        </Link>
       ),
     },
     {
@@ -194,21 +197,31 @@ const FinishedGoodsInventoryReport = () => {
       dataIndex: 'inboundQty',
       width: 120,
       align: 'right',
-      render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
+      render: (value: number, record) => (
+        <Link to={`/product/inbound/received?keyword=${encodeURIComponent(record.styleNo)}`}>
+          {formatQuantity(value)} {record.unit}
+        </Link>
+      ),
     },
     {
       title: '出库数',
       dataIndex: 'outboundQty',
       width: 120,
       align: 'right',
-      render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
+      render: (value: number, record) => (
+        <Link to={`/product/outbound?keyword=${encodeURIComponent(record.styleNo)}`}>
+          {formatQuantity(value)} {record.unit}
+        </Link>
+      ),
     },
     {
       title: '当前库存',
       dataIndex: 'currentStock',
       width: 140,
       align: 'right',
-      render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
+      render: (value: number, record) => (
+        <Link to={`/product/stock?keyword=${encodeURIComponent(record.styleNo)}`}>{formatQuantity(value)} {record.unit}</Link>
+      ),
     },
   ], [page, pageSize]);
 

@@ -113,6 +113,7 @@ export const materialStockService = {
       {
         params: {
           tenantId,
+          materialMinimumSpecificationId: params.materialMinimumSpecificationId,
           warehouseId: params.warehouseId,
           startDate: params.startDate,
           endDate: params.endDate,

@@ -33,6 +33,7 @@ import type {
   FinishedGoodsOtherInboundRecord,
   FinishedGoodsOtherInboundViewMode,
 } from '../types/finished-goods-other-inbound';
+import { Link } from 'react-router-dom';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
 
@@ -278,18 +279,15 @@ const FinishedGoodsOtherInbound = () => {
       ),
     },
     { title: '仓库', dataIndex: 'warehouseName', width: 140 },
-    { title: '加工厂', dataIndex: 'processorName', width: 180 },
+    { title: '加工厂', dataIndex: 'processorName', width: 180, render: (value?: string) => value ? <Link to={`/basic/partners?type=factory&keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-' },
     {
       title: '款式',
       dataIndex: 'styleNo',
       width: 220,
       render: (_value, record) => (
-        <StyleInfo
-          styleNo={record.styleNo}
-          styleName={record.styleName}
-          color={record.color}
-          size={record.size}
-        />
+        <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo)}`}>
+          <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} />
+        </Link>
       ),
     },
     {
@@ -354,9 +352,7 @@ const FinishedGoodsOtherInbound = () => {
       render: (names: string[]) => (
         <Space size={6} wrap>
           {names.map((name) => (
-            <Tag key={name} color="blue">
-              {name}
-            </Tag>
+            <Link key={name} to={`/basic/partners?type=factory&keyword=${encodeURIComponent(name)}`}><Tag color="blue">{name}</Tag></Link>
           ))}
         </Space>
       ),

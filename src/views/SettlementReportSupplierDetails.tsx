@@ -21,9 +21,10 @@ import type {
   SupplierBusinessDetailRecord,
 } from '../types/settlement-report-supplier-details';
 import { supplierBusinessDetailReportService } from '../api/settlement';
+import { Link } from 'react-router-dom';
 
 const { RangePicker } = DatePicker;
-const { Link, Text } = Typography;
+const { Text } = Typography;
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -187,6 +188,7 @@ const SettlementReportSupplierDetails = () => {
       dataIndex: 'supplierName',
       width: 220,
       ellipsis: true,
+      render: (value: string) => <Link to={`/basic/partners?type=supplier&keyword=${encodeURIComponent(value)}`}>{value}</Link>,
     },
     {
       title: '业务日期',
@@ -202,7 +204,9 @@ const SettlementReportSupplierDetails = () => {
       title: '单据号',
       dataIndex: 'documentNo',
       width: 200,
-      render: (value: string) => <Link>{value}</Link>,
+      render: (value: string, record) => record.documentType === '采购单'
+        ? <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(value)}`}>{value}</Link>
+        : <Link to="/settlement/payable-supplier">{value}</Link>,
     },
     {
       title: '应付',

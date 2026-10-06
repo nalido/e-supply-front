@@ -22,6 +22,18 @@ const { Header, Sider, Content } = Layout
 const DOWNLOAD_CENTER_PATH = '/downloads'
 const DOWNLOAD_POLL_INTERVAL_MS = 45000
 const DOWNLOAD_CENTER_HINT_DURATION_MS = 1400
+const BREADCRUMB_ENTRY_PATHS: Record<string, string> = {
+  '/dashboard': '/dashboard/workplace',
+  '/sample': '/sample',
+  '/orders': '/orders/factory',
+  '/piecework': '/piecework',
+  '/material': '/material/stock',
+  '/product': '/product/stock',
+  '/collab': '/collab/send-out',
+  '/settlement': '/settlement/receivable',
+  '/basic': '/basic/styles',
+  '/settings': '/settings/profile',
+}
 
 const deriveOpenKeys = (pathname: string): string[] => {
   const segments = pathname.split('/').filter(Boolean)
@@ -302,18 +314,12 @@ const MainLayout = () => {
   const breadcrumbItems = useMemo(() => {
     const pathSnippets = location.pathname.split('/').filter(Boolean)
     const paths = pathSnippets.map((_segment, index) => `/${pathSnippets.slice(0, index + 1).join('/')}`)
-    const breadcrumbPaths = paths.slice(0, -1)
-
-    if (breadcrumbPaths.length === 0 && paths[0]) {
-      const label = labelMap.get(paths[0]) ?? pathSnippets[0]
-      return [{ title: <span>{label}</span> }]
-    }
-
-    return breadcrumbPaths.map((path, index) => {
+    return paths.map((path, index) => {
       const label = labelMap.get(path) ?? pathSnippets[index]
-      const isLast = index === breadcrumbPaths.length - 1
+      const isLast = index === paths.length - 1
+      const target = BREADCRUMB_ENTRY_PATHS[path]
       return {
-        title: isLast ? <span>{label}</span> : <Link to={path}>{label}</Link>,
+        title: isLast || !target ? <span>{label}</span> : <Link to={target}>{label}</Link>,
       }
     })
   }, [labelMap, location.pathname])

@@ -24,6 +24,7 @@ import DonutChart from '../components/charts/DonutChart';
 import { materialInventoryReportService } from '../api/material-inventory';
 import { useSearchParams } from 'react-router-dom';
 import ListImage from '../components/common/ListImage';
+import { Link } from 'react-router-dom';
 import type {
   MaterialInboundRatioItem,
   MaterialInventoryAggregation,
@@ -271,12 +272,23 @@ const MaterialInventoryReport = () => {
       dataIndex: 'documentNo',
       width: 180,
       ellipsis: true,
+      render: (value: string, record) => {
+        const target = record.movementType === 'PROCUREMENT_RECEIPT' || record.movementType === 'PROCUREMENT_RECEIPT_VOID'
+          ? `/material/purchase-prep?keyword=${encodeURIComponent(value)}`
+          : record.movementType === 'PRODUCTION_ISSUE'
+            ? `/material/issue?keyword=${encodeURIComponent(value)}`
+            : record.movementType === 'MATERIAL_RETURN'
+              ? `/piecework/cutting/pending?workOrderId=${encodeURIComponent(value.replace(/^.*-/, ''))}&openDetail=1`
+              : null;
+        return target ? <Link to={target}>{value}</Link> : value;
+      },
     },
     {
       title: '物料名称',
       dataIndex: 'materialName',
       width: 180,
       ellipsis: true,
+      render: (value: string) => <Link to={`/basic/material?keyword=${encodeURIComponent(value)}`}>{value}</Link>,
     },
     {
       title: '物料类型',

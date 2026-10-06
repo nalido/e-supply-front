@@ -19,6 +19,7 @@ import { DeleteOutlined, EditOutlined, MailOutlined, PlusOutlined } from '@ant-d
 import type { Partner, PartnerDataset, PartnerType } from '../types';
 import partnersApi from '../api/partners';
 import { SearchField } from '../components/page';
+import { useSearchParams } from 'react-router-dom';
 
 const defaultPageSize = 10;
 
@@ -60,7 +61,15 @@ type PartnerFormValues = {
 };
 
 const PartnersPage = () => {
-  const [filters, setFilters] = useState<PartnerFilters>({ keyword: '', type: undefined, onlyDisabled: false });
+  const [searchParams] = useSearchParams();
+  const initialType = partnerTypeOptions.some((item) => item.value === searchParams.get('type'))
+    ? searchParams.get('type') as PartnerType
+    : undefined;
+  const [filters, setFilters] = useState<PartnerFilters>({
+    keyword: searchParams.get('keyword')?.trim() ?? '',
+    type: initialType,
+    onlyDisabled: false,
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [total, setTotal] = useState(0);

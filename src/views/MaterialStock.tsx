@@ -14,6 +14,7 @@ import MaterialMovementsModal from '../components/material/MaterialMovementsModa
 import MaterialIssueModal from '../components/material/MaterialIssueModal';
 import ListImage from '../components/common/ListImage';
 import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
+import { Link, useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -52,6 +53,8 @@ const sortTabs = (tabs?: MaterialStockMeta['materialTabs']): MaterialStockMeta['
 };
 
 const MaterialStock = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [meta, setMeta] = useState<MaterialStockMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [materials, setMaterials] = useState<MaterialStockListItem[]>([]);
@@ -65,9 +68,9 @@ const MaterialStock = () => {
   const [tableLoading, setTableLoading] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
   const [onlyInStock, setOnlyInStock] = useState(false);
-  const [remarkKeyword, setRemarkKeyword] = useState('');
+  const [remarkKeyword, setRemarkKeyword] = useState(initialKeyword);
   const [orderKeyword, setOrderKeyword] = useState('');
-  const [appliedRemarkKeyword, setAppliedRemarkKeyword] = useState<string | undefined>(undefined);
+  const [appliedRemarkKeyword, setAppliedRemarkKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [appliedOrderKeyword, setAppliedOrderKeyword] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -235,6 +238,11 @@ const MaterialStock = () => {
     setMovementModalOpen(true);
   };
 
+  const showMovementDetails = useCallback((record: MaterialStockListItem) => {
+    setMovementMaterial(record);
+    setMovementModalOpen(true);
+  }, []);
+
   const handleExport = () => {
     message.success('已生成物料库存导出任务，稍后可在下载中心查看');
   };
@@ -286,21 +294,33 @@ const MaterialStock = () => {
       dataIndex: 'stockQty',
       width: 140,
       align: 'right',
-      render: (value: number) => formatQuantity(value),
+      render: (value: number, record) => (
+        <Button type="link" size="small" onClick={() => showMovementDetails(record)}>
+          {formatQuantity(value)}
+        </Button>
+      ),
     },
     {
       title: '可用数量',
       dataIndex: 'availableQty',
       width: 140,
       align: 'right',
-      render: (value: number) => formatQuantity(value),
+      render: (value: number, record) => (
+        <Button type="link" size="small" onClick={() => showMovementDetails(record)}>
+          {formatQuantity(value)}
+        </Button>
+      ),
     },
     {
       title: '采购在途',
       dataIndex: 'inTransitQty',
       width: 140,
       align: 'right',
-      render: (value: number) => formatQuantity(value),
+      render: (value: number, record) => (
+        <Link to={`/material/purchase-prep?keyword=${encodeURIComponent(record.materialName)}`}>
+          {formatQuantity(value)}
+        </Link>
+      ),
     },
     {
       title: '备注',
@@ -308,7 +328,18 @@ const MaterialStock = () => {
       ellipsis: true,
       render: (value?: string) => value || <Text type="secondary">无备注</Text>,
     },
-  ], []);
+    {
+      title: '操作',
+      key: 'actions',
+      width: 100,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button type="link" size="small" onClick={() => showMovementDetails(record)}>
+          查看流水
+        </Button>
+      ),
+    },
+  ], [showMovementDetails]);
 
   const tabItems = useMemo(() => sortTabs(meta?.materialTabs), [meta]);
   const summaryItems = useMemo(

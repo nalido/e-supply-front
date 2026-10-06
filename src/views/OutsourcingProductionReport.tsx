@@ -31,6 +31,7 @@ import type {
   OutsourcingProductionReportMeta,
   OutsourcingSubcontractorStat,
 } from '../types/outsourcing-production-report';
+import { Link, useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -81,6 +82,8 @@ const FACTORY_BUTTON_STYLE: CSSProperties = {
 };
 
 const OutsourcingProductionReport = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [meta, setMeta] = useState<OutsourcingProductionReportMeta | null>(null);
   const [stats, setStats] = useState<OutsourcingSubcontractorStat[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -93,7 +96,7 @@ const OutsourcingProductionReport = () => {
 
   const [subcontractorSearch, setSubcontractorSearch] = useState('');
   const [activeSubcontractor, setActiveSubcontractor] = useState<string | undefined>();
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialKeyword);
   const [processType, setProcessType] = useState<string | undefined>();
   const [orderStatus, setOrderStatus] = useState<OrderStatusFilter>('全部');
   const [sortState, setSortState] = useState<SortState>({ field: undefined, order: undefined });
@@ -101,6 +104,7 @@ const OutsourcingProductionReport = () => {
   const [appliedParams, setAppliedParams] = useState<OutsourcingProductionReportListParams>({
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
+    keyword: initialKeyword || undefined,
   });
 
   useEffect(() => {
@@ -338,16 +342,14 @@ const OutsourcingProductionReport = () => {
                   flex: 1,
                 }}
               >
-                <Text strong ellipsis={{ tooltip: styleTitle || value.styleName || '-' }}>
-                  {styleTitle || value.styleName || '-'}
-                </Text>
-                <Text
-                  type="secondary"
-                  style={{ fontSize: 12 }}
-                  ellipsis={{ tooltip: value.orderNumber || '-' }}
-                >
-                  {value.orderNumber || '-'}
-                </Text>
+                {value.styleNo ? (
+                  <Link to={`/basic/styles?keyword=${encodeURIComponent(value.styleNo)}`}>{styleTitle || value.styleName || '-'}</Link>
+                ) : <Text strong>{styleTitle || value.styleName || '-'}</Text>}
+                {value.orderNumber ? (
+                  <Link style={{ fontSize: 12 }} to={`/orders/factory?keyword=${encodeURIComponent(value.orderNumber)}&status=all`}>
+                    {value.orderNumber}
+                  </Link>
+                ) : <Text type="secondary">-</Text>}
                 <Text
                   type="secondary"
                   style={{ fontSize: 12 }}
@@ -376,6 +378,7 @@ const OutsourcingProductionReport = () => {
         title: '加工厂',
         dataIndex: 'subcontractor',
         width: 160,
+        render: (value: string) => <Link to={`/basic/partners?type=subcontractor&keyword=${encodeURIComponent(value)}`}>{value}</Link>,
       },
       {
         title: '发货日期',

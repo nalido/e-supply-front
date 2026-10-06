@@ -69,8 +69,12 @@ export type MaterialMovementRecord = {
   movementType: string;
   movementLabel: string;
   documentType?: string;
+  documentId?: string;
   documentNo?: string;
+  workOrderId?: string;
+  productionOrderNo?: string;
   quantity: number;
+  balanceAfter: number;
   unit: string;
   warehouseName?: string;
   counterpart?: string;
@@ -80,6 +84,7 @@ export type MaterialMovementRecord = {
 
 export type MaterialMovementListParams = {
   materialId: string;
+  materialMinimumSpecificationId?: string;
   warehouseId?: string;
   startDate?: string;
   endDate?: string;
@@ -87,7 +92,18 @@ export type MaterialMovementListParams = {
   pageSize: number;
 };
 
+export type MaterialMovementSummary = {
+  stockQty: number;
+  availableQty: number;
+  inTransitQty: number;
+  openingQty: number;
+  inboundQty: number;
+  outboundQty: number;
+  closingQty: number;
+};
+
 export type MaterialMovementListResponse = {
   list: MaterialMovementRecord[];
   total: number;
+  summary: MaterialMovementSummary;
 };

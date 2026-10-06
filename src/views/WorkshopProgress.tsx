@@ -27,6 +27,7 @@ import { pieceworkService } from '../api/piecework';
 import { SearchField } from '../components/page';
 import '../styles/workshop-progress.css';
 import ListImage from '../components/common/ListImage';
+import { Link } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -301,11 +302,13 @@ const WorkshopProgress = () => {
                     height={null}
                   />
                   <div className="workshop-order-info">
-                    <div className="workshop-order-title">{order.styleName}</div>
+                    <div className="workshop-order-title">
+                      <Link to={`/basic/styles?keyword=${encodeURIComponent(order.styleNo)}`}>{order.styleName}</Link>
+                    </div>
                     <div className="workshop-order-meta">
-                      <span>款号：{order.styleNo}</span>
-                      <span>订单号：{order.orderNo}</span>
-                      <span>客户：{order.customer}</span>
+                      <span>款号：<Link to={`/basic/styles?keyword=${encodeURIComponent(order.styleNo)}`}>{order.styleNo}</Link></span>
+                      <span>订单号：<Link to={`/orders/factory?keyword=${encodeURIComponent(order.orderNo)}&status=all`}>{order.orderNo}</Link></span>
+                      <span>客户：<Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(order.customer)}`}>{order.customer}</Link></span>
                     </div>
                     <div className="workshop-order-meta">
                       <span className="workshop-order-meta-item">

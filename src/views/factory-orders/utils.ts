@@ -79,10 +79,10 @@ export const getMaterialStatusLabel = (value?: string) => {
 
 export const normalizeProgressLabel = (stage: FactoryOrderProgress): string => {
   if (stage.key === 'accessory_arrived') {
-    return '辅料是否到货';
+    return '辅料到货';
   }
   if (stage.key === 'fabric_arrived') {
-    return '面料是否到货';
+    return '面料到货';
   }
   return stage.label;
 };

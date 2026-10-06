@@ -5,6 +5,7 @@ import type {
   FinishedGoodsStockStyleListParams,
   FinishedGoodsStockStyleListResponse,
   FinishedGoodsStockStyleMatrixResponse,
+  FinishedGoodsStockMovementResponse,
 } from '../types/finished-goods-stock';
 import type {
   FinishedGoodsPendingReceiptListParams,
@@ -98,6 +99,28 @@ export const finishedGoodsStockService = {
           tenantId,
           warehouseId: Number(warehouseId),
         },
+      },
+    );
+    return data;
+  },
+  async getStyleMovements(
+    styleId: string,
+    warehouseId: string,
+    params: { startDate?: string; endDate?: string; page: number; pageSize: number },
+  ): Promise<FinishedGoodsStockMovementResponse> {
+    const tenantId = requireTenantId();
+    const { data } = await http.get<FinishedGoodsStockMovementResponse>(
+      `/api/v1/finished-goods/stock/styles/${styleId}/movements`,
+      {
+        params: {
+          tenantId,
+          warehouseId: Number(warehouseId),
+          startDate: params.startDate,
+          endDate: params.endDate,
+          page: toBackendPage(params.page),
+          pageSize: params.pageSize,
+        },
+        skipPageNormalization: true,
       },
     );
     return data;

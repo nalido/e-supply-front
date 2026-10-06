@@ -24,6 +24,7 @@ import type {
   OrderShipmentProfitListParams,
   OrderShipmentProfitRecord,
 } from '../types/order-shipment-profit-report';
+import { Link } from 'react-router-dom';
 
 const { useBreakpoint } = Grid;
 const { Text, Title } = Typography;
@@ -158,6 +159,7 @@ const OrderShipmentProfitReport = () => {
         key: 'orderNumber',
         width: 180,
         fixed: 'left',
+        render: (value: string) => <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link>,
       },
       {
         title: '客户',
@@ -165,12 +167,14 @@ const OrderShipmentProfitReport = () => {
         key: 'customer',
         width: 180,
         ellipsis: true,
+        render: (value: string) => <Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(value)}`}>{value}</Link>,
       },
       {
         title: '款号',
         dataIndex: 'styleNumber',
         key: 'styleNumber',
         width: 120,
+        render: (value: string) => <Link to={`/basic/styles?keyword=${encodeURIComponent(value)}`}>{value}</Link>,
       },
       {
         title: '款名',

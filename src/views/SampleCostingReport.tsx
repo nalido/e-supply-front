@@ -20,6 +20,7 @@ import type {
   SampleCostCard,
   SampleCostListParams,
 } from '../types/sample-costing-report';
+import { Link } from 'react-router-dom';
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -288,11 +289,11 @@ const SampleCostingReport = () => {
                       }}
                     />
                     <Space direction="vertical" size={4} style={{ flex: 1 }}>
-                      <Text strong>{item.styleNumber}</Text>
+                      <Link to={`/basic/styles?keyword=${encodeURIComponent(item.styleNumber)}`}>{item.styleNumber}</Link>
                       <Text type="secondary" ellipsis style={{ width: '100%' }}>
                         {item.styleName}
                       </Text>
-                      <Text type="secondary">样板单号：{item.sampleOrderNo}</Text>
+                      <Text type="secondary">样板单号：<Link to="/sample/list">{item.sampleOrderNo}</Link></Text>
                       <Text type="secondary">下板日期：{item.completionDate}</Text>
                     </Space>
                   </Space>

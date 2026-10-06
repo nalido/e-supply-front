@@ -35,6 +35,7 @@ import type {
 } from '../types/finished-goods-received';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
+import { Link, useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -67,15 +68,17 @@ const initialListState: FinishedGoodsReceivedListResponse = {
 };
 
 const FinishedGoodsReceived = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [meta, setMeta] = useState<FinishedGoodsReceivedMeta | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [listState, setListState] = useState<FinishedGoodsReceivedListResponse>(initialListState);
   const [tableLoading, setTableLoading] = useState(false);
   const [viewMode, setViewMode] = useState<FinishedGoodsReceivedViewMode>('spec');
   const [warehouseFilter, setWarehouseFilter] = useState<string | undefined>();
-  const [orderKeyword, setOrderKeyword] = useState('');
+  const [orderKeyword, setOrderKeyword] = useState(initialKeyword);
   const [processorKeyword, setProcessorKeyword] = useState('');
-  const [appliedOrderKeyword, setAppliedOrderKeyword] = useState<string | undefined>();
+  const [appliedOrderKeyword, setAppliedOrderKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [appliedProcessorKeyword, setAppliedProcessorKeyword] = useState<string | undefined>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -234,12 +237,9 @@ const FinishedGoodsReceived = () => {
         fixed: 'left',
         render: (_value, record) =>
           record.recordType === 'detail' ? (
-            <StyleInfo
-              styleNo={record.styleNo}
-              styleName={record.styleName}
-              color={record.color}
-              size={record.size}
-            />
+            <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo)}`}>
+              <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} />
+            </Link>
           ) : (
             '-'
           ),
@@ -253,6 +253,7 @@ const FinishedGoodsReceived = () => {
         title: '工厂订单',
         dataIndex: 'factoryOrderNo',
         width: 160,
+        render: (value?: string) => value ? <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link> : '-',
       },
       {
         title: '客户类目',
@@ -264,7 +265,9 @@ const FinishedGoodsReceived = () => {
         title: '加工厂',
         dataIndex: 'processorName',
         width: 180,
-        render: (value: string | undefined) => value ?? '-',
+        render: (value: string | undefined) => value
+          ? <Link to={`/basic/partners?type=factory&keyword=${encodeURIComponent(value)}`}>{value}</Link>
+          : '-',
       },
       {
         title: 'SKU',

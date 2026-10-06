@@ -33,6 +33,7 @@ import ListImage from '../components/common/ListImage';
 import { SelectSetupHint } from '../components/common/SelectSetupHint';
 import { SearchField } from '../components/page';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../utils/select-setup-hint';
+import { Link, useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -80,6 +81,8 @@ type TableRecord =
     });
 
 const FinishedGoodsOutbound = () => {
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   type EditFormValues = {
     status?: FinishedGoodsOutboundRecord['status'];
     logisticsProviderId?: string;
@@ -95,8 +98,8 @@ const FinishedGoodsOutbound = () => {
   const [showCompletedOrders, setShowCompletedOrders] = useState(false);
   const [customerFilter, setCustomerFilter] = useState<string | undefined>();
   const [warehouseFilter, setWarehouseFilter] = useState<string | undefined>();
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>();
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(initialKeyword || undefined);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -416,8 +419,8 @@ const FinishedGoodsOutbound = () => {
           </Space>
         ),
       },
-      customer: { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true },
-      order: { title: '订单号', dataIndex: 'orderNo', width: 160 },
+      customer: { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true, render: (value?: string) => value ? <Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-' },
+      order: { title: '订单号', dataIndex: 'orderNo', width: 160, render: (value?: string) => value ? <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link> : '-' },
       color: { title: '颜色', dataIndex: 'color', width: 120 },
       size: { title: '尺码', dataIndex: 'size', width: 100 },
       style: {
@@ -425,12 +428,9 @@ const FinishedGoodsOutbound = () => {
         dataIndex: 'styleNo',
         width: 220,
         render: (_value: string, record) => (
-          <StyleInfo
-            styleNo={record.styleNo}
-            styleName={record.styleName}
-            color={record.color}
-            size={record.size}
-          />
+          <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo ?? '')}`}>
+            <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} />
+          </Link>
         ),
       },
     };
@@ -457,12 +457,9 @@ const FinishedGoodsOutbound = () => {
       width: 220,
       fixed: 'left',
       render: (_value, record) => (
-        <StyleInfo
-          styleNo={record.styleNo}
-          styleName={record.styleName}
-          color={record.color}
-          size={record.size}
-        />
+        <Link to={`/basic/styles?keyword=${encodeURIComponent(record.styleNo ?? '')}`}>
+          <StyleInfo styleNo={record.styleNo} styleName={record.styleName} color={record.color} size={record.size} />
+        </Link>
       ),
     };
 
@@ -514,8 +511,8 @@ const FinishedGoodsOutbound = () => {
       dispatchDateColumn,
       quantityColumn,
       { title: '发货单号', dataIndex: 'dispatchNoteNo', width: 200 },
-      { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true },
-      { title: '订单号', dataIndex: 'orderNo', width: 160 },
+      { title: '客户', dataIndex: 'customerName', width: 220, ellipsis: true, render: (value?: string) => value ? <Link to={`/basic/partners?type=customer&keyword=${encodeURIComponent(value)}`}>{value}</Link> : '-' },
+      { title: '订单号', dataIndex: 'orderNo', width: 160, render: (value?: string) => value ? <Link to={`/orders/factory?keyword=${encodeURIComponent(value)}&status=all`}>{value}</Link> : '-' },
       unitPriceColumn,
       amountColumn,
       { title: '物流公司', dataIndex: 'logisticsProvider', width: 160 },

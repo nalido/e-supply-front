@@ -92,3 +92,34 @@ export type FinishedGoodsStockStyleMatrixResponse = {
   warehouseId: string;
   items: FinishedGoodsStockStyleMatrixItem[];
 };
+
+export type FinishedGoodsStockMovementRecord = {
+  id: string;
+  occurredAt?: string;
+  direction: 'in' | 'out';
+  movementType: string;
+  movementLabel: string;
+  documentType?: string;
+  documentId?: string;
+  documentNo?: string;
+  productionOrderId?: string;
+  productionOrderNo?: string;
+  quantity: number;
+  balanceAfter: number;
+  warehouseName?: string;
+};
+
+export type FinishedGoodsStockMovementSummary = {
+  stockQty: number;
+  availableQty: number;
+  openingQty: number;
+  inboundQty: number;
+  outboundQty: number;
+  closingQty: number;
+};
+
+export type FinishedGoodsStockMovementResponse = {
+  list: FinishedGoodsStockMovementRecord[];
+  total: number;
+  summary: FinishedGoodsStockMovementSummary;
+};

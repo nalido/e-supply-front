@@ -13,8 +13,6 @@ import {
   InputNumber,
   Modal,
   Progress,
-  Row,
-  Col,
   Segmented,
   Select,
   Space,
@@ -129,7 +127,7 @@ const FactoryOrders = () => {
   const [cardOrders, setCardOrders] = useState<FactoryOrderItem[]>([]);
   const [cardTotal, setCardTotal] = useState(0);
   const [cardPage, setCardPage] = useState(1);
-  const [cardPageSize, setCardPageSize] = useState(6);
+  const [cardPageSize, setCardPageSize] = useState(10);
   const [tableOrders, setTableOrders] = useState<FactoryOrderTableRow[]>([]);
   const [tableTotal, setTableTotal] = useState(0);
   const [tablePage, setTablePage] = useState(1);
@@ -2634,59 +2632,50 @@ const FactoryOrders = () => {
 
   return (
     <div className="factory-orders-page">
-      <section className="factory-orders-hero">
-        <div className="factory-orders-hero-copy">
-          <div className="factory-orders-hero-eyebrow">Factory order cockpit</div>
-          <div className="factory-orders-hero-title">工厂订单总览</div>
-          <div className="factory-orders-hero-subtitle">
-            聚合查看订单节奏、物料准备与交付压力，优先处理即将交期和仍在推进中的工单。
+      <section className="factory-orders-page-header">
+        <div className="factory-orders-page-heading">
+          <div className="factory-orders-page-title">工厂订单</div>
+          <div className="factory-orders-summary-cards">
+            {(loadingSummary && metrics.length === 0 ? Array.from({ length: 4 }).map((_, index) => ({
+              key: `loading-${index}`,
+              label: '加载中',
+              primaryValue: '—',
+            })) : metrics).map((metric: FactoryOrderMetric | { key: string; label: string; primaryValue: string }) => (
+              <div
+                key={metric.key}
+                className={`factory-orders-summary-card${'tone' in metric && metric.tone === 'warning' ? ' warning' : ''}`}
+              >
+                <div className="factory-orders-summary-label">{metric.label}</div>
+                <div className="factory-orders-summary-value">{metric.primaryValue}</div>
+                {'secondaryValue' in metric && metric.secondaryValue ? (
+                  <div className="factory-orders-summary-meta">{metric.secondaryValue}</div>
+                ) : null}
+              </div>
+            ))}
           </div>
         </div>
-        <Row gutter={[16, 16]} className="factory-orders-hero-metrics">
-          {(loadingSummary && metrics.length === 0 ? Array.from({ length: 4 }).map((_, index) => ({
-            key: `loading-${index}`,
-            label: '加载中',
-            primaryValue: '...',
-          })) : metrics).map((metric: FactoryOrderMetric | { key: string; label: string; primaryValue: string }) => (
-            <Col key={metric.key} xs={12} sm={12} md={8} lg={6}>
-              <div className={`factory-orders-metric-card${'tone' in metric && metric.tone === 'warning' ? ' warning' : ''}`}>
-                <div className="factory-orders-metric-title">{metric.label}</div>
-                <div className="factory-orders-metric-primary">{metric.primaryValue}</div>
-                {'secondaryValue' in metric && metric.secondaryValue ? (
-                  <div className="factory-orders-metric-secondary">{metric.secondaryValue}</div>
-                ) : (
-                  <div className="factory-orders-metric-secondary">实时汇总当前列表关键指标</div>
-                )}
-              </div>
-            </Col>
-          ))}
-        </Row>
       </section>
 
       <Card className="factory-orders-panel">
-        <div className="factory-orders-panel-header">
-          <div>
-            <div className="factory-orders-panel-title">订单列表</div>
-            <div className="factory-orders-panel-subtitle">支持按完成状态、交期与更新时间筛选，适合运营和跟单协同查看。</div>
-          </div>
-        </div>
         <div className="factory-orders-toolbar">
-          <Space size={12} wrap>
-            <SearchField
-              allowClear
-              placeholder="搜索订单号、款号、款名、跟单员"
-              enterButton
-              value={searchValue}
-              onSearch={handleSearch}
-              onChange={handleSearchChange}
-              style={{ width: 360 }}
-              testId="factory-orders-search-input"
-            />
+          <div className="factory-orders-action-row">
+            <Space size={8} wrap>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenCreate()}>新建</Button>
+              <Button icon={<ImportOutlined />} onClick={handleOpenImport}>导入</Button>
+              <Button icon={<ExportOutlined />} loading={exporting} onClick={() => handleExport(false)}>导出</Button>
+              <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => handleExport(true)}>导出所选</Button>
+              <Button icon={<SettingOutlined />} onClick={handleOpenStatusModal}>设置状态</Button>
+            </Space>
+            <div className="factory-orders-view-switch">
+              <Segmented options={viewOptions} value={viewMode} onChange={(value) => setViewMode(value as ViewMode)} />
+            </div>
+          </div>
+          <div className="factory-orders-query-row">
             <Select
-              style={{ width: 180 }}
+              className="factory-orders-status-select"
               options={statusFilterOptions}
               value={activeStatus}
-              placeholder="状态"
+              placeholder="完成状态"
               onChange={(value) => {
                 setActiveStatus(value as OverallStatus);
                 resetPagination();
@@ -2694,13 +2683,22 @@ const FactoryOrders = () => {
             />
             <Select
               className="factory-orders-sort-select"
-              style={{ width: 220 }}
               options={sortOptions}
               value={sortKey}
               onChange={(value) => {
                 setSortKey(value);
                 resetPagination();
               }}
+            />
+            <SearchField
+              allowClear
+              placeholder="搜索订单号、款号、款名、跟单员"
+              enterButton
+              value={searchValue}
+              onSearch={handleSearch}
+              onChange={handleSearchChange}
+              className="factory-orders-search-field"
+              testId="factory-orders-search-input"
             />
             <Button onClick={() => {
               setSearchValue('');
@@ -2711,16 +2709,8 @@ const FactoryOrders = () => {
             }}>
               重置
             </Button>
-          </Space>
-          <Space size={12} wrap>
-            <Segmented options={viewOptions} value={viewMode} onChange={(value) => setViewMode(value as ViewMode)} />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenCreate()}>新建工厂订单</Button>
-            <Button icon={<ImportOutlined />} onClick={handleOpenImport}>导入</Button>
-            <Button icon={<ExportOutlined />} loading={exporting} onClick={() => handleExport(false)}>导出</Button>
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => handleExport(true)}>导出所选</Button>
-            <Button icon={<SettingOutlined />} onClick={handleOpenStatusModal}>设置状态</Button>
             <Button icon={<ReloadOutlined />} onClick={handleRefresh}>刷新</Button>
-          </Space>
+          </div>
         </div>
 
         <div className="factory-orders-selection-row">
@@ -2731,9 +2721,15 @@ const FactoryOrders = () => {
           >
             仅勾选当前视图列表
           </Checkbox>
-          <Text type="secondary">
-            当前状态：{statusFilterOptions.find((item) => item.value === activeStatus)?.label ?? activeStatus}
-          </Text>
+          <div className="factory-orders-legend" aria-label="生产进度图例">
+            <span><i className="completed" />已完成</span>
+            <span><i className="partial" />进行中</span>
+            <span><i className="pending" />待处理</span>
+            <span><i className="overcut" />异常</span>
+            <Text type="secondary">
+              {statusFilterOptions.find((item) => item.value === activeStatus)?.label ?? activeStatus}
+            </Text>
+          </div>
         </div>
 
         <div className="factory-orders-content">
