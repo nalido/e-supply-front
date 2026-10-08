@@ -36,6 +36,7 @@ import StockingPurchaseBatchEditModal from '../components/procurement/StockingPu
 import type {
   StockingPurchaseListParams,
   StockingPurchaseMeta,
+  StockingPurchaseOrderRecord,
   StockingPurchaseRecord,
   StockingPurchaseStatusFilter,
   StockingStatusUpdatePayload,
@@ -46,6 +47,8 @@ import type {
 } from '../types/stocking-purchase-inbound';
 import dayjs from 'dayjs';
 import { BulkActionBar, FilterBar, NumberWithUnitInput, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
+import ListImage from '../components/common/ListImage';
+import '../styles/stocking-purchase-inbound.css';
 
 const { Text } = Typography;
 
@@ -166,7 +169,8 @@ const StockingPurchaseInbound = () => {
       setAppliedKeyword(keyword);
     }
   }, [searchParams]);
-  const [records, setRecords] = useState<StockingPurchaseRecord[]>([]);
+  const [orders, setOrders] = useState<StockingPurchaseOrderRecord[]>([]);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -267,10 +271,14 @@ const StockingPurchaseInbound = () => {
         keyword: appliedKeyword,
       };
       const response = await stockingPurchaseInboundService.getList(params);
-      setRecords(response.list);
+      setOrders(response.list);
       setTotal(response.total);
       const validIds = new Set(response.list.map((item) => item.id));
       setSelectedRowKeys((prev) => prev.filter((key) => validIds.has(String(key))));
+      setExpandedRowKeys((prev) => {
+        const retained = prev.filter((key) => validIds.has(String(key)));
+        return retained.length ? retained : (response.list[0] ? [response.list[0].id] : []);
+      });
     } catch (error) {
       console.error('failed to load stocking purchase list', error);
       message.error('获取备料采购列表失败');
@@ -396,7 +404,7 @@ const StockingPurchaseInbound = () => {
   };
 
   const openReceiptDrawer = useCallback(
-    async (record: StockingPurchaseRecord) => {
+    async (record: StockingPurchaseRecord, includeAllLines = false) => {
       if (!record.orderId) {
         message.warning('未找到订单信息，无法查看明细');
         return;
@@ -405,7 +413,7 @@ const StockingPurchaseInbound = () => {
       try {
         const list = await stockingPurchaseInboundService.getReceipts({
           orderId: record.orderId,
-          lineId: record.id,
+          lineId: includeAllLines ? undefined : record.id,
         });
         setReceiptDrawerState((prev) => ({ ...prev, data: list, loading: false }));
       } catch (error) {
@@ -440,25 +448,18 @@ const StockingPurchaseInbound = () => {
   };
 
   const collectSelectedOrderIds = useCallback(() => {
-    const mapping = new Map(records.map((record) => [record.id, record.orderId]));
-    const uniqueIds = new Set<string>();
-    selectedRowKeys.forEach((key) => {
-      const orderId = mapping.get(String(key));
-      if (orderId) {
-        uniqueIds.add(orderId);
-      }
-    });
-    return Array.from(uniqueIds);
-  }, [records, selectedRowKeys]);
+    const validIds = new Set(orders.map((order) => order.id));
+    return selectedRowKeys.map(String).filter((orderId) => validIds.has(orderId));
+  }, [orders, selectedRowKeys]);
 
   const handleBatchEdit = () => {
-    const selectedRecords = records.filter((record) => selectedRowKeys.includes(record.id));
-    if (!selectedRecords.length) {
+    const selectedOrders = orders.filter((order) => selectedRowKeys.includes(order.id));
+    if (!selectedOrders.length) {
       message.warning('请先选择需要修改的备料采购单');
       return;
     }
-    const locked = selectedRecords.find(
-      (record) => record.status === 'completed' || record.status === 'forceCompleted' || record.status === 'void',
+    const locked = selectedOrders.find(
+      (order) => order.status === 'completed' || order.status === 'forceCompleted' || order.status === 'void',
     );
     if (locked) {
       message.warning(`采购单 ${locked.purchaseOrderNo} 已完成或已作废，不能参与批量修改`);
@@ -467,14 +468,13 @@ const StockingPurchaseInbound = () => {
     setBatchEditOpen(true);
   };
 
-  const handleBatchReceive = () => {
-    if (!selectedRowKeys.length) {
-      message.warning('请先选择需要收料的采购单');
-      return;
-    }
-    const selectedRecords = records.filter((record) => selectedRowKeys.includes(record.id));
+  const openBatchReceiveForOrders = (selectedOrders: StockingPurchaseOrderRecord[]) => {
+    const selectedRecords = selectedOrders
+      .filter((order) => order.status !== 'forceCompleted' && order.status !== 'void')
+      .flatMap((order) => order.lines)
+      .filter((record) => getPlanPendingReceiveQty(record, record.orderQty) > 0);
     if (!selectedRecords.length) {
-      message.warning('所选记录已失效，请重新选择');
+      message.warning('所选采购单没有可收料的明细');
       return;
     }
     const missingOrder = selectedRecords.find((record) => !record.orderId);
@@ -501,6 +501,19 @@ const StockingPurchaseInbound = () => {
         remark: undefined,
       })),
     });
+  };
+
+  const handleBatchReceive = () => {
+    if (!selectedRowKeys.length) {
+      message.warning('请先选择需要收料的采购单');
+      return;
+    }
+    const selectedOrders = orders.filter((order) => selectedRowKeys.includes(order.id));
+    if (!selectedOrders.length) {
+      message.warning('所选采购单已失效，请重新选择');
+      return;
+    }
+    openBatchReceiveForOrders(selectedOrders);
   };
 
   const closeBatchReceiveModal = useCallback(() => {
@@ -693,7 +706,7 @@ const StockingPurchaseInbound = () => {
     try {
       const params: StockingPurchaseListParams = {
         page: 1,
-        pageSize: total || records.length || DEFAULT_PAGE_SIZE,
+        pageSize: total || orders.length || DEFAULT_PAGE_SIZE,
         materialType,
         status: statusFilter,
         keyword: appliedKeyword,
@@ -707,218 +720,127 @@ const StockingPurchaseInbound = () => {
     }
   };
 
-  const columns: ColumnsType<StockingPurchaseRecord> = useMemo(
-    () => [
-      {
-        title: '物料 / 规格',
-        dataIndex: 'materialName',
-        key: 'materialName',
-        width: 260,
-        fixed: 'left',
-        render: (value: string, record) => {
-          const specParts = materialType === 'fabric'
-            ? [record.color, record.width, record.weight].filter(Boolean)
-            : [record.color, record.specification].filter(Boolean);
-          return (
-            <Space direction="vertical" size={2}>
+  const orderColumns: ColumnsType<StockingPurchaseOrderRecord> = [
+    {
+      title: '采购单',
+      dataIndex: 'purchaseOrderNo',
+      key: 'purchaseOrderNo',
+      width: 190,
+      render: (value: string, order) => (
+        <Space direction="vertical" size={2}>
+          <Button
+            type="link"
+            size="small"
+            className="stocking-order-link"
+            onClick={() => { setKeywordInput(value); setAppliedKeyword(value); setPage(1); }}
+          >
+            {value}
+          </Button>
+          <Text type="secondary" className="stocking-order-meta">{order.purchaseDate || '未填写采购日期'} · {order.lineCount} 项明细</Text>
+        </Space>
+      ),
+    },
+    { title: '供应商', dataIndex: 'supplierName', key: 'supplierName', width: 145, ellipsis: true, render: (value?: string) => value || '-' },
+    { title: '收料仓库', dataIndex: 'warehouseName', key: 'warehouseName', width: 145, ellipsis: true, render: (value?: string) => value || '-' },
+    {
+      title: '收料进度',
+      key: 'receiptProgress',
+      width: 150,
+      render: (_, order) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>{order.completedLineCount}/{order.lineCount} 项已收完</Text>
+          <Text type="secondary" className="stocking-order-meta">{order.receivedLineCount} 项已有实收</Text>
+        </Space>
+      ),
+    },
+    { title: '采购金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 110, align: 'right', render: (value: number) => formatCurrency(value) },
+    {
+      title: '整单状态',
+      dataIndex: 'statusLabel',
+      key: 'statusLabel',
+      width: 100,
+      render: (_, order) => <Tag color={statusColorMap[order.status]}>{order.statusLabel}</Tag>,
+    },
+    { title: '整单备注', dataIndex: 'remark', key: 'remark', width: 130, ellipsis: true, render: (value?: string) => value || '-' },
+    {
+      title: '整单操作',
+      key: 'actions',
+      width: 210,
+      render: (_, order) => {
+        const firstLine = order.lines[0];
+        const disableReceive = order.status === 'forceCompleted' || order.status === 'void' || order.completedLineCount >= order.lineCount;
+        return (
+          <Space size={4}>
+            <Button size="small" type="link" loading={editLoading && editingOrder?.id === order.id} disabled={!firstLine} onClick={() => firstLine && openEditModal(firstLine)}>编辑</Button>
+            <Button size="small" type="link" disabled={disableReceive} onClick={() => openBatchReceiveForOrders([order])}>整单收料</Button>
+            <Button size="small" type="link" disabled={!firstLine} onClick={() => firstLine && openReceiptDrawer(firstLine, true)}>收料记录</Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
+  const lineColumns: ColumnsType<StockingPurchaseRecord> = [
+    {
+      title: '物料 / 规格',
+      dataIndex: 'materialName',
+      key: 'materialName',
+      width: 250,
+      render: (value: string, record) => {
+        const specParts = materialType === 'fabric'
+          ? [record.color, record.width, record.weight].filter(Boolean)
+          : [record.color, record.specification].filter(Boolean);
+        return (
+          <Space size={10} align="start">
+            <ListImage src={record.imageUrl} alt={value} width={40} height={40} borderRadius={6} fallbackText="无图" />
+            <Space direction="vertical" size={1}>
               <Text strong>{value}</Text>
-              <Space size={6} wrap>
-                {record.materialCategory ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {record.materialCategory}
-                  </Text>
-                ) : null}
-                {specParts.length ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {specParts.join(' / ')}
-                  </Text>
-                ) : null}
-              </Space>
+              <Text type="secondary" className="stocking-order-meta">
+                {[record.materialCategory, ...specParts].filter(Boolean).join(' · ') || '未填写规格'}
+              </Text>
             </Space>
-          );
-        },
+          </Space>
+        );
       },
-      {
-        title: '采购量',
-        dataIndex: 'orderQty',
-        key: 'orderQty',
-        align: 'right',
-        width: 120,
-        render: (value: number, record) => `${formatQuantity(value)} ${record.unit}`,
+    },
+    { title: '采购量', dataIndex: 'orderQty', key: 'orderQty', width: 90, align: 'right', render: (value: number, record) => `${formatQuantity(value)} ${record.unit}` },
+    { title: '累计实收', key: 'actualReceivedQty', width: 100, align: 'right', render: (_, record) => `${formatQuantity(getActualReceivedQty(record))} ${record.unit}` },
+    { title: '计划待收', key: 'planPendingReceiveQty', width: 100, align: 'right', render: (_, record) => `${formatQuantity(getPlanPendingReceiveQty(record, record.orderQty))} ${record.unit}` },
+    {
+      title: '超收量',
+      key: 'overReceivedQty',
+      width: 90,
+      align: 'right',
+      render: (_, record) => {
+        const overQty = getOverReceivedQty(record, record.orderQty);
+        return overQty > 0 ? <Text type="warning">{formatQuantity(overQty)} {record.unit}</Text> : `0 ${record.unit}`;
       },
-      {
-        title: '累计实收',
-        dataIndex: 'actualReceivedQty',
-        key: 'actualReceivedQty',
-        align: 'right',
-        width: 132,
-        render: (_value: number, record) => `${formatQuantity(getActualReceivedQty(record))} ${record.unit}`,
+    },
+    {
+      title: '明细状态',
+      dataIndex: 'statusLabel',
+      key: 'statusLabel',
+      width: 100,
+      render: (_, record) => <Tag color={statusColorMap[record.status]}>{record.statusLabel}</Tag>,
+    },
+    { title: '单价', dataIndex: 'unitPrice', key: 'unitPrice', width: 90, align: 'right', render: (value?: number) => value === undefined ? '-' : formatCurrency(value) },
+    { title: '金额', dataIndex: 'orderAmount', key: 'orderAmount', width: 100, align: 'right', render: (value: number) => formatCurrency(value) },
+    { title: '明细备注', dataIndex: 'remark', key: 'remark', width: 120, ellipsis: true, render: (value?: string) => value || '-' },
+    {
+      title: '明细操作',
+      key: 'actions',
+      width: 140,
+      render: (_, record) => {
+        const disableReceive = record.orderStatus === 'forceCompleted' || record.orderStatus === 'void' || getPlanPendingReceiveQty(record, record.orderQty) <= 0;
+        return (
+          <Space size={2}>
+            <Button size="small" type="link" disabled={disableReceive} onClick={() => openReceiveModal(record)}>本行收料</Button>
+            <Button size="small" type="link" onClick={() => openReceiptDrawer(record)}>收料记录</Button>
+          </Space>
+        );
       },
-      {
-        title: '计划待收',
-        dataIndex: 'planPendingReceiveQty',
-        key: 'planPendingReceiveQty',
-        align: 'right',
-        width: 132,
-        render: (_value: number, record) => `${formatQuantity(getPlanPendingReceiveQty(record, record.orderQty))} ${record.unit}`,
-      },
-      {
-        title: '超收量',
-        dataIndex: 'overReceivedQty',
-        key: 'overReceivedQty',
-        align: 'right',
-        width: 120,
-        render: (_value: number, record) => {
-          const overQty = getOverReceivedQty(record, record.orderQty);
-          return overQty > 0 ? <Text type="warning">{formatQuantity(overQty)} {record.unit}</Text> : `0 ${record.unit}`;
-        },
-      },
-      {
-        title: '状态',
-        dataIndex: 'statusLabel',
-        key: 'statusLabel',
-        width: 120,
-        render: (_value, record) => (
-          <Tag color={statusColorMap[record.status]}>{record.statusLabel}</Tag>
-        ),
-      },
-      {
-        title: '采购单号',
-        dataIndex: 'purchaseOrderNo',
-        key: 'purchaseOrderNo',
-        width: 160,
-        render: (value: string) => <Button type="link" size="small" style={{ padding: 0, height: 'auto', fontWeight: 600 }} onClick={() => { setKeywordInput(value); setAppliedKeyword(value); setPage(1); }}>{value}</Button>,
-      },
-      {
-        title: '供应商',
-        dataIndex: 'supplierName',
-        key: 'supplierName',
-        width: 180,
-      },
-      {
-        title: '收料仓库',
-        dataIndex: 'warehouseName',
-        key: 'warehouseName',
-        width: 180,
-        render: (value?: string) => value ?? '-',
-      },
-      {
-        title: '采购日期',
-        dataIndex: 'purchaseDate',
-        key: 'purchaseDate',
-        width: 140,
-      },
-      {
-        title: '采购金额',
-        dataIndex: 'orderAmount',
-        key: 'orderAmount',
-        align: 'right',
-        width: 140,
-        render: (value: number) => formatCurrency(value),
-      },
-      {
-        title: '采购单价',
-        dataIndex: 'unitPrice',
-        key: 'unitPrice',
-        align: 'right',
-        width: 120,
-        render: (value?: number) => (value === undefined ? '-' : formatCurrency(value)),
-      },
-      {
-        title: '颜色',
-        dataIndex: 'color',
-        key: 'color',
-        width: 120,
-        render: (value?: string) => value ?? '-',
-      },
-      ...(materialType === 'accessory'
-        ? [
-            {
-              title: '规格',
-              dataIndex: 'specification',
-              key: 'specification',
-              width: 120,
-              render: (value?: string) => value ?? '-',
-            },
-          ]
-        : []),
-      ...(materialType === 'fabric'
-        ? [
-            {
-              title: '幅宽',
-              dataIndex: 'width',
-              key: 'width',
-              width: 110,
-              render: (value?: string) => value ?? '-',
-            },
-            {
-              title: '克重',
-              dataIndex: 'weight',
-              key: 'weight',
-              width: 110,
-              render: (value?: string) => value ?? '-',
-            },
-          ]
-        : []),
-      {
-        title: '供应商型号',
-        dataIndex: 'supplierModel',
-        key: 'supplierModel',
-        width: 150,
-        render: (value?: string) => value ?? '-',
-      },
-      {
-        title: '供应商色号',
-        dataIndex: 'supplierColorNo',
-        key: 'supplierColorNo',
-        width: 150,
-        render: (value?: string) => value ?? '-',
-      },
-      ...(materialType === 'fabric'
-        ? [
-            {
-              title: '空差',
-              dataIndex: 'tolerance',
-              key: 'tolerance',
-              width: 110,
-              render: (value?: string) => value ?? '-',
-            },
-          ]
-        : []),
-      {
-        title: '备注',
-        dataIndex: 'remark',
-        key: 'remark',
-        width: 200,
-        ellipsis: true,
-        render: (value?: string) => value ?? '-',
-      },
-      {
-        title: '操作',
-        key: 'actions',
-        fixed: 'right',
-        width: 240,
-        render: (_value, record) => {
-          const disableReceive =
-            !record.orderId || record.status === 'forceCompleted' || record.status === 'void';
-          return (
-            <Space size={8}>
-              <Button size="small" type="link" loading={editLoading && editingOrder?.id === record.orderId} onClick={() => openEditModal(record)}>
-                编辑
-              </Button>
-              <Button size="small" type="link" disabled={disableReceive} onClick={() => openReceiveModal(record)}>
-                收料
-              </Button>
-              <Button size="small" type="link" onClick={() => openReceiptDrawer(record)}>
-                收料明细
-              </Button>
-            </Space>
-          );
-        },
-      },
-    ],
-    [editLoading, editingOrder?.id, materialType, openEditModal, openReceiptDrawer, openReceiveModal],
-  );
+    },
+  ];
 
   const receiptItemColumns: ColumnsType<StockingReceiptRecord> = useMemo(
     () => [
@@ -985,7 +907,7 @@ const StockingPurchaseInbound = () => {
     return Array.from(map.values());
   }, [receiptDrawerState.data]);
 
-  const selection: TableRowSelection<StockingPurchaseRecord> = useMemo(
+  const selection: TableRowSelection<StockingPurchaseOrderRecord> = useMemo(
     () => ({
       selectedRowKeys,
       onChange: (keys) => setSelectedRowKeys(keys),
@@ -1000,12 +922,12 @@ const StockingPurchaseInbound = () => {
         className="oc-page-header--compact"
         title="备料采购入库"
         extra={metaLoading ? <Text type="secondary">筛选项加载中…</Text> : null}
-        subtitle="按物料类型、入库状态和关键字快速查询采购入库记录。"
+        subtitle="按采购单查看整单进度，展开后逐项核对收料状态。"
         stats={
           <div className="oc-summary-strip">
             <div className="oc-summary-chip"><div className="oc-summary-chip__label">当前类型</div><div className="oc-summary-chip__value">{materialType === 'fabric' ? '面料' : '辅料/包材'}</div></div>
             <div className="oc-summary-chip"><div className="oc-summary-chip__label">当前状态</div><div className="oc-summary-chip__value">{(meta?.statusOptions ?? []).find((item) => item.value === statusFilter)?.label ?? statusFilter}</div></div>
-            <div className="oc-summary-chip"><div className="oc-summary-chip__label">列表条数</div><div className="oc-summary-chip__value">{total}</div></div>
+            <div className="oc-summary-chip"><div className="oc-summary-chip__label">采购单数</div><div className="oc-summary-chip__value">{total}</div></div>
           </div>
         }
       />
@@ -1057,14 +979,15 @@ const StockingPurchaseInbound = () => {
           />
           {selectedRowKeys.length > 0 ? (
             <BulkActionBar
-              selectionText={<Text>已选择 {selectedRowKeys.length} 条采购记录</Text>}
+              selectionText={<Text>已选择 {selectedRowKeys.length} 张采购单</Text>}
               actions={<Button icon={<InboxOutlined />} onClick={handleBatchReceive}>批量收料</Button>}
             />
           ) : null}
-       <Table<StockingPurchaseRecord>
+       <Table<StockingPurchaseOrderRecord>
+         className="stocking-order-table"
          rowKey={(record) => record.id}
-         dataSource={records}
-         columns={columns}
+         dataSource={orders}
+         columns={orderColumns}
          loading={tableLoading}
           pagination={{
             current: page,
@@ -1078,10 +1001,31 @@ const StockingPurchaseInbound = () => {
                 setPageSize(nextSize);
               }
             },
-            showTotal: (value: number) => `共 ${value} 条`,
+            showTotal: (value: number) => `共 ${value} 张采购单`,
           }}
           rowSelection={selection}
-          scroll={{ x: 1400 }}
+          expandable={{
+            expandedRowKeys,
+            onExpandedRowsChange: (keys) => setExpandedRowKeys([...keys]),
+            rowExpandable: (order) => order.lines.length > 0,
+            expandedRowRender: (order) => (
+              <div className="stocking-line-panel">
+                <div className="stocking-line-panel__header">
+                  <Text strong>采购明细</Text>
+                  <Text type="secondary">整单状态与每条物料的收料状态分别显示</Text>
+                </div>
+                <Table<StockingPurchaseRecord>
+                  rowKey={(record) => record.id}
+                  dataSource={order.lines}
+                  columns={lineColumns}
+                  pagination={false}
+                  size="small"
+                  scroll={{ x: 1180 }}
+                />
+              </div>
+            ),
+          }}
+          scroll={{ x: 1260 }}
        />
         <StockingPurchaseCreateModal
           open={createModalOpen}
@@ -1142,7 +1086,9 @@ const StockingPurchaseInbound = () => {
         <StockingPurchaseBatchEditModal
           open={batchEditOpen}
           orderIds={collectSelectedOrderIds()}
-          lineIds={selectedRowKeys.map(String)}
+          lineIds={orders
+            .filter((order) => selectedRowKeys.includes(order.id))
+            .flatMap((order) => order.lines.map((line) => line.id))}
           materialType={materialType}
           onClose={() => setBatchEditOpen(false)}
           onSaved={() => {

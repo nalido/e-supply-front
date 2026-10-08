@@ -1,0 +1,64 @@
+.stocking-order-table .ant-table-row-expand-icon-cell {
+  width: 44px;
+}
+
+.stocking-order-table .ant-table-expanded-row > td {
+  padding: 0 !important;
+  background: #f8fafc !important;
+}
+
+.stocking-order-link {
+  display: block;
+  max-width: 174px;
+  overflow: hidden;
+  height: auto;
+  padding: 0;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stocking-order-meta {
+  font-size: 12px;
+}
+
+.stocking-line-panel {
+  margin: 0 8px 4px 44px;
+  overflow: hidden;
+  border: 1px solid #e7ebf0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.stocking-line-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef1f4;
+  background: #fbfcfe;
+}
+
+.stocking-line-panel .ant-table-thead > tr > th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  background: #f7f9fc;
+  font-size: 12px;
+}
+
+.stocking-line-panel .ant-table-tbody > tr > td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+@media (max-width: 900px) {
+  .stocking-line-panel {
+    margin-left: 4px;
+  }
+
+  .stocking-line-panel__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

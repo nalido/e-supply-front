@@ -21,6 +21,7 @@ export type StockingPurchaseRecord = {
   status: StockingPurchaseStatus;
   statusLabel: string;
   statusTagColor: string;
+  orderStatus: StockingPurchaseStatus;
   purchaseOrderNo: string;
   materialName: string;
   materialCategory?: string;
@@ -47,6 +48,25 @@ export type StockingPurchaseRecord = {
   remark?: string;
 };
 
+export type StockingPurchaseOrderRecord = {
+  id: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  materialType: StockingMaterialType;
+  status: StockingPurchaseStatus;
+  statusLabel: string;
+  statusTagColor: string;
+  purchaseOrderNo: string;
+  purchaseDate: string;
+  supplierName: string;
+  remark?: string;
+  lineCount: number;
+  receivedLineCount: number;
+  completedLineCount: number;
+  totalAmount: number;
+  lines: StockingPurchaseRecord[];
+};
+
 export type StockingPurchaseListParams = {
   page: number;
   pageSize: number;
@@ -56,7 +76,7 @@ export type StockingPurchaseListParams = {
 };
 
 export type StockingPurchaseListResponse = {
-  list: StockingPurchaseRecord[];
+  list: StockingPurchaseOrderRecord[];
   total: number;
 };
 
