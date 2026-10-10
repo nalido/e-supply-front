@@ -4,7 +4,11 @@ import type { CreateQuantityMatrix, OverallStatus } from './types';
 
 export const VIEW_MODE_STORAGE_KEY = 'factory-orders-view-mode';
 
+export const DEFAULT_FACTORY_ORDER_SORT = 'placed-desc';
+
 export const sortOptions = [
+  { label: '下单时间（新 → 旧）', value: DEFAULT_FACTORY_ORDER_SORT },
+  { label: '下单时间（旧 → 新）', value: 'placed-asc' },
   { label: '更新时间（新 → 旧）', value: 'order-desc' },
   { label: '更新时间（旧 → 新）', value: 'order-asc' },
   { label: '预计交货（近 → 远）', value: 'delivery-asc' },

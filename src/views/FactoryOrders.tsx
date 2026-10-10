@@ -94,6 +94,7 @@ import type {
 } from './factory-orders/types';
 import {
   CUTTING_SHEET_START_SOURCE,
+  DEFAULT_FACTORY_ORDER_SORT,
   VIEW_MODE_STORAGE_KEY,
   buildCreateMatrix,
   formatProgressPercent,
@@ -139,7 +140,7 @@ const FactoryOrders = () => {
   const [appliedKeyword, setAppliedKeyword] = useState(initialKeyword);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [activeStatus, setActiveStatus] = useState<OverallStatus>(initialStatus);
-  const [sortKey, setSortKey] = useState('order-desc');
+  const [sortKey, setSortKey] = useState(DEFAULT_FACTORY_ORDER_SORT);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window !== 'undefined') {
       const stored = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
@@ -2713,7 +2714,7 @@ const FactoryOrders = () => {
             <Button onClick={() => {
               setSearchValue('');
               setAppliedKeyword('');
-              setSortKey('order-desc');
+              setSortKey(DEFAULT_FACTORY_ORDER_SORT);
               setActiveStatus('unfinished');
               resetPagination();
             }}>
