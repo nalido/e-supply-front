@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Card,
   Empty,
@@ -14,12 +14,14 @@ import { SearchOutlined } from '@ant-design/icons';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetMaterialUsage,
   CuttingSheetUnconfiguredItem,
   CuttingTask,
   CuttingTaskDataset,
   CuttingTaskMetric,
 } from '../types';
 import { pieceworkService } from '../api/piecework';
+import { settingsApi } from '../api/settings';
 import { SearchField } from '../components/page';
 import '../styles/cutting-pending.css';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -27,6 +29,11 @@ import CuttingSheetDetailModal from '../components/CuttingSheetDetailModal';
 import CuttingTaskCard from '../components/CuttingTaskCard';
 import ListImage from '../components/common/ListImage';
 import CuttingBedRecordModal from '../components/CuttingBedRecordModal';
+import {
+  buildFriendlyErrorFromUnknown,
+  extractValidationFieldErrors,
+  wasGlobalErrorShown,
+} from '../utils/http-error';
 
 const { Text } = Typography;
 
@@ -52,8 +59,23 @@ type BedUsageEditState = {
   open: boolean;
   submitting: boolean;
   calculating: boolean;
+  mode: 'create' | 'edit';
   record?: NonNullable<CuttingSheetDetail['bedRecords']>[number];
 };
+
+type MaterialUsageFormValue = {
+  calculationKey?: string;
+  stockOptionKey?: string;
+  actualQty?: number;
+};
+
+const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
+const buildBedItemsFromQtyMap = (qtyMap: Record<string, number | null>) => Object.entries(qtyMap)
+  .map(([key, quantity]) => {
+    const [color, size] = key.split('::');
+    return { color, size, quantity: Math.max(0, Math.round(Number(quantity) || 0)) };
+  })
+  .filter((item) => item.quantity > 0);
 
 const CuttingCompletedPage = () => {
   const navigate = useNavigate();
@@ -74,10 +96,15 @@ const CuttingCompletedPage = () => {
     open: false,
     submitting: false,
     calculating: false,
+    mode: 'create',
   });
+  const [bedRecordQtyMap, setBedRecordQtyMap] = useState<Record<string, number | null>>({});
   const [bedUsageCalculations, setBedUsageCalculations] = useState<CuttingSheetMaterialCalculation[]>([]);
   const [bedUsageUnconfiguredItems, setBedUsageUnconfiguredItems] = useState<CuttingSheetUnconfiguredItem[]>([]);
+  const [cutterOptions, setCutterOptions] = useState<Array<{ label: string; value: number }>>([]);
+  const [cutterLoading, setCutterLoading] = useState(false);
   const [bedUsageForm] = Form.useForm();
+  const bedMaterialCalculationRequestRef = useRef(0);
 
   const navigateToFactoryOrder = (orderCode?: string) => {
     const normalized = orderCode?.trim();
@@ -197,7 +224,105 @@ const CuttingCompletedPage = () => {
     }
   };
 
-  const openBedUsageEditor = async (
+  const loadCutterOptions = async () => {
+    setCutterLoading(true);
+    try {
+      const membersRes = await settingsApi.organization.list({ page: 1, pageSize: 200 });
+      setCutterOptions((membersRes.list ?? [])
+        .filter((member) => member.status !== 'inactive')
+        .map((member) => ({
+          label: member.name || member.username || `用户${member.id}`,
+          value: Number(member.id),
+        }))
+        .filter((option) => Number.isFinite(option.value)));
+    } catch (error) {
+      console.error('failed to load cutting member options', error);
+      message.error('加载裁剪人选项失败');
+    } finally {
+      setCutterLoading(false);
+    }
+  };
+
+  const setCalculatedMaterialFormValues = useCallback((
+    calculations: CuttingSheetMaterialCalculation[],
+    existingUsages: CuttingSheetMaterialUsage[] = [],
+    preserveCurrentValues = false,
+  ) => {
+    const currentValues = preserveCurrentValues
+      ? (bedUsageForm.getFieldValue('materialUsages') ?? []) as MaterialUsageFormValue[]
+      : [];
+    const currentByCalculationKey = new Map(
+      currentValues
+        .filter((usage) => usage?.calculationKey)
+        .map((usage) => [usage.calculationKey as string, usage]),
+    );
+    bedUsageForm.setFieldValue('materialUsages', calculations.map((material) => {
+      const current = currentByCalculationKey.get(material.calculationKey);
+      const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
+      const matchedOption = material.stockOptions.find((option) => (
+        Number(option.warehouseId) === Number(existing?.warehouseId)
+        && Number(option.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0)
+      ));
+      const currentOption = material.stockOptions.find((option) => (
+        `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}` === current?.stockOptionKey
+      ));
+      const defaultOption = currentOption
+        ?? (existing ? matchedOption : material.stockOptions.length === 1 ? material.stockOptions[0] : undefined);
+      return {
+        calculationKey: material.calculationKey,
+        stockOptionKey: defaultOption
+          ? `${defaultOption.warehouseId}::${Number(defaultOption.materialMinimumSpecificationId) || 0}`
+          : undefined,
+        actualQty: current?.actualQty ?? existing?.actualQty,
+      };
+    }));
+  }, [bedUsageForm]);
+
+  useEffect(() => {
+    if (!bedUsageEditState.open || !detailState.task?.workOrderId) return undefined;
+    const items = buildBedItemsFromQtyMap(bedRecordQtyMap);
+    const requestId = bedMaterialCalculationRequestRef.current + 1;
+    bedMaterialCalculationRequestRef.current = requestId;
+    if (items.length === 0) {
+      setBedUsageCalculations([]);
+      setBedUsageUnconfiguredItems([]);
+      bedUsageForm.setFieldValue('materialUsages', []);
+      setBedUsageEditState((prev) => ({ ...prev, calculating: false }));
+      return undefined;
+    }
+    setBedUsageEditState((prev) => ({ ...prev, calculating: true }));
+    const timer = window.setTimeout(() => {
+      void pieceworkService.calculateCuttingSheetBedMaterials(
+        detailState.task!.workOrderId!,
+        items,
+      ).then((result) => {
+        if (bedMaterialCalculationRequestRef.current !== requestId) return;
+        setBedUsageCalculations(result.materials);
+        setBedUsageUnconfiguredItems(result.unconfiguredItems);
+        setCalculatedMaterialFormValues(
+          result.materials,
+          bedUsageEditState.record?.materialUsages ?? bedUsageEditState.record?.fabricUsages ?? [],
+          true,
+        );
+      }).catch((error) => {
+        if (bedMaterialCalculationRequestRef.current !== requestId) return;
+        console.error('failed to calculate completed cutting bed materials', error);
+        message.error(error instanceof Error ? error.message : '计算面辅料失败');
+      }).finally(() => {
+        if (bedMaterialCalculationRequestRef.current === requestId) {
+          setBedUsageEditState((prev) => ({ ...prev, calculating: false }));
+        }
+      });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      if (bedMaterialCalculationRequestRef.current === requestId) {
+        bedMaterialCalculationRequestRef.current += 1;
+      }
+    };
+  }, [bedRecordQtyMap, bedUsageEditState.open, bedUsageEditState.record, bedUsageForm, detailState.task, setCalculatedMaterialFormValues]);
+
+  const openBedUsageEditor = (
     record: NonNullable<CuttingSheetDetail['bedRecords']>[number],
   ) => {
     if (!detailState.task?.workOrderId || !record.bedId) return;
@@ -205,45 +330,52 @@ const CuttingCompletedPage = () => {
       message.info('该床次为历史记录，不纳入本次用量调整范围');
       return;
     }
-    setBedUsageEditState({ open: true, submitting: false, calculating: true, record });
+    setBedUsageEditState({ open: true, submitting: false, calculating: true, mode: 'edit', record });
     setBedUsageUnconfiguredItems([]);
-    bedUsageForm.setFieldsValue({ bedNumber: record.bedNumber, materialUsages: [] });
-    try {
-      const result = await pieceworkService.calculateCuttingSheetBedMaterials(
-        detailState.task.workOrderId,
-        record.items.filter((item) => Number(item.quantity) > 0),
-      );
-      setBedUsageCalculations(result.materials);
-      setBedUsageUnconfiguredItems(result.unconfiguredItems);
-      const existingUsages = record.materialUsages ?? record.fabricUsages ?? [];
-      bedUsageForm.setFieldValue('materialUsages', result.materials.map((material) => {
-        const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
-        const option = material.stockOptions.find((candidate) => (
-          Number(candidate.warehouseId) === Number(existing?.warehouseId)
-          && Number(candidate.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0)
-        ));
-        return {
-          calculationKey: material.calculationKey,
-          stockOptionKey: option
-            ? `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}`
-            : undefined,
-          actualQty: existing?.actualQty,
-        };
-      }));
-    } catch (error) {
-      console.error('failed to load completed cutting bed material usages', error);
-      message.error(error instanceof Error ? error.message : '加载床次用量失败');
-      setBedUsageUnconfiguredItems([]);
-      setBedUsageEditState((prev) => ({ ...prev, open: false }));
-    } finally {
-      setBedUsageEditState((prev) => ({ ...prev, calculating: false }));
-    }
+    setBedRecordQtyMap(record.items.reduce<Record<string, number>>((acc, item) => {
+      acc[buildSpecKey(item.color, item.size)] = Number(item.quantity) || 0;
+      return acc;
+    }, {}));
+    bedUsageForm.setFieldsValue({
+      bedNumber: record.bedNumber,
+      cutterId: record.cutterId,
+      cuttingPieceRate: Number(record.cuttingPieceRate ?? 0),
+      shortCutReason: sheetDetail?.shortCutReason,
+      materialUsages: [],
+    });
+    void loadCutterOptions();
+  };
+
+  const openCompletedBedRecord = () => {
+    if (!detailState.task?.workOrderId || !sheetDetail) return;
+    const initialQtyMap = sheetDetail.rows.reduce<Record<string, number | null>>((acc, row) => {
+      row.cells.forEach((cell) => {
+        acc[buildSpecKey(row.color, cell.size)] = null;
+      });
+      return acc;
+    }, {});
+    setBedRecordQtyMap(initialQtyMap);
+    setBedUsageCalculations([]);
+    setBedUsageUnconfiguredItems([]);
+    setBedUsageEditState({ open: true, submitting: false, calculating: false, mode: 'create' });
+    bedUsageForm.setFieldsValue({
+      bedNumber: `BED-${detailState.task.workOrderId}-${(sheetDetail.bedRecords?.length ?? 0) + 1}`,
+      cutterId: undefined,
+      cuttingPieceRate: undefined,
+      materialUsages: [],
+    });
+    void loadCutterOptions();
   };
 
   const submitBedUsageUpdate = async () => {
-    if (!detailState.task?.workOrderId || !bedUsageEditState.record?.bedId) return;
+    if (!detailState.task?.workOrderId) return;
     try {
       const values = await bedUsageForm.validateFields();
+      const items = buildBedItemsFromQtyMap(bedRecordQtyMap);
+      if (items.length === 0) {
+        message.warning('请至少填写一个颜色尺码的裁剪数量');
+        return;
+      }
       const formUsages = (values.materialUsages ?? []) as Array<{ stockOptionKey?: string; actualQty?: number }>;
       const materialUsages = bedUsageCalculations.map((material, index) => {
         const formUsage = formUsages[index] ?? {};
@@ -264,20 +396,49 @@ const CuttingCompletedPage = () => {
         };
       });
       setBedUsageEditState((prev) => ({ ...prev, submitting: true }));
-      await pieceworkService.updateCuttingSheetBedMaterialUsage(detailState.task.workOrderId, {
-        bedId: bedUsageEditState.record.bedId,
-        materialUsages,
-      });
-      message.success('床次用量与库存已同步调整');
-      setBedUsageEditState({ open: false, submitting: false, calculating: false });
+      if (bedUsageEditState.mode === 'edit' && bedUsageEditState.record?.bedId) {
+        await pieceworkService.updateCuttingSheetBed(detailState.task.workOrderId, {
+          bedId: bedUsageEditState.record.bedId,
+          bedNumber: values.bedNumber,
+          cutterId: values.cutterId,
+          shortCutReason: values.shortCutReason?.trim(),
+          cuttingPieceRate: Number(values.cuttingPieceRate),
+          materialUsages,
+          items,
+        });
+        message.success('床次数据、库存、费用和进度已同步调整');
+      } else {
+        await pieceworkService.recordCuttingSheetBed(detailState.task.workOrderId, {
+          bedNumber: values.bedNumber,
+          cutterId: values.cutterId,
+          cuttingPieceRate: Number(values.cuttingPieceRate),
+          materialUsages,
+          fabricUsages: materialUsages,
+          items,
+        });
+        message.success('床次已补录，库存、费用和进度已同步更新');
+      }
+      setBedUsageEditState({ open: false, submitting: false, calculating: false, mode: 'create' });
       bedUsageForm.resetFields();
+      setBedRecordQtyMap({});
       setBedUsageCalculations([]);
       await loadSheetDetail(detailState.task, { silent: true });
       await loadCompletedTasks();
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) return;
-      console.error('failed to update completed cutting bed material usages', error);
-      message.error(error instanceof Error ? error.message : '调整床次用量失败');
+      const validationErrors = extractValidationFieldErrors(error);
+      const formErrors = Object.entries(validationErrors)
+        .filter(([field]) => ['bedNumber', 'cuttingPieceRate'].includes(field));
+      if (formErrors.length > 0) {
+        bedUsageForm.setFields(formErrors.map(([name, fieldError]) => ({ name, errors: [fieldError] })));
+        message.warning(formErrors[0][1]);
+        return;
+      }
+      console.error('failed to save completed cutting bed', error);
+      if (!wasGlobalErrorShown(error)) {
+        const friendlyError = buildFriendlyErrorFromUnknown(error);
+        message.error(friendlyError.description ?? friendlyError.title);
+      }
     } finally {
       setBedUsageEditState((prev) => ({ ...prev, submitting: false }));
     }
@@ -448,30 +609,42 @@ const CuttingCompletedPage = () => {
             }
           : undefined}
         onDeleteBed={handleDeleteBed}
-        onEditBedMaterialUsage={(record) => void openBedUsageEditor(record)}
+        onEditBedMaterialUsage={openBedUsageEditor}
+        onRecordBed={openCompletedBedRecord}
         deletingBedKey={deletingBedKey}
       />
 
       <CuttingBedRecordModal
         open={bedUsageEditState.open}
-        mode="edit"
+        mode={bedUsageEditState.mode}
         task={detailState.task}
         detail={sheetDetail}
-        qtyMap={{}}
+        qtyMap={bedRecordQtyMap}
         form={bedUsageForm}
         submitting={bedUsageEditState.submitting}
         calculating={bedUsageEditState.calculating}
         calculations={bedUsageCalculations}
         unconfiguredItems={bedUsageUnconfiguredItems}
         existingUsages={bedUsageEditState.record?.materialUsages ?? bedUsageEditState.record?.fabricUsages}
+        cutterOptions={cutterOptions}
+        cutterLoading={cutterLoading}
         zIndex={1100}
-        onQtyChange={() => undefined}
-        onFillPendingQty={() => undefined}
+        onQtyChange={(key, value) => setBedRecordQtyMap((prev) => ({ ...prev, [key]: value }))}
+        onFillPendingQty={() => {
+          if (!sheetDetail) return;
+          setBedRecordQtyMap(sheetDetail.rows.reduce<Record<string, number>>((acc, row) => {
+            row.cells.forEach((cell) => {
+              acc[buildSpecKey(row.color, cell.size)] = Math.max(0, Number(cell.pendingQty) || 0);
+            });
+            return acc;
+          }, {}));
+        }}
         onCancel={() => {
           bedUsageForm.resetFields();
+          setBedRecordQtyMap({});
           setBedUsageCalculations([]);
           setBedUsageUnconfiguredItems([]);
-          setBedUsageEditState({ open: false, submitting: false, calculating: false });
+          setBedUsageEditState({ open: false, submitting: false, calculating: false, mode: 'create' });
         }}
         onSubmit={() => void submitBedUsageUpdate()}
       />

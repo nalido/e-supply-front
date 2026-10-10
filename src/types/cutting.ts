@@ -125,6 +125,7 @@ export type CuttingSheetDetail = {
   overCutReasonCode?: string;
   overCutReasonText?: string;
   overCutRemark?: string;
+  shortCutReason?: string;
   warehouseId?: number;
   warehouseName?: string;
   materialId?: number;
@@ -144,6 +145,7 @@ export type CuttingSheetDetail = {
   bedRecords?: Array<{
     bedId?: string;
     bedNumber: string;
+    cutterId?: number;
     recordedAt?: string;
     actualFabricQty?: number;
     cuttingPieceRate?: number;

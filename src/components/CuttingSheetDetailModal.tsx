@@ -230,9 +230,9 @@ export default function CuttingSheetDetailModal({
               完成
             </Button>
           ) : null}
-          {detail?.status !== 'COMPLETED' && onRecordBed ? (
+          {onRecordBed ? (
             <Button onClick={onRecordBed}>
-              手动录入床次
+              {detail?.status === 'COMPLETED' ? '补录床次' : '手动录入床次'}
             </Button>
           ) : null}
           <Button onClick={closeDetail}>关闭</Button>
@@ -328,6 +328,9 @@ export default function CuttingSheetDetailModal({
                 <Descriptions.Item label="超裁备注">{detail?.overCutRemark ?? '-'}</Descriptions.Item>
               </>
             ) : null}
+            {detail?.shortCutReason ? (
+              <Descriptions.Item label="短裁原因" span={2}>{detail.shortCutReason}</Descriptions.Item>
+            ) : null}
             <Descriptions.Item label="订单备注" span={2}>{task.remarks || '-'}</Descriptions.Item>
           </Descriptions>
           {detail ? (
@@ -335,7 +338,10 @@ export default function CuttingSheetDetailModal({
               <Card title="物料用量汇总" size="small">
                 {materialSummaryRows.length > 0 ? (
                   <Table
-                    rowKey={(row, index) => `${row.materialId ?? row.materialCode ?? row.materialName ?? 'usage'}-${index}`}
+                    rowKey={(row) => [
+                      row.warehouseId ?? row.warehouseName ?? 'warehouse',
+                      row.materialId ?? row.materialCode ?? row.materialName ?? 'usage',
+                    ].join('-')}
                     bordered
                     pagination={false}
                     size="small"
@@ -387,7 +393,7 @@ export default function CuttingSheetDetailModal({
                                   icon={<EditOutlined />}
                                   onClick={() => onEditBedMaterialUsage(record)}
                                 >
-                                  修改用量
+                                  修改床次
                                 </Button>
                               ) : null}
                               {onDeleteBed ? (
@@ -441,7 +447,13 @@ export default function CuttingSheetDetailModal({
                               <Text strong style={{ display: 'block', marginBottom: 8 }}>物料用量</Text>
                               {getBedMaterialUsages(record).length > 0 ? (
                                 <Table
-                                  rowKey={(row, usageIndex) => `${record.bedNumber}-usage-${row.materialId ?? usageIndex}`}
+                                  rowKey={(row) => [
+                                    record.bedId ?? record.bedNumber,
+                                    row.calculationKey ?? row.materialId ?? 'usage',
+                                    row.materialMinimumSpecificationId ?? 0,
+                                    row.warehouseId ?? 0,
+                                    row.materialType ?? 'material',
+                                  ].join('-')}
                                   bordered
                                   pagination={false}
                                   size="small"

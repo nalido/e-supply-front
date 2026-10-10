@@ -338,6 +338,7 @@ type CuttingSheetDetailPayload = Partial<{
   overCutReasonCode: string;
   overCutReasonText: string;
   overCutRemark: string;
+  shortCutReason: string;
   warehouseId: number;
   warehouseName: string;
   materialId: number;
@@ -368,6 +369,7 @@ type CuttingSheetDetailPayload = Partial<{
   bedRecords: Array<{
     bedId?: string;
     bedNumber: string;
+    cutterId?: number;
     recordedAt?: string;
     actualFabricQty?: number;
     cuttingPieceRate?: number;
@@ -544,6 +546,7 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
     overCutReasonCode: payload.overCutReasonCode,
     overCutReasonText: payload.overCutReasonText,
     overCutRemark: payload.overCutRemark,
+    shortCutReason: payload.shortCutReason,
     warehouseId: payload.warehouseId,
     warehouseName: payload.warehouseName,
     materialId: payload.materialId,
@@ -574,6 +577,7 @@ const adaptCuttingSheetDetail = (payload: CuttingSheetDetailPayload): CuttingShe
     bedRecords: (payload.bedRecords ?? []).map((record) => ({
       bedId: record.bedId,
       bedNumber: record.bedNumber ?? '-',
+      cutterId: Number.isFinite(Number(record.cutterId)) ? Number(record.cutterId) : undefined,
       recordedAt: record.recordedAt,
       actualFabricQty: Number.isFinite(Number(record.actualFabricQty))
         ? Number(record.actualFabricQty)
@@ -846,6 +850,7 @@ export const pieceworkService = {
       usageRemark?: string;
       overCutReasonCode?: string;
       overCutRemark?: string;
+      shortCutReason?: string;
     },
   ): Promise<void> {
     const tenantId = requireNumericTenantId();
@@ -999,6 +1004,42 @@ export const pieceworkService = {
     }, {
       params: { tenantId },
     });
+  },
+
+  async updateCuttingSheetBed(
+    workOrderId: number,
+    payload: {
+      bedId: string;
+      bedNumber: string;
+      cutterId?: number;
+      shortCutReason?: string;
+      cuttingPieceRate: number;
+      materialUsages: Array<{
+        calculationKey?: string;
+        materialType?: string;
+        applicableColors?: string[];
+        warehouseId?: number;
+        materialId?: number;
+        materialMinimumSpecificationId?: number;
+        materialUnit?: string;
+        plannedQty?: number;
+        actualQty: number;
+      }>;
+      items: Array<{ color: string; size: string; quantity: number }>;
+    },
+  ): Promise<void> {
+    const tenantId = requireNumericTenantId();
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/update`, {
+      ...payload,
+      materialUsages: payload.materialUsages.map((usage) => ({
+        ...usage,
+        plannedFabricQty: usage.plannedQty,
+        actualFabricQty: usage.actualQty,
+      })),
+    }, {
+      params: { tenantId },
+      suppressGlobalValidationError: true,
+    } as RequestConfigWithDataflow);
   },
 
   async updateCuttingSheetStartTime(

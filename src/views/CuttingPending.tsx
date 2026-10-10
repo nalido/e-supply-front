@@ -203,6 +203,26 @@ const CuttingPendingPage = () => {
   }, []);
   const completeOverCutQty = completeOverCutSpecs.reduce((sum, item) => sum + item.overQty, 0);
   const completeIsOverCut = completeOverCutSpecs.length > 0;
+  const completeShortCutSpecs = (sheetDetail?.rows ?? []).reduce<Array<{
+    color: string;
+    size: string;
+    orderedQty: number;
+    actualQty: number;
+    shortQty: number;
+  }>>((acc, row) => {
+    row.cells.forEach((cell) => {
+      const key = buildSpecKey(row.color, cell.size);
+      const actualQty = Math.max(0, Math.round(Number(completeQtyMap[key] ?? 0)));
+      const orderedQty = Math.max(0, Number(cell.orderedQty ?? 0));
+      const shortQty = Math.max(orderedQty - actualQty, 0);
+      if (shortQty > 0) {
+        acc.push({ color: row.color, size: cell.size, orderedQty, actualQty, shortQty });
+      }
+    });
+    return acc;
+  }, []);
+  const completeShortCutQty = completeShortCutSpecs.reduce((sum, item) => sum + item.shortQty, 0);
+  const completeIsShortCut = completeShortCutSpecs.length > 0;
 
   const navigateToFactoryOrder = (orderCode?: string) => {
     const normalized = orderCode?.trim();
@@ -222,6 +242,7 @@ const CuttingPendingPage = () => {
   const submitCompleteSheet = async (reasonValues?: {
     overCutReasonCode?: string;
     overCutRemark?: string;
+    shortCutReason?: string;
   }) => {
     if (!completeState.task?.workOrderId) {
       return;
@@ -232,6 +253,7 @@ const CuttingPendingPage = () => {
       await pieceworkService.completeCuttingSheet(completeState.task.workOrderId, {
         overCutReasonCode: completeIsOverCut ? reasonValues?.overCutReasonCode : undefined,
         overCutRemark: completeIsOverCut ? reasonValues?.overCutRemark : undefined,
+        shortCutReason: completeIsShortCut ? reasonValues?.shortCutReason?.trim() : undefined,
       });
       message.success('裁床单已完成，已转入已裁');
       completeReasonForm.resetFields();
@@ -412,7 +434,7 @@ const CuttingPendingPage = () => {
       return;
     }
     try {
-      if (completeIsOverCut) {
+      if (completeIsOverCut || completeIsShortCut) {
         setCompleteReasonState({ open: true });
         return;
       }
@@ -434,7 +456,7 @@ const CuttingPendingPage = () => {
         return;
       }
       console.error('failed to validate complete reason', error);
-      message.error('校验超用/超裁原因失败');
+      message.error('校验裁剪完成原因失败');
     }
   };
 
@@ -457,7 +479,7 @@ const CuttingPendingPage = () => {
       bedMaterialWarningKeyRef.current = '';
       setSheetDetail(detail);
       bedRecordForm.setFieldsValue({
-        bedNumber: `BED-${task.orderCode}-${(detail.bedRecords?.length ?? 0) + 1}`,
+        bedNumber: `BED-${task.workOrderId}-${(detail.bedRecords?.length ?? 0) + 1}`,
         cutterId: undefined,
         startedAt: detail.startedAt ? undefined : dayjs(),
         materialUsages: [],
@@ -514,7 +536,7 @@ const CuttingPendingPage = () => {
   }, [bedRecordForm]);
 
   useEffect(() => {
-    if (!bedRecordState.open || bedRecordState.mode !== 'create' || !bedRecordState.task?.workOrderId) {
+    if (!bedRecordState.open || !bedRecordState.task?.workOrderId) {
       return undefined;
     }
     const workOrderId = bedRecordState.task.workOrderId;
@@ -585,7 +607,18 @@ const CuttingPendingPage = () => {
       mode: 'edit',
       record,
     });
-    bedRecordForm.setFieldsValue({ bedNumber: record.bedNumber, materialUsages: [] });
+    setBedRecordQtyMap(record.items.reduce<Record<string, number>>((acc, item) => {
+      acc[buildSpecKey(item.color, item.size)] = Number(item.quantity) || 0;
+      return acc;
+    }, {}));
+    bedRecordForm.setFieldsValue({
+      bedNumber: record.bedNumber,
+      cutterId: record.cutterId,
+      cuttingPieceRate: Number(record.cuttingPieceRate ?? 0),
+      shortCutReason: sheetDetail?.shortCutReason,
+      materialUsages: [],
+    });
+    void loadCutterOptions();
     try {
       const result = await pieceworkService.calculateCuttingSheetBedMaterials(
         detailState.task.workOrderId,
@@ -610,7 +643,7 @@ const CuttingPendingPage = () => {
     try {
       const values = await bedRecordForm.validateFields();
       const items = buildBedItems();
-      if (bedRecordState.mode === 'create' && items.length === 0) {
+      if (items.length === 0) {
         message.warning('请至少填写一个颜色尺码的裁剪数量');
         return;
       }
@@ -635,11 +668,16 @@ const CuttingPendingPage = () => {
       });
       setBedRecordState((prev) => ({ ...prev, submitting: true }));
       if (bedRecordState.mode === 'edit' && bedRecordState.record?.bedId) {
-        await pieceworkService.updateCuttingSheetBedMaterialUsage(bedRecordState.task.workOrderId, {
+        await pieceworkService.updateCuttingSheetBed(bedRecordState.task.workOrderId, {
           bedId: bedRecordState.record.bedId,
+          bedNumber: values.bedNumber,
+          cutterId: values.cutterId,
+          shortCutReason: values.shortCutReason?.trim(),
+          cuttingPieceRate: Number(values.cuttingPieceRate),
           materialUsages,
+          items,
         });
-        message.success('床次用量与库存已同步调整');
+        message.success('床次数据、库存、费用和进度已同步调整');
       } else {
         await pieceworkService.recordCuttingSheetBed(bedRecordState.task.workOrderId, {
           bedNumber: values.bedNumber,
@@ -723,6 +761,7 @@ const CuttingPendingPage = () => {
       completeReasonForm.setFieldsValue({
         overCutReasonCode: detail.overCutReasonCode ?? undefined,
         overCutRemark: detail.overCutRemark ?? undefined,
+        shortCutReason: detail.shortCutReason ?? undefined,
       });
     } catch (error) {
       console.error('failed to load cutting sheet detail for complete', error);
@@ -962,6 +1001,15 @@ const CuttingPendingPage = () => {
               description={`超裁明细：${completeOverCutSpecs.map((item) => `${item.color}/${item.size} 超出 ${item.overQty}${completeState.task?.unit ?? '件'}`).join('；')}。提交完成前需要补录超裁原因。`}
             />
           ) : null}
+          {completeIsShortCut ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={`当前实裁数量少于下单数量，共短裁 ${completeShortCutQty}${completeState.task?.unit ?? '件'}`}
+              description={`短裁明细：${completeShortCutSpecs.map((item) => `${item.color}/${item.size} 少 ${item.shortQty}${completeState.task?.unit ?? '件'}`).join('；')}。填写原因后可按真实数量完成，系统不会自动补齐。`}
+            />
+          ) : null}
           {sheetDetail ? (
             <Table
               rowKey={(row) => row.color}
@@ -1006,7 +1054,7 @@ const CuttingPendingPage = () => {
 
       <Modal
         open={completeReasonState.open}
-        title="补录超用 / 超裁原因"
+        title="填写裁剪完成原因"
         width={720}
         onCancel={() => setCompleteReasonState({ open: false })}
         onOk={handleSubmitCompleteReason}
@@ -1016,10 +1064,30 @@ const CuttingPendingPage = () => {
           <Alert
             type="warning"
             showIcon
-            message="当前完工需要补录超裁原因"
-            description={`超裁明细：${completeOverCutSpecs.map((item) => `${item.color}/${item.size} 超出 ${item.overQty}${completeState.task?.unit ?? '件'}`).join('；')}。请填写原因后再提交。`}
+            message={completeIsShortCut ? '当前存在短裁，填写原因后将按真实数量完成' : '当前完工需要补录超裁原因'}
+            description={[
+              completeIsShortCut
+                ? `短裁明细：${completeShortCutSpecs.map((item) => `${item.color}/${item.size} 少 ${item.shortQty}${completeState.task?.unit ?? '件'}`).join('；')}`
+                : '',
+              completeIsOverCut
+                ? `超裁明细：${completeOverCutSpecs.map((item) => `${item.color}/${item.size} 超出 ${item.overQty}${completeState.task?.unit ?? '件'}`).join('；')}`
+                : '',
+            ].filter(Boolean).join('。')}
           />
           <Form form={completeReasonForm} layout="vertical">
+            {completeIsShortCut ? (
+              <Form.Item
+                label="短裁原因"
+                name="shortCutReason"
+                rules={[
+                  { required: true, message: '请填写短裁原因' },
+                  { whitespace: true, message: '请填写短裁原因' },
+                  { max: 500, message: '短裁原因不能超过 500 个字' },
+                ]}
+              >
+                <Input.TextArea rows={3} maxLength={500} showCount placeholder="请说明未按下单数量完成裁剪的原因" />
+              </Form.Item>
+            ) : null}
             {completeIsOverCut ? (
               <>
                 <Form.Item

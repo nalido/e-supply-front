@@ -72,8 +72,7 @@ export default function CuttingBedRecordModal({
     (sum, value) => sum + Math.max(0, Number(value) || 0),
     0,
   );
-  const submitDisabled = mode === 'create'
-    && (totalQty <= 0 || calculating);
+  const submitDisabled = totalQty <= 0 || calculating;
   const footer = (
     <Space>
       <Button onClick={onCancel}>取消</Button>
@@ -87,7 +86,7 @@ export default function CuttingBedRecordModal({
     <Modal
       open={open}
       title={mode === 'edit'
-        ? `修改床次用量 - ${form.getFieldValue('bedNumber') ?? ''}`
+        ? `修改床次 - ${form.getFieldValue('bedNumber') ?? ''}`
         : task ? `录入床次 - ${task.orderCode}` : '录入床次'}
       width={1120}
       zIndex={zIndex}
@@ -98,15 +97,15 @@ export default function CuttingBedRecordModal({
     >
       <div style={{ maxHeight: 'calc(100vh - 190px)', overflowY: 'auto', paddingRight: 4 }}>
         <Form form={form} layout="vertical">
-          {mode === 'create' ? (
-            <>
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="填写本床次各颜色尺码的实裁件数后，系统会自动刷新所需面料和辅料。"
-            />
-            {!detail?.startedAt ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={mode === 'edit'
+              ? '可校正本床的实裁数量、裁剪人、工价和物料用量；保存后系统会同步调整库存、费用和生产进度。'
+              : '填写本床次各颜色尺码的实裁件数后，系统会自动刷新所需面料和辅料。'}
+          />
+          {mode === 'create' && !detail?.startedAt ? (
               <Form.Item
                 label="裁剪开始时间"
                 name="startedAt"
@@ -120,8 +119,8 @@ export default function CuttingBedRecordModal({
                   data-testid="cutting-started-at"
                 />
               </Form.Item>
-            ) : null}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          ) : null}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
               <Form.Item label="床次编号" name="bedNumber" rules={[{ required: true, message: '请输入床次编号' }]}>
                 <Input maxLength={32} />
               </Form.Item>
@@ -138,19 +137,28 @@ export default function CuttingBedRecordModal({
                   placeholder="请选择本床裁剪人"
                 />
               </Form.Item>
-            </div>
-            <Form.Item noStyle shouldUpdate={(previous, current) => previous.cuttingPieceRate !== current.cuttingPieceRate}>
-              {() => <Text type="secondary">本床裁剪费用：¥{(totalQty * Number(form.getFieldValue('cuttingPieceRate') || 0)).toFixed(2)}</Text>}
-            </Form.Item>
-            <Card
-              title="颜色尺码"
-              size="small"
-              extra={sortedRows.length ? (
-                <Button type="link" onClick={onFillPendingQty} style={{ paddingInline: 0 }}>
-                  填入剩余数量
-                </Button>
-              ) : null}
+          </div>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.cuttingPieceRate !== current.cuttingPieceRate}>
+            {() => <Text type="secondary">本床裁剪费用：¥{(totalQty * Number(form.getFieldValue('cuttingPieceRate') || 0)).toFixed(2)}</Text>}
+          </Form.Item>
+          {mode === 'edit' && detail?.status === 'COMPLETED' ? (
+            <Form.Item
+              label="短裁原因（修改后存在未裁数量时必填）"
+              name="shortCutReason"
+              style={{ marginTop: 16 }}
             >
+              <Input.TextArea rows={2} maxLength={500} showCount placeholder="例如：面料瑕疵，确认按实际数量短裁完成" />
+            </Form.Item>
+          ) : null}
+          <Card
+            title="颜色尺码"
+            size="small"
+            extra={mode === 'create' && sortedRows.length ? (
+              <Button type="link" onClick={onFillPendingQty} style={{ paddingInline: 0 }}>
+                填入剩余数量
+              </Button>
+            ) : null}
+          >
               {sortedRows.length ? (
                 <div className="factory-create-matrix-wrap">
                   <table className="factory-create-matrix-table factory-editable-matrix-table">
@@ -192,21 +200,12 @@ export default function CuttingBedRecordModal({
                   </table>
                 </div>
               ) : <Text type="secondary">暂无可录入的颜色尺码数据</Text>}
-            </Card>
-            </>
-          ) : (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="保存后系统会按新旧用量差额自动补出库或退回库存；更换仓库时会先退回原仓，再从新仓出库。"
-            />
-          )}
+          </Card>
 
           <Card
             title="面辅料实际用量"
             size="small"
-            style={{ marginTop: mode === 'create' ? 16 : 0 }}
+            style={{ marginTop: 16 }}
             extra={calculating ? <Text type="secondary">正在重新计算…</Text> : null}
           >
             {unconfiguredItems.length > 0 ? (
@@ -218,7 +217,7 @@ export default function CuttingBedRecordModal({
                 description={`${unconfiguredItems.map((item) => `${item.color}/${item.size}`).join('、')} 不会自动出库，本床仍可保存；后续可在物料库存中手工领料并关联本裁床单。`}
               />
             ) : null}
-            {mode === 'create' && totalQty <= 0 ? (
+            {totalQty <= 0 ? (
               <Alert type="info" showIcon message="填写颜色尺码数量后，这里会自动显示本床需要的面料和辅料。" />
             ) : calculations.length > 0 ? (
               <Form.List name="materialUsages">
