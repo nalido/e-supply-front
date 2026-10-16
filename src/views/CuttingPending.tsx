@@ -41,6 +41,11 @@ import {
   extractValidationFieldErrors,
   wasGlobalErrorShown,
 } from '../utils/http-error';
+import {
+  cuttingTaskSortOptions,
+  DEFAULT_CUTTING_TASK_SORT,
+  type CuttingTaskSort,
+} from './cutting/utils';
 
 const { Text, Title } = Typography;
 
@@ -153,6 +158,7 @@ const CuttingPendingPage = () => {
   const [appliedKeyword, setAppliedKeyword] = useState(initialSearchKeyword);
   const [page, setPage] = useState(initialDataset.page);
   const [pageSize, setPageSize] = useState(initialDataset.pageSize);
+  const [sort, setSort] = useState<CuttingTaskSort>(DEFAULT_CUTTING_TASK_SORT);
   const [reloadToken, setReloadToken] = useState(0);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
@@ -301,6 +307,7 @@ const CuttingPendingPage = () => {
           pageSize,
           keyword: appliedKeyword,
           includeSummary: page === 1,
+          sort,
         });
         if (!cancelled) {
           setDataset(response);
@@ -326,7 +333,7 @@ const CuttingPendingPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [page, pageSize, appliedKeyword, reloadToken]);
+  }, [page, pageSize, appliedKeyword, reloadToken, sort]);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
@@ -803,15 +810,28 @@ const CuttingPendingPage = () => {
       <section className="cutting-toolbar">
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Space wrap size={12} style={{ width: '100%', justifyContent: 'space-between' }}>
-            <SearchField
-              allowClear
-              placeholder="请输入订单号/款名/款号"
-              value={keyword}
-              onChange={setKeyword}
-              onSearch={handleSearch}
-              enterButton={<SearchOutlined />}
-              style={{ maxWidth: 420, flex: 1 }}
-            />
+            <Space wrap size={12} style={{ flex: 1 }}>
+              <SearchField
+                allowClear
+                placeholder="请输入订单号/款名/款号"
+                value={keyword}
+                onChange={setKeyword}
+                onSearch={handleSearch}
+                enterButton={<SearchOutlined />}
+                style={{ width: 420, maxWidth: '100%' }}
+              />
+              <Select
+                aria-label="裁床单排序"
+                data-testid="cutting-pending-sort"
+                value={sort}
+                options={cuttingTaskSortOptions.map((option) => ({ ...option }))}
+                style={{ width: 210 }}
+                onChange={(value: CuttingTaskSort) => {
+                  setSort(value);
+                  setPage(1);
+                }}
+              />
+            </Space>
             <Text type="secondary">当前任务数：{dataset.total}，优先处理可直接开裁或已在裁剪中的任务。</Text>
           </Space>
         </Space>

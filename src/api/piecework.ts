@@ -282,6 +282,7 @@ type CuttingTaskQueryParams = {
   startDate?: string;
   endDate?: string;
   includeSummary?: boolean;
+  sort?: string;
 };
 
 type CuttingTaskCreateItem = {
@@ -752,6 +753,7 @@ export const pieceworkService = {
         startDate: params?.startDate,
         endDate: params?.endDate,
         includeSummary: params?.includeSummary,
+        sort: params?.sort,
       },
       skipPageNormalization: true,
     });
@@ -789,6 +791,7 @@ export const pieceworkService = {
         startDate: params?.startDate,
         endDate: params?.endDate,
         includeSummary: params?.includeSummary,
+        sort: params?.sort,
       },
       skipPageNormalization: true,
     });

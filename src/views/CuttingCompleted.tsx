@@ -5,6 +5,7 @@ import {
   Form,
   Modal,
   Pagination,
+  Select,
   Skeleton,
   Space,
   Typography,
@@ -34,6 +35,11 @@ import {
   extractValidationFieldErrors,
   wasGlobalErrorShown,
 } from '../utils/http-error';
+import {
+  cuttingTaskSortOptions,
+  DEFAULT_CUTTING_TASK_SORT,
+  type CuttingTaskSort,
+} from './cutting/utils';
 
 const { Text } = Typography;
 
@@ -88,6 +94,7 @@ const CuttingCompletedPage = () => {
   const [appliedKeyword, setAppliedKeyword] = useState(initialSearchKeyword);
   const [page, setPage] = useState(initialDataset.page);
   const [pageSize, setPageSize] = useState(initialDataset.pageSize);
+  const [sort, setSort] = useState<CuttingTaskSort>(DEFAULT_CUTTING_TASK_SORT);
   const [previewState, setPreviewState] = useState<ColorPreviewState>({ open: false });
   const [detailState, setDetailState] = useState<DetailModalState>({ open: false });
   const [sheetDetail, setSheetDetail] = useState<CuttingSheetDetail | null>(null);
@@ -123,6 +130,7 @@ const CuttingCompletedPage = () => {
         pageSize,
         keyword: appliedKeyword,
         includeSummary: targetPage === 1,
+        sort,
       });
       setDataset(response);
       if (response.page !== page) {
@@ -139,7 +147,7 @@ const CuttingCompletedPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [appliedKeyword, page, pageSize]);
+  }, [appliedKeyword, page, pageSize, sort]);
 
   const loadSheetDetail = useCallback(async (task: CuttingTask, options?: { silent?: boolean }) => {
     if (!task.workOrderId) {
@@ -497,15 +505,28 @@ const CuttingCompletedPage = () => {
       </section>
 
       <section className="cutting-toolbar">
-        <SearchField
-          allowClear
-          placeholder="请输入订单号/款名/款号"
-          value={keyword}
-          onChange={setKeyword}
-          onSearch={handleSearch}
-          enterButton={<SearchOutlined />}
-          style={{ maxWidth: 420, flex: 1 }}
-        />
+        <Space wrap size={12} style={{ width: '100%' }}>
+          <SearchField
+            allowClear
+            placeholder="请输入订单号/款名/款号"
+            value={keyword}
+            onChange={setKeyword}
+            onSearch={handleSearch}
+            enterButton={<SearchOutlined />}
+            style={{ width: 420, maxWidth: '100%' }}
+          />
+          <Select
+            aria-label="裁床单排序"
+            data-testid="cutting-completed-sort"
+            value={sort}
+            options={cuttingTaskSortOptions.map((option) => ({ ...option }))}
+            style={{ width: 210 }}
+            onChange={(value: CuttingTaskSort) => {
+              setSort(value);
+              setPage(1);
+            }}
+          />
+        </Space>
       </section>
 
       {loading ? (
