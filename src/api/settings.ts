@@ -353,8 +353,8 @@ export const settingsApi = {
         {
           params: {
             tenantId,
-            module: query.module,
-            action: query.action,
+            module: query.module?.trim() === '裁床' ? 'workshop.cutting' : query.module,
+            action: query.action?.trim() === '裁剪退回未完成' ? 'CUTTING_REOPEN' : query.action,
             operatorId: query.operatorId,
             keyword: query.keyword,
             from: query.from,

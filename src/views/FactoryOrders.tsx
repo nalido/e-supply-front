@@ -190,6 +190,10 @@ const FactoryOrders = () => {
     rows: [],
   });
   const [progressNodeQuantities, setProgressNodeQuantities] = useState<ProgressNodeQuantitySnapshot>({});
+  const [canReopenCutting, setCanReopenCutting] = useState(false);
+  const [reopenCuttingOpen, setReopenCuttingOpen] = useState(false);
+  const [reopenCuttingSubmitting, setReopenCuttingSubmitting] = useState(false);
+  const [reopenCuttingForm] = Form.useForm<{ reason: string }>();
   const [cuttingSheetTarget, setCuttingSheetTarget] = useState<CuttingSheetTarget | null>(null);
   const [allocationColors, setAllocationColors] = useState<string[]>([]);
   const [allocationSizes, setAllocationSizes] = useState<string[]>([]);
@@ -1042,6 +1046,7 @@ const FactoryOrders = () => {
         factoryOrdersApi.getDetail(orderId),
       ]);
       const cuttingNode = nodes.find((item) => item.nodeCode === 'CUTTING');
+      setCanReopenCutting(cuttingNode?.status === 'COMPLETED');
       const sewingNode = nodes.find((item) => item.nodeCode === 'SEWING');
       const cuttingSheetAllocations = parseNodeAllocations(cuttingNode).filter(
         (allocation) =>
@@ -1274,6 +1279,7 @@ const FactoryOrders = () => {
   }, []);
 
   const handleOpenProgressAction = useCallback((record: OrderActionSnapshot, stage: FactoryOrderProgress) => {
+    setCanReopenCutting(false);
     setProgressActionModal({ open: true, submitting: false, order: record, stage });
     setAllocationCreateModalOpen(false);
     allocationCreateForm.resetFields();
@@ -2786,7 +2792,43 @@ const FactoryOrders = () => {
         onRemove={() => setImportModal((prev) => ({ ...prev, fileList: [], records: [] }))}
       />
 
+      <Modal
+        title="退回裁剪为未完成"
+        zIndex={1100}
+        forceRender
+        open={reopenCuttingOpen}
+        confirmLoading={reopenCuttingSubmitting}
+        okText="确认退回"
+        cancelText="取消"
+        onCancel={() => { if (!reopenCuttingSubmitting) setReopenCuttingOpen(false); }}
+        onOk={async () => {
+          if (!progressActionModal.order || reopenCuttingSubmitting) return;
+          try {
+            const { reason } = await reopenCuttingForm.validateFields();
+            setReopenCuttingSubmitting(true);
+            await factoryOrdersApi.reopenCutting(progressActionModal.order.orderId, reason.trim());
+            message.success('裁剪已退回未完成，可继续修改裁床数据');
+            setReopenCuttingOpen(false);
+            handleCloseProgressActionModal();
+            triggerReload();
+          } catch (error) {
+            if (error && typeof error === 'object' && 'errorFields' in error) return;
+            if (!(error && typeof error === 'object' && 'response' in error)) message.error('退回失败，请稍后重试');
+          } finally {
+            setReopenCuttingSubmitting(false);
+          }
+        }}
+      >
+        <p>关联的已完成裁床单将恢复为进行中。已有床次、已裁数量、用料和车缝记录会保留，修改后可再次完成裁床。</p>
+        <Form form={reopenCuttingForm} layout="vertical">
+          <Form.Item name="reason" label="退回原因" rules={[{ required: true, whitespace: true, message: '请填写退回原因' }, { max: 500, message: '退回原因最多500字' }]}>
+            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请说明操作错误及需要修改的内容" />
+          </Form.Item>
+        </Form>
+      </Modal>
       <ProgressActionModal
+        canReopenCutting={canReopenCutting && !progressStats.loading}
+        onReopenCutting={() => { reopenCuttingForm.resetFields(); setReopenCuttingOpen(true); }}
         state={progressActionModal}
         form={progressActionForm}
         tabKey={progressTabKey}

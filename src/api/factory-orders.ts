@@ -688,6 +688,12 @@ export const factoryOrdersApi = {
     return adaptDetail(data ?? {});
   },
 
+  async reopenCutting(orderId: string | number, reason: string): Promise<void> {
+    await http.post(`/api/v1/production-orders/${orderId}/progress/CUTTING/reopen`, { reason }, {
+      params: { tenantId: requireNumericTenantId() },
+    });
+  },
+
   async completeProgress(
     orderId: string | number,
     nodeCode: string,

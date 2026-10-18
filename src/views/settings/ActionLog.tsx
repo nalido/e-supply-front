@@ -15,6 +15,11 @@ type AuditPayloadItem = {
 };
 
 type AuditPayload = {
+  reason?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  previousCompletedAt?: string;
+  workOrders?: { workOrderId: number; completedQuantity?: number; previousEndAt?: string }[];
   bedNumber?: string;
   completedAt?: string;
   recordedAt?: string;
@@ -100,8 +105,8 @@ const ActionLogPage = () => {
 
   const columns: ColumnsType<ActionLogEntry> = [
     { title: '序号', dataIndex: 'order', width: 80 },
-    { title: '模块名称', dataIndex: 'module' },
-    { title: '操作名称', dataIndex: 'action' },
+    { title: '模块名称', dataIndex: 'module', render: (value: string) => value === 'workshop.cutting' ? '裁床' : value },
+    { title: '操作名称', dataIndex: 'action', render: (value: string) => value === 'CUTTING_REOPEN' ? '裁剪退回未完成' : value },
     { title: '用户', dataIndex: 'operatorName' },
     {
       title: '操作时间',
@@ -160,7 +165,7 @@ const ActionLogPage = () => {
       </Space>
       <Modal
         open={Boolean(detailRecord)}
-        title={detailRecord ? `操作详情 · ${detailRecord.action}` : '操作详情'}
+        title={detailRecord ? `操作详情 · ${detailRecord.action === 'CUTTING_REOPEN' ? '裁剪退回未完成' : detailRecord.action}` : '操作详情'}
         onCancel={() => setDetailRecord(null)}
         footer={null}
         width={760}
@@ -169,15 +174,33 @@ const ActionLogPage = () => {
         {detailRecord ? (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions column={2} size="small" bordered>
-              <Descriptions.Item label="模块">{detailRecord.module || '-'}</Descriptions.Item>
-              <Descriptions.Item label="操作">{detailRecord.action || '-'}</Descriptions.Item>
+              <Descriptions.Item label="模块">{detailRecord.module === 'workshop.cutting' ? '裁床' : detailRecord.module || '-'}</Descriptions.Item>
+              <Descriptions.Item label="操作">{detailRecord.action === 'CUTTING_REOPEN' ? '裁剪退回未完成' : detailRecord.action || '-'}</Descriptions.Item>
               <Descriptions.Item label="用户">{detailRecord.operatorName || '-'}</Descriptions.Item>
               <Descriptions.Item label="操作时间">{formatDateTime(detailRecord.operatedAt)}</Descriptions.Item>
               <Descriptions.Item label="客户端IP">{detailRecord.clientIp || '-'}</Descriptions.Item>
               <Descriptions.Item label="单据号">{detailRecord.documentNo || '-'}</Descriptions.Item>
             </Descriptions>
 
-            {detailPayload ? (
+            {detailRecord.action === 'CUTTING_REOPEN' && detailPayload ? (
+              <>
+                <Descriptions column={2} size="small" bordered title="退回记录">
+                  <Descriptions.Item label="工厂订单ID">{detailPayload.productionOrderId ?? '-'}</Descriptions.Item>
+                  <Descriptions.Item label="状态变化">已完成 → 未完成</Descriptions.Item>
+                  <Descriptions.Item label="退回原因" span={2}>{detailPayload.reason || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="原完成时间" span={2}>{formatDateTime(detailPayload.previousCompletedAt)}</Descriptions.Item>
+                </Descriptions>
+                <Table rowKey="workOrderId" size="small" pagination={false}
+                  dataSource={detailPayload.workOrders ?? []}
+                  columns={[
+                    { title: '裁床单ID', dataIndex: 'workOrderId' },
+                    { title: '保留已裁数量', dataIndex: 'completedQuantity' },
+                    { title: '原完成时间', dataIndex: 'previousEndAt', render: formatDateTime },
+                    { title: '退回后状态', render: () => '进行中' },
+                  ]}
+                />
+              </>
+            ) : detailPayload ? (
               <>
                 <Descriptions column={2} size="small" bordered title="业务字段">
                   <Descriptions.Item label="工厂订单ID">
@@ -223,7 +246,7 @@ const ActionLogPage = () => {
               <Text type="secondary">该操作没有结构化业务详情。</Text>
             )}
 
-            <div>
+            {detailRecord.action !== 'CUTTING_REOPEN' ? <div>
               <Text strong>原始 payload</Text>
               <Paragraph
                 copyable={detailRecord.payloadSnapshot ? { text: detailRecord.payloadSnapshot } : false}
@@ -240,7 +263,7 @@ const ActionLogPage = () => {
               >
                 {detailRecord.payloadSnapshot || '无'}
               </Paragraph>
-            </div>
+            </div> : null}
           </Space>
         ) : null}
       </Modal>

@@ -11,6 +11,8 @@ import { sortColorValues, sortSizeValues } from '../../utils/spec';
 const { Text } = Typography;
 
 type Props = {
+  canReopenCutting: boolean;
+  onReopenCutting: () => void;
   state: ProgressActionModalState;
   form: FormInstance;
   tabKey: 'stats' | 'allocation';
@@ -72,6 +74,8 @@ type Props = {
 };
 
 export default function ProgressActionModal({
+  canReopenCutting,
+  onReopenCutting,
   state,
   form,
   tabKey,
@@ -133,7 +137,11 @@ export default function ProgressActionModal({
 }: Props) {
   const footer =
     state.stage?.key === 'cutting' || state.stage?.key === 'sewing'
-      ? null
+      ? [
+          ...(isCuttingProgressStage && canReopenCutting
+            ? [<Button key="reopen" onClick={onReopenCutting}>退回未完成</Button>] : []),
+          <Button key="close" onClick={onCancel}>关闭</Button>,
+        ]
       : isInOutProgressStage || isInOutStageCompleted
         ? [<Button key="close" onClick={onCancel}>关闭</Button>]
         : undefined;

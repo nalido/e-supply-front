@@ -100,12 +100,12 @@ const getProgressStatusContent = (
     if (breakdown.completedPercent <= 0 && breakdown.allocatedPercent <= 0) {
       return { primary: '待开始', secondary: undefined };
     }
-    if (breakdown.completedPercent >= 100) {
+    if (isCompleted) {
       return { primary: '已完成', secondary: stage.date };
     }
     return {
-      primary: `完成 ${breakdown.completedPercent}%`,
-      secondary: breakdown.allocatedPercent > breakdown.completedPercent
+      primary: stage.key === 'cutting' ? '进行中' : `完成 ${breakdown.completedPercent}%`,
+      secondary: stage.key === 'cutting' ? `已裁 ${breakdown.completedPercent}%` : breakdown.allocatedPercent > breakdown.completedPercent
         ? `已分配 ${breakdown.allocatedPercent}%`
         : undefined,
     };

@@ -121,7 +121,7 @@ export const resolveProgressStageState = (stage: FactoryOrderProgress) => {
     !isOvercut && (status === 'warning' || (typeof stage.value === 'string' && stage.value.includes('部分完成')));
   const isCompleted =
     isOrderPlaced
-    || (isOvercut && (breakdown?.completedPercent ?? 0) >= 100)
+    || (stage.key !== 'cutting' && isOvercut && (breakdown?.completedPercent ?? 0) >= 100)
     || status === 'success'
     || status === 'completed'
     || (typeof stage.value === 'string' && stage.value.includes('已完成'));
