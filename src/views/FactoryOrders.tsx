@@ -1165,6 +1165,8 @@ const FactoryOrders = () => {
         cuttingCompletedQty: cuttingNodePayload.completedQuantity,
         sewingAllocatedQty: sewingNodePayload.allocatedQuantity,
         sewingCompletedQty: sewingNodePayload.completedQuantity,
+        sewingCompletionMode: sewingNodePayload.completionMode,
+        upstreamShortCutReason: sewingNodePayload.upstreamShortCutReason,
       });
       const colors = sortColorValues(rows.map((row) => row.color));
       const sizes = sortSizeValues(rows.map((row) => row.size));
@@ -2845,6 +2847,8 @@ const FactoryOrders = () => {
         cuttingCompletedTotal={cuttingCompletedTotal}
         sewingAllocatedTotal={sewingAllocatedTotal}
         sewingCompletedTotal={sewingCompletedTotal}
+        sewingCompletionMode={progressNodeQuantities.sewingCompletionMode}
+        upstreamShortCutReason={progressNodeQuantities.upstreamShortCutReason}
         allocationRemainingTotal={allocationRemainingTotal}
         allocationCapacityTotal={allocationCapacityTotal}
         progressPercentLabel={progressPercentLabel}

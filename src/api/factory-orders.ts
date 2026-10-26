@@ -918,7 +918,6 @@ export const factoryOrdersApi = {
       placedAt: payload.placedAt,
       status: payload.status,
       materialStatus: normalizeMaterialStatus(payload.materialStatus),
-      completedQuantity: 0,
       merchandiserId: payload.merchandiserId ? Number(payload.merchandiserId) : undefined,
       factoryId: payload.factoryId ? Number(payload.factoryId) : undefined,
       remarks: payload.remarks,

@@ -166,11 +166,18 @@ export const parseProgressNodePayload = (node?: FactoryOrderProgressNode) => {
       orderedQuantity?: unknown;
       allocatedQuantity?: unknown;
       completedQuantity?: unknown;
+      completionMode?: unknown;
+      upstreamShortCutReason?: unknown;
     };
     return {
       orderedQuantity: normalizeNonNegativeNumber(payload.orderedQuantity),
       allocatedQuantity: normalizeNonNegativeNumber(payload.allocatedQuantity),
       completedQuantity: normalizeNonNegativeNumber(payload.completedQuantity),
+      completionMode: typeof payload.completionMode === 'string' ? payload.completionMode : undefined,
+      upstreamShortCutReason:
+        typeof payload.upstreamShortCutReason === 'string' && payload.upstreamShortCutReason.trim()
+          ? payload.upstreamShortCutReason.trim()
+          : undefined,
     };
   } catch {
     return {};
@@ -181,7 +188,7 @@ export const formatProgressPercent = (current: number, total: number) => {
   if (!(total > 0) || !(current >= 0)) {
     return '0%';
   }
-  return `${Math.round((current * 100) / total)}%`;
+  return `${Math.floor((current * 100) / total)}%`;
 };
 
 export const buildCreateMatrix = (

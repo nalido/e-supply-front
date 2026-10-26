@@ -76,6 +76,8 @@ export type ProgressNodeQuantitySnapshot = {
   cuttingCompletedQty?: number;
   sewingAllocatedQty?: number;
   sewingCompletedQty?: number;
+  sewingCompletionMode?: string;
+  upstreamShortCutReason?: string;
 };
 
 export type AllocationQuantityMatrix = Record<string, Record<string, number | null>>;

@@ -29,6 +29,8 @@ type Props = {
   cuttingCompletedTotal: number;
   sewingAllocatedTotal: number;
   sewingCompletedTotal: number;
+  sewingCompletionMode?: string;
+  upstreamShortCutReason?: string;
   allocationRemainingTotal: number;
   allocationCapacityTotal: number;
   progressPercentLabel: string;
@@ -92,6 +94,8 @@ export default function ProgressActionModal({
   cuttingCompletedTotal,
   sewingAllocatedTotal,
   sewingCompletedTotal,
+  sewingCompletionMode,
+  upstreamShortCutReason,
   allocationRemainingTotal,
   allocationCapacityTotal,
   progressPercentLabel,
@@ -259,6 +263,15 @@ export default function ProgressActionModal({
                               : `下单总量：${orderedTotal}，裁床累计已完成：${cuttingCompletedTotal}，车缝累计已完成：${sewingCompletedTotal}，车缝累计已领取：${sewingAllocatedTotal}，当前剩余可领：${allocationRemainingTotal}，${progressPercentLabel}：${progressPercentValue}（按下单总量）`
                           }
                         />
+                        {isSewingProgressStage && sewingCompletionMode === 'UPSTREAM_SHORT_CUT' ? (
+                          <Alert
+                            type="success"
+                            showIcon
+                            style={{ marginBottom: 8 }}
+                            message="车缝已随上游短裁完成"
+                            description={`裁床已按实际产量结束，车缝已领取并完成全部裁片。${upstreamShortCutReason ? `短裁原因：${upstreamShortCutReason}。` : ''}计划达成率仍按下单总量计算。`}
+                          />
+                        ) : null}
                         <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                           {isCuttingProgressStage
                             ? '矩阵口径：已裁 / 下单量'
