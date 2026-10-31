@@ -339,7 +339,8 @@ const OutsourcingManagement = () => {
     try {
       const values = await receiveForm.validateFields();
       const items = receiveMatrixItems.map((item) => ({
-        productionOrderLineId: item.id,
+        outsourcingDispatchItemId: item.outsourcingDispatchItemId,
+        productionOrderLineId: item.productionOrderLineId,
         goodQty: Number(item.goodQty ?? 0),
         defectQty: Number(item.defectQty ?? 0),
         reworkQty: Number(item.reworkQty ?? 0),
@@ -400,7 +401,9 @@ const OutsourcingManagement = () => {
         setReceivePlan(plan);
         setReceiveMetric('good');
         setReceiveMatrixItems(plan.items.map((item) => ({
-          id: item.productionOrderLineId,
+          id: item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}`,
+          outsourcingDispatchItemId: item.outsourcingDispatchItemId,
+          productionOrderLineId: item.productionOrderLineId,
           color: item.color,
           size: item.size,
           goodQty: 0,
@@ -1079,7 +1082,7 @@ const OutsourcingManagement = () => {
 
               <Card title="生产订单颜色尺码" variant="borderless">
                 <Table
-                  rowKey={(record) => `${record.productionOrderLineId ?? 'line'}-${record.color}-${record.size}`}
+                  rowKey={(record) => `${record.outsourcingDispatchItemId ?? record.productionOrderLineId ?? 'line'}-${record.color}-${record.size}`}
                   dataSource={orderDetail.productionOrderItems}
                   pagination={false}
                   size="small"
@@ -1132,7 +1135,7 @@ const OutsourcingManagement = () => {
                         {unavailable ? <Alert type="info" showIcon message={`该批次为早期接收记录，${labels[expandedReceipt.metric]}未按颜色尺码登记；汇总数量仍以表格中的 ${formatQuantity(receipt[expandedReceipt.metric === 'received' ? 'receivedQty' : expandedReceipt.metric === 'defect' ? 'defectQty' : 'reworkQty'])} 件为准。`} /> :
                           <OutsourcingReceiptItemsMatrix
                             metric={expandedReceipt.metric}
-                            items={receipt.items.map((item, index) => ({ id: item.productionOrderLineId ?? `${item.color}-${item.size}-${index}`, color: item.color, size: item.size, receivedQty: item.receivedQty, goodQty: item.goodQty ?? item.quantity, defectQty: item.defectQty, reworkQty: item.reworkQty }))}
+                            items={receipt.items.map((item, index) => ({ id: item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}-${index}`, outsourcingDispatchItemId: item.outsourcingDispatchItemId, productionOrderLineId: item.productionOrderLineId, color: item.color, size: item.size, receivedQty: item.receivedQty, goodQty: item.goodQty ?? item.quantity, defectQty: item.defectQty, reworkQty: item.reworkQty }))}
                           />}
                       </Space>;
                     },

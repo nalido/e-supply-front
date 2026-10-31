@@ -65,14 +65,16 @@ export interface OutsourcingReceivePayload {
 }
 
 export interface OutsourcingReceiveItemPayload {
-  productionOrderLineId: string;
+  outsourcingDispatchItemId?: string;
+  productionOrderLineId?: string;
   goodQty: number;
   defectQty: number;
   reworkQty: number;
 }
 
 export interface OutsourcingReceiptPlanItem {
-  productionOrderLineId: string;
+  outsourcingDispatchItemId?: string;
+  productionOrderLineId?: string;
   styleVariantId?: string;
   color: string;
   size: string;
@@ -134,6 +136,7 @@ export interface OutsourcingProductionOrderSummary {
 }
 
 export interface OutsourcingOrderSpecItem {
+  outsourcingDispatchItemId?: string;
   productionOrderLineId?: string;
   color: string;
   size: string;

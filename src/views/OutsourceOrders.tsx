@@ -144,7 +144,7 @@ const OutsourceOrders = () => {
       .then((plan) => {
         setReceiptPlan(plan);
         setReceiptQtyMap(
-          Object.fromEntries(plan.items.map((item) => [item.productionOrderLineId, null])),
+          Object.fromEntries(plan.items.map((item) => [item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}`, null])),
         );
       })
       .catch((error) => {
@@ -167,10 +167,16 @@ const OutsourceOrders = () => {
     try {
       const values = await receiptForm.validateFields();
       const items = Object.entries(receiptQtyMap)
-        .map(([productionOrderLineId, receivedQty]) => ({
-          productionOrderLineId,
-          receivedQty: Math.max(0, Math.round(Number(receivedQty) || 0)),
-        }))
+        .map(([itemKey, receivedQty]) => {
+          const planItem = receiptPlan?.items.find(
+            (item) => (item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}`) === itemKey,
+          );
+          return {
+            outsourcingDispatchItemId: planItem?.outsourcingDispatchItemId,
+            productionOrderLineId: planItem?.productionOrderLineId,
+            receivedQty: Math.max(0, Math.round(Number(receivedQty) || 0)),
+          };
+        })
         .filter((item) => item.receivedQty > 0);
       const goodQty = items.reduce((sum, item) => sum + item.receivedQty, 0);
       if (goodQty <= 0) {
@@ -458,10 +464,12 @@ const OutsourceOrders = () => {
               metric="good"
               editable
               items={(receiptPlan?.items ?? []).map((item) => ({
-                id: item.productionOrderLineId,
+                id: item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}`,
+                outsourcingDispatchItemId: item.outsourcingDispatchItemId,
+                productionOrderLineId: item.productionOrderLineId,
                 color: item.color,
                 size: item.size,
-                goodQty: receiptQtyMap[item.productionOrderLineId],
+                goodQty: receiptQtyMap[item.outsourcingDispatchItemId ?? item.productionOrderLineId ?? `${item.color}-${item.size}`],
                 maxQty: item.pendingQty,
               }))}
               emptyDescription="暂无可接收的颜色尺码明细"

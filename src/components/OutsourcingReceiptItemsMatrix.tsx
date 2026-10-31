@@ -5,7 +5,7 @@ import '../styles/matrix-table.css';
 
 const { Text } = Typography;
 export type OutsourcingReceiptMetric = 'received' | 'good' | 'defect' | 'rework';
-export type OutsourcingReceiptMatrixItem = { id: string; color: string; size: string; receivedQty?: number | null; goodQty?: number | null; defectQty?: number | null; reworkQty?: number | null; maxQty?: number };
+export type OutsourcingReceiptMatrixItem = { id: string; outsourcingDispatchItemId?: string; productionOrderLineId?: string; color: string; size: string; receivedQty?: number | null; goodQty?: number | null; defectQty?: number | null; reworkQty?: number | null; maxQty?: number };
 type Props = { items: OutsourcingReceiptMatrixItem[]; metric: OutsourcingReceiptMetric; editable?: boolean; onChange?: (itemId: string, metric: Exclude<OutsourcingReceiptMetric, 'received'>, value: number | null) => void; emptyDescription?: string };
 const metricField: Record<OutsourcingReceiptMetric, keyof OutsourcingReceiptMatrixItem> = { received: 'receivedQty', good: 'goodQty', defect: 'defectQty', rework: 'reworkQty' };
 const getValue = (item: OutsourcingReceiptMatrixItem, metric: OutsourcingReceiptMetric) => metric === 'received' && item.receivedQty == null

@@ -280,6 +280,9 @@ type BackendFactoryOrderProgress = {
   value: string;
   date?: string;
   percent?: number;
+  orderedQuantity?: number;
+  allocatedQuantity?: number;
+  completedQuantity?: number;
   status?: string;
   muted?: boolean;
 };
@@ -418,6 +421,9 @@ const adaptProgress = (progress: BackendFactoryOrderProgress): FactoryOrderProgr
   value: progress.value,
   date: progress.date,
   percent: progress.percent,
+  orderedQuantity: progress.orderedQuantity,
+  allocatedQuantity: progress.allocatedQuantity,
+  completedQuantity: progress.completedQuantity,
   status: normalizeProgressStatus(progress.status),
   muted: progress.muted,
 });

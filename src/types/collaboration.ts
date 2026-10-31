@@ -63,7 +63,8 @@ export type OutsourceReceiptPayload = {
   defectQuantity?: number;
   remark?: string;
   items: Array<{
-    productionOrderLineId: string;
+    outsourcingDispatchItemId?: string;
+    productionOrderLineId?: string;
     receivedQty: number;
   }>;
 };

@@ -12,6 +12,9 @@ export type FactoryOrderProgress = {
   value: string;
   date?: string;
   percent?: number;
+  orderedQuantity?: number;
+  allocatedQuantity?: number;
+  completedQuantity?: number;
   status?: 'default' | 'success' | 'warning' | 'danger';
   muted?: boolean;
 };

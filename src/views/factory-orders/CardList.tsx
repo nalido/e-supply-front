@@ -97,17 +97,12 @@ const getProgressStatusContent = (
     };
   }
   if (breakdown) {
-    if (breakdown.completedPercent <= 0 && breakdown.allocatedPercent <= 0) {
-      return { primary: '待开始', secondary: undefined };
-    }
-    if (isCompleted) {
-      return { primary: '已完成', secondary: stage.date };
-    }
+    const orderedQuantity = Math.max(0, Number(stage.orderedQuantity ?? quantityValue) || 0);
+    const completedQuantity = Math.max(0, Number(stage.completedQuantity ?? 0) || 0);
+    const allocatedQuantity = Math.max(0, Number(stage.allocatedQuantity ?? 0) || 0);
     return {
-      primary: stage.key === 'cutting' ? '进行中' : `完成 ${breakdown.completedPercent}%`,
-      secondary: stage.key === 'cutting' ? `已裁 ${breakdown.completedPercent}%` : breakdown.allocatedPercent > breakdown.completedPercent
-        ? `已分配 ${breakdown.allocatedPercent}%`
-        : undefined,
+      primary: `已完成 ${completedQuantity} / ${orderedQuantity} 件`,
+      secondary: stage.key === 'sewing' ? `已领取 ${allocatedQuantity} 件` : undefined,
     };
   }
   if (isCompleted) {
@@ -315,12 +310,12 @@ export default function FactoryOrderCardList({
                             && (!effectiveBlockedStage || alwaysViewable),
                           );
                           const statusContent = getProgressStatusContent(stage, order.quantityValue);
-                          const iconContent = isOvercut ? (
-                            <ExclamationCircleOutlined />
-                          ) : stageBreakdown && stageBreakdown.completedPercent > 0 && stageBreakdown.completedPercent < 100 ? (
+                          const iconContent = stageBreakdown ? (
                             <span className="factory-order-progress-icon-percent">
                               {`${stageBreakdown.completedPercent}%`}
                             </span>
+                          ) : isOvercut ? (
+                            <ExclamationCircleOutlined />
                           ) : isCompleted || isOrderPlaced ? (
                             <CheckOutlined />
                           ) : (

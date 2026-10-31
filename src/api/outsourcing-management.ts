@@ -75,6 +75,7 @@ type BackendOutsourcingReceipt = {
   remark?: string;
   breakdownAvailability?: 'COMPLETE' | 'GOOD_ONLY' | 'UNAVAILABLE';
   items?: Array<{
+    outsourcingDispatchItemId?: number | string;
     productionOrderLineId?: number | string;
     color?: string;
     size?: string;
@@ -117,6 +118,7 @@ type BackendOutsourcingDetail = {
   workOrder?: BackendOutsourcingWorkOrder;
   productionOrder?: BackendOutsourcingProductionOrder;
   productionOrderItems?: Array<{
+    outsourcingDispatchItemId?: number | string;
     productionOrderLineId?: number | string;
     styleVariantId?: number | string;
     color?: string;
@@ -192,6 +194,7 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
     : undefined,
   productionOrderItems: Array.isArray(payload.productionOrderItems)
     ? payload.productionOrderItems.map((item) => ({
+        outsourcingDispatchItemId: item.outsourcingDispatchItemId != null ? String(item.outsourcingDispatchItemId) : undefined,
         productionOrderLineId: item.productionOrderLineId != null ? String(item.productionOrderLineId) : undefined,
         color: item.color ?? '-',
         size: item.size ?? '-',
@@ -212,6 +215,7 @@ const adaptDetail = (payload: BackendOutsourcingDetail): OutsourcingOrderDetail 
         breakdownAvailability: item.breakdownAvailability ?? 'GOOD_ONLY',
         items: Array.isArray(item.items)
           ? item.items.map((line) => ({
+              outsourcingDispatchItemId: line.outsourcingDispatchItemId != null ? String(line.outsourcingDispatchItemId) : undefined,
               productionOrderLineId: line.productionOrderLineId != null ? String(line.productionOrderLineId) : undefined,
               color: line.color ?? '-',
               size: line.size ?? '-',
@@ -283,7 +287,12 @@ export const outsourcingManagementApi = {
         remark: payload.remark,
         clientRequestId: payload.clientRequestId,
         items: payload.items.map((item) => ({
-          productionOrderLineId: Number(item.productionOrderLineId),
+          outsourcingDispatchItemId: item.outsourcingDispatchItemId == null
+            ? undefined
+            : Number(item.outsourcingDispatchItemId),
+          productionOrderLineId: item.productionOrderLineId == null
+            ? undefined
+            : Number(item.productionOrderLineId),
           goodQty: item.goodQty,
           defectQty: item.defectQty,
           reworkQty: item.reworkQty,
