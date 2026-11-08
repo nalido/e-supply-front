@@ -14,8 +14,10 @@ import type {
   StockingReceiptListResponse,
   StockingPurchaseOrderDetail,
   StockingPurchaseBatchUpdatePayload,
+  StockingImportRow,
+  StockingImportResult,
 } from '../types/stocking-purchase-inbound';
-import http from './http';
+import http, { type RequestConfigWithDataflow } from './http';
 import { requireTenantId, toBackendPage } from './request-context';
 
 type BackendProcurementOrderSummary = {
@@ -49,6 +51,15 @@ const adaptOrderSummary = (data: BackendProcurementOrderSummary): ProcurementOrd
 });
 
 export const stockingPurchaseInboundService = {
+  async importOrders(rows: StockingImportRow[], materialType: 'fabric' | 'accessory'): Promise<StockingImportResult> {
+    const tenantId = requireTenantId();
+    const response = await http.post<StockingImportResult>(
+      '/api/v1/procurement/stocking/import',
+      { rows, materialType },
+      { params: { tenantId }, suppressGlobalError: true } as RequestConfigWithDataflow,
+    );
+    return response.data;
+  },
   async getMeta(): Promise<StockingPurchaseMeta> {
     const response = await http.get<StockingPurchaseMeta>('/api/v1/procurement/stocking/meta');
     return response.data;

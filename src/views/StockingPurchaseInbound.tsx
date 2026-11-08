@@ -33,6 +33,7 @@ import {
 import { stockingPurchaseInboundService } from '../api/procurement';
 import StockingPurchaseCreateModal from '../components/procurement/StockingPurchaseCreateModal';
 import StockingPurchaseBatchEditModal from '../components/procurement/StockingPurchaseBatchEditModal';
+import StockingPurchaseImportModal from '../components/procurement/StockingPurchaseImportModal';
 import type {
   StockingPurchaseListParams,
   StockingPurchaseMeta,
@@ -179,6 +180,7 @@ const StockingPurchaseInbound = () => {
   const [createModalOpen, setCreateModalOpen] = useState(searchParams.get('openCreate') === 'true');
   const [editingOrder, setEditingOrder] = useState<StockingPurchaseOrderDetail | null>(null);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [receiveModalState, setReceiveModalState] = useState<ReceiveModalState>({
@@ -972,7 +974,7 @@ const StockingPurchaseInbound = () => {
             }
             right={
               <div className="oc-toolbar-cluster oc-toolbar-cluster--end">
-                <Button icon={<CloudUploadOutlined />}>导入</Button>
+                <Button icon={<CloudUploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
                 <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
               </div>
             }
@@ -1027,6 +1029,12 @@ const StockingPurchaseInbound = () => {
           }}
           scroll={{ x: 1260 }}
        />
+        <StockingPurchaseImportModal
+          open={importModalOpen}
+          materialType={materialType}
+          onClose={() => setImportModalOpen(false)}
+          onImported={() => { if (page === 1) void loadList(); else setPage(1); }}
+        />
         <StockingPurchaseCreateModal
           open={createModalOpen}
           materialType={materialType}

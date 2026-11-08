@@ -141,6 +141,31 @@ export type StockingPurchaseCreatePayload = {
   lines: StockingPurchaseCreateLine[];
 };
 
+export type StockingImportRow = {
+  rowNumber: number;
+  orderNo: string;
+  supplierName: string;
+  warehouseName: string;
+  orderDate: string;
+  expectedArrival?: string;
+  orderRemark?: string;
+  materialSku: string;
+  minimumSpecificationCode?: string;
+  color?: string;
+  specification?: string;
+  width?: string;
+  grammage?: string;
+  quantity: number;
+  unitPrice?: number;
+  lineRemark?: string;
+};
+
+export type StockingImportResult = {
+  orderCount: number;
+  lineCount: number;
+  orders: Array<{ id: string; orderNo: string }>;
+};
+
 export type StockingPurchaseBatchUpdatePayload = {
   orders: Array<{ orderId: string; order: StockingPurchaseCreatePayload }>;
 };
