@@ -5,6 +5,7 @@ import SearchField from '../page/SearchField';
 type MaterialActionBarProps = {
   keyword: string;
   loading?: boolean;
+  exportLoading?: boolean;
   onKeywordChange: (value: string) => void;
   onSearch: () => void;
   onCreate: () => void;
@@ -15,6 +16,7 @@ type MaterialActionBarProps = {
 const MaterialActionBar = ({
   keyword,
   loading,
+  exportLoading,
   onKeywordChange,
   onSearch,
   onCreate,
@@ -30,7 +32,7 @@ const MaterialActionBar = ({
         <Button icon={<ImportOutlined />} onClick={onImport}>
           导入
         </Button>
-        <Button icon={<ExportOutlined />} onClick={onExport}>
+        <Button icon={<ExportOutlined />} loading={exportLoading} onClick={onExport}>
           导出
         </Button>
       </Space>

@@ -13,6 +13,7 @@ type MaterialImportModalProps = {
   loading?: boolean;
   fileList: UploadFile[];
   previewRows: CreateMaterialPayload[];
+  sourceRowCount: number;
   resultRows: MaterialImportRowResult[];
   onCancel: () => void;
   onDownloadTemplate: () => void;
@@ -25,6 +26,7 @@ const MaterialImportModal = ({
   loading,
   fileList,
   previewRows,
+  sourceRowCount,
   resultRows,
   onCancel,
   onDownloadTemplate,
@@ -86,7 +88,7 @@ const MaterialImportModal = ({
             type="info"
             showIcon
             style={{ marginTop: 16 }}
-            message={`已解析 ${previewRows.length} 行，提交后将按物料编号执行新增或更新。`}
+            message={`已解析 ${sourceRowCount} 行，合并为 ${previewRows.length} 个物料；提交后将按物料编号安全新增或更新。`}
           />
           <Table
             size="small"
@@ -100,7 +102,13 @@ const MaterialImportModal = ({
               { title: '名称', dataIndex: 'name' },
               { title: '单位', dataIndex: 'unit', width: 90 },
               { title: '参考单价', dataIndex: 'referencePrice', width: 110 },
-              { title: '颜色', dataIndex: 'colors', render: (value?: string[]) => value?.join('、') || '-' },
+              {
+                title: '最小规格',
+                dataIndex: 'minimumSpecifications',
+                render: (value?: CreateMaterialPayload['minimumSpecifications']) => (
+                  value?.map((item) => item.label).join('；') || '通用规格'
+                ),
+              },
             ]}
           />
         </>

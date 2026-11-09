@@ -93,10 +93,21 @@ export type MaterialImportResponse = {
   rows: MaterialImportRowResult[];
 };
 
-type MaterialExportResponse = {
+type BackendMaterialExportResponse = {
   exportedAt: string;
+  total: number;
+  page: number;
+  size: number;
   list: BackendMaterialResponse[];
 };
+
+export type MaterialExportDataset = {
+  exportedAt: string;
+  total: number;
+  list: MaterialItem[];
+};
+
+const MATERIAL_EXPORT_PAGE_SIZE = 500;
 
 type BackendMaterialSpecificationRecoveryPreview = {
   materialId: number;
@@ -485,18 +496,43 @@ export const materialApi = {
     });
     return response.data;
   },
-  export: async (params: { materialType: MaterialBasicType; keyword?: string }): Promise<Blob> => {
+  export: async (params: {
+    materialType: MaterialBasicType;
+    keyword?: string;
+  }): Promise<MaterialExportDataset> => {
     const tenantId = requireNumericTenantId();
-    const response = await http.get<MaterialExportResponse>('/api/v1/materials/export', {
-      params: {
-        tenantId,
-        materialType: normalizeMaterialType(params.materialType),
-        keyword: params.keyword,
-      },
-      responseType: 'json',
-    });
-    const payload = JSON.stringify(response.data, null, 2);
-    return new Blob([payload], { type: 'application/json' });
+    const materials = new Map<number, BackendMaterialResponse>();
+    let page = 0;
+    let total = 0;
+    let exportedAt = new Date().toISOString();
+    do {
+      const response = await http.get<BackendMaterialExportResponse>('/api/v1/materials/export', {
+        params: {
+          tenantId,
+          materialType: normalizeMaterialType(params.materialType),
+          keyword: params.keyword,
+          page,
+          size: MATERIAL_EXPORT_PAGE_SIZE,
+        },
+      });
+      if (page === 0) {
+        total = response.data.total;
+        exportedAt = response.data.exportedAt;
+      }
+      response.data.list.forEach((item) => materials.set(item.id, item));
+      if (response.data.list.length === 0) {
+        break;
+      }
+      page += 1;
+    } while (materials.size < total);
+    if (materials.size < total) {
+      throw new Error(`物料导出不完整：应导出 ${total} 个，实际取得 ${materials.size} 个`);
+    }
+    return {
+      exportedAt,
+      total,
+      list: Array.from(materials.values()).map(adaptMaterial),
+    };
   },
 };
 

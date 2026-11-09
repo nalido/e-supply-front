@@ -4,7 +4,6 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import {
   App as AntdApp,
   Button,
-  Modal,
   Popconfirm,
   Space,
   Table,
@@ -12,6 +11,7 @@ import {
   Tag,
 } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import MaterialActionBar from '../components/material/MaterialActionBar';
 import ListImage from '../components/common/ListImage';
@@ -52,7 +52,74 @@ type ImportModalState = {
   loading: boolean;
   fileList: UploadFile[];
   parsed: CreateMaterialPayload[];
+  parsedRowCount: number;
   resultRows: MaterialImportRowResult[];
+};
+
+type ParsedMaterialFile = {
+  items: CreateMaterialPayload[];
+  sourceRowCount: number;
+  errors: MaterialImportRowResult[];
+};
+
+const MATERIAL_IMPORT_HEADERS = [
+  '物料编号',
+  '名称',
+  '用量单位',
+  '参考单价',
+  '最小规格编码',
+  '颜色',
+  '规格',
+  '幅宽',
+  '克重',
+  '空差',
+  '安全库存',
+  '图片URL',
+  '备注',
+];
+
+const MATERIAL_EXPORT_HEADERS = [
+  ...MATERIAL_IMPORT_HEADERS,
+  '档案状态',
+  '创建时间',
+  '更新时间',
+];
+
+const MATERIAL_SPECIFICATION_EXPORT_HEADERS = [
+  '物料编号',
+  '物料名称',
+  '物料类型',
+  '档案状态',
+  '最小规格编码',
+  '规格标签',
+  '颜色',
+  '规格',
+  '幅宽',
+  '克重',
+  '安全库存',
+  '规格状态',
+  '资料类型',
+];
+
+const formatExportDateTime = (value?: string) => {
+  const parsed = dayjs(value);
+  return value && parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '';
+};
+
+const toExportDateTime = (value?: string) => {
+  const parsed = dayjs(value);
+  return value && parsed.isValid() ? parsed.toDate() : '';
+};
+
+const configureExportSheet = (
+  worksheet: XLSX.WorkSheet,
+  headers: string[],
+  rowCount: number,
+  widths: number[],
+) => {
+  const lastColumn = XLSX.utils.encode_col(headers.length - 1);
+  worksheet['!autofilter'] = { ref: `A1:${lastColumn}${Math.max(rowCount + 1, 1)}` };
+  worksheet['!cols'] = widths.map((wch) => ({ wch }));
 };
 
 const formatCurrency = (value?: number) => {
@@ -65,19 +132,21 @@ const formatCurrency = (value?: number) => {
 const MaterialArchive = () => {
   const [searchParams] = useSearchParams();
   const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const [activeTab, setActiveTab] = useState<MaterialBasicType>('fabric');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState(initialKeyword);
   const [dataset, setDataset] = useState<MaterialDataset>({ list: [], total: 0 });
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [formModal, setFormModal] = useState<FormModalState>({ open: false, submitting: false });
   const [importModal, setImportModal] = useState<ImportModalState>({
     open: false,
     loading: false,
     fileList: [],
     parsed: [],
+    parsedRowCount: 0,
     resultRows: [],
   });
   const pageSizeRef = useRef(pageSize);
@@ -201,15 +270,25 @@ const MaterialArchive = () => {
   }, [dataset.list.length, fetchList, keyword, message, page, pageSize]);
 
   const handleOpenImport = () => {
-    setImportModal({ open: true, loading: false, fileList: [], parsed: [], resultRows: [] });
+    setImportModal({
+      open: true,
+      loading: false,
+      fileList: [],
+      parsed: [],
+      parsedRowCount: 0,
+      resultRows: [],
+    });
   };
 
-  const parseMaterialFile = async (file: File, materialType: MaterialBasicType): Promise<CreateMaterialPayload[]> => {
+  const parseMaterialFile = async (
+    file: File,
+    materialType: MaterialBasicType,
+  ): Promise<ParsedMaterialFile> => {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array', raw: false });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
-      return [];
+      return { items: [], sourceRowCount: 0, errors: [] };
     }
     const rows = XLSX.utils.sheet_to_json<Array<string | number | null>>(workbook.Sheets[sheetName], {
       header: 1,
@@ -222,9 +301,9 @@ const MaterialArchive = () => {
   const parseMaterialRows = (
     rows: Array<Array<string | number | null>>,
     materialType: MaterialBasicType,
-  ): CreateMaterialPayload[] => {
+  ): ParsedMaterialFile => {
     if (rows.length <= 1) {
-      return [];
+      return { items: [], sourceRowCount: 0, errors: [] };
     }
     const header = rows[0].map((value) => String(value ?? '').trim());
     const headerMap = new Map<string, number>();
@@ -233,59 +312,206 @@ const MaterialArchive = () => {
       const idx = headerMap.get(label);
       return idx !== undefined ? String(row[idx] ?? '').trim() : '';
     };
-    return rows
-      .slice(1)
-      .map((row, index) => {
-        const rowNumber = index + 2;
-        const sku = getValue(row, '物料编号') || getValue(row, 'SKU') || getValue(row, '编号');
-        const name = getValue(row, '名称');
-        const unit = getValue(row, '用量单位') || getValue(row, '单位');
-        if (!sku && !name && !unit) {
-          return null;
-        }
-        const priceValue = Number(getValue(row, '参考单价') || getValue(row, '单价'));
-        const colorsValue = getValue(row, '颜色');
-        const colors = colorsValue
-          ? colorsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
-          : undefined;
-        const specificationsValue = getValue(row, '规格');
-        const specifications = specificationsValue
-          ? specificationsValue.split(/[,/，、]/).map((item) => item.trim()).filter(Boolean)
-          : undefined;
-        return {
+    const splitValues = (value: string) => value
+      .split(/[,/，、]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const errors: MaterialImportRowResult[] = [];
+    const grouped = new Map<string, {
+      payload: CreateMaterialPayload;
+      specificationKeys: Set<string>;
+    }>();
+    let sourceRowCount = 0;
+
+    rows.slice(1).forEach((row, index) => {
+      const rowNumber = index + 2;
+      if (!row.some((value) => String(value ?? '').trim())) {
+        return;
+      }
+      sourceRowCount += 1;
+      const sku = getValue(row, '物料编号') || getValue(row, 'SKU') || getValue(row, '编号');
+      const name = getValue(row, '名称');
+      const unit = getValue(row, '用量单位') || getValue(row, '单位');
+      if (!sku) {
+        errors.push({ rowNumber, name, action: 'VALIDATE', success: false, message: '物料编号不能为空' });
+        return;
+      }
+
+      const priceText = getValue(row, '参考单价') || getValue(row, '单价');
+      const priceValue = priceText ? Number(priceText) : undefined;
+      if (priceText && (!Number.isFinite(priceValue) || Number(priceValue) < 0)) {
+        errors.push({
           rowNumber,
           sku,
           name,
-          materialType,
-          unit: unit as MaterialUnit,
-          referencePrice: Number.isFinite(priceValue) ? priceValue : undefined,
-          width: materialType === 'fabric' ? getValue(row, '幅宽') || undefined : undefined,
-          grammage: materialType === 'fabric' ? getValue(row, '克重') || undefined : undefined,
-          tolerance: materialType === 'fabric' ? getValue(row, '空差') || undefined : undefined,
-          colors,
-          specifications: materialType === 'accessory' ? specifications : undefined,
-          imageUrl: getValue(row, '图片URL') || undefined,
-          remarks: getValue(row, '备注') || undefined,
-        } as CreateMaterialPayload;
-      })
-      .filter((item): item is CreateMaterialPayload => item !== null);
+          action: 'VALIDATE',
+          success: false,
+          message: '参考单价必须是大于等于 0 的数字',
+        });
+      }
+      const safetyStockText = getValue(row, '安全库存');
+      const safetyStockQty = safetyStockText ? Number(safetyStockText) : undefined;
+      if (safetyStockText && (!Number.isFinite(safetyStockQty) || Number(safetyStockQty) < 0)) {
+        errors.push({
+          rowNumber,
+          sku,
+          name,
+          action: 'VALIDATE',
+          success: false,
+          message: '安全库存必须是大于等于 0 的数字',
+        });
+      }
+
+      const width = getValue(row, '幅宽') || undefined;
+      const grammage = getValue(row, '克重') || undefined;
+      const tolerance = getValue(row, '空差') || undefined;
+      const imageUrl = getValue(row, '图片URL') || undefined;
+      const remarks = getValue(row, '备注') || undefined;
+      const colors = splitValues(getValue(row, '颜色'));
+      const specifications = splitValues(getValue(row, '规格'));
+      const specificationCode = getValue(row, '最小规格编码') || undefined;
+      if (materialType === 'accessory' && colors.length > 1 && specifications.length > 1) {
+        errors.push({
+          rowNumber,
+          sku,
+          name,
+          action: 'VALIDATE',
+          success: false,
+          message: '同一行包含多个颜色和多个规格，无法判断实际组合；请拆成一行一个组合',
+        });
+        return;
+      }
+
+      const colorOptions = colors.length > 0 ? colors : [undefined];
+      const specificationOptions = specifications.length > 0 ? specifications : [undefined];
+      const combinations = materialType === 'fabric'
+        ? colorOptions.map((color) => ({ color, specification: undefined }))
+        : colorOptions.flatMap((color) => specificationOptions.map((specification) => ({ color, specification })));
+      if (specificationCode && combinations.length > 1) {
+        errors.push({
+          rowNumber,
+          sku,
+          name,
+          action: 'VALIDATE',
+          success: false,
+          message: '一个最小规格编码只能对应一个颜色规格组合，请拆分为多行',
+        });
+        return;
+      }
+
+      let group = grouped.get(sku);
+      if (!group) {
+        group = {
+          payload: {
+            rowNumber,
+            sku,
+            name,
+            materialType,
+            unit: unit as MaterialUnit,
+            referencePrice: Number.isFinite(priceValue) ? priceValue : undefined,
+            tolerance: materialType === 'fabric' ? tolerance : undefined,
+            imageUrl,
+            remarks,
+            minimumSpecifications: [],
+          },
+          specificationKeys: new Set<string>(),
+        };
+        grouped.set(sku, group);
+      }
+
+      const mergeField = (key: keyof CreateMaterialPayload, value: unknown, label: string) => {
+        if (value === undefined || value === null || value === '') {
+          return;
+        }
+        const target = group?.payload as unknown as Record<string, unknown>;
+        const current = target[key];
+        if (current !== undefined && current !== null && current !== '' && String(current) !== String(value)) {
+          errors.push({
+            rowNumber,
+            sku,
+            name,
+            action: 'VALIDATE',
+            success: false,
+            message: `同一物料编号的${label}不一致`,
+          });
+          return;
+        }
+        target[key] = value;
+      };
+      mergeField('name', name, '名称');
+      mergeField('unit', unit as MaterialUnit, '单位');
+      mergeField('referencePrice', Number.isFinite(priceValue) ? priceValue : undefined, '参考单价');
+      mergeField('tolerance', materialType === 'fabric' ? tolerance : undefined, '空差');
+      mergeField('imageUrl', imageUrl, '图片URL');
+      mergeField('remarks', remarks, '备注');
+
+      const hasSpecificationData = Boolean(
+        specificationCode || colors.length || specifications.length || width || grammage || safetyStockText,
+      );
+      if (!hasSpecificationData) {
+        return;
+      }
+      combinations.forEach(({ color, specification }) => {
+        const dimensionsKey = [
+          color?.toLowerCase() ?? '',
+          specification?.toLowerCase() ?? '',
+          materialType === 'fabric' ? width?.toLowerCase() ?? '' : '',
+          materialType === 'fabric' ? grammage?.toLowerCase() ?? '' : '',
+        ].join('|');
+        const specificationKey = specificationCode
+          ? `CODE:${specificationCode.toUpperCase()}`
+          : `DIM:${dimensionsKey}`;
+        if (group?.specificationKeys.has(specificationKey)) {
+          errors.push({
+            rowNumber,
+            sku,
+            name,
+            action: 'VALIDATE',
+            success: false,
+            message: '同一物料存在重复的最小规格组合',
+          });
+          return;
+        }
+        group?.specificationKeys.add(specificationKey);
+        const label = [color, specification, width, grammage].filter(Boolean).join(' · ') || '通用规格';
+        group?.payload.minimumSpecifications?.push({
+          code: specificationCode,
+          label,
+          color,
+          specification,
+          width: materialType === 'fabric' ? width : undefined,
+          grammage: materialType === 'fabric' ? grammage : undefined,
+          safetyStockQty: Number.isFinite(safetyStockQty) ? safetyStockQty : undefined,
+          active: true,
+        });
+      });
+    });
+
+    const items = Array.from(grouped.values()).map(({ payload }) => {
+      const minimumSpecifications = payload.minimumSpecifications ?? [];
+      return {
+        ...payload,
+        colors: Array.from(new Set(
+          minimumSpecifications.map((item) => item.color).filter((item): item is string => Boolean(item)),
+        )),
+        specifications: Array.from(new Set(
+          minimumSpecifications
+            .map((item) => item.specification)
+            .filter((item): item is string => Boolean(item)),
+        )),
+      };
+    });
+    return { items, sourceRowCount, errors };
   };
 
   const validateImportRows = (rows: CreateMaterialPayload[]) => {
     const errors: MaterialImportRowResult[] = [];
-    const seenSku = new Map<string, number>();
     rows.forEach((row) => {
       const rowNumber = row.rowNumber ?? 0;
       const sku = row.sku?.trim();
       if (!sku) {
         errors.push({ rowNumber, sku: row.sku, name: row.name, action: 'VALIDATE', success: false, message: '物料编号不能为空' });
         return;
-      }
-      const firstRow = seenSku.get(sku);
-      if (firstRow) {
-        errors.push({ rowNumber, sku, name: row.name, action: 'VALIDATE', success: false, message: `物料编号与第 ${firstRow} 行重复` });
-      } else {
-        seenSku.set(sku, rowNumber);
       }
       if (!row.name?.trim()) {
         errors.push({ rowNumber, sku, name: row.name, action: 'VALIDATE', success: false, message: '名称不能为空' });
@@ -313,12 +539,24 @@ const MaterialArchive = () => {
         message.error('导入文件不能超过 5MB');
         return;
       }
-      const payloads = importModal.parsed.length > 0 ? importModal.parsed : await parseMaterialFile(file, activeTab);
+      const parsedFile = importModal.parsed.length > 0
+        ? {
+            items: importModal.parsed,
+            sourceRowCount: importModal.parsedRowCount,
+            errors: importModal.resultRows.filter((item) => !item.success),
+          }
+        : await parseMaterialFile(file, activeTab);
+      const payloads = parsedFile.items;
+      if (parsedFile.errors.length > 0) {
+        setImportModal((prev) => ({ ...prev, resultRows: parsedFile.errors }));
+        message.error('导入数据存在错误，请先修正模板');
+        return;
+      }
       if (payloads.length === 0) {
         message.error('未解析到有效的导入数据');
         return;
       }
-      if (payloads.length > MATERIAL_IMPORT_MAX_ROWS) {
+      if (parsedFile.sourceRowCount > MATERIAL_IMPORT_MAX_ROWS) {
         setImportModal((prev) => ({
           ...prev,
           loading: false,
@@ -329,7 +567,7 @@ const MaterialArchive = () => {
         message.error(`单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行`);
         return;
       }
-      const validationErrors = validateImportRows(payloads);
+      const validationErrors = [...parsedFile.errors, ...validateImportRows(payloads)];
       if (validationErrors.length > 0) {
         setImportModal((prev) => ({ ...prev, loading: false, resultRows: validationErrors }));
         message.error('导入数据存在错误，请先修正模板');
@@ -342,50 +580,171 @@ const MaterialArchive = () => {
         return;
       }
       fetchList({ page: 1, pageSize, keyword });
-      setImportModal({ open: false, loading: false, fileList: [], parsed: [], resultRows: [] });
-      Modal.success({
+      setImportModal({
+        open: false,
+        loading: false,
+        fileList: [],
+        parsed: [],
+        parsedRowCount: 0,
+        resultRows: [],
+      });
+      modal.success({
         title: '导入完成',
         content: (
           <div>
-            <p>成功导入 {result.imported} 条记录。</p>
-            <p>新增 {result.created} 条，更新 {result.updated} 条，失败 {result.failed} 条。</p>
+            <p>成功处理 {result.imported} 个物料。</p>
+            <p>新增 {result.created} 个，更新 {result.updated} 个，失败 {result.failed} 个。</p>
           </div>
         ),
       });
     } catch (error) {
       console.error('Failed to import materials', error);
       message.error('导入失败，请稍后重试');
+    } finally {
       setImportModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
   const handleExport = async () => {
+    if (exportLoading) {
+      return;
+    }
+    setExportLoading(true);
     try {
-      const blob = await materialApi.export({ materialType: activeTab, keyword: keyword.trim() });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `物料档案-${activeTab === 'fabric' ? '面料' : '辅料'}.json`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-      message.success('导出任务已开始');
+      const exported = await materialApi.export({ materialType: activeTab, keyword: keyword.trim() });
+      if (exported.total === 0) {
+        message.warning(keyword.trim() ? '未找到符合当前搜索条件的物料' : '暂无可导出的物料');
+        return;
+      }
+      const rows = exported.list.flatMap((material) => {
+        const activeSpecifications = material.minimumSpecifications.filter(
+          (item) => item.active && !item.legacyDefault,
+        );
+        const specifications = activeSpecifications.length > 0 ? activeSpecifications : [undefined];
+        return specifications.map((specification) => [
+          material.sku,
+          material.name,
+          material.unit,
+          material.referencePrice ?? '',
+          specification?.code ?? '',
+          specification?.color ?? '',
+          specification?.specification ?? '',
+          specification?.width ?? material.width ?? '',
+          specification?.grammage ?? material.grammage ?? '',
+          material.tolerance ?? '',
+          specification?.safetyStockQty ?? '',
+          material.imageUrl ?? '',
+          material.remarks ?? '',
+          material.status === 'inactive' ? '停用' : '启用',
+          toExportDateTime(material.createdAt),
+          toExportDateTime(material.updatedAt),
+        ]);
+      });
+      const specificationRows = exported.list.flatMap((material) => {
+        const specifications = material.minimumSpecifications.length > 0
+          ? material.minimumSpecifications
+          : [undefined];
+        return specifications.map((specification) => [
+          material.sku,
+          material.name,
+          material.materialType === 'fabric' ? '面料' : '辅料/包材',
+          material.status === 'inactive' ? '停用' : '启用',
+          specification?.code ?? '',
+          specification?.label ?? '通用规格',
+          specification?.color ?? '',
+          specification?.specification ?? '',
+          specification?.width ?? material.width ?? '',
+          specification?.grammage ?? material.grammage ?? '',
+          specification?.safetyStockQty ?? '',
+          specification?.active === false ? '停用' : '启用',
+          specification?.legacyDefault
+            ? '历史占位'
+            : specification?.id
+              ? '正式规格'
+              : '原资料推导',
+        ]);
+      });
+      const workbook = XLSX.utils.book_new();
+      const materialWorksheet = XLSX.utils.aoa_to_sheet(
+        [MATERIAL_EXPORT_HEADERS, ...rows],
+        { cellDates: true, dateNF: 'yyyy-mm-dd hh:mm:ss' },
+      );
+      configureExportSheet(
+        materialWorksheet,
+        MATERIAL_EXPORT_HEADERS,
+        rows.length,
+        [22, 24, 12, 12, 18, 14, 16, 12, 12, 10, 12, 36, 28, 12, 20, 20],
+      );
+      XLSX.utils.book_append_sheet(workbook, materialWorksheet, '物料档案');
+      const specificationWorksheet = XLSX.utils.aoa_to_sheet([
+        MATERIAL_SPECIFICATION_EXPORT_HEADERS,
+        ...specificationRows,
+      ]);
+      configureExportSheet(
+        specificationWorksheet,
+        MATERIAL_SPECIFICATION_EXPORT_HEADERS,
+        specificationRows.length,
+        [22, 24, 12, 12, 18, 28, 14, 16, 12, 12, 12, 12, 14],
+      );
+      XLSX.utils.book_append_sheet(workbook, specificationWorksheet, '规格明细');
+      const summaryWorksheet = XLSX.utils.aoa_to_sheet([
+        ['导出项目', '内容'],
+        ['导出时间', formatExportDateTime(exported.exportedAt)],
+        ['物料类型', activeTab === 'fabric' ? '面料' : '辅料/包材'],
+        ['搜索条件', keyword.trim() || '全部'],
+        ['物料数量', exported.total],
+        ['可回导数据行', rows.length],
+        ['规格明细行', specificationRows.length],
+        ['回导说明', '仅“物料档案”工作表用于回导；“规格明细”用于核对，不参与导入。'],
+      ]);
+      summaryWorksheet['!cols'] = [{ wch: 20 }, { wch: 80 }];
+      XLSX.utils.book_append_sheet(workbook, summaryWorksheet, '导出说明');
+      XLSX.utils.book_append_sheet(workbook, buildImportGuideSheet(), '填写说明');
+      const timestamp = dayjs().format('YYYYMMDD-HHmmss');
+      XLSX.writeFile(
+        workbook,
+        `物料档案-${activeTab === 'fabric' ? '面料' : '辅料'}-${timestamp}.xlsx`,
+      );
+      message.success(`已完整导出 ${exported.total} 个物料、${specificationRows.length} 条规格明细`);
     } catch (error) {
       console.error('Failed to export materials', error);
       message.error('导出失败，请稍后重试');
+    } finally {
+      setExportLoading(false);
     }
   };
 
+  const buildImportGuideSheet = () => {
+    const guideRows = [
+      ['填写规则', '说明'],
+      ['物料编号', '必填。同一编号可填写多行，每行表示一个颜色/规格组合。'],
+      ['名称、用量单位', '每个物料必填；同一编号多行必须保持一致。'],
+      ['参考单价、图片URL、备注', '新增时可留空；更新已有物料时留空会保留原值，不会清空。'],
+      ['最小规格编码', '可选；填写后一个编码只能对应一个颜色/规格组合。'],
+      ['颜色与规格', '辅料多颜色多规格请拆成一行一个真实组合，系统不会猜测笛卡尔积。'],
+      ['更新规则', '同编号、同类型时安全合并；未出现在文件中的原有规格继续保留。'],
+      ['类型保护', '面料编号不能在辅料页导入，辅料编号也不能在面料页导入。'],
+      ['导出工作表', '“物料档案”可直接回导；“规格明细”和“导出说明”仅用于核对。'],
+      ['档案状态与时间', '导出文件中的状态、创建时间、更新时间为核对信息，回导时不会修改。'],
+      ['文件限制', '支持 .xlsx / .xls / .csv，单次最多 500 行、5MB。'],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(guideRows);
+    worksheet['!cols'] = [{ wch: 20 }, { wch: 80 }];
+    return worksheet;
+  };
+
   const handleDownloadTemplate = () => {
-    const csvHeader = activeTab === 'fabric'
-      ? '物料编号,名称,用量单位,参考单价,幅宽,克重,空差,颜色,图片URL,备注\n'
-      : '物料编号,名称,用量单位,参考单价,颜色,规格,图片URL,备注\n';
-    const blob = new Blob([`\ufeff${csvHeader}`], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `物料导入模板-${activeTab === 'fabric' ? '面料' : '辅料'}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([MATERIAL_IMPORT_HEADERS]);
+    worksheet['!autofilter'] = { ref: 'A1:M1' };
+    worksheet['!cols'] = [
+      { wch: 22 }, { wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
+      { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
+      { wch: 12 }, { wch: 36 }, { wch: 28 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, worksheet, '物料导入');
+    XLSX.utils.book_append_sheet(workbook, buildImportGuideSheet(), '填写说明');
+    XLSX.writeFile(workbook, `物料导入模板-${activeTab === 'fabric' ? '面料' : '辅料'}.xlsx`);
   };
 
   const columns = useMemo<ColumnsType<MaterialItem>>(() => {
@@ -485,6 +844,7 @@ const MaterialArchive = () => {
       <MaterialActionBar
         keyword={keyword}
         loading={loading}
+        exportLoading={exportLoading}
         onKeywordChange={handleKeywordChange}
         onSearch={handleSearch}
         onCreate={openCreateModal}
@@ -525,11 +885,25 @@ const MaterialArchive = () => {
         loading={importModal.loading}
         fileList={importModal.fileList}
         previewRows={importModal.parsed}
+        sourceRowCount={importModal.parsedRowCount}
         resultRows={importModal.resultRows}
-        onCancel={() => setImportModal({ open: false, loading: false, fileList: [], parsed: [], resultRows: [] })}
+        onCancel={() => setImportModal({
+          open: false,
+          loading: false,
+          fileList: [],
+          parsed: [],
+          parsedRowCount: 0,
+          resultRows: [],
+        })}
         onDownloadTemplate={handleDownloadTemplate}
         onFileChange={(fileList) => {
-          setImportModal((prev) => ({ ...prev, fileList, parsed: [], resultRows: [] }));
+          setImportModal((prev) => ({
+            ...prev,
+            fileList,
+            parsed: [],
+            parsedRowCount: 0,
+            resultRows: [],
+          }));
           const file = fileList[0]?.originFileObj as File | undefined;
           if (file) {
             if (file.size > MATERIAL_IMPORT_MAX_FILE_SIZE) {
@@ -543,10 +917,11 @@ const MaterialArchive = () => {
             }
             parseMaterialFile(file, activeTab)
               .then((parsed) => {
-                if (parsed.length > MATERIAL_IMPORT_MAX_ROWS) {
+                if (parsed.sourceRowCount > MATERIAL_IMPORT_MAX_ROWS) {
                   setImportModal((prev) => ({
                     ...prev,
-                    parsed,
+                    parsed: parsed.items,
+                    parsedRowCount: parsed.sourceRowCount,
                     resultRows: [
                       { rowNumber: 0, action: 'VALIDATE', success: false, message: `单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行` },
                     ],
@@ -554,7 +929,12 @@ const MaterialArchive = () => {
                   message.error(`单次最多导入 ${MATERIAL_IMPORT_MAX_ROWS} 行`);
                   return;
                 }
-                setImportModal((prev) => ({ ...prev, parsed, resultRows: validateImportRows(parsed) }));
+                setImportModal((prev) => ({
+                  ...prev,
+                  parsed: parsed.items,
+                  parsedRowCount: parsed.sourceRowCount,
+                  resultRows: [...parsed.errors, ...validateImportRows(parsed.items)],
+                }));
               })
               .catch((error) => {
                 console.error('Failed to parse material import file', error);
