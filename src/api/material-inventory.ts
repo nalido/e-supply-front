@@ -27,6 +27,7 @@ import type {
   MaterialStockListResponse,
   MaterialStockMeta,
   MaterialStockListSummary,
+  MaterialStockExportResponse,
 } from '../types/material-stock';
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
@@ -102,6 +103,21 @@ export const materialStockService = {
       });
       return response.data;
     });
+  },
+
+  async export(params: Omit<MaterialStockListParams, 'page' | 'pageSize'>): Promise<MaterialStockExportResponse> {
+    const tenantId = requireTenantId();
+    const response = await http.post<MaterialStockExportResponse>(
+      '/api/v1/inventory/materials/export',
+      {
+        materialType: params.materialType,
+        onlyInStock: params.onlyInStock ?? false,
+        keywordRemark: params.keywordRemark,
+        keywordOrderStyle: params.keywordOrderStyle,
+      },
+      { params: { tenantId } },
+    );
+    return response.data;
   },
 
   async getMovements(

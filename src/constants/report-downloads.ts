@@ -15,6 +15,7 @@ export const REPORT_DOWNLOAD_LABELS: Record<ReportDownloadType, string> = {
   BULK_COST: '大货成本报表',
   SHIPMENT_PROFIT: '订单出货利润',
   MATERIAL_REQUIREMENT: '订单物料需求报表',
+  MATERIAL_STOCK: '物料库存',
   CUSTOMER_RECEIPTS: '客户收款',
   SUPPLIER_PAYMENTS: '供应商付款',
   FACTORY_PAYMENTS: '加工厂付款',

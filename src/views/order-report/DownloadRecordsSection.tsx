@@ -43,6 +43,25 @@ const statusMeta: Record<ReportDownloadRecord['status'], { color: string; label:
   FAILED: { color: 'error', label: '失败' },
 };
 
+const FILTER_LABELS: Record<string, string> = {
+  materialType: '物料类型',
+  onlyInStock: '仅显示有库存',
+  keywordRemark: '备注关键词',
+  keywordOrderStyle: '订单 / 款式',
+};
+
+const formatFilterValue = (key: string, value: unknown): string => {
+  if (key === 'materialType') {
+    if (value === 'fabric') return '面料';
+    if (value === 'accessory') return '辅料/包材';
+    if (value === 'packaging') return '包材';
+  }
+  if (typeof value === 'boolean') {
+    return value ? '是' : '否';
+  }
+  return String(value);
+};
+
 const formatFilters = (value?: string): string => {
   if (!value) {
     return '-';
@@ -55,7 +74,7 @@ const formatFilters = (value?: string): string => {
     if (typeof parsed === 'object' && parsed !== null) {
       const entries = Object.entries(parsed)
         .filter(([, val]) => val !== undefined && val !== null && String(val).length > 0)
-        .map(([key, val]) => `${key}: ${val}`);
+        .map(([key, val]) => `${FILTER_LABELS[key] ?? key}: ${formatFilterValue(key, val)}`);
       if (entries.length) {
         return entries.join('，');
       }

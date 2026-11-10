@@ -55,6 +55,11 @@ export type MaterialStockListResponse = {
   total: number;
 };
 
+export type MaterialStockExportResponse = {
+  fileUrl: string;
+  exported: number;
+};
+
 export type MaterialStockMeta = {
   materialTabs: MaterialStockTab[];
   warehouses: MaterialStockWarehouse[];

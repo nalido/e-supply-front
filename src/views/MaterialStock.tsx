@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { Button, Space, Switch, Table, Tabs, Typography, message } from 'antd';
+import { App as AntdApp, Button, Space, Switch, Table, Tabs, Typography } from 'antd';
 import { DownloadOutlined, ProfileOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { materialStockService } from '../api/material-inventory';
 import type {
@@ -15,6 +15,7 @@ import MaterialIssueModal from '../components/material/MaterialIssueModal';
 import ListImage from '../components/common/ListImage';
 import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 import { Link, useSearchParams } from 'react-router-dom';
+import { wasGlobalErrorShown } from '../utils/http-error';
 
 const { Text } = Typography;
 
@@ -53,6 +54,7 @@ const sortTabs = (tabs?: MaterialStockMeta['materialTabs']): MaterialStockMeta['
 };
 
 const MaterialStock = () => {
+  const { message } = AntdApp.useApp();
   const [searchParams] = useSearchParams();
   const initialKeyword = searchParams.get('keyword')?.trim() ?? '';
   const [meta, setMeta] = useState<MaterialStockMeta | null>(null);
@@ -66,6 +68,7 @@ const MaterialStock = () => {
     stockAmountTotal: 0,
   });
   const [tableLoading, setTableLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [remarkKeyword, setRemarkKeyword] = useState(initialKeyword);
@@ -110,7 +113,7 @@ const MaterialStock = () => {
     };
 
     void loadMeta();
-  }, []);
+  }, [message]);
 
   useEffect(() => {
     if (!meta?.materialTabs?.length) {
@@ -145,7 +148,7 @@ const MaterialStock = () => {
     } finally {
       setTableLoading(false);
     }
-  }, [page, pageSize, materialType, onlyInStock, appliedRemarkKeyword, appliedOrderKeyword]);
+  }, [page, pageSize, materialType, onlyInStock, appliedRemarkKeyword, appliedOrderKeyword, message]);
 
   useEffect(() => {
     void loadList();
@@ -159,7 +162,7 @@ const MaterialStock = () => {
       console.error('failed to load material stock summary', error);
       message.error('获取物料库存汇总失败');
     }
-  }, []);
+  }, [message]);
 
   useEffect(() => {
     void loadSummary();
@@ -243,8 +246,24 @@ const MaterialStock = () => {
     setMovementModalOpen(true);
   }, []);
 
-  const handleExport = () => {
-    message.success('已生成物料库存导出任务，稍后可在下载中心查看');
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const result = await materialStockService.export({
+        materialType,
+        onlyInStock,
+        keywordRemark: appliedRemarkKeyword,
+        keywordOrderStyle: appliedOrderKeyword,
+      });
+      message.success(`已生成物料库存 Excel，共 ${result.exported} 条，请到下载中心查看`);
+    } catch (error) {
+      console.error('failed to export material stocks', error);
+      if (!wasGlobalErrorShown(error)) {
+        message.error('物料库存导出失败，请稍后重试');
+      }
+    } finally {
+      setExporting(false);
+    }
   };
 
   const columns: ColumnsType<MaterialStockListItem> = useMemo(() => [
@@ -407,7 +426,7 @@ const MaterialStock = () => {
                 <Button icon={<ProfileOutlined />} disabled={!canShowDetails} onClick={handleShowDetails}>进出明细</Button>
               </div>
             }
-            right={<Button icon={<DownloadOutlined />} onClick={handleExport}>导出 Excel</Button>}
+            right={<Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void handleExport()}>导出 Excel</Button>}
           />
         </div>
 
