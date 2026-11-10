@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, Button, Input, Modal, Select, Space, Table, Typography, InputNumber, message } from 'antd';
-import type { MaterialStockListItem, MaterialStockType } from '../../types/material-stock';
+import { Alert, App as AntdApp, Button, Input, Modal, Select, Space, Table, Typography, InputNumber } from 'antd';
+import type {
+  MaterialIssueSpecificationOption,
+  MaterialStockListItem,
+  MaterialStockType,
+} from '../../types/material-stock';
 import { materialIssueService } from '../../api/material-inventory';
 import { pieceworkService } from '../../api/piecework';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
 import '../../styles/matrix-table.css';
 
 const { Text } = Typography;
+
+const buildSpecificationLabel = (option: MaterialIssueSpecificationOption) => {
+  const details = [option.color, option.specification, option.width, option.grammage]
+    .filter(Boolean)
+    .join(' / ');
+  return details || option.label || `规格 ${option.id}`;
+};
 
 export type MaterialIssueModalProps = {
   open: boolean;
@@ -18,6 +29,7 @@ export type MaterialIssueModalProps = {
 };
 
 const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }: MaterialIssueModalProps) => {
+  const { message } = AntdApp.useApp();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [bulkQuantity, setBulkQuantity] = useState<number | null>(null);
   const [remark, setRemark] = useState('');
@@ -29,8 +41,12 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
   const [bedOptions, setBedOptions] = useState<Array<{ label: string; value: string; bedNumber: string }>>([]);
   const [bedLoading, setBedLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedSpecificationIds, setSelectedSpecificationIds] = useState<Record<string, string>>({});
+  const [specificationOptions, setSpecificationOptions] = useState<Record<string, MaterialIssueSpecificationOption[]>>({});
+  const [specificationLoading, setSpecificationLoading] = useState(false);
   const cuttingRequestRef = useRef(0);
   const bedRequestRef = useRef(0);
+  const specificationRequestRef = useRef(0);
 
   useEffect(() => {
     if (!open) {
@@ -42,8 +58,51 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
       setCuttingKeyword('');
       setCuttingOptions([]);
       setBedOptions([]);
+      setSelectedSpecificationIds({});
+      setSpecificationOptions({});
+      setSpecificationLoading(false);
     }
   }, [open, materials]);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const legacyMaterialIds = [...new Set(
+      materials.filter((item) => item.legacySpecification).map((item) => item.materialId),
+    )];
+    if (!legacyMaterialIds.length) {
+      setSpecificationOptions({});
+      setSpecificationLoading(false);
+      return undefined;
+    }
+    const requestId = specificationRequestRef.current + 1;
+    specificationRequestRef.current = requestId;
+    setSpecificationLoading(true);
+    void Promise.all(
+      legacyMaterialIds.map(async (materialId) => [
+        materialId,
+        await materialIssueService.getSpecificationOptions(materialId),
+      ] as const),
+    ).then((entries) => {
+      if (specificationRequestRef.current !== requestId) return;
+      setSpecificationOptions(Object.fromEntries(entries));
+    }).catch((error) => {
+      if (specificationRequestRef.current !== requestId) return;
+      console.error('failed to load material issue specifications', error);
+      setSpecificationOptions({});
+      message.error('加载正式规格失败，请刷新后重试');
+    }).finally(() => {
+      if (specificationRequestRef.current === requestId) {
+        setSpecificationLoading(false);
+      }
+    });
+    return () => {
+      if (specificationRequestRef.current === requestId) {
+        specificationRequestRef.current += 1;
+      }
+    };
+  }, [materials, message, open]);
 
   useEffect(() => {
     if (!open) {
@@ -118,7 +177,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         bedRequestRef.current += 1;
       }
     };
-  }, [open, workOrderId]);
+  }, [message, open, workOrderId]);
 
   const handleQuantityChange = (materialId: string, value: number | null) => {
     setQuantities((prev) => ({
@@ -165,8 +224,15 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
     });
   }, [quantities, tableData]);
 
-  const disabled = !rowsWithQuantity.length || submitting;
+  const missingLegacySpecification = rowsWithQuantity.some(
+    (item) => item.legacySpecification && !selectedSpecificationIds[item.id],
+  );
+  const disabled = !rowsWithQuantity.length
+    || missingLegacySpecification
+    || specificationLoading
+    || submitting;
   const warehouseName = materials[0]?.warehouseName;
+  const hasLegacyMaterials = materials.some((item) => item.legacySpecification);
 
   const columns: ColumnsType<MaterialStockListItem> = useMemo(
     () => [
@@ -192,11 +258,37 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         render: (value?: string) => <span className="oc-excel-cell-readonly">{value || '-'}</span>,
       },
       {
-        title: '规格',
+        title: '出库规格',
         dataIndex: 'specification',
         key: 'specification',
-        width: 130,
-        render: (value?: string) => <span className="oc-excel-cell-readonly">{value || '-'}</span>,
+        width: 220,
+        render: (value: string | undefined, record) => {
+          if (!record.legacySpecification) {
+            return <span className="oc-excel-cell-readonly">{value || '-'}</span>;
+          }
+          const options = specificationOptions[record.materialId] ?? [];
+          if (!specificationLoading && !options.length) {
+            return <Text type="danger">请先在物料档案维护正式规格</Text>;
+          }
+          return (
+            <Select
+              className="oc-excel-cell-select"
+              value={selectedSpecificationIds[record.id]}
+              loading={specificationLoading}
+              placeholder="选择本次出库规格"
+              showSearch
+              optionFilterProp="label"
+              options={options.map((option) => ({
+                value: option.id,
+                label: buildSpecificationLabel(option),
+              }))}
+              onChange={(value) => setSelectedSpecificationIds((previous) => ({
+                ...previous,
+                [record.id]: value,
+              }))}
+            />
+          );
+        },
       },
       {
         title: '可用库存',
@@ -226,7 +318,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         ),
       },
     ],
-    [quantities],
+    [quantities, selectedSpecificationIds, specificationLoading, specificationOptions],
   );
 
   const handleSubmit = async () => {
@@ -240,6 +332,13 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
     });
     if (invalid) {
       message.error('出库数量需大于0且不得超过可用库存');
+      return;
+    }
+    const missingSpecification = rowsWithQuantity.find(
+      (item) => item.legacySpecification && !selectedSpecificationIds[item.id],
+    );
+    if (missingSpecification) {
+      message.error(`请为 ${missingSpecification.materialName} 选择本次出库规格`);
       return;
     }
     const warehouseId = materials[0]?.warehouseId;
@@ -256,7 +355,10 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
       remark: remark.trim() || undefined,
       lines: rowsWithQuantity.map((item) => ({
         materialId: item.materialId,
-        materialMinimumSpecificationId: item.materialMinimumSpecificationId,
+        materialMinimumSpecificationId: item.legacySpecification
+          ? selectedSpecificationIds[item.id]
+          : item.materialMinimumSpecificationId,
+        sourceInventoryBalanceId: item.id,
         quantity: quantities[item.id],
         unit: item.unit,
         color: item.color,
@@ -294,6 +396,11 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
           message={
             <Space direction="vertical" size={4}>
               <Text>请填写各物料的出库数量，出库后库存将实时扣减。</Text>
+              {hasLegacyMaterials ? (
+                <Text type="warning">
+                  历史库存需选择本次实际出库规格；系统只扣减本次数量，剩余历史库存保持不变。
+                </Text>
+              ) : null}
               {warehouseName ? (
                 <Text type="secondary">出库仓库：{warehouseName}</Text>
               ) : null}

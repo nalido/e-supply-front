@@ -16,6 +16,7 @@ export type MaterialStockListItem = {
   materialMinimumSpecificationId?: string;
   materialMinimumSpecificationLabel?: string;
   materialMinimumSpecificationColor?: string;
+  legacySpecification: boolean;
   imageUrl?: string;
   materialCode: string;
   materialName: string;
@@ -63,6 +64,15 @@ export type MaterialStockExportResponse = {
 export type MaterialStockMeta = {
   materialTabs: MaterialStockTab[];
   warehouses: MaterialStockWarehouse[];
+};
+
+export type MaterialIssueSpecificationOption = {
+  id: string;
+  label?: string;
+  color?: string;
+  specification?: string;
+  width?: string;
+  grammage?: string;
 };
 
 export type MaterialMovementDirection = 'in' | 'out' | 'adjust';

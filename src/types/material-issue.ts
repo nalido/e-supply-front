@@ -70,6 +70,7 @@ export type MaterialIssueMeta = {
 export type MaterialIssueCreateLine = {
   materialId: string;
   materialMinimumSpecificationId?: string;
+  sourceInventoryBalanceId?: string;
   quantity: number;
   unit?: string;
   color?: string;

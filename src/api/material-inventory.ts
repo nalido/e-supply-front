@@ -28,6 +28,7 @@ import type {
   MaterialStockMeta,
   MaterialStockListSummary,
   MaterialStockExportResponse,
+  MaterialIssueSpecificationOption,
 } from '../types/material-stock';
 import http from './http';
 import { requireTenantId, toBackendPage } from './request-context';
@@ -144,6 +145,15 @@ export const materialStockService = {
 };
 
 export const materialIssueService = {
+  async getSpecificationOptions(materialId: string): Promise<MaterialIssueSpecificationOption[]> {
+    const tenantId = requireTenantId();
+    const response = await http.get<MaterialIssueSpecificationOption[]>(
+      `/api/v1/inventory/material-issues/materials/${materialId}/specifications`,
+      { params: { tenantId } },
+    );
+    return response.data;
+  },
+
   async getMeta(): Promise<MaterialIssueMeta> {
     const response = await http.get<MaterialIssueMeta>('/api/v1/inventory/material-issues/meta');
     return response.data;
@@ -181,6 +191,9 @@ export const materialIssueService = {
           materialId: Number(line.materialId),
           materialMinimumSpecificationId: line.materialMinimumSpecificationId
             ? Number(line.materialMinimumSpecificationId)
+            : undefined,
+          sourceInventoryBalanceId: line.sourceInventoryBalanceId
+            ? Number(line.sourceInventoryBalanceId)
             : undefined,
           quantity: line.quantity,
           unit: line.unit,
