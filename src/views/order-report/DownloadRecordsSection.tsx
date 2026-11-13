@@ -46,6 +46,20 @@ const statusMeta: Record<ReportDownloadRecord['status'], { color: string; label:
 const FILTER_LABELS: Record<string, string> = {
   materialType: '物料类型',
   onlyInStock: '仅显示有库存',
+  keyword: '快捷搜索',
+  materialCode: '物料编码',
+  materialName: '物料名称',
+  color: '颜色',
+  specification: '规格',
+  unit: '单位',
+  warehouseName: '仓库',
+  stockQtyMin: '库存数量下限',
+  stockQtyMax: '库存数量上限',
+  availableQtyMin: '可用数量下限',
+  availableQtyMax: '可用数量上限',
+  inTransitQtyMin: '采购在途下限',
+  inTransitQtyMax: '采购在途上限',
+  remark: '备注',
   keywordRemark: '备注关键词',
   keywordOrderStyle: '订单 / 款式',
 };
@@ -72,7 +86,9 @@ const formatFilters = (value?: string): string => {
       return parsed.join('、');
     }
     if (typeof parsed === 'object' && parsed !== null) {
-      const entries = Object.entries(parsed)
+      const parsedFilters = parsed as Record<string, unknown>;
+      const entries = Object.entries(parsedFilters)
+        .filter(([key]) => key !== 'warehouseId' || !parsedFilters.warehouseName)
         .filter(([, val]) => val !== undefined && val !== null && String(val).length > 0)
         .map(([key, val]) => `${FILTER_LABELS[key] ?? key}: ${formatFilterValue(key, val)}`);
       if (entries.length) {

@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { TableRowSelection } from 'antd/es/table/interface';
-import { App as AntdApp, Button, Space, Switch, Table, Tabs, Typography } from 'antd';
+import { App as AntdApp, Button, Space, Switch, Table, Tabs, Tag, Typography } from 'antd';
 import { DownloadOutlined, ProfileOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { materialStockService } from '../api/material-inventory';
 import type {
   MaterialStockListItem,
   MaterialStockListParams,
+  MaterialStockAdvancedFilters,
   MaterialStockMeta,
   MaterialStockType,
 } from '../types/material-stock';
 import MaterialMovementsModal from '../components/material/MaterialMovementsModal';
 import MaterialIssueModal from '../components/material/MaterialIssueModal';
+import MaterialStockAdvancedFilter from '../components/material/MaterialStockAdvancedFilter';
 import ListImage from '../components/common/ListImage';
 import { FilterBar, PageHeader, PageSection, SearchField, TableToolbar } from '../components/page';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -71,10 +73,9 @@ const MaterialStock = () => {
   const [exporting, setExporting] = useState(false);
   const [materialType, setMaterialType] = useState<MaterialStockType>('fabric');
   const [onlyInStock, setOnlyInStock] = useState(false);
-  const [remarkKeyword, setRemarkKeyword] = useState(initialKeyword);
-  const [orderKeyword, setOrderKeyword] = useState('');
-  const [appliedRemarkKeyword, setAppliedRemarkKeyword] = useState<string | undefined>(initialKeyword || undefined);
-  const [appliedOrderKeyword, setAppliedOrderKeyword] = useState<string | undefined>(undefined);
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [appliedKeyword, setAppliedKeyword] = useState<string | undefined>(initialKeyword || undefined);
+  const [advancedFilters, setAdvancedFilters] = useState<MaterialStockAdvancedFilters>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -132,8 +133,8 @@ const MaterialStock = () => {
         pageSize,
         materialType,
         onlyInStock,
-        keywordRemark: appliedRemarkKeyword,
-        keywordOrderStyle: appliedOrderKeyword,
+        keyword: appliedKeyword,
+        ...advancedFilters,
       };
       const response = await materialStockService.getList(params);
       const displayList = normalizeMaterialStockRows(response.list);
@@ -148,7 +149,7 @@ const MaterialStock = () => {
     } finally {
       setTableLoading(false);
     }
-  }, [page, pageSize, materialType, onlyInStock, appliedRemarkKeyword, appliedOrderKeyword, message]);
+  }, [page, pageSize, materialType, onlyInStock, appliedKeyword, advancedFilters, message]);
 
   useEffect(() => {
     void loadList();
@@ -170,6 +171,7 @@ const MaterialStock = () => {
 
   const handleTabChange = (value: string) => {
     setMaterialType(value as MaterialStockType);
+    setPage(1);
     setSelectedRowKeys([]);
     setSelectedRows([]);
   };
@@ -180,18 +182,29 @@ const MaterialStock = () => {
   };
 
   const handleSearch = () => {
-    const remark = remarkKeyword.trim();
-    const order = orderKeyword.trim();
-    setAppliedRemarkKeyword(remark || undefined);
-    setAppliedOrderKeyword(order || undefined);
+    const normalized = keyword.trim();
+    setAppliedKeyword(normalized || undefined);
     setPage(1);
   };
 
+  const handleAdvancedFilterApply = (filters: MaterialStockAdvancedFilters) => {
+    setAdvancedFilters(filters);
+    setPage(1);
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
+  const handleAdvancedFilterReset = () => {
+    setAdvancedFilters({});
+    setPage(1);
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
   const handleReset = () => {
-    setRemarkKeyword('');
-    setOrderKeyword('');
-    setAppliedRemarkKeyword(undefined);
-    setAppliedOrderKeyword(undefined);
+    setKeyword('');
+    setAppliedKeyword(undefined);
+    setAdvancedFilters({});
     setOnlyInStock(false);
     setPage(1);
     setPageSize(DEFAULT_PAGE_SIZE);
@@ -252,8 +265,11 @@ const MaterialStock = () => {
       const result = await materialStockService.export({
         materialType,
         onlyInStock,
-        keywordRemark: appliedRemarkKeyword,
-        keywordOrderStyle: appliedOrderKeyword,
+        keyword: appliedKeyword,
+        ...advancedFilters,
+        warehouseName: meta?.warehouses.find(
+          (warehouse) => warehouse.id === advancedFilters.warehouseId,
+        )?.name,
       });
       message.success(`已生成物料库存 Excel，共 ${result.exported} 条，请到下载中心查看`);
     } catch (error) {
@@ -371,6 +387,69 @@ const MaterialStock = () => {
     [summary.availableQtyTotal, summary.inTransitQtyTotal, summary.stockAmountTotal, summary.stockQtyTotal],
   );
 
+  const appliedFilterTags = useMemo(() => {
+    const tags: Array<{
+      key: string;
+      label: string;
+      fields: Array<keyof MaterialStockAdvancedFilters>;
+    }> = [];
+    const appendText = (
+      field: keyof MaterialStockAdvancedFilters,
+      label: string,
+    ) => {
+      const value = advancedFilters[field];
+      if (typeof value === 'string' && value) {
+        tags.push({ key: field, label: `${label}：${value}`, fields: [field] });
+      }
+    };
+    const appendRange = (
+      key: string,
+      label: string,
+      minimumField: keyof MaterialStockAdvancedFilters,
+      maximumField: keyof MaterialStockAdvancedFilters,
+    ) => {
+      const minimum = advancedFilters[minimumField];
+      const maximum = advancedFilters[maximumField];
+      if (typeof minimum === 'number' || typeof maximum === 'number') {
+        tags.push({
+          key,
+          label: `${label}：${typeof minimum === 'number' ? minimum : '不限'} ～ ${typeof maximum === 'number' ? maximum : '不限'}`,
+          fields: [minimumField, maximumField],
+        });
+      }
+    };
+
+    appendText('materialCode', '物料编码');
+    appendText('materialName', '物料名称');
+    appendText('color', '颜色');
+    appendText('specification', '规格');
+    appendText('unit', '单位');
+    if (advancedFilters.warehouseId) {
+      const warehouse = meta?.warehouses.find((item) => item.id === advancedFilters.warehouseId);
+      tags.push({
+        key: 'warehouseId',
+        label: `仓库：${warehouse?.name ?? advancedFilters.warehouseId}`,
+        fields: ['warehouseId'],
+      });
+    }
+    appendRange('stockQty', '库存数量', 'stockQtyMin', 'stockQtyMax');
+    appendRange('availableQty', '可用数量', 'availableQtyMin', 'availableQtyMax');
+    appendRange('inTransitQty', '采购在途', 'inTransitQtyMin', 'inTransitQtyMax');
+    appendText('remark', '备注');
+    return tags;
+  }, [advancedFilters, meta?.warehouses]);
+
+  const handleRemoveAdvancedFilter = (fields: Array<keyof MaterialStockAdvancedFilters>) => {
+    setAdvancedFilters((current) => {
+      const next = { ...current };
+      fields.forEach((field) => delete next[field]);
+      return next;
+    });
+    setPage(1);
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
   const hasSelection = selectedRowKeys.length > 0;
   const canShowDetails = selectedRows.length === 1;
 
@@ -407,8 +486,20 @@ const MaterialStock = () => {
                   <Switch checked={onlyInStock} onChange={handleOnlyInStockChange} />
                   <Text>仅显示有库存</Text>
                 </Space>
-                <SearchField allowClear placeholder="备注关键词" value={remarkKeyword} onChange={setRemarkKeyword} onPressEnter={handleSearch} style={{ width: 220 }} />
-                <SearchField allowClear placeholder="订单 / 款式" value={orderKeyword} onChange={setOrderKeyword} onPressEnter={handleSearch} style={{ width: 220 }} />
+                <SearchField
+                  allowClear
+                  placeholder="搜索编码 / 名称 / 颜色 / 规格"
+                  value={keyword}
+                  onChange={setKeyword}
+                  onPressEnter={handleSearch}
+                  style={{ width: 300 }}
+                />
+                <MaterialStockAdvancedFilter
+                  value={advancedFilters}
+                  warehouses={meta?.warehouses ?? []}
+                  onApply={handleAdvancedFilterApply}
+                  onReset={handleAdvancedFilterReset}
+                />
               </>
             }
             right={
@@ -418,6 +509,22 @@ const MaterialStock = () => {
               </div>
             }
           />
+
+          {appliedFilterTags.length > 0 ? (
+            <div className="material-stock-filter-tags" aria-label="已应用筛选条件">
+              <Text type="secondary">已筛选</Text>
+              {appliedFilterTags.map((filter) => (
+                <Tag
+                  key={filter.key}
+                  closable
+                  onClose={() => handleRemoveAdvancedFilter(filter.fields)}
+                >
+                  {filter.label}
+                </Tag>
+              ))}
+              <Button type="link" size="small" onClick={handleAdvancedFilterReset}>清除全部</Button>
+            </div>
+          ) : null}
 
           <TableToolbar
             left={

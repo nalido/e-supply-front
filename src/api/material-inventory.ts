@@ -27,6 +27,7 @@ import type {
   MaterialStockListResponse,
   MaterialStockMeta,
   MaterialStockListSummary,
+  MaterialStockExportParams,
   MaterialStockExportResponse,
   MaterialIssueSpecificationOption,
 } from '../types/material-stock';
@@ -82,8 +83,20 @@ export const materialStockService = {
       tenantId,
       materialType: params.materialType,
       onlyInStock: params.onlyInStock,
-      keywordRemark: params.keywordRemark,
-      keywordOrderStyle: params.keywordOrderStyle,
+      keyword: params.keyword,
+      materialCode: params.materialCode,
+      materialName: params.materialName,
+      color: params.color,
+      specification: params.specification,
+      unit: params.unit,
+      warehouseId: params.warehouseId,
+      stockQtyMin: params.stockQtyMin,
+      stockQtyMax: params.stockQtyMax,
+      availableQtyMin: params.availableQtyMin,
+      availableQtyMax: params.availableQtyMax,
+      inTransitQtyMin: params.inTransitQtyMin,
+      inTransitQtyMax: params.inTransitQtyMax,
+      remark: params.remark,
       page: toBackendPage(params.page),
       size: params.pageSize,
     };
@@ -106,15 +119,28 @@ export const materialStockService = {
     });
   },
 
-  async export(params: Omit<MaterialStockListParams, 'page' | 'pageSize'>): Promise<MaterialStockExportResponse> {
+  async export(params: MaterialStockExportParams): Promise<MaterialStockExportResponse> {
     const tenantId = requireTenantId();
     const response = await http.post<MaterialStockExportResponse>(
       '/api/v1/inventory/materials/export',
       {
         materialType: params.materialType,
         onlyInStock: params.onlyInStock ?? false,
-        keywordRemark: params.keywordRemark,
-        keywordOrderStyle: params.keywordOrderStyle,
+        keyword: params.keyword,
+        materialCode: params.materialCode,
+        materialName: params.materialName,
+        color: params.color,
+        specification: params.specification,
+        unit: params.unit,
+        warehouseId: params.warehouseId ? Number(params.warehouseId) : undefined,
+        warehouseName: params.warehouseName,
+        stockQtyMin: params.stockQtyMin,
+        stockQtyMax: params.stockQtyMax,
+        availableQtyMin: params.availableQtyMin,
+        availableQtyMax: params.availableQtyMax,
+        inTransitQtyMin: params.inTransitQtyMin,
+        inTransitQtyMax: params.inTransitQtyMax,
+        remark: params.remark,
       },
       { params: { tenantId } },
     );

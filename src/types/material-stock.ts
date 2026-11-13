@@ -42,13 +42,32 @@ export type MaterialStockListSummary = {
   stockAmountTotal: number;
 };
 
-export type MaterialStockListParams = {
+export type MaterialStockAdvancedFilters = {
+  materialCode?: string;
+  materialName?: string;
+  color?: string;
+  specification?: string;
+  unit?: string;
+  warehouseId?: string;
+  stockQtyMin?: number;
+  stockQtyMax?: number;
+  availableQtyMin?: number;
+  availableQtyMax?: number;
+  inTransitQtyMin?: number;
+  inTransitQtyMax?: number;
+  remark?: string;
+};
+
+export type MaterialStockListParams = MaterialStockAdvancedFilters & {
   page: number;
   pageSize: number;
   materialType: MaterialStockType;
   onlyInStock?: boolean;
-  keywordRemark?: string;
-  keywordOrderStyle?: string;
+  keyword?: string;
+};
+
+export type MaterialStockExportParams = Omit<MaterialStockListParams, 'page' | 'pageSize'> & {
+  warehouseName?: string;
 };
 
 export type MaterialStockListResponse = {
