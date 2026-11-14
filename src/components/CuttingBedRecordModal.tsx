@@ -41,6 +41,13 @@ const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
 const buildStockOptionKey = (warehouseId?: number, specificationId?: number, balanceId?: number) => (
   balanceId ? `balance::${balanceId}` : `${Number(warehouseId) || 0}::${Number(specificationId) || 0}`
 );
+const materialTypeLabel = (materialType?: string) => {
+  switch (String(materialType ?? '').toUpperCase()) {
+    case 'ACCESSORY': return '辅料';
+    case 'PACKAGING': return '包装材料';
+    default: return '面料';
+  }
+};
 
 export default function CuttingBedRecordModal({
   open,
@@ -79,6 +86,7 @@ export default function CuttingBedRecordModal({
     const plannedOptions = material.stockOptions.map((option) => ({
       ...option,
       materialId: material.materialId,
+      materialType: material.materialType,
       materialCode: material.materialCode,
       materialName: material.materialName,
       materialUnit: material.materialUnit,
@@ -92,6 +100,7 @@ export default function CuttingBedRecordModal({
       materialMinimumSpecificationLabel: existing.materialMinimumSpecificationLabel,
       availableQty: 0,
       materialId: existing.materialId,
+      materialType: existing.materialType,
       materialCode: existing.materialCode,
       materialName: existing.materialName,
       materialUnit: existing.materialUnit,
@@ -114,10 +123,8 @@ export default function CuttingBedRecordModal({
         const response = await materialStockService.getList({
           page: 1,
           pageSize: 30,
-          materialType: material.materialType === 'ACCESSORY' ? 'accessory' : 'fabric',
           onlyInStock: true,
           keyword: normalized,
-          unit: material.materialUnit,
         });
         setReplacementOptions((previous) => ({
           ...previous,
@@ -132,6 +139,7 @@ export default function CuttingBedRecordModal({
             materialMinimumSpecificationColor: item.materialMinimumSpecificationColor,
             availableQty: Number(item.availableQty),
             materialId: Number(item.materialId),
+            materialType: item.materialType,
             materialCode: item.materialCode,
             materialName: item.materialName,
             materialUnit: item.unit,
@@ -398,7 +406,7 @@ export default function CuttingBedRecordModal({
                                     placeholder="用量为 0 时可不选"
                                     options={availableOptions.map((option) => ({
                                       value: buildStockOptionKey(option.warehouseId, option.materialMinimumSpecificationId, option.sourceInventoryBalanceId),
-                                      label: `${option.materialName ?? material?.materialName ?? '-'} · ${option.materialCode ?? material?.materialCode ?? '-'} / ${option.warehouseName} / ${option.materialMinimumSpecificationLabel ?? '默认规格'}（可用 ${option.availableQty}${option.materialUnit ?? material?.materialUnit ?? ''}）`,
+                                      label: `${materialTypeLabel(option.materialType)} · ${option.materialName ?? material?.materialName ?? '-'} · ${option.materialCode ?? material?.materialCode ?? '-'} / ${option.warehouseName} / ${option.materialMinimumSpecificationLabel ?? '默认规格'}（可用 ${option.availableQty}${option.materialUnit ?? material?.materialUnit ?? ''}）`,
                                     }))}
                                   />
                                 </Form.Item>
@@ -414,9 +422,8 @@ export default function CuttingBedRecordModal({
                                   <Form.Item
                                     name={[field.name, 'substitutionReason']}
                                     style={{ marginTop: 8, marginBottom: 0 }}
-                                    rules={[{ required: true, whitespace: true, message: '请填写替换原因' }]}
                                   >
-                                    <Input maxLength={500} placeholder="填写本床更换实际出库物料的原因" />
+                                    <Input maxLength={500} placeholder="替换备注（可选）" />
                                   </Form.Item>
                                 ) : null;
                               }}
@@ -433,42 +440,49 @@ export default function CuttingBedRecordModal({
                           const existing = existingUsages.find((usage) => usage.calculationKey === material?.calculationKey);
                           return (
                             <Form.Item noStyle shouldUpdate>
-                              {() => (
-                                <Form.Item
-                                  name={[field.name, 'actualQty']}
-                                  style={{ marginBottom: 0 }}
-                                  rules={[
-                                    { required: true, message: '请输入实际用量（可填 0）' },
-                                    {
-                                      validator: async (_, value) => {
-                                        const qty = Number(value);
-                                        if (!Number.isFinite(qty) || qty < 0) {
-                                          throw new Error('实际用量不能小于 0');
-                                        }
-                                        const optionKey = form.getFieldValue(['materialUsages', field.name, 'stockOptionKey']);
-                                        const option = optionsFor(material).find((item) => (
-                                          buildStockOptionKey(item.warehouseId, item.materialMinimumSpecificationId, item.sourceInventoryBalanceId) === optionKey
-                                        ));
-                                        if (!option || qty <= 0) return;
-                                        const isCurrentStock = Number(existing?.warehouseId) === option.warehouseId
-                                          && Number(existing?.materialMinimumSpecificationId ?? 0) === Number(option.materialMinimumSpecificationId ?? 0);
-                                        const availableQty = option.availableQty + (isCurrentStock ? Number(existing?.actualQty ?? 0) : 0);
-                                        if (qty > availableQty) {
-                                          throw new Error(`超过可用库存，最多可填 ${availableQty}${material?.materialUnit ?? ''}`);
-                                        }
+                              {() => {
+                                const actualUnit = form.getFieldValue([
+                                  'materialUsages',
+                                  field.name,
+                                  'materialUnit',
+                                ]) ?? material?.materialUnit ?? '';
+                                return (
+                                  <Form.Item
+                                    name={[field.name, 'actualQty']}
+                                    style={{ marginBottom: 0 }}
+                                    rules={[
+                                      { required: true, message: '请输入实际用量（可填 0）' },
+                                      {
+                                        validator: async (_, value) => {
+                                          const qty = Number(value);
+                                          if (!Number.isFinite(qty) || qty < 0) {
+                                            throw new Error('实际用量不能小于 0');
+                                          }
+                                          const optionKey = form.getFieldValue(['materialUsages', field.name, 'stockOptionKey']);
+                                          const option = optionsFor(material).find((item) => (
+                                            buildStockOptionKey(item.warehouseId, item.materialMinimumSpecificationId, item.sourceInventoryBalanceId) === optionKey
+                                          ));
+                                          if (!option || qty <= 0) return;
+                                          const isCurrentStock = Number(existing?.warehouseId) === option.warehouseId
+                                            && Number(existing?.materialMinimumSpecificationId ?? 0) === Number(option.materialMinimumSpecificationId ?? 0);
+                                          const availableQty = option.availableQty + (isCurrentStock ? Number(existing?.actualQty ?? 0) : 0);
+                                          if (qty > availableQty) {
+                                            throw new Error(`超过可用库存，最多可填 ${availableQty}${actualUnit}`);
+                                          }
+                                        },
                                       },
-                                    },
-                                  ]}
-                                >
-                                  <InputNumber
-                                    min={0}
-                                    precision={4}
-                                    style={{ width: '100%' }}
-                                    placeholder="填写用量"
-                                    suffix={material?.materialUnit ?? ''}
-                                  />
-                                </Form.Item>
-                              )}
+                                    ]}
+                                  >
+                                    <InputNumber
+                                      min={0}
+                                      precision={4}
+                                      style={{ width: '100%' }}
+                                      placeholder="填写用量"
+                                      suffix={actualUnit}
+                                    />
+                                  </Form.Item>
+                                );
+                              }}
                             </Form.Item>
                           );
                         },

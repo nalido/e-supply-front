@@ -88,6 +88,7 @@ export type CuttingSheetMaterialStockOption = {
   materialMinimumSpecificationColor?: string;
   availableQty: number;
   materialId?: number;
+  materialType?: string;
   materialCode?: string;
   materialName?: string;
   materialUnit?: string;

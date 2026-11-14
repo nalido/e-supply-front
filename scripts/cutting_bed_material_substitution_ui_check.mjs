@@ -187,17 +187,17 @@ await page.route('**/api/v1/inventory/materials?**', async (route) => {
   await fulfillJson(route, {
     list: [{
       id: '6201',
-      materialId: '203',
-      materialMinimumSpecificationId: '603',
-      materialMinimumSpecificationLabel: '藏青 / 150cm',
-      materialMinimumSpecificationColor: '藏青',
-      materialType: 'fabric',
-      materialCode: 'FAB-SUB-003',
-      materialName: '替代藏青主面料',
-      color: '藏青',
-      colorStocks: [{ color: '藏青', quantity: 12 }],
-      specification: '150cm',
-      unit: '米',
+      materialId: '204',
+      materialMinimumSpecificationId: '604',
+      materialMinimumSpecificationLabel: '通用辅料规格',
+      materialMinimumSpecificationColor: null,
+      materialType: 'accessory',
+      materialCode: 'ACC-FREE-004',
+      materialName: '自由替换辅料',
+      color: null,
+      colorStocks: [],
+      specification: '通用',
+      unit: '个',
       warehouseId: '102',
       warehouseName: '替代料仓',
       stockQty: 12,
@@ -270,47 +270,43 @@ try {
   const materialRow = createModal.locator('.ant-table-row').filter({ hasText: '计划黑色主面料' });
   const stockSelect = materialRow.locator('.ant-select').first();
   await stockSelect.click();
-  await stockSelect.locator('input').fill('替代');
-  const replacementOption = page.locator('.ant-select-dropdown:visible').getByText(/替代藏青主面料.*FAB-SUB-003.*替代料仓.*藏青 \/ 150cm.*可用 12米/);
+  await stockSelect.locator('input').fill('自由');
+  const replacementOption = page.locator('.ant-select-dropdown:visible').getByText(/辅料.*自由替换辅料.*ACC-FREE-004.*替代料仓.*通用辅料规格.*可用 12个/);
   await replacementOption.waitFor({ timeout: 10_000 });
   result.assertions.remoteSearchIsServerSide = inventorySearches.some((params) => (
-    params.keyword === '替代'
-    && params.materialType === 'fabric'
+    params.keyword === '自由'
     && params.onlyInStock === 'true'
-    && params.unit === '米'
+    && !params.materialType
+    && !params.unit
   ));
   await replacementOption.click();
 
-  const reasonInput = materialRow.locator('input[placeholder="填写本床更换实际出库物料的原因"]');
+  const reasonInput = materialRow.locator('input[placeholder="替换备注（可选）"]');
   await reasonInput.waitFor({ state: 'visible' });
-  result.assertions.replacementShowsReason = await reasonInput.isVisible();
-  await materialRow.locator('input[placeholder="填写用量"]').fill('5');
-  await createModal.getByRole('button', { name: '确认并出库' }).click();
-  await createModal.getByText('请填写替换原因', { exact: true }).waitFor();
-  result.assertions.reasonRequiredBeforeRequest = createPayload == null;
-  await screenshot('01-substitution-reason-required.png');
+  result.assertions.replacementShowsOptionalRemark = await reasonInput.isVisible();
 
-  await reasonInput.fill('计划面料库存不足，使用同类型同单位替代料');
   const actualQtyInput = materialRow.locator('input[placeholder="填写用量"]');
   await actualQtyInput.fill('13');
   await reasonInput.click();
-  await createModal.getByText('超过可用库存，最多可填 12米', { exact: true }).waitFor();
+  await createModal.getByText('超过可用库存，最多可填 12个', { exact: true }).waitFor();
   result.assertions.availableStockGuardVisible = true;
+  result.assertions.noRequestBeforeValidStock = createPayload == null;
+  await screenshot('01-free-replacement-stock-guard.png');
   await actualQtyInput.fill('5');
   await reasonInput.click();
-  await createModal.getByText('超过可用库存，最多可填 12米', { exact: true }).waitFor({ state: 'hidden' });
-  await screenshot('02-substitution-ready-to-submit.png');
+  await createModal.getByText('超过可用库存，最多可填 12个', { exact: true }).waitFor({ state: 'hidden' });
+  await screenshot('02-free-replacement-ready-to-submit.png');
 
   await createModal.getByRole('button', { name: '确认并出库' }).click();
   await page.getByText('床次裁剪数据已录入，库存已按实际用量出库', { exact: true }).waitFor({ timeout: 10_000 });
   const createdUsage = createPayload?.materialUsages?.[0];
   result.assertions.createPayloadKeepsPlanAndActual = createdUsage?.calculationKey === plannedCalculation.calculationKey
-    && Number(createdUsage?.materialId) === 203
-    && Number(createdUsage?.materialMinimumSpecificationId) === 603
+    && Number(createdUsage?.materialId) === 204
+    && Number(createdUsage?.materialMinimumSpecificationId) === 604
     && Number(createdUsage?.sourceInventoryBalanceId) === 6201
     && Number(createdUsage?.warehouseId) === 102
     && Number(createdUsage?.actualQty) === 5
-    && createdUsage?.substitutionReason === '计划面料库存不足，使用同类型同单位替代料'
+    && !createdUsage?.substitutionReason
     && typeof createPayload?.requestId === 'string'
     && createPayload.requestId.length > 10;
 
@@ -322,7 +318,7 @@ try {
   const editModal = page.locator('.ant-modal').filter({ hasText: '修改床次 - BED-9001-1' });
   await editModal.waitFor({ state: 'visible' });
   const editRow = editModal.locator('.ant-table-row').filter({ hasText: '计划黑色主面料' });
-  const persistedReason = editRow.locator('input[placeholder="填写本床更换实际出库物料的原因"]');
+  const persistedReason = editRow.locator('input[placeholder="替换备注（可选）"]');
   await persistedReason.waitFor({ state: 'visible' });
   result.assertions.editRestoresActualSelectionAndReason = (await editRow.innerText()).includes('替代藏青主面料')
     && await persistedReason.inputValue() === '计划面料库存不足，使用同类型同单位替代料';

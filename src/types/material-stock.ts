@@ -17,6 +17,7 @@ export type MaterialStockListItem = {
   materialMinimumSpecificationLabel?: string;
   materialMinimumSpecificationColor?: string;
   legacySpecification: boolean;
+  materialType: string;
   imageUrl?: string;
   materialCode: string;
   materialName: string;
@@ -61,7 +62,7 @@ export type MaterialStockAdvancedFilters = {
 export type MaterialStockListParams = MaterialStockAdvancedFilters & {
   page: number;
   pageSize: number;
-  materialType: MaterialStockType;
+  materialType?: MaterialStockType;
   onlyInStock?: boolean;
   keyword?: string;
 };
