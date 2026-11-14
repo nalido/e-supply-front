@@ -64,6 +64,15 @@ export type CuttingSheetMaterialUsage = {
   materialCode?: string;
   materialName?: string;
   materialUnit?: string;
+  plannedMaterialId?: number;
+  plannedMinimumSpecificationId?: number;
+  plannedMinimumSpecificationLabel?: string;
+  plannedMaterialCode?: string;
+  plannedMaterialName?: string;
+  sourceInventoryBalanceId?: number;
+  substitutionReason?: string;
+  usageId?: number;
+  usageVersion?: number;
   plannedQty?: number;
   startActualQty?: number;
   completeActualQty?: number;
@@ -71,12 +80,18 @@ export type CuttingSheetMaterialUsage = {
 };
 
 export type CuttingSheetMaterialStockOption = {
+  sourceInventoryBalanceId?: number;
   warehouseId: number;
   warehouseName: string;
   materialMinimumSpecificationId?: number;
   materialMinimumSpecificationLabel?: string;
   materialMinimumSpecificationColor?: string;
   availableQty: number;
+  materialId?: number;
+  materialCode?: string;
+  materialName?: string;
+  materialUnit?: string;
+  imageUrl?: string;
 };
 
 export type CuttingSheetMaterialCalculation = {

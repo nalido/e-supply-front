@@ -121,9 +121,12 @@ type MaterialUsageFormValue = {
   warehouseId?: number;
   materialId?: number;
   materialMinimumSpecificationId?: number;
+  sourceInventoryBalanceId?: number;
   materialUnit?: string;
   plannedQty?: number;
   actualQty?: number;
+  substitutionReason?: string;
+  usageVersion?: number;
 };
 const DETAIL_MODAL_Z_INDEX = 1000;
 const BED_RECORD_MODAL_Z_INDEX = 1100;
@@ -524,20 +527,31 @@ const CuttingPendingPage = () => {
       const current = currentByCalculationKey.get(material.calculationKey);
       const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
       const matchedOption = material.stockOptions.find((option) => (
-        Number(option.warehouseId) === Number(existing?.warehouseId)
-        && Number(option.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0)
+        Number(option.sourceInventoryBalanceId ?? 0) === Number(existing?.sourceInventoryBalanceId ?? 0)
+        || (Number(option.warehouseId) === Number(existing?.warehouseId)
+          && Number(option.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0))
       ));
       const currentOption = material.stockOptions.find((option) => (
-        `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}` === current?.stockOptionKey
+        (option.sourceInventoryBalanceId ? `balance::${option.sourceInventoryBalanceId}` : `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}`) === current?.stockOptionKey
       ));
       const defaultOption = currentOption
         ?? (existing ? matchedOption : material.stockOptions.length === 1 ? material.stockOptions[0] : undefined);
       return {
         calculationKey: material.calculationKey,
         stockOptionKey: defaultOption
-          ? `${defaultOption.warehouseId}::${Number(defaultOption.materialMinimumSpecificationId) || 0}`
-          : undefined,
+          ? (defaultOption.sourceInventoryBalanceId ? `balance::${defaultOption.sourceInventoryBalanceId}` : `${defaultOption.warehouseId}::${Number(defaultOption.materialMinimumSpecificationId) || 0}`)
+          : existing?.sourceInventoryBalanceId ? `balance::${existing.sourceInventoryBalanceId}` : undefined,
+        sourceInventoryBalanceId: current?.sourceInventoryBalanceId ?? defaultOption?.sourceInventoryBalanceId ?? existing?.sourceInventoryBalanceId,
+        warehouseId: current?.warehouseId ?? defaultOption?.warehouseId ?? existing?.warehouseId,
+        materialId: current?.materialId ?? defaultOption?.materialId ?? existing?.materialId ?? material.materialId,
+        materialMinimumSpecificationId: current?.materialMinimumSpecificationId
+          ?? defaultOption?.materialMinimumSpecificationId
+          ?? existing?.materialMinimumSpecificationId
+          ?? material.materialMinimumSpecificationId,
+        materialUnit: current?.materialUnit ?? defaultOption?.materialUnit ?? existing?.materialUnit ?? material.materialUnit,
         actualQty: current?.actualQty ?? existing?.actualQty,
+        substitutionReason: current?.substitutionReason ?? existing?.substitutionReason,
+        usageVersion: current?.usageVersion ?? existing?.usageVersion,
       };
     }));
   }, [bedRecordForm]);
@@ -567,7 +581,10 @@ const CuttingPendingPage = () => {
         if (bedMaterialCalculationRequestRef.current !== requestId) return;
         setBedMaterialCalculations(result.materials);
         setBedUnconfiguredItems(result.unconfiguredItems);
-        setCalculatedMaterialFormValues(result.materials, [], true);
+        const existingUsages = bedRecordState.mode === 'edit'
+          ? bedRecordState.record?.materialUsages ?? bedRecordState.record?.fabricUsages ?? []
+          : [];
+        setCalculatedMaterialFormValues(result.materials, existingUsages, true);
         const warningKey = result.unconfiguredItems
           .map((item) => `${item.color}/${item.size}`)
           .sort()
@@ -596,7 +613,15 @@ const CuttingPendingPage = () => {
         bedMaterialCalculationRequestRef.current += 1;
       }
     };
-  }, [bedRecordForm, bedRecordQtyMap, bedRecordState.mode, bedRecordState.open, bedRecordState.task?.workOrderId, setCalculatedMaterialFormValues]);
+  }, [
+    bedRecordForm,
+    bedRecordQtyMap,
+    bedRecordState.mode,
+    bedRecordState.open,
+    bedRecordState.record,
+    bedRecordState.task?.workOrderId,
+    setCalculatedMaterialFormValues,
+  ]);
 
   const openEditBedMaterialUsage = async (
     record: NonNullable<CuttingSheetDetail['bedRecords']>[number],
@@ -657,20 +682,19 @@ const CuttingPendingPage = () => {
       const formUsages = (values.materialUsages ?? []) as MaterialUsageFormValue[];
       const materialUsages = bedMaterialCalculations.map((material, index) => {
         const formUsage = formUsages[index] ?? {};
-        const option = material.stockOptions.find((candidate) => (
-          `${candidate.warehouseId}::${Number(candidate.materialMinimumSpecificationId) || 0}` === formUsage.stockOptionKey
-        ));
         return {
           calculationKey: material.calculationKey,
           materialType: material.materialType,
           applicableColors: material.applicableColors,
-          warehouseId: option?.warehouseId,
-          materialId: material.materialId,
-          materialMinimumSpecificationId: option?.materialMinimumSpecificationId
-            ?? material.materialMinimumSpecificationId,
-          materialUnit: material.materialUnit,
+          warehouseId: formUsage.warehouseId,
+          materialId: formUsage.materialId ?? material.materialId,
+          materialMinimumSpecificationId: formUsage.materialMinimumSpecificationId,
+          sourceInventoryBalanceId: formUsage.sourceInventoryBalanceId,
+          materialUnit: formUsage.materialUnit ?? material.materialUnit,
           plannedQty: material.plannedQty,
           actualQty: Number(formUsage.actualQty),
+          substitutionReason: formUsage.substitutionReason?.trim(),
+          usageVersion: formUsage.usageVersion,
         };
       });
       setBedRecordState((prev) => ({ ...prev, submitting: true }));

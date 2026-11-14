@@ -106,6 +106,14 @@ const OrderMaterialRequirementReport = () => {
       render: (value) => <Text strong>{renderQuantity(value)}</Text>,
     },
     {
+      title: '床次已覆盖',
+      dataIndex: 'cuttingCoveredQty',
+      key: 'cuttingCoveredQty',
+      width: 132,
+      align: 'right',
+      render: (value: number) => renderQuantity(value),
+    },
+    {
       title: '需补料',
       dataIndex: 'restockQty',
       width: 120,
@@ -287,6 +295,7 @@ const OrderMaterialRequirementReport = () => {
               <Descriptions.Item label="供应商型号">{detailRecord.supplierModel || '--'}</Descriptions.Item>
               <Descriptions.Item label="供应商色号">{detailRecord.supplierColor || '--'}</Descriptions.Item>
               <Descriptions.Item label="合计需求量">{renderQuantity(detailRecord.totalRequiredQty)}</Descriptions.Item>
+              <Descriptions.Item label="床次已覆盖">{renderQuantity(detailRecord.cuttingCoveredQty)}</Descriptions.Item>
               <Descriptions.Item label="需补料">
                 <Text strong type={detailRecord.restockQty > 0 ? 'danger' : 'secondary'}>{renderQuantity(detailRecord.restockQty)}</Text>
               </Descriptions.Item>

@@ -81,6 +81,8 @@ export type FactoryOrderMaterialItem = {
   unit: string;
   minimumSpecificationLabel?: string;
   expectedQty: number;
+  coveredPlannedQty: number;
+  remainingExpectedQty: number;
   actualQty: number;
   varianceQty: number;
   stockQty: number;
@@ -218,6 +220,8 @@ type BackendFactoryOrderMaterialWarehouse = Partial<FactoryOrderMaterialWarehous
 
 type BackendFactoryOrderMaterialItem = Omit<Partial<FactoryOrderMaterialItem>, 'warehouses'> & {
   expectedQty?: number | string;
+  coveredPlannedQty?: number | string;
+  remainingExpectedQty?: number | string;
   actualQty?: number | string;
   varianceQty?: number | string;
   stockQty?: number | string;
@@ -579,6 +583,8 @@ const adaptMaterialDetail = (
     unit: item.unit ?? '',
     minimumSpecificationLabel: item.minimumSpecificationLabel,
     expectedQty: parseAmount(item.expectedQty),
+    coveredPlannedQty: parseAmount(item.coveredPlannedQty),
+    remainingExpectedQty: parseAmount(item.remainingExpectedQty),
     actualQty: parseAmount(item.actualQty),
     varianceQty: parseAmount(item.varianceQty),
     stockQty: parseAmount(item.stockQty),

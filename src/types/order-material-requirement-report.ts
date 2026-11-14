@@ -31,6 +31,7 @@ export type OrderMaterialRequirementListItem = {
   supplierModel: string;
   supplierColor: string;
   stockPurchaseQty: number;
+  cuttingCoveredQty: number;
   stockInventoryQty: number;
   stockInTransitQty: number;
   restockQty: number;

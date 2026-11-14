@@ -80,8 +80,22 @@ const MaterialDetailModal = ({ record, data, loading, onCancel, onCreatePurchase
       render: (value: number, item) => formatQuantity(value, item.unit),
     },
     {
-      title: '预计使用',
+      title: '计划总量',
       dataIndex: 'expectedQty',
+      width: 118,
+      align: 'right',
+      render: (value: number, item) => formatQuantity(value, item.unit),
+    },
+    {
+      title: '床次已覆盖',
+      dataIndex: 'coveredPlannedQty',
+      width: 118,
+      align: 'right',
+      render: (value: number, item) => formatQuantity(value, item.unit),
+    },
+    {
+      title: '剩余需求',
+      dataIndex: 'remainingExpectedQty',
       width: 118,
       align: 'right',
       render: (value: number, item) => formatQuantity(value, item.unit),
@@ -168,7 +182,7 @@ const MaterialDetailModal = ({ record, data, loading, onCancel, onCreatePurchase
             type="warning"
             showIcon
             message="面辅料库存不足"
-            description="建议采购量已按“本单预计用量 + 安全库存 − 当前可用库存”计算，在途数量仅供参考。"
+            description="建议采购量已按“本单剩余需求 + 安全库存 − 当前可用库存”计算；已由床次替换物料覆盖的计划量不会重复计入缺口。"
           />
         ) : null}
         {data && !data.fullyConfigured ? (

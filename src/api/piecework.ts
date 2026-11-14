@@ -1,6 +1,7 @@
 import http, { type RequestConfigWithDataflow } from './http';
 import { normalizeExportDownloadUrl } from '../utils/export-download';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
+import { createUuid } from '../utils/uuid';
 import { fromBackendPage, requireNumericTenantId, toBackendPage } from './request-context';
 import type {
   PieceworkDashboardDataset,
@@ -305,6 +306,15 @@ type CuttingSheetMaterialUsagePayload = Partial<{
   materialId: number;
   materialMinimumSpecificationId: number;
   materialMinimumSpecificationLabel: string;
+  sourceInventoryBalanceId: number;
+  plannedMaterialId: number;
+  plannedMinimumSpecificationId: number;
+  plannedMinimumSpecificationLabel: string;
+  plannedMaterialCode: string;
+  plannedMaterialName: string;
+  substitutionReason: string;
+  usageId: number;
+  usageVersion: number;
   materialCode: string;
   materialName: string;
   materialUnit: string;
@@ -449,6 +459,21 @@ const adaptCuttingSheetMaterialUsage = (payload: CuttingSheetMaterialUsagePayloa
     ? Number(payload.materialMinimumSpecificationId)
     : undefined,
   materialMinimumSpecificationLabel: payload.materialMinimumSpecificationLabel,
+  sourceInventoryBalanceId: Number.isFinite(Number(payload.sourceInventoryBalanceId))
+    ? Number(payload.sourceInventoryBalanceId)
+    : undefined,
+  plannedMaterialId: Number.isFinite(Number(payload.plannedMaterialId))
+    ? Number(payload.plannedMaterialId)
+    : undefined,
+  plannedMinimumSpecificationId: Number.isFinite(Number(payload.plannedMinimumSpecificationId))
+    ? Number(payload.plannedMinimumSpecificationId)
+    : undefined,
+  plannedMinimumSpecificationLabel: payload.plannedMinimumSpecificationLabel,
+  plannedMaterialCode: payload.plannedMaterialCode,
+  plannedMaterialName: payload.plannedMaterialName,
+  substitutionReason: payload.substitutionReason,
+  usageId: Number.isFinite(Number(payload.usageId)) ? Number(payload.usageId) : undefined,
+  usageVersion: Number.isFinite(Number(payload.usageVersion)) ? Number(payload.usageVersion) : undefined,
   materialCode: payload.materialCode,
   materialName: payload.materialName,
   materialUnit: payload.materialUnit,
@@ -821,6 +846,7 @@ export const pieceworkService = {
         warehouseName?: string;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
@@ -832,6 +858,7 @@ export const pieceworkService = {
         warehouseName?: string;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
@@ -884,6 +911,8 @@ export const pieceworkService = {
         materialUnit?: string;
         plannedQty?: number;
         actualQty?: number;
+        substitutionReason?: string;
+        usageVersion?: number;
       }>;
       fabricUsages?: Array<{
         calculationKey?: string;
@@ -893,12 +922,15 @@ export const pieceworkService = {
         warehouseName?: string;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
         plannedQty?: number;
         actualQty?: number;
+        substitutionReason?: string;
+        usageVersion?: number;
       }>;
       items: Array<{ color: string; size: string; quantity: number }>;
     },
@@ -913,12 +945,15 @@ export const pieceworkService = {
         warehouseName?: string;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialMinimumSpecificationLabel?: string;
         materialCode?: string;
         materialName?: string;
         materialUnit?: string;
         plannedQty?: number;
         actualQty?: number;
+        substitutionReason?: string;
+        usageVersion?: number;
       },
     ) => ({
       ...usage,
@@ -926,6 +961,7 @@ export const pieceworkService = {
     });
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds`, {
       ...payload,
+      requestId: createUuid(),
       materialUsages: payload.materialUsages?.map(normalizeUsage),
       fabricUsages: payload.fabricUsages?.map(normalizeUsage),
     }, {
@@ -960,6 +996,9 @@ export const pieceworkService = {
       materialUnit: item.materialUnit,
       plannedQty: Number(item.plannedQty ?? 0),
       stockOptions: (item.stockOptions ?? []).map((option) => ({
+        sourceInventoryBalanceId: Number.isFinite(Number(option.sourceInventoryBalanceId))
+          ? Number(option.sourceInventoryBalanceId)
+          : undefined,
         warehouseId: Number(option.warehouseId ?? 0),
         warehouseName: option.warehouseName ?? '',
         materialMinimumSpecificationId: Number.isFinite(Number(option.materialMinimumSpecificationId))
@@ -990,14 +1029,18 @@ export const pieceworkService = {
         warehouseId?: number;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialUnit?: string;
         plannedQty?: number;
         actualQty: number;
+        substitutionReason?: string;
+        usageVersion?: number;
       }>;
     },
   ): Promise<void> {
     const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/material-usage/update`, {
+      requestId: createUuid(),
       bedId: payload.bedId,
       materialUsages: payload.materialUsages.map((usage) => ({
         ...usage,
@@ -1024,9 +1067,12 @@ export const pieceworkService = {
         warehouseId?: number;
         materialId?: number;
         materialMinimumSpecificationId?: number;
+        sourceInventoryBalanceId?: number;
         materialUnit?: string;
         plannedQty?: number;
         actualQty: number;
+        substitutionReason?: string;
+        usageVersion?: number;
       }>;
       items: Array<{ color: string; size: string; quantity: number }>;
     },
@@ -1034,6 +1080,7 @@ export const pieceworkService = {
     const tenantId = requireNumericTenantId();
     await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/update`, {
       ...payload,
+      requestId: createUuid(),
       materialUsages: payload.materialUsages.map((usage) => ({
         ...usage,
         plannedFabricQty: usage.plannedQty,
@@ -1064,7 +1111,10 @@ export const pieceworkService = {
     },
   ): Promise<void> {
     const tenantId = requireNumericTenantId();
-    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/delete`, payload, {
+    await http.post(`/api/v1/workshop/cutting/sheets/${workOrderId}/beds/delete`, {
+      ...payload,
+      requestId: createUuid(),
+    }, {
       params: { tenantId },
     });
   },

@@ -72,7 +72,14 @@ type BedUsageEditState = {
 type MaterialUsageFormValue = {
   calculationKey?: string;
   stockOptionKey?: string;
+  warehouseId?: number;
+  materialId?: number;
+  materialMinimumSpecificationId?: number;
+  sourceInventoryBalanceId?: number;
+  materialUnit?: string;
   actualQty?: number;
+  substitutionReason?: string;
+  usageVersion?: number;
 };
 
 const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
@@ -268,20 +275,31 @@ const CuttingCompletedPage = () => {
       const current = currentByCalculationKey.get(material.calculationKey);
       const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
       const matchedOption = material.stockOptions.find((option) => (
-        Number(option.warehouseId) === Number(existing?.warehouseId)
-        && Number(option.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0)
+        Number(option.sourceInventoryBalanceId ?? 0) === Number(existing?.sourceInventoryBalanceId ?? 0)
+        || (Number(option.warehouseId) === Number(existing?.warehouseId)
+          && Number(option.materialMinimumSpecificationId ?? 0) === Number(existing?.materialMinimumSpecificationId ?? 0))
       ));
       const currentOption = material.stockOptions.find((option) => (
-        `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}` === current?.stockOptionKey
+        (option.sourceInventoryBalanceId ? `balance::${option.sourceInventoryBalanceId}` : `${option.warehouseId}::${Number(option.materialMinimumSpecificationId) || 0}`) === current?.stockOptionKey
       ));
       const defaultOption = currentOption
         ?? (existing ? matchedOption : material.stockOptions.length === 1 ? material.stockOptions[0] : undefined);
       return {
         calculationKey: material.calculationKey,
         stockOptionKey: defaultOption
-          ? `${defaultOption.warehouseId}::${Number(defaultOption.materialMinimumSpecificationId) || 0}`
-          : undefined,
+          ? (defaultOption.sourceInventoryBalanceId ? `balance::${defaultOption.sourceInventoryBalanceId}` : `${defaultOption.warehouseId}::${Number(defaultOption.materialMinimumSpecificationId) || 0}`)
+          : existing?.sourceInventoryBalanceId ? `balance::${existing.sourceInventoryBalanceId}` : undefined,
+        sourceInventoryBalanceId: current?.sourceInventoryBalanceId ?? defaultOption?.sourceInventoryBalanceId ?? existing?.sourceInventoryBalanceId,
+        warehouseId: current?.warehouseId ?? defaultOption?.warehouseId ?? existing?.warehouseId,
+        materialId: current?.materialId ?? defaultOption?.materialId ?? existing?.materialId ?? material.materialId,
+        materialMinimumSpecificationId: current?.materialMinimumSpecificationId
+          ?? defaultOption?.materialMinimumSpecificationId
+          ?? existing?.materialMinimumSpecificationId
+          ?? material.materialMinimumSpecificationId,
+        materialUnit: current?.materialUnit ?? defaultOption?.materialUnit ?? existing?.materialUnit ?? material.materialUnit,
         actualQty: current?.actualQty ?? existing?.actualQty,
+        substitutionReason: current?.substitutionReason ?? existing?.substitutionReason,
+        usageVersion: current?.usageVersion ?? existing?.usageVersion,
       };
     }));
   }, [bedUsageForm]);
@@ -384,23 +402,22 @@ const CuttingCompletedPage = () => {
         message.warning('请至少填写一个颜色尺码的裁剪数量');
         return;
       }
-      const formUsages = (values.materialUsages ?? []) as Array<{ stockOptionKey?: string; actualQty?: number }>;
+      const formUsages = (values.materialUsages ?? []) as MaterialUsageFormValue[];
       const materialUsages = bedUsageCalculations.map((material, index) => {
         const formUsage = formUsages[index] ?? {};
-        const option = material.stockOptions.find((candidate) => (
-          `${candidate.warehouseId}::${Number(candidate.materialMinimumSpecificationId) || 0}` === formUsage.stockOptionKey
-        ));
         return {
           calculationKey: material.calculationKey,
           materialType: material.materialType,
           applicableColors: material.applicableColors,
-          warehouseId: option?.warehouseId,
-          materialId: material.materialId,
-          materialMinimumSpecificationId: option?.materialMinimumSpecificationId
-            ?? material.materialMinimumSpecificationId,
-          materialUnit: material.materialUnit,
+          warehouseId: formUsage.warehouseId,
+          materialId: formUsage.materialId ?? material.materialId,
+          materialMinimumSpecificationId: formUsage.materialMinimumSpecificationId,
+          sourceInventoryBalanceId: formUsage.sourceInventoryBalanceId,
+          materialUnit: formUsage.materialUnit ?? material.materialUnit,
           plannedQty: material.plannedQty,
           actualQty: Number(formUsage.actualQty),
+          substitutionReason: formUsage.substitutionReason?.trim(),
+          usageVersion: formUsage.usageVersion,
         };
       });
       setBedUsageEditState((prev) => ({ ...prev, submitting: true }));

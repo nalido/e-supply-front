@@ -59,6 +59,7 @@ const adaptOrderRecord = (record: BackendOrderRecord): OrderMaterialRequirementL
   supplierModel: record.supplierModel ?? '--',
   supplierColor: record.supplierColor ?? '--',
   stockPurchaseQty: record.stockPurchaseQty ?? 0,
+  cuttingCoveredQty: record.cuttingCoveredQty ?? 0,
   stockInventoryQty: record.stockInventoryQty ?? 0,
   stockInTransitQty: record.stockInTransitQty ?? 0,
   restockQty: record.restockQty ?? 0,

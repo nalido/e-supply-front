@@ -1,12 +1,15 @@
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type {
   CuttingSheetDetail,
   CuttingSheetMaterialCalculation,
+  CuttingSheetMaterialStockOption,
   CuttingSheetUnconfiguredItem,
   CuttingSheetMaterialUsage,
   CuttingTask,
 } from '../types';
+import { materialStockService } from '../api/material-inventory';
 import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
@@ -35,8 +38,8 @@ type Props = {
 };
 
 const buildSpecKey = (color: string, size: string) => `${color}::${size}`;
-const buildStockOptionKey = (warehouseId?: number, specificationId?: number) => (
-  `${Number(warehouseId) || 0}::${Number(specificationId) || 0}`
+const buildStockOptionKey = (warehouseId?: number, specificationId?: number, balanceId?: number) => (
+  balanceId ? `balance::${balanceId}` : `${Number(warehouseId) || 0}::${Number(specificationId) || 0}`
 );
 
 export default function CuttingBedRecordModal({
@@ -59,6 +62,87 @@ export default function CuttingBedRecordModal({
   onCancel,
   onSubmit,
 }: Props) {
+  const [replacementOptions, setReplacementOptions] = useState<Record<string, CuttingSheetMaterialStockOption[]>>({});
+  const [replacementLoadingKey, setReplacementLoadingKey] = useState<string>();
+  const searchTimersRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!open) {
+      setReplacementOptions({});
+      setReplacementLoadingKey(undefined);
+    }
+  }, [open]);
+
+  const optionsFor = (material?: CuttingSheetMaterialCalculation) => {
+    if (!material) return [];
+    const existing = existingUsages.find((usage) => usage.calculationKey === material.calculationKey);
+    const plannedOptions = material.stockOptions.map((option) => ({
+      ...option,
+      materialId: material.materialId,
+      materialCode: material.materialCode,
+      materialName: material.materialName,
+      materialUnit: material.materialUnit,
+      imageUrl: material.imageUrl,
+    }));
+    const existingOption: CuttingSheetMaterialStockOption[] = existing?.sourceInventoryBalanceId ? [{
+      sourceInventoryBalanceId: existing.sourceInventoryBalanceId,
+      warehouseId: Number(existing.warehouseId),
+      warehouseName: existing.warehouseName ?? '原出库仓库',
+      materialMinimumSpecificationId: existing.materialMinimumSpecificationId,
+      materialMinimumSpecificationLabel: existing.materialMinimumSpecificationLabel,
+      availableQty: 0,
+      materialId: existing.materialId,
+      materialCode: existing.materialCode,
+      materialName: existing.materialName,
+      materialUnit: existing.materialUnit,
+    }] : [];
+    const merged = [...existingOption, ...plannedOptions, ...(replacementOptions[material.calculationKey] ?? [])];
+    return Array.from(new Map(merged.map((option) => [
+      buildStockOptionKey(option.warehouseId, option.materialMinimumSpecificationId, option.sourceInventoryBalanceId),
+      option,
+    ])).values());
+  };
+
+  const searchReplacement = (material: CuttingSheetMaterialCalculation, keyword: string) => {
+    const key = material.calculationKey;
+    if (searchTimersRef.current[key]) window.clearTimeout(searchTimersRef.current[key]);
+    const normalized = keyword.trim();
+    if (!normalized) return;
+    searchTimersRef.current[key] = window.setTimeout(async () => {
+      setReplacementLoadingKey(key);
+      try {
+        const response = await materialStockService.getList({
+          page: 1,
+          pageSize: 30,
+          materialType: material.materialType === 'ACCESSORY' ? 'accessory' : 'fabric',
+          onlyInStock: true,
+          keyword: normalized,
+          unit: material.materialUnit,
+        });
+        setReplacementOptions((previous) => ({
+          ...previous,
+          [key]: response.list.map((item) => ({
+            sourceInventoryBalanceId: Number(item.id),
+            warehouseId: Number(item.warehouseId),
+            warehouseName: item.warehouseName,
+            materialMinimumSpecificationId: item.materialMinimumSpecificationId
+              ? Number(item.materialMinimumSpecificationId)
+              : undefined,
+            materialMinimumSpecificationLabel: item.materialMinimumSpecificationLabel,
+            materialMinimumSpecificationColor: item.materialMinimumSpecificationColor,
+            availableQty: Number(item.availableQty),
+            materialId: Number(item.materialId),
+            materialCode: item.materialCode,
+            materialName: item.materialName,
+            materialUnit: item.unit,
+            imageUrl: item.imageUrl,
+          })),
+        }));
+      } finally {
+        setReplacementLoadingKey((current) => current === key ? undefined : current);
+      }
+    }, 300);
+  };
   const matrixSizes = sortSizeValues(detail?.sizes ?? []);
   const sortedRows = [...(detail?.rows ?? [])].sort((left, right) => {
     const [sortedLeft, sortedRight] = sortColorValues([left.color, right.color]);
@@ -273,11 +357,13 @@ export default function CuttingBedRecordModal({
                         },
                       },
                       {
-                        title: '出库仓库 / 规格',
-                        width: 280,
+                        title: '实际出库物料 / 仓库 / 规格',
+                        width: 390,
                         render: (_value, field) => {
                           const material = calculations[field.name];
+                          const availableOptions = optionsFor(material);
                           return (
+                            <>
                             <Form.Item noStyle shouldUpdate>
                               {() => (
                                 <Form.Item
@@ -296,16 +382,46 @@ export default function CuttingBedRecordModal({
                                   <Select
                                     allowClear
                                     showSearch
-                                    optionFilterProp="label"
+                                    filterOption={false}
+                                    loading={replacementLoadingKey === material?.calculationKey}
+                                    onSearch={(value) => material && searchReplacement(material, value)}
+                                    onChange={(value) => {
+                                      const selected = availableOptions.find((option) => (
+                                        buildStockOptionKey(option.warehouseId, option.materialMinimumSpecificationId, option.sourceInventoryBalanceId) === value
+                                      ));
+                                      form.setFieldValue(['materialUsages', field.name, 'sourceInventoryBalanceId'], selected?.sourceInventoryBalanceId);
+                                      form.setFieldValue(['materialUsages', field.name, 'warehouseId'], selected?.warehouseId);
+                                      form.setFieldValue(['materialUsages', field.name, 'materialId'], selected?.materialId);
+                                      form.setFieldValue(['materialUsages', field.name, 'materialMinimumSpecificationId'], selected?.materialMinimumSpecificationId);
+                                      form.setFieldValue(['materialUsages', field.name, 'materialUnit'], selected?.materialUnit);
+                                    }}
                                     placeholder="用量为 0 时可不选"
-                                    options={(material?.stockOptions ?? []).map((option) => ({
-                                      value: buildStockOptionKey(option.warehouseId, option.materialMinimumSpecificationId),
-                                      label: `${option.warehouseName} / ${option.materialMinimumSpecificationLabel ?? '默认规格'}（可用 ${option.availableQty}${material?.materialUnit ?? ''}）`,
+                                    options={availableOptions.map((option) => ({
+                                      value: buildStockOptionKey(option.warehouseId, option.materialMinimumSpecificationId, option.sourceInventoryBalanceId),
+                                      label: `${option.materialName ?? material?.materialName ?? '-'} · ${option.materialCode ?? material?.materialCode ?? '-'} / ${option.warehouseName} / ${option.materialMinimumSpecificationLabel ?? '默认规格'}（可用 ${option.availableQty}${option.materialUnit ?? material?.materialUnit ?? ''}）`,
                                     }))}
                                   />
                                 </Form.Item>
                               )}
                             </Form.Item>
+                            <Form.Item noStyle shouldUpdate>
+                              {() => {
+                                const selectedMaterialId = form.getFieldValue(['materialUsages', field.name, 'materialId']);
+                                const selectedSpecificationId = form.getFieldValue(['materialUsages', field.name, 'materialMinimumSpecificationId']);
+                                const substituted = Number(selectedMaterialId) !== Number(material?.materialId)
+                                  || Number(selectedSpecificationId ?? 0) !== Number(material?.materialMinimumSpecificationId ?? 0);
+                                return substituted ? (
+                                  <Form.Item
+                                    name={[field.name, 'substitutionReason']}
+                                    style={{ marginTop: 8, marginBottom: 0 }}
+                                    rules={[{ required: true, whitespace: true, message: '请填写替换原因' }]}
+                                  >
+                                    <Input maxLength={500} placeholder="填写本床更换实际出库物料的原因" />
+                                  </Form.Item>
+                                ) : null;
+                              }}
+                            </Form.Item>
+                            </>
                           );
                         },
                       },
@@ -330,8 +446,8 @@ export default function CuttingBedRecordModal({
                                           throw new Error('实际用量不能小于 0');
                                         }
                                         const optionKey = form.getFieldValue(['materialUsages', field.name, 'stockOptionKey']);
-                                        const option = material?.stockOptions.find((item) => (
-                                          buildStockOptionKey(item.warehouseId, item.materialMinimumSpecificationId) === optionKey
+                                        const option = optionsFor(material).find((item) => (
+                                          buildStockOptionKey(item.warehouseId, item.materialMinimumSpecificationId, item.sourceInventoryBalanceId) === optionKey
                                         ));
                                         if (!option || qty <= 0) return;
                                         const isCurrentStock = Number(existing?.warehouseId) === option.warehouseId
