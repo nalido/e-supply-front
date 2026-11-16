@@ -71,6 +71,14 @@ for (const { file, className } of excelTableConsumers) {
   }
 }
 
+const cuttingBedRecordSource = fs.readFileSync(
+  path.join(root, 'src/components/CuttingBedRecordModal.tsx'),
+  'utf8',
+);
+if (!/<ExcelTable[\s\S]{0,500}className="cutting-bed-material-usage-table"[\s\S]{0,500}tableLayout="fixed"[\s\S]{0,200}scroll=\{\{ x: 1150 \}\}/.test(cuttingBedRecordSource)) {
+  failures.push('CuttingBedRecordModal.tsx: 裁床实际用量表必须使用 1150px 横向滚动宽度和 fixed 布局，避免长物料内容压缩列宽并撑高页面。');
+}
+
 for (const file of excelGridConsumers) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   if (!/<ExcelGrid\b/.test(source)) {
