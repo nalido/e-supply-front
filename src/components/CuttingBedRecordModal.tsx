@@ -476,6 +476,7 @@ export default function CuttingBedRecordModal({
                                     <InputNumber
                                       min={0}
                                       precision={4}
+                                      controls={false}
                                       style={{ width: '100%' }}
                                       placeholder="填写用量"
                                       suffix={actualUnit}

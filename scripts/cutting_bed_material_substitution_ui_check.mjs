@@ -8,9 +8,10 @@ const outputDir = path.resolve(
     || '../docs/e-supply/04-verification/cutting-bed-material-substitution-20261114',
 );
 const storageStateCandidates = [
+  process.env.ESUPPLY_AUTH_STATE ? path.resolve(process.env.ESUPPLY_AUTH_STATE) : undefined,
   path.resolve('logs/route-sweep-auth-dev.json'),
   path.resolve('logs/route-sweep-auth.json'),
-];
+].filter(Boolean);
 const storageState = storageStateCandidates.find((candidate) => fs.existsSync(candidate));
 const backendEnvPath = path.resolve('../e-supply-back/src/main/resources/.env');
 fs.mkdirSync(outputDir, { recursive: true });
@@ -286,6 +287,43 @@ try {
   result.assertions.replacementShowsOptionalRemark = await reasonInput.isVisible();
 
   const actualQtyInput = materialRow.locator('input[placeholder="填写用量"]');
+  const actualQtyControl = actualQtyInput.locator('xpath=ancestor::*[contains(@class, "ant-input-number-affix-wrapper") or contains(@class, "ant-input-number")][1]');
+  const actualQtyRoot = actualQtyInput.locator('xpath=ancestor::*[contains(@class, "ant-input-number-affix-wrapper")][1]');
+  const modalScrollArea = createModal.locator('div[style*="max-height"]').first();
+  const readHoverLayout = async () => ({
+    input: await actualQtyControl.boundingBox(),
+    row: await materialRow.boundingBox(),
+    modal: await createModal.boundingBox(),
+    scroll: await modalScrollArea.evaluate((element) => ({
+      scrollTop: element.scrollTop,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    })),
+  });
+  const beforeHoverLayout = await readHoverLayout();
+  await actualQtyInput.hover();
+  await page.waitForTimeout(150);
+  const duringHoverLayout = await readHoverLayout();
+  await screenshot('00-actual-quantity-hover-stable.png');
+  await createModal.getByRole('columnheader', { name: '实际用量' }).hover();
+  await page.waitForTimeout(150);
+  const afterHoverLayout = await readHoverLayout();
+  const handlerCount = await actualQtyRoot.locator('.ant-input-number-handler-wrap').count();
+  result.diagnostics = {
+    actualQuantityHandlerCount: handlerCount,
+    beforeHoverLayout,
+    duringHoverLayout,
+    afterHoverLayout,
+  };
+  result.assertions.actualQuantityHoverIsStable = handlerCount === 0
+    && Math.abs(beforeHoverLayout.input.width - duringHoverLayout.input.width) < 0.5
+    && Math.abs(beforeHoverLayout.input.x - duringHoverLayout.input.x) < 0.5
+    && Math.abs(beforeHoverLayout.input.width - afterHoverLayout.input.width) < 0.5
+    && Math.abs(beforeHoverLayout.input.x - afterHoverLayout.input.x) < 0.5
+    && beforeHoverLayout.row.height === duringHoverLayout.row.height
+    && beforeHoverLayout.row.height === afterHoverLayout.row.height
+    && beforeHoverLayout.scroll.scrollHeight === duringHoverLayout.scroll.scrollHeight
+    && beforeHoverLayout.scroll.scrollHeight === afterHoverLayout.scroll.scrollHeight;
   await actualQtyInput.fill('13');
   await reasonInput.click();
   await createModal.getByText('超过可用库存，最多可填 12个', { exact: true }).waitFor();
