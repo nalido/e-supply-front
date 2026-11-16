@@ -328,7 +328,7 @@ export default function CuttingBedRecordModal({
                     bordered
                     rowKey={(field) => String(field.key)}
                     dataSource={fields}
-                    scroll={{ x: 980 }}
+                    scroll={{ x: 1150 }}
                     columns={[
                       {
                         title: '物料',
