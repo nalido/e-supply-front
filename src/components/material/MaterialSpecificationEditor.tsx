@@ -1,9 +1,15 @@
 import { CopyOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Grid, Input, InputNumber, Space, Switch, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Grid, Input, InputNumber, Space, Switch, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useRef } from 'react';
 import type { MaterialBasicType, MaterialMinimumSpecification } from '../../types/material';
 import '../../styles/matrix-table.css';
+import {
+  ExcelNumberInput,
+  ExcelRowActions,
+  ExcelTable,
+  ExcelTextInput,
+} from '../common/ExcelTable';
 
 const { Text } = Typography;
 
@@ -95,21 +101,21 @@ export default function MaterialSpecificationEditor({ materialType, unit, value 
   const columns: ColumnsType<SpecificationDraft> = [
     {
       title: '颜色', dataIndex: 'color', width: 150,
-      render: (text, row) => <Input className="oc-excel-cell-text-input" value={text} placeholder="如 黑色" onChange={(event) => patchRow(row.rowKey, { color: event.target.value })} />,
+      render: (text, row) => <ExcelTextInput value={text} placeholder="如 黑色" onChange={(event) => patchRow(row.rowKey, { color: event.target.value })} />,
     },
     ...(materialType === 'fabric' ? [
       {
         title: '幅宽', dataIndex: 'width', width: 150,
-        render: (text: string | undefined, row: SpecificationDraft) => <Input className="oc-excel-cell-text-input" value={text} placeholder="如 150cm" onChange={(event) => patchRow(row.rowKey, { width: event.target.value })} />,
+        render: (text: string | undefined, row: SpecificationDraft) => <ExcelTextInput value={text} placeholder="如 150cm" onChange={(event) => patchRow(row.rowKey, { width: event.target.value })} />,
       },
       {
         title: '克重', dataIndex: 'grammage', width: 150,
-        render: (text: string | undefined, row: SpecificationDraft) => <Input className="oc-excel-cell-text-input" value={text} placeholder="如 180g/m²" onChange={(event) => patchRow(row.rowKey, { grammage: event.target.value })} />,
+        render: (text: string | undefined, row: SpecificationDraft) => <ExcelTextInput value={text} placeholder="如 180g/m²" onChange={(event) => patchRow(row.rowKey, { grammage: event.target.value })} />,
       },
     ] : [
       {
         title: '规格', dataIndex: 'specification', width: 180,
-        render: (text: string | undefined, row: SpecificationDraft) => <Input className="oc-excel-cell-text-input" value={text} placeholder="如 20mm" onChange={(event) => patchRow(row.rowKey, { specification: event.target.value })} />,
+        render: (text: string | undefined, row: SpecificationDraft) => <ExcelTextInput value={text} placeholder="如 20mm" onChange={(event) => patchRow(row.rowKey, { specification: event.target.value })} />,
       },
     ]),
     ...(hasRecoveryCandidates ? [{
@@ -119,8 +125,7 @@ export default function MaterialSpecificationEditor({ materialType, unit, value 
     {
       title: '安全库存', dataIndex: 'safetyStockQty', width: 150,
       render: (value, row) => (
-        <InputNumber
-          className="oc-excel-cell-input"
+        <ExcelNumberInput
           min={0}
           precision={4}
           suffix={unit}
@@ -136,10 +141,10 @@ export default function MaterialSpecificationEditor({ materialType, unit, value 
     {
       title: '操作', key: 'actions', width: 82, align: 'center',
       render: (_, row) => (
-        <Space className="oc-excel-row-actions" size={0}>
+        <ExcelRowActions size={0}>
           <Button type="text" aria-label="复制规格" icon={<CopyOutlined />} onClick={() => duplicateRow(row)} />
           <Button type="text" danger aria-label="删除规格" icon={<DeleteOutlined />} onClick={() => emit(rows.filter((item) => item.rowKey !== row.rowKey))} />
-        </Space>
+        </ExcelRowActions>
       ),
     },
   ];
@@ -212,13 +217,11 @@ export default function MaterialSpecificationEditor({ materialType, unit, value 
           )) : <Text type="secondary">请添加至少一个颜色与规格组合</Text>}
         </div>
       ) : (
-        <Table<SpecificationDraft>
-          className="oc-excel-entry-table material-specification-editor"
+        <ExcelTable<SpecificationDraft>
+          className="material-specification-editor"
           rowKey="rowKey"
           columns={columns}
           dataSource={rows}
-          pagination={false}
-          size="small"
           tableLayout="fixed"
           locale={{ emptyText: '请添加至少一个颜色与规格组合' }}
         />

@@ -43,6 +43,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { saleApi } from '../../api/sale';
 import stylesApi from '../../api/styles';
 import ListImage from '../../components/common/ListImage';
+import { ExcelTable, ExcelTextInput } from '../../components/common/ExcelTable';
 import { getSaleChannelAccountDisplayName } from '../../components/sale/sale-channel-account-helper';
 import ImageUploader from '../../components/upload/ImageUploader';
 import type {
@@ -1130,16 +1131,16 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
         <div className="opp-product-cell">
           <ListImage src={record.imageUrl} alt={record.productName || record.targetOfferId || 'Ozon 草稿'} width={44} height={44} borderRadius={8} />
           <div className="opp-product-cell__body">
-            <Input
+            <ExcelTextInput
               size="small"
-              className={dirtyInputClassName(record, 'name', 'oc-excel-cell-text-input')}
+              className={dirtyInputClassName(record, 'name')}
               value={stringValue(record.item?.name || record.productName)}
               onChange={(event) => updateInlineField(record, 'name', event.target.value)}
               disabled={record.publishStatus !== 'DRAFT'}
             />
-            <Input
+            <ExcelTextInput
               size="small"
-              className={dirtyInputClassName(record, 'offer_id', 'oc-excel-cell-text-input opp-inline-mono-input')}
+              className={dirtyInputClassName(record, 'offer_id', 'opp-inline-mono-input')}
               value={stringValue(record.item?.offer_id || record.targetOfferId)}
               onChange={(event) => updateInlineField(record, 'offer_id', event.target.value)}
               disabled={record.publishStatus !== 'DRAFT'}
@@ -1161,16 +1162,16 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
     { title: '体检', width: 110, render: (_, record) => <Tag color={statusColor(record.validationStatus)}>{statusLabel(record.validationStatus)}</Tag> },
     { title: '价格', width: 156, render: (_, record) => (
       <div className="opp-inline-price-cell">
-        <Input
+        <ExcelTextInput
           size="small"
-          className={dirtyInputClassName(record, 'price', 'oc-excel-cell-text-input')}
+          className={dirtyInputClassName(record, 'price')}
           value={stringValue(record.item?.price || record.price)}
           onChange={(event) => updateInlineField(record, 'price', event.target.value)}
           disabled={record.publishStatus !== 'DRAFT'}
         />
-        <Input
+        <ExcelTextInput
           size="small"
-          className={dirtyInputClassName(record, 'currency_code', 'oc-excel-cell-text-input opp-inline-currency-input')}
+          className={dirtyInputClassName(record, 'currency_code', 'opp-inline-currency-input')}
           value={stringValue(record.item?.currency_code || record.currencyCode || 'CNY')}
           onChange={(event) => updateInlineField(record, 'currency_code', event.target.value)}
           disabled={record.publishStatus !== 'DRAFT'}
@@ -1442,7 +1443,7 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
                             </Space>
                           </div>
                           {referenceProducts.length ? (
-                            <Table
+                            <ExcelTable
                               rowKey={referenceRowKey}
                               size="middle"
                               columns={sourceProductColumns}
@@ -1666,10 +1667,10 @@ const OzonProductPublish = ({ embedded = false }: OzonProductPublishProps) => {
 	                            </div>
 	                          </div>
                           {currentItems.length ? (
-                            <Table
+                            <ExcelTable
                               rowKey={(record) => String(record.itemId)}
                               size="middle"
-                              className="oc-excel-entry-table opp-item-table"
+                              className="opp-item-table"
                               columns={itemColumns}
                               dataSource={currentItems}
                               pagination={{ pageSize: 8, showSizeChanger: false }}

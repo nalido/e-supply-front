@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
-import { Alert, App as AntdApp, Button, Input, Modal, Select, Space, Table, Typography, InputNumber } from 'antd';
+import { Alert, App as AntdApp, Button, Input, Modal, Select, Space, Typography, InputNumber } from 'antd';
 import type {
   MaterialIssueSpecificationOption,
   MaterialStockListItem,
@@ -10,6 +10,12 @@ import { materialIssueService } from '../../api/material-inventory';
 import { pieceworkService } from '../../api/piecework';
 import type { MaterialIssueCreatePayload } from '../../types/material-issue';
 import '../../styles/matrix-table.css';
+import {
+  ExcelNumberInput,
+  ExcelReadonlyCell,
+  ExcelSelect,
+  ExcelTable,
+} from '../common/ExcelTable';
 
 const { Text } = Typography;
 
@@ -242,12 +248,12 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         key: 'materialName',
         width: 240,
         render: (value: string, record) => (
-          <Space className="oc-excel-cell-readonly" direction="vertical" size={2}>
-            <Text strong ellipsis={{ tooltip: value }}>
-              {value}
-            </Text>
-            <Text type="secondary">{record.materialCode}</Text>
-          </Space>
+          <ExcelReadonlyCell>
+            <Space direction="vertical" size={2}>
+              <Text strong ellipsis={{ tooltip: value }}>{value}</Text>
+              <Text type="secondary">{record.materialCode}</Text>
+            </Space>
+          </ExcelReadonlyCell>
         ),
       },
       {
@@ -255,7 +261,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         dataIndex: 'color',
         key: 'color',
         width: 100,
-        render: (value?: string) => <span className="oc-excel-cell-readonly">{value || '-'}</span>,
+        render: (value?: string) => <ExcelReadonlyCell>{value || '-'}</ExcelReadonlyCell>,
       },
       {
         title: '出库规格',
@@ -264,15 +270,14 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         width: 220,
         render: (value: string | undefined, record) => {
           if (!record.legacySpecification) {
-            return <span className="oc-excel-cell-readonly">{value || '-'}</span>;
+            return <ExcelReadonlyCell>{value || '-'}</ExcelReadonlyCell>;
           }
           const options = specificationOptions[record.materialId] ?? [];
           if (!specificationLoading && !options.length) {
             return <Text type="danger">请先在物料档案维护正式规格</Text>;
           }
           return (
-            <Select
-              className="oc-excel-cell-select"
+            <ExcelSelect
               value={selectedSpecificationIds[record.id]}
               loading={specificationLoading}
               placeholder="选择本次出库规格"
@@ -296,7 +301,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         key: 'availableQty',
         width: 120,
         render: (value: number, record) => (
-          <span className="oc-excel-cell-readonly">{value.toLocaleString('zh-CN')} {record.unit}</span>
+          <ExcelReadonlyCell>{value.toLocaleString('zh-CN')} {record.unit}</ExcelReadonlyCell>
         ),
       },
       {
@@ -305,8 +310,7 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
         key: 'issueQty',
         width: 170,
         render: (_value, record) => (
-          <InputNumber
-            className="oc-excel-cell-input"
+          <ExcelNumberInput
             min={0}
             max={record.availableQty}
             precision={0}
@@ -420,13 +424,11 @@ const MaterialIssueModal = ({ open, materials, materialType, onClose, onIssued }
           <Button onClick={handleApplyBulkQuantity}>批量应用</Button>
           <Button onClick={handleClearBulkQuantity}>清空数量</Button>
         </Space>
-        <Table<MaterialStockListItem>
-          className="oc-excel-entry-table material-issue-entry-table"
+        <ExcelTable<MaterialStockListItem>
+          className="material-issue-entry-table"
           rowKey="id"
           dataSource={tableData}
           columns={columns}
-          pagination={false}
-          size="small"
           scroll={{ y: 360 }}
         />
         <Text type="secondary">

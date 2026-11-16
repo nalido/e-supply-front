@@ -32,6 +32,7 @@ import type {
 } from '../../types/sale'
 import { getShopLabel } from './sale-center-helpers'
 import OzonOperationTaskDrawer from './OzonOperationTaskDrawer'
+import { ExcelNumberInput, ExcelTable } from '../../components/common/ExcelTable'
 import { resolveOzonProductDisplayInfo } from './ozon-product-display'
 import '../../styles/matrix-table.css'
 import './ozon-promotions.css'
@@ -2023,13 +2024,12 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
       render: (_, record) => (
         <div className="scw-promo-field-cell">
           <Space direction="vertical" size={8} className="scw-promo-field-stack">
-            <InputNumber
+            <ExcelNumberInput
               min={0.01}
               disabled={!record.legalItems.length}
               value={requestInputs[record.key]?.actionPrice ?? null}
               onChange={(value) => applyInputPatch(record.key, { actionPrice: value })}
               placeholder="请输入活动价"
-              className="oc-excel-cell-input"
             />
             <Space size={[4, 4]} wrap className="scw-promo-suggestion-actions">
               {record.promotionActionPriceSuggestion !== null && record.promotionActionPriceSuggestion !== undefined ? (
@@ -2057,14 +2057,13 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
       render: (_, record) => (
         <div className="scw-promo-field-cell">
           <Space direction="vertical" size={8} className="scw-promo-field-stack">
-            <InputNumber
+            <ExcelNumberInput
               min={0}
               precision={0}
               disabled={!record.legalItems.length}
               value={requestInputs[record.key]?.stock ?? null}
               onChange={(value) => applyInputPatch(record.key, { stock: value })}
               placeholder="留空则沿用当前库存"
-              className="oc-excel-cell-input"
             />
             <Space size={[4, 4]} wrap className="scw-promo-suggestion-actions">
               {record.promotionMinStockSuggestion !== null && record.promotionMinStockSuggestion !== undefined ? (
@@ -2553,10 +2552,10 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
                 ) : null}
               </div>
               <Text type="secondary">{submitStatusDescription}</Text>
-              <Table
+              <ExcelTable
                 rowKey="key"
                 size="small"
-                className="oc-excel-entry-table scw-promo-entry-table"
+                className="scw-promo-entry-table"
                 columns={requestColumns}
                 dataSource={requestDraftRows}
                 rowClassName={(record) => (record.legalItems.length && (!requestInputs[record.key]?.actionPrice || (requestInputs[record.key]?.actionPrice ?? 0) <= 0)
@@ -2564,7 +2563,6 @@ export default function OzonPromotions({ accounts, selectedAccountId, onAccountC
                     ? 'scw-promo-entry-row--incomplete scw-promo-entry-row--current-blocker'
                     : 'scw-promo-entry-row--incomplete'
                   : '')}
-                pagination={false}
                 scroll={{ x: 900 }}
               />
               <Collapse

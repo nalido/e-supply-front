@@ -1,5 +1,6 @@
 import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
+import { ExcelGrid } from '../../components/common/ExcelTable';
 import '../../styles/matrix-table.css';
 import type { AllocationQuantityMatrix, SelectOption } from './types';
 
@@ -121,7 +122,7 @@ export default function AllocationCreateModal({
                 {`下单总量：${orderedTotal}，已裁：${allocationHistoryTotal}，本次录入：${allocationGrandTotal}，录入后：${allocationHistoryTotal + allocationGrandTotal}`}
               </Text>
             ) : null}
-            <div className="factory-create-matrix-wrap">
+            <ExcelGrid className="factory-create-matrix-wrap">
               <table className="factory-create-matrix-table factory-editable-matrix-table">
                 <thead>
                   <tr>
@@ -172,7 +173,7 @@ export default function AllocationCreateModal({
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </ExcelGrid>
           </>
         )}
       </Form>

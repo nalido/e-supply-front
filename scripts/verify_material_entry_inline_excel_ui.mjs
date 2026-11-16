@@ -135,7 +135,7 @@ async function verifyStockingPurchase(page) {
   addCheck('备料采购明细表增加物料图片列', (await modal.innerText()).includes('物料图片'));
   addCheck('默认第一行物料列显示可搜索选择框', await modal.getByText('搜索物料名称/编号').count() >= 1);
   const afterAddText = await modal.innerText();
-  addCheck('颜色、规格、备注拆分为独立表格列', afterAddText.includes('颜色') && afterAddText.includes('规格') && afterAddText.includes('备注') && !afterAddText.includes('颜色/规格/备注'));
+  addCheck('最小规格、备注使用独立表格列', afterAddText.includes('最小规格') && afterAddText.includes('备注') && !afterAddText.includes('颜色/规格/备注'));
   const headerText = await modal.locator('.stocking-purchase-entry-table .ant-table-thead').innerText();
   addCheck('备注列位于采购单价后、操作前', headerText.indexOf('采购单价') < headerText.indexOf('备注') && headerText.indexOf('备注') < headerText.indexOf('操作'), {
     headerText,

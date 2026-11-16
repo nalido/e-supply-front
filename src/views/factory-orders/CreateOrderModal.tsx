@@ -1,6 +1,7 @@
 import { Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Space, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import ListImage from '../../components/common/ListImage';
+import { ExcelGrid } from '../../components/common/ExcelTable';
 import '../../styles/matrix-table.css';
 import { materialStatusOptions, overallStatusOptions } from './utils';
 import type { CreateQuantityMatrix, CreateStyleMaterial, SelectOption } from './types';
@@ -264,7 +265,7 @@ export default function CreateOrderModal({
               ) : createColors.length === 0 || createSizes.length === 0 ? (
                 <Text type="secondary">请先补全颜色和尺码，再录入数量。</Text>
               ) : (
-                <div className="factory-create-matrix-wrap">
+                <ExcelGrid className="factory-create-matrix-wrap">
                   <table className="factory-create-matrix-table factory-editable-matrix-table">
                     <thead>
                       <tr>
@@ -307,7 +308,7 @@ export default function CreateOrderModal({
                       </tr>
                     </tfoot>
                   </table>
-                </div>
+                </ExcelGrid>
               )}
             </Form.Item>
           </Col>

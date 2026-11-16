@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Tag, Typography } from 'antd';
 import type { FormInstance } from 'antd/es/form';
 import type {
   CuttingSheetDetail,
@@ -12,6 +12,15 @@ import type {
 import { materialStockService } from '../api/material-inventory';
 import '../styles/matrix-table.css';
 import ListImage from './common/ListImage';
+import {
+  ExcelCellStack,
+  ExcelGrid,
+  ExcelNumberInput,
+  ExcelReadonlyCell,
+  ExcelSelect,
+  ExcelTable,
+  ExcelTextInput,
+} from './common/ExcelTable';
 import { sortColorValues, sortSizeValues } from '../utils/spec';
 
 const { Text } = Typography;
@@ -252,7 +261,7 @@ export default function CuttingBedRecordModal({
             ) : null}
           >
               {sortedRows.length ? (
-                <div className="factory-create-matrix-wrap">
+                <ExcelGrid className="factory-create-matrix-wrap">
                   <table className="factory-create-matrix-table factory-editable-matrix-table">
                     <thead>
                       <tr>
@@ -290,7 +299,7 @@ export default function CuttingBedRecordModal({
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ExcelGrid>
               ) : <Text type="secondary">暂无可录入的颜色尺码数据</Text>}
           </Card>
 
@@ -314,9 +323,8 @@ export default function CuttingBedRecordModal({
             ) : calculations.length > 0 ? (
               <Form.List name="materialUsages">
                 {(fields) => (
-                  <Table
-                    pagination={false}
-                    size="small"
+                  <ExcelTable
+                    className="cutting-bed-material-usage-table"
                     bordered
                     rowKey={(field) => String(field.key)}
                     dataSource={fields}
@@ -328,18 +336,20 @@ export default function CuttingBedRecordModal({
                         render: (_value, field) => {
                           const material = calculations[field.name];
                           return (
-                            <Space size={10}>
-                              <ListImage src={material?.imageUrl} alt={material?.materialName} width={46} height={46} borderRadius={8} objectFit="cover" />
-                              <div style={{ display: 'grid', gap: 3 }}>
-                                <Space size={6}>
-                                  <Tag color={material?.materialType === 'ACCESSORY' ? 'purple' : 'blue'}>
-                                    {material?.materialType === 'ACCESSORY' ? '辅料' : '面料'}
-                                  </Tag>
-                                  <Text strong>{material?.materialName ?? '-'}</Text>
-                                </Space>
-                                <Text type="secondary">{material?.materialCode ?? '-'}</Text>
-                              </div>
-                            </Space>
+                            <ExcelReadonlyCell>
+                              <Space size={10}>
+                                <ListImage src={material?.imageUrl} alt={material?.materialName} width={46} height={46} borderRadius={8} objectFit="cover" />
+                                <div style={{ display: 'grid', gap: 3 }}>
+                                  <Space size={6}>
+                                    <Tag color={material?.materialType === 'ACCESSORY' ? 'purple' : 'blue'}>
+                                      {material?.materialType === 'ACCESSORY' ? '辅料' : '面料'}
+                                    </Tag>
+                                    <Text strong>{material?.materialName ?? '-'}</Text>
+                                  </Space>
+                                  <Text type="secondary">{material?.materialCode ?? '-'}</Text>
+                                </div>
+                              </Space>
+                            </ExcelReadonlyCell>
                           );
                         },
                       },
@@ -349,10 +359,12 @@ export default function CuttingBedRecordModal({
                         render: (_value, field) => {
                           const material = calculations[field.name];
                           return (
-                            <div style={{ display: 'grid', gap: 4 }}>
-                              <Text>{material?.applicableColors?.length ? material.applicableColors.join('、') : '全部颜色'}</Text>
-                              <Text type="secondary">{material?.materialMinimumSpecificationLabel ?? '按库存规格选择'}</Text>
-                            </div>
+                            <ExcelReadonlyCell>
+                              <ExcelCellStack style={{ display: 'grid', gap: 4 }}>
+                                <Text>{material?.applicableColors?.length ? material.applicableColors.join('、') : '全部颜色'}</Text>
+                                <Text type="secondary">{material?.materialMinimumSpecificationLabel ?? '按库存规格选择'}</Text>
+                              </ExcelCellStack>
+                            </ExcelReadonlyCell>
                           );
                         },
                       },
@@ -361,7 +373,7 @@ export default function CuttingBedRecordModal({
                         width: 120,
                         render: (_value, field) => {
                           const material = calculations[field.name];
-                          return `${material?.plannedQty ?? 0}${material?.materialUnit ?? ''}`;
+                          return <ExcelReadonlyCell>{material?.plannedQty ?? 0}{material?.materialUnit ?? ''}</ExcelReadonlyCell>;
                         },
                       },
                       {
@@ -387,7 +399,7 @@ export default function CuttingBedRecordModal({
                                     },
                                   }]}
                                 >
-                                  <Select
+                                  <ExcelSelect
                                     allowClear
                                     showSearch
                                     filterOption={false}
@@ -423,7 +435,7 @@ export default function CuttingBedRecordModal({
                                     name={[field.name, 'substitutionReason']}
                                     style={{ marginTop: 8, marginBottom: 0 }}
                                   >
-                                    <Input maxLength={500} placeholder="替换备注（可选）" />
+                                    <ExcelTextInput maxLength={500} placeholder="替换备注（可选）" />
                                   </Form.Item>
                                 ) : null;
                               }}
@@ -473,7 +485,7 @@ export default function CuttingBedRecordModal({
                                       },
                                     ]}
                                   >
-                                    <InputNumber
+                                    <ExcelNumberInput
                                       min={0}
                                       precision={4}
                                       controls={false}

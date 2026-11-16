@@ -3,16 +3,16 @@ import { RouterProvider } from 'react-router-dom'
 import router from './router'
 import GlobalErrorAlert from './components/common/GlobalErrorAlert'
 import AppVersionGuard from './components/common/AppVersionGuard'
-import { useAutoSelectTableInput } from './hooks/useAutoSelectTableInput'
+import { TableInputProvider } from './components/common/TableInputProvider'
 
 function App() {
-  useAutoSelectTableInput()
-
   return (
     <AntdApp>
-      <RouterProvider router={router} />
-      <GlobalErrorAlert />
-      <AppVersionGuard />
+      <TableInputProvider>
+        <RouterProvider router={router} />
+        <GlobalErrorAlert />
+        <AppVersionGuard />
+      </TableInputProvider>
     </AntdApp>
   )
 }

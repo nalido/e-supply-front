@@ -1,8 +1,9 @@
-import { Button, InputNumber, Space, Table, Typography } from 'antd';
+import { Button, InputNumber, Space, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useState } from 'react';
 import type { StyleBomSizeConsumption } from '../../types/style';
 import '../../styles/matrix-table.css';
+import { ExcelNumberInput, ExcelReadonlyCell, ExcelTable } from '../common/ExcelTable';
 
 const { Text } = Typography;
 
@@ -27,13 +28,13 @@ export default function StyleBomSizeGrid({ values, unit, onChange }: Props) {
   const columns: ColumnsType<StyleBomSizeConsumption> = [
     {
       title: '尺码', dataIndex: 'size', width: 140,
-      render: (size) => <span className="oc-excel-cell-readonly"><Text strong>{size}</Text></span>,
+      render: (size) => <ExcelReadonlyCell><Text strong>{size}</Text></ExcelReadonlyCell>,
     },
     {
       title: '单件用量', dataIndex: 'consumption',
       render: (consumption, row) => (
-        <InputNumber
-          className="oc-excel-cell-input style-bom-size-input"
+        <ExcelNumberInput
+          className="style-bom-size-input"
           min={0}
           precision={4}
           controls={false}
@@ -66,13 +67,11 @@ export default function StyleBomSizeGrid({ values, unit, onChange }: Props) {
           <Button disabled={bulkValue == null} onClick={() => applyBulk(true)}>仅填空白尺码</Button>
         </Space>
       </div>
-      <Table<StyleBomSizeConsumption>
-        className="oc-excel-entry-table style-bom-size-grid"
+      <ExcelTable<StyleBomSizeConsumption>
+        className="style-bom-size-grid"
         rowKey="size"
         columns={columns}
         dataSource={values}
-        pagination={false}
-        size="small"
         scroll={{ y: 320 }}
       />
     </Space>

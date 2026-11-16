@@ -7,11 +7,9 @@ import {
   DatePicker,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
-  Table,
   Typography,
   message,
 } from 'antd';
@@ -31,6 +29,18 @@ import type { Warehouse } from '../../types/warehouse';
 import type { MaterialItem } from '../../types/material';
 import { SelectSetupHint } from '../common/SelectSetupHint';
 import ListImage from '../common/ListImage';
+import {
+  ExcelImageCell,
+  ExcelNumberInput,
+  ExcelPlaceholderCell,
+  ExcelPriceCell,
+  ExcelReadonlyCell,
+  ExcelRowActions,
+  ExcelSelect,
+  ExcelTable,
+  ExcelTableFooter,
+  ExcelTextInput,
+} from '../common/ExcelTable';
 import { renderSelectDropdownWithSetup, type SelectSetupConfig } from '../../utils/select-setup-hint';
 import {
   findMinimumSpecification,
@@ -693,10 +703,10 @@ const StockingPurchaseCreateModal = ({
         width: 96,
         render: (_value: string | undefined, record) => {
           if (record.kind === 'bulk') {
-            return <span className="oc-excel-cell-readonly">-</span>;
+            return <ExcelReadonlyCell>-</ExcelReadonlyCell>;
           }
           return (
-            <div className="oc-excel-image-cell">
+            <ExcelImageCell>
               <ListImage
                 src={record.material?.imageUrl}
                 alt={record.material?.name}
@@ -705,7 +715,7 @@ const StockingPurchaseCreateModal = ({
                 borderRadius={6}
                 fallbackText={record.material ? '暂无图片' : '未选物料'}
               />
-            </div>
+            </ExcelImageCell>
           );
         },
       },
@@ -717,18 +727,19 @@ const StockingPurchaseCreateModal = ({
         render: (_value: string, record) => {
           if (record.kind === 'bulk') {
             return (
-              <Space className="oc-excel-cell-readonly" direction="vertical" size={2}>
-                <Text strong>批量设置</Text>
-                <Text type="secondary">统一设置数量或单价后批量写入明细。</Text>
-              </Space>
+              <ExcelReadonlyCell>
+                <Space direction="vertical" size={2}>
+                  <Text strong>批量设置</Text>
+                  <Text type="secondary">统一设置数量或单价后批量写入明细。</Text>
+                </Space>
+              </ExcelReadonlyCell>
             );
           }
           return (
-            <Select
+            <ExcelSelect
               ref={(node) => {
                 materialSelectRefs.current[record.rowId] = node;
               }}
-              className="oc-excel-cell-select"
               showSearch
               allowClear
               placeholder="搜索物料名称/编号"
@@ -759,16 +770,15 @@ const StockingPurchaseCreateModal = ({
             return <Text type="secondary">逐行维护</Text>;
           }
           if (!record.material) {
-            return <Text className="oc-excel-cell-placeholder">请先选物料</Text>;
+            return <ExcelPlaceholderCell>请先选物料</ExcelPlaceholderCell>;
           }
           const specificationOptions = getActiveMinimumSpecifications(record.material)
             .map((specification) => ({ label: specification.label, value: specification.id as string }));
           if (!specificationOptions.length) {
-            return <Text className="oc-excel-cell-placeholder">未维护启用的最小规格</Text>;
+            return <ExcelPlaceholderCell>未维护启用的最小规格</ExcelPlaceholderCell>;
           }
           return (
-            <Select
-              className="oc-excel-cell-select"
+            <ExcelSelect
               allowClear={specificationOptions.length > 1}
               placeholder="请选择最小规格"
               value={selectedMinimumSpecificationIds[record.rowId]}
@@ -790,8 +800,7 @@ const StockingPurchaseCreateModal = ({
         render: (_value, record) => {
           if (record.kind === 'bulk') {
             return (
-              <InputNumber
-                className="oc-excel-cell-input"
+              <ExcelNumberInput
                 min={0}
                 precision={2}
                 controls={false}
@@ -807,8 +816,7 @@ const StockingPurchaseCreateModal = ({
           const quantityInvalid = isQuantityAndRemark && quantity < actualReceivedQty;
           return (
             <div className="stocking-purchase-quantity-cell">
-              <InputNumber
-                className="oc-excel-cell-input"
+              <ExcelNumberInput
                 min={0}
                 precision={2}
                 controls={false}
@@ -835,12 +843,11 @@ const StockingPurchaseCreateModal = ({
         render: (_value, record) => {
           if (record.kind === 'bulk') {
             return (
-              <div className="oc-excel-price-cell">
+              <ExcelPriceCell>
                 <Text type="secondary" style={{ minWidth: 12 }}>
                   ¥
                 </Text>
-                <InputNumber
-                  className="oc-excel-cell-input"
+                <ExcelNumberInput
                   min={0}
                   precision={2}
                   controls={false}
@@ -849,16 +856,15 @@ const StockingPurchaseCreateModal = ({
                   onChange={setBulkUnitPriceValue}
                   placeholder="批量采购单价"
                 />
-              </div>
+              </ExcelPriceCell>
             );
           }
           return (
-            <div className="oc-excel-price-cell">
+            <ExcelPriceCell>
               <Text type="secondary" style={{ minWidth: 12 }}>
                 ¥
               </Text>
-              <InputNumber
-                className="oc-excel-cell-input"
+              <ExcelNumberInput
                 min={0}
                 precision={2}
                 controls={false}
@@ -867,7 +873,7 @@ const StockingPurchaseCreateModal = ({
                 onChange={(val) => handleUnitPriceChange(record.rowId, val)}
                 placeholder="请输入采购单价"
               />
-            </div>
+            </ExcelPriceCell>
           );
         },
       },
@@ -881,8 +887,7 @@ const StockingPurchaseCreateModal = ({
             return <Text type="secondary">逐行填写明细备注</Text>;
           }
           return (
-            <Input
-              className="oc-excel-cell-text-input"
+            <ExcelTextInput
               placeholder="备注"
               disabled={!record.material}
               value={lineRemarks[record.rowId]}
@@ -900,18 +905,18 @@ const StockingPurchaseCreateModal = ({
         render: (_value, record) => {
           if (record.kind === 'bulk') {
             return (
-              <Space className="oc-excel-row-actions" size={0}>
+              <ExcelRowActions size={0}>
                 <Button type="link" disabled={lockNonRemarkFields} onClick={handleApplyBulkValues}>
                   批量应用
                 </Button>
                 <Button type="link" disabled={lockNonRemarkFields} onClick={handleClearBulkValues}>
                   重置
                 </Button>
-              </Space>
+              </ExcelRowActions>
             );
           }
           return (
-            <Space className="oc-excel-row-actions" size={0}>
+            <ExcelRowActions size={0}>
               <Button type="link" disabled={lockNonRemarkFields} onClick={() => handleAddMaterialRow({ afterRowId: record.rowId })}>
                 插入
               </Button>
@@ -921,7 +926,7 @@ const StockingPurchaseCreateModal = ({
               <Button type="link" danger disabled={lockNonRemarkFields} onClick={() => handleRemoveMaterial(record.rowId)}>
                 移除
               </Button>
-            </Space>
+            </ExcelRowActions>
           );
         },
       },
@@ -1223,23 +1228,21 @@ const StockingPurchaseCreateModal = ({
             已添加的物料：<Text strong>{selectedMaterials.filter((item) => item.material).length}</Text> 项
           </Text>
         </Space>
-        <Table<MaterialTableRow>
-          className="oc-excel-entry-table stocking-purchase-entry-table"
+        <ExcelTable<MaterialTableRow>
+          className="stocking-purchase-entry-table"
           rowKey="rowId"
           dataSource={tableDataSource}
           columns={columns}
-          pagination={false}
-          size="small"
           locale={{
             emptyText: '请新增一行后，在物料列搜索选择物料档案',
           }}
           scroll={{ y: 360, x: 1206 }}
           footer={() => (
-            <div className="oc-excel-table-footer">
+            <ExcelTableFooter>
               <Button type="dashed" block disabled={lockNonRemarkFields} onClick={() => handleAddMaterialRow()}>
                 新增一行
               </Button>
-            </div>
+            </ExcelTableFooter>
           )}
         />
       </Space>

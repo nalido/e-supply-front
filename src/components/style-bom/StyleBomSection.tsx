@@ -4,12 +4,7 @@ import {
   App as AntdApp,
   Button,
   Empty,
-  Input,
-  InputNumber,
   Popconfirm,
-  Select,
-  Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -25,6 +20,14 @@ import {
   getDefaultMinimumSpecificationId,
 } from '../../utils/material-minimum-specification';
 import ListImage from '../common/ListImage';
+import {
+  ExcelNumberInput,
+  ExcelPlaceholderCell,
+  ExcelRowActions,
+  ExcelSelect,
+  ExcelTable,
+  ExcelTextInput,
+} from '../common/ExcelTable';
 import '../../styles/matrix-table.css';
 
 const { Text, Title } = Typography;
@@ -237,9 +240,8 @@ export default function StyleBomSection({
             borderRadius={5}
             fallbackText=""
           />
-          <Select
+          <ExcelSelect
             aria-label={`${line.materialType === 'fabric' ? '面料' : '辅料/包材'}物料`}
-            className="oc-excel-cell-select"
             showSearch
             allowClear
             filterOption={false}
@@ -265,7 +267,7 @@ export default function StyleBomSection({
       width: 180,
       render: (_, line) => {
         if (!line.materialId) {
-          return <Text className="oc-excel-cell-placeholder">请先选物料</Text>;
+          return <ExcelPlaceholderCell>请先选物料</ExcelPlaceholderCell>;
         }
         const material = mergedMaterials[line.materialType].find((item) => item.id === line.materialId);
         const specifications = material?.minimumSpecifications ?? [];
@@ -275,9 +277,8 @@ export default function StyleBomSection({
           disabled: !specification.id || specification.active === false,
         }));
         return (
-          <Select
+          <ExcelSelect
             aria-label={`${line.materialName || '物料'}最小规格`}
-            className="oc-excel-cell-select"
             showSearch
             optionFilterProp="label"
             allowClear={getActiveMinimumSpecifications(material).length > 1}
@@ -300,9 +301,8 @@ export default function StyleBomSection({
       key: 'colors',
       width: 210,
       render: (_, line) => (
-        <Select
+        <ExcelSelect
           aria-label={`${line.materialName || (line.materialType === 'fabric' ? '面料' : '辅料/包材')}适用颜色`}
-          className="oc-excel-cell-select"
           mode="multiple"
           allowClear
           showSearch
@@ -324,9 +324,9 @@ export default function StyleBomSection({
       key: 'averageConsumption',
       width: 160,
       render: (_, line) => (
-        <InputNumber
+        <ExcelNumberInput
           aria-label={`${line.materialName || '物料'} 平均单件用量`}
-          className="oc-excel-cell-input style-bom-average-input"
+          className="style-bom-average-input"
           min={0}
           precision={4}
           controls={false}
@@ -346,9 +346,8 @@ export default function StyleBomSection({
       key: 'lossRate',
       width: 100,
       render: (_, line) => (
-        <InputNumber
+        <ExcelNumberInput
           aria-label={`${line.materialName || '物料'} 损耗率`}
-          className="oc-excel-cell-input"
           min={0}
           max={100}
           precision={2}
@@ -364,8 +363,7 @@ export default function StyleBomSection({
       key: 'remark',
       width: 150,
       render: (_, line) => (
-        <Input
-          className="oc-excel-cell-text-input"
+        <ExcelTextInput
           value={line.remark}
           maxLength={500}
           placeholder="可选"
@@ -379,7 +377,7 @@ export default function StyleBomSection({
       width: 64,
       fixed: 'right',
       render: (_, line) => (
-        <Space className="oc-excel-row-actions" size={0}>
+        <ExcelRowActions size={0}>
           <Popconfirm
             title="移除这项款式用料？"
             description="移除后，所选颜色和尺码将不再使用这项物料。"
@@ -387,7 +385,7 @@ export default function StyleBomSection({
           >
             <Button type="text" danger icon={<DeleteOutlined />} aria-label="移除用料" />
           </Popconfirm>
-        </Space>
+        </ExcelRowActions>
       ),
     },
   ];
@@ -408,13 +406,11 @@ export default function StyleBomSection({
           {materialType === 'fabric' ? '添加面料' : '添加辅料/包材'}
         </Button>
       </div>
-      <Table<StyleBomLineDraft>
-        className="oc-excel-entry-table style-bom-summary-table"
+      <ExcelTable<StyleBomLineDraft>
+        className="style-bom-summary-table"
         rowKey="uid"
         columns={columns}
         dataSource={dataSource}
-        pagination={false}
-        size="small"
         scroll={{ x: 1114 }}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} /> }}
         rowClassName={(line) => (issueMap[line.uid]?.length ? 'style-bom-summary-row--error' : '')}

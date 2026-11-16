@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, DatePicker, Input, InputNumber, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Alert, Modal, Space, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { stockingPurchaseInboundService } from '../../api/procurement';
@@ -22,6 +22,13 @@ import type {
   StockingPurchaseEditableScope,
   StockingPurchaseOrderDetail,
 } from '../../types/stocking-purchase-inbound';
+import {
+  ExcelDatePicker,
+  ExcelNumberInput,
+  ExcelSelect,
+  ExcelTable,
+  ExcelTextInput,
+} from '../common/ExcelTable';
 import '../../styles/matrix-table.css';
 
 const { Text } = Typography;
@@ -150,7 +157,7 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
   const columns = useMemo<ColumnsType<BatchEditRow>>(() => [
     { title: '采购单号', dataIndex: 'orderNo', width: 138, fixed: 'left', render: (value, row) => <Space direction="vertical" size={0}><Text strong>{value}</Text><Text type="secondary" className="stocking-purchase-batch-edit__status">{row.statusLabel}</Text></Space> },
     { title: '物料', dataIndex: 'materialId', width: 205, render: (value, row) => (
-      <Select className="oc-excel-cell-select" size="small" showSearch filterOption={false} style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)}
+      <ExcelSelect size="small" showSearch filterOption={false} style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)}
         onFocus={() => void searchMaterials(row.materialName)} onSearch={(text) => void searchMaterials(text)}
         onChange={(id) => {
           const material = materialOptions.find((item) => item.id === id);
@@ -169,16 +176,16 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
         }}
         options={[{ value: row.materialId, label: row.materialName }, ...materialOptions.filter((item) => item.id !== row.materialId).map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` / ${item.sku}` : ''}` }))]} />
     ) },
-    { title: '供应商', dataIndex: 'supplierId', width: 145, render: (value, row) => <Select className="oc-excel-cell-select" size="small" style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)} onChange={(supplierId) => updateOrderRows(row.orderId, { supplierId })} options={suppliers.map((item) => ({ value: item.id, label: item.name }))} /> },
-    { title: '仓库', dataIndex: 'warehouseId', width: 145, render: (value, row) => <Select className="oc-excel-cell-select" size="small" style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)} onChange={(warehouseId) => updateOrderRows(row.orderId, { warehouseId })} options={warehouses.map((item) => ({ value: item.id, label: item.name }))} /> },
-    { title: '采购日期', dataIndex: 'orderDate', width: 124, render: (value, row) => <DatePicker className="oc-excel-cell-picker" size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { orderDate: date?.format('YYYY-MM-DD') ?? '' })} /> },
-    { title: '预计到货', dataIndex: 'expectedArrival', width: 124, render: (value, row) => <DatePicker className="oc-excel-cell-picker" size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { expectedArrival: date?.format('YYYY-MM-DD') })} /> },
+    { title: '供应商', dataIndex: 'supplierId', width: 145, render: (value, row) => <ExcelSelect size="small" style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)} onChange={(supplierId) => updateOrderRows(row.orderId, { supplierId })} options={suppliers.map((item) => ({ value: item.id, label: item.name }))} /> },
+    { title: '仓库', dataIndex: 'warehouseId', width: 145, render: (value, row) => <ExcelSelect size="small" style={{ width: '100%' }} value={value} disabled={!canEditAll(row.editableScope)} onChange={(warehouseId) => updateOrderRows(row.orderId, { warehouseId })} options={warehouses.map((item) => ({ value: item.id, label: item.name }))} /> },
+    { title: '采购日期', dataIndex: 'orderDate', width: 124, render: (value, row) => <ExcelDatePicker size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { orderDate: date?.format('YYYY-MM-DD') ?? '' })} /> },
+    { title: '预计到货', dataIndex: 'expectedArrival', width: 124, render: (value, row) => <ExcelDatePicker size="small" value={value ? dayjs(value) : undefined} disabled={!canEditAll(row.editableScope)} onChange={(date) => updateOrderRows(row.orderId, { expectedArrival: date?.format('YYYY-MM-DD') })} /> },
     { title: '最小规格', dataIndex: 'materialMinimumSpecificationId', width: 160, render: (value, row) => {
       const material = materialsById[row.materialId];
       const specifications = getActiveMinimumSpecifications(material);
       const options = specifications.map((item) => ({ value: item.id as string, label: item.label }));
       const legacyLabel = formatOrderLineSpecification(row);
-      return <Select className="oc-excel-cell-select" size="small" showSearch optionFilterProp="label" allowClear={options.length > 1} placeholder={value ? '请选择最小规格' : legacyLabel} value={value} disabled={!canEditAll(row.editableScope)} onChange={(materialMinimumSpecificationId) => {
+      return <ExcelSelect size="small" showSearch optionFilterProp="label" allowClear={options.length > 1} placeholder={value ? '请选择最小规格' : legacyLabel} value={value} disabled={!canEditAll(row.editableScope)} onChange={(materialMinimumSpecificationId) => {
         const selected = findMinimumSpecification(material, materialMinimumSpecificationId);
         updateRow(row.key, {
           materialMinimumSpecificationId,
@@ -191,14 +198,14 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
       const quantityInvalid = row.quantity < row.actualReceivedQty;
       return (
         <div className="stocking-purchase-quantity-cell">
-          <InputNumber className="oc-excel-cell-input" size="small" min={1} precision={0} status={quantityInvalid ? 'error' : undefined} value={value} disabled={!canEditQuantity(row.editableScope)} onChange={(quantity) => updateRow(row.key, { quantity: Number(quantity ?? 0) })} addonAfter={row.unit} />
+          <ExcelNumberInput size="small" min={1} precision={0} status={quantityInvalid ? 'error' : undefined} value={value} disabled={!canEditQuantity(row.editableScope)} onChange={(quantity) => updateRow(row.key, { quantity: Number(quantity ?? 0) })} addonAfter={row.unit} />
           {quantityInvalid ? <Text type="danger" className="stocking-purchase-quantity-cell__error">不能小于累计实收 {row.actualReceivedQty}</Text> : null}
         </div>
       );
     } },
-    { title: '采购单价', dataIndex: 'unitPrice', width: 112, render: (value, row) => <InputNumber className="oc-excel-cell-input" size="small" min={0} precision={2} value={value} disabled={!canEditAll(row.editableScope)} onChange={(unitPrice) => updateRow(row.key, { unitPrice: unitPrice == null ? undefined : Number(unitPrice) })} prefix="¥" /> },
-    { title: '明细备注', dataIndex: 'lineRemark', width: 145, render: (value, row) => <Input className="oc-excel-cell-text-input" size="small" value={value} onChange={(event) => updateRow(row.key, { lineRemark: event.target.value })} /> },
-    { title: '整单备注', dataIndex: 'orderRemark', width: 145, render: (value, row) => <Input className="oc-excel-cell-text-input" size="small" value={value} onChange={(event) => updateOrderRows(row.orderId, { orderRemark: event.target.value })} /> },
+    { title: '采购单价', dataIndex: 'unitPrice', width: 112, render: (value, row) => <ExcelNumberInput size="small" min={0} precision={2} value={value} disabled={!canEditAll(row.editableScope)} onChange={(unitPrice) => updateRow(row.key, { unitPrice: unitPrice == null ? undefined : Number(unitPrice) })} prefix="¥" /> },
+    { title: '明细备注', dataIndex: 'lineRemark', width: 145, render: (value, row) => <ExcelTextInput size="small" value={value} onChange={(event) => updateRow(row.key, { lineRemark: event.target.value })} /> },
+    { title: '整单备注', dataIndex: 'orderRemark', width: 145, render: (value, row) => <ExcelTextInput size="small" value={value} onChange={(event) => updateOrderRows(row.orderId, { orderRemark: event.target.value })} /> },
   ], [materialOptions, materialsById, searchMaterials, suppliers, updateOrderRows, updateRow, warehouses]);
 
   const handleSubmit = async () => {
@@ -254,7 +261,7 @@ const StockingPurchaseBatchEditModal = ({ open, orderIds, lineIds, materialType,
   return (
     <Modal className="stocking-purchase-batch-edit-modal" width="calc(100vw - 24px)" title={`批量修改备料采购明细（${lineIds.length} 条 / ${orderIds.length} 张）`} open={open} onCancel={onClose} onOk={handleSubmit} confirmLoading={submitting} okText="保存全部修改" destroyOnHidden>
       <Alert showIcon type="info" className="stocking-purchase-batch-edit__alert" message="未收料单可修改全部字段；收料中的单据仅可修改采购数量和备注；已完成单仅可修改备注。" />
-      <Table className="oc-excel-entry-table stocking-purchase-batch-edit__table" rowKey="key" loading={loading} dataSource={rows} columns={columns} pagination={false} size="small" scroll={{ x: 1600, y: '62vh' }} />
+      <ExcelTable className="stocking-purchase-batch-edit__table" rowKey="key" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 1600, y: '62vh' }} />
     </Modal>
   );
 };

@@ -1,7 +1,8 @@
 import { EditOutlined } from '@ant-design/icons';
-import { Input, Typography } from 'antd';
+import { Typography } from 'antd';
 import { useMemo, type MouseEvent } from 'react';
 import type { StyleCodeVariantDraft } from '../../types/style';
+import { ExcelGrid, ExcelTextInput } from '../common/ExcelTable';
 import '../../styles/matrix-table.css';
 
 const { Text } = Typography;
@@ -66,7 +67,7 @@ export default function StyleCodeMatrixEditor({
   );
 
   return (
-    <div className="style-code-matrix">
+    <ExcelGrid className="style-code-matrix">
       <table className="style-code-matrix__table">
         <colgroup>
           <col style={{ width: `${rowHeaderWidthCh}ch` }} />
@@ -87,8 +88,8 @@ export default function StyleCodeMatrixEditor({
                     <div className="style-code-matrix__column-color">
                       <Text strong>{color}</Text>
                     </div>
-                    <Input
-                      className="style-code-matrix__code-input oc-excel-cell-text-input"
+                    <ExcelTextInput
+                      className="style-code-matrix__code-input"
                       spellCheck={false}
                       value={getDisplayCodeValue(columnDraft?.skcNo, columnDraft?.systemSkcNo)}
                       onChange={(event) => onSkcChange(color, event.target.value)}
@@ -119,8 +120,8 @@ export default function StyleCodeMatrixEditor({
                 return (
                   <td key={key} className="style-code-matrix__cell">
                     <div className="style-code-matrix__cell-content">
-                      <Input
-                        className="style-code-matrix__code-input oc-excel-cell-text-input"
+                <ExcelTextInput
+                  className="style-code-matrix__code-input"
                         spellCheck={false}
                         value={getDisplayCodeValue(draft?.skuNo, draft?.systemSkuNo)}
                         onChange={(event) => onSkuChange(color, size, event.target.value)}
@@ -139,6 +140,6 @@ export default function StyleCodeMatrixEditor({
           ))}
         </tbody>
       </table>
-    </div>
+    </ExcelGrid>
   );
 }

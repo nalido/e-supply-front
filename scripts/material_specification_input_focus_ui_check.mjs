@@ -8,6 +8,11 @@ const outputDir = process.env.ESUPPLY_OUTPUT_DIR || path.resolve(
   process.cwd(),
   '../docs/e-supply/04-verification/material-specification-input-focus-20260910',
 )
+const storageStateCandidates = [
+  path.resolve(process.cwd(), 'logs/route-sweep-auth-dev.json'),
+  path.resolve(process.cwd(), 'logs/route-sweep-auth.json'),
+]
+const storageState = storageStateCandidates.find((candidate) => fs.existsSync(candidate))
 
 const materialDefaults = {
   tenantId: 1,
@@ -90,7 +95,11 @@ const responseAfterUpdate = (material, payload) => ({
 })
 
 async function preparePage(browser, viewport) {
-  const page = await browser.newPage({ viewport })
+  const context = await browser.newContext({
+    viewport,
+    ...(storageState ? { storageState } : {}),
+  })
+  const page = await context.newPage()
   page.on('pageerror', (error) => result.consoleErrors.push(`pageerror: ${error.message}`))
   page.on('console', (message) => {
     if (message.type() === 'error') result.consoleErrors.push(`console: ${message.text()}`)
