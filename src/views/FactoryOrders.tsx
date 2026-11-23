@@ -1595,7 +1595,7 @@ const FactoryOrders = () => {
       const globalRemaining = isCuttingProgressStage
         ? Number.POSITIVE_INFINITY
         : Math.max(
-          (progressNodeQuantities.cuttingCompletedQty ?? progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0))
+          progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0)
             - allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0),
           0,
         );
@@ -1619,7 +1619,7 @@ const FactoryOrders = () => {
       }, {});
     });
     message.success(isCuttingProgressStage ? '已加载剩余未录入数量' : '已加载当前可继续领取数量');
-  }, [allocationColors, allocationHistoryRows, allocationSizes, isCuttingProgressStage, progressNodeQuantities.cuttingCompletedQty, progressStats.rows]);
+  }, [allocationColors, allocationHistoryRows, allocationSizes, isCuttingProgressStage, progressStats.rows]);
 
   const handleOpenFactoryGuide = useCallback(() => {
     navigate('/basic/partners?type=factory');
@@ -1731,8 +1731,7 @@ const FactoryOrders = () => {
         return;
       }
       if (!isCuttingProgressStage) {
-        const currentCuttingCompletedTotal = progressNodeQuantities.cuttingCompletedQty
-          ?? progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0);
+        const currentCuttingCompletedTotal = progressStats.rows.reduce((sum, row) => sum + row.cuttingQty, 0);
         const currentAllocationRemainingTotal = Math.max(currentCuttingCompletedTotal - allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0), 0);
         const rowMap = new Map(progressStats.rows.map((row) => [buildSpecKey(row.color, row.size), row]));
         const historyMap = allocationHistoryRows.reduce<Map<string, number>>((map, row) => {
@@ -1792,7 +1791,6 @@ const FactoryOrders = () => {
     allocationSizes,
     isCuttingProgressStage,
     loadProgressStats,
-    progressNodeQuantities.cuttingCompletedQty,
     progressStats.rows,
     progressActionModal.order,
     progressActionModal.stage,
@@ -2577,8 +2575,8 @@ const FactoryOrders = () => {
     () => allocationHistoryRows.reduce((sum, row) => sum + row.totalQty, 0),
     [allocationHistoryRows],
   );
-  const cuttingCompletedTotal = progressNodeQuantities.cuttingCompletedQty ?? cuttingCompletedTotalFromRows;
-  const sewingAllocatedTotal = progressNodeQuantities.sewingAllocatedQty ?? sewingAllocatedTotalFromRows;
+  const cuttingCompletedTotal = cuttingCompletedTotalFromRows;
+  const sewingAllocatedTotal = sewingAllocatedTotalFromRows;
   const sewingCompletedTotal = sewingCompletedTotalFromRows;
   const allocationCapacityTotal = isCuttingProgressStage ? orderedTotal : cuttingCompletedTotal;
   const allocationRemainingTotal = Math.max(allocationCapacityTotal - allocationHistoryTotal, 0);
